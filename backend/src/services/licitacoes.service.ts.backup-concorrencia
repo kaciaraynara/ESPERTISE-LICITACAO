@@ -1,0 +1,417 @@
+/**
+ * licitacoes.service.ts — Estratégia de 3 camadas:
+ *   1. Cache PostgreSQL/Prisma (resposta imediata)
+ *   2. PNCP ao vivo com timeout de 20s
+ *   3. Dados de demonstração apenas quando ENABLE_DEMO_DATA=true fora de produção
+ */
+
+import { prisma } from '../database/prisma';
+import { isDatabaseConfigured, isDemoDataEnabled } from '../config/env';
+import { buscarContratacoesPNCP, FiltrosBusca, LicitacaoPNCP } from './pncp.service';
+import { buscarLicitacoesComprasGov, LicitacaoComprasGov } from './comprasgov.service';
+
+const CACHE_TTL_HORAS = 6;
+
+type FonteRadar = 'cache' | 'pncp' | 'comprasgov' | 'mista' | 'vazio';
+
+interface EmpresaRadarPerfil {
+  razao_social: string;
+  cnae_principal?: string | null;
+  palavras_chave: string[];
+  uf?: string | null;
+  municipio?: string | null;
+  valor_min?: number | null;
+  valor_max?: number | null;
+  regioes: string[];
+  orgaos_preferidos: string[];
+  orgaos_bloqueados: string[];
+}
+
+interface LicitacaoRadar {
+  id: string;
+  numero_controle: string;
+  objeto: string;
+  orgao: string;
+  uf?: string | null;
+  municipio?: string | null;
+  valor_estimado?: number;
+  data_abertura?: string;
+  data_encerramento?: string;
+  data_publicacao?: string;
+  modalidade?: string;
+  situacao?: string;
+  link?: string;
+  fonte: string;
+  srp?: boolean;
+  score: ReturnType<typeof buildScore>;
+}
+
+function normalizarTermos(...values: Array<string | null | undefined>) {
+  return values
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+}
+
+function clamp(valor: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, valor));
+}
+
+export function buildScore(
+  pontuacao: number,
+  criterios = { nicho: 0, valor: 0, prazo: 0, orgao: 0, completude: 0, historico: 0 },
+) {
+  return {
+    pontuacao: clamp(Math.round(pontuacao), 0, 100),
+    nivel: pontuacao >= 80 ? 'alto' : pontuacao >= 60 ? 'medio' : 'baixo',
+    criterios,
+  };
+}
+
+function calcularScoreEdital(
+  item: {
+    objeto?: string | null; orgao?: string | null; uf?: string | null;
+    municipio?: string | null; valor_estimado?: number | null;
+    data_abertura?: string | null; data_encerramento?: string | null;
+    modalidade?: string | null; link?: string | null; fonte?: string | null;
+  },
+  filtros: FiltrosBusca,
+  empresa?: EmpresaRadarPerfil | null,
+) {
+  const termosObjeto = normalizarTermos(item.objeto, item.modalidade, item.orgao);
+  const termosRadar = deduplicarTermos([
+    ...(filtros.palavrasChave ? normalizarTermos(filtros.palavrasChave) : []),
+    ...(empresa?.palavras_chave ?? []).flatMap((kw) => normalizarTermos(kw)),
+    ...normalizarTermos(empresa?.cnae_principal, empresa?.razao_social),
+  ]);
+
+  const matchTermos = termosRadar.filter((kw) => termosObjeto.includes(kw)).length;
+  const nicho = termosRadar.length > 0 ? clamp(Math.round((matchTermos / termosRadar.length) * 35), 4, 35) : 12;
+
+  const valorMin = empresa?.valor_min ?? filtros.valorMin ?? null;
+  const valorMax = empresa?.valor_max ?? filtros.valorMax ?? null;
+  let valor = 8;
+  if (item.valor_estimado && valorMin && valorMax) {
+    if (item.valor_estimado >= valorMin && item.valor_estimado <= valorMax) valor = 15;
+    else if (item.valor_estimado >= valorMin * 0.75 && item.valor_estimado <= valorMax * 1.2) valor = 10;
+    else valor = 3;
+  } else if (item.valor_estimado) valor = 10;
+
+  const diasAbertura = item.data_abertura
+    ? Math.ceil((new Date(item.data_abertura).getTime() - Date.now()) / 86400000)
+    : null;
+  const prazo = diasAbertura === null ? 6 : diasAbertura < 0 ? 0 : diasAbertura <= 3 ? 15 : diasAbertura <= 15 ? 12 : 8;
+
+  const orgaoNome = (item.orgao || '').toLowerCase();
+  const orgaoPreferido = empresa?.orgaos_preferidos.some((o) => orgaoNome.includes(o.toLowerCase()));
+  const orgaoBloqueado = empresa?.orgaos_bloqueados.some((o) => orgaoNome.includes(o.toLowerCase()));
+  const regiaoCompativel = Boolean(
+    (empresa?.regioes?.length && item.uf && empresa.regioes.includes(item.uf))
+    || (empresa?.uf && item.uf && empresa.uf === item.uf)
+    || (filtros.uf && item.uf && filtros.uf === item.uf),
+  );
+  const orgao = orgaoBloqueado ? 0 : orgaoPreferido ? 15 : regiaoCompativel ? 10 : 5;
+  const completude = [item.valor_estimado, item.data_abertura, item.link, item.modalidade].filter(Boolean).length * 3;
+  const historico = item.fonte?.toLowerCase().includes('pncp') ? 10 : item.fonte?.toLowerCase().includes('compras') ? 8 : 6;
+
+  const criterios = {
+    nicho: clamp(nicho, 0, 35), valor: clamp(valor, 0, 15), prazo: clamp(prazo, 0, 15),
+    orgao: clamp(orgao, 0, 15), completude: clamp(completude, 0, 12), historico: clamp(historico, 0, 10),
+  };
+  const pt = 18 + criterios.nicho + criterios.valor + criterios.prazo + criterios.orgao + criterios.completude + criterios.historico;
+  return buildScore(pt, criterios);
+}
+
+export function gerarScoreLicitacaoDetalhe(
+  item: { objeto?: string | null; orgao?: string | null; uf?: string | null; municipio?: string | null; valor_estimado?: number | null; data_abertura?: string | null; data_encerramento?: string | null; modalidade?: string | null; link?: string | null; fonte?: string | null },
+  filtros: FiltrosBusca,
+  empresa?: EmpresaRadarPerfil | null,
+) {
+  return calcularScoreEdital(item, filtros, empresa);
+}
+
+function deduplicarTermos(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function normalizarParaBanco(item: LicitacaoPNCP) {
+  return {
+    numeroControlePncp: item.numeroControlePNCP,
+    objeto: item.objeto || 'Sem descrição',
+    cnpjOrgao: item.orgaoEntidade?.cnpj,
+    razaoSocialOrgao: item.orgaoEntidade?.razaoSocial || item.unidadeOrgao?.nomeUnidade || 'Órgão Público',
+    uf: item.unidadeOrgao?.ufSigla,
+    municipio: item.unidadeOrgao?.municipioNome,
+    valorEstimado: item.valorTotalEstimado ?? null,
+    dataPublicacao: toDateOrNull(item.dataPublicacaoPncp),
+    dataAbertura: toDateOrNull(item.dataAberturaProposta),
+    dataEncerramento: toDateOrNull(item.dataEncerramentoProposta),
+    modalidade: item.modalidadeNome,
+    situacao: item.situacaoCompraNome || 'Publicada',
+    link: item.linkSistemaOrigem || item.linkEditalPNCP,
+    fonte: 'PNCP',
+    srp: item.srp || false,
+    atualizadoEm: new Date(),
+  };
+}
+
+function normalizarDoBanco(row: any, filtros: FiltrosBusca, empresa?: EmpresaRadarPerfil | null): LicitacaoRadar {
+  const numeroControle = row.numeroControlePncp ?? row.numero_controle_pncp;
+  const orgao = row.razaoSocialOrgao ?? row.razao_social_orgao ?? 'Órgão Público';
+  const valorEstimado = toNumberOrUndefined(row.valorEstimado ?? row.valor_estimado);
+  const dataAbertura = toIsoOrNull(row.dataAbertura ?? row.data_abertura);
+  const dataEncerramento = toIsoOrNull(row.dataEncerramento ?? row.data_encerramento);
+  const dataPublicacao = toIsoOrNull(row.dataPublicacao ?? row.data_publicacao);
+
+  return {
+    id: numeroControle, numero_controle: numeroControle,
+    objeto: row.objeto, orgao, uf: row.uf, municipio: row.municipio,
+    valor_estimado: valorEstimado, data_abertura: dataAbertura ?? undefined,
+    data_encerramento: dataEncerramento ?? undefined, data_publicacao: dataPublicacao ?? undefined,
+    modalidade: row.modalidade, situacao: row.situacao, link: row.link, fonte: row.fonte || 'PNCP', srp: row.srp,
+    score: calcularScoreEdital({ objeto: row.objeto, orgao, uf: row.uf, municipio: row.municipio, valor_estimado: valorEstimado, data_abertura: dataAbertura, data_encerramento: dataEncerramento, modalidade: row.modalidade, link: row.link, fonte: row.fonte }, filtros, empresa),
+  };
+}
+
+function normalizarDoPncp(item: LicitacaoPNCP, filtros: FiltrosBusca, empresa?: EmpresaRadarPerfil | null): LicitacaoRadar {
+  const orgao = item.orgaoEntidade?.razaoSocial || item.unidadeOrgao?.nomeUnidade || 'Órgão Público';
+  return {
+    id: item.numeroControlePNCP, numero_controle: item.numeroControlePNCP,
+    objeto: item.objeto || 'Sem descrição', orgao, uf: item.unidadeOrgao?.ufSigla,
+    municipio: item.unidadeOrgao?.municipioNome, valor_estimado: item.valorTotalEstimado,
+    data_abertura: item.dataAberturaProposta, data_encerramento: item.dataEncerramentoProposta,
+    data_publicacao: item.dataPublicacaoPncp, modalidade: item.modalidadeNome,
+    situacao: item.situacaoCompraNome || 'Publicada', link: item.linkSistemaOrigem || item.linkEditalPNCP,
+    fonte: 'PNCP', srp: item.srp || false,
+    score: calcularScoreEdital({ objeto: item.objeto, orgao, uf: item.unidadeOrgao?.ufSigla, municipio: item.unidadeOrgao?.municipioNome, valor_estimado: item.valorTotalEstimado, data_abertura: item.dataAberturaProposta, data_encerramento: item.dataEncerramentoProposta, modalidade: item.modalidadeNome, link: item.linkSistemaOrigem || item.linkEditalPNCP, fonte: 'PNCP' }, filtros, empresa),
+  };
+}
+
+function normalizarDoComprasGov(item: LicitacaoComprasGov, filtros: FiltrosBusca, empresa?: EmpresaRadarPerfil | null): LicitacaoRadar {
+  return {
+    id: item.id, numero_controle: item.numero || item.id, objeto: item.objeto || 'Sem descrição',
+    orgao: item.orgao || 'Compras.gov', uf: item.uf, municipio: null, valor_estimado: item.valor_estimado,
+    data_abertura: item.data_abertura, data_encerramento: item.data_encerramento,
+    data_publicacao: item.data_abertura, modalidade: item.modalidade, situacao: item.situacao,
+    link: item.link, fonte: 'Compras.gov', srp: false,
+    score: calcularScoreEdital({ objeto: item.objeto, orgao: item.orgao, uf: item.uf, valor_estimado: item.valor_estimado, data_abertura: item.data_abertura, data_encerramento: item.data_encerramento, modalidade: item.modalidade, link: item.link, fonte: 'Compras.gov' }, filtros, empresa),
+  };
+}
+
+function ordenarRadar(items: LicitacaoRadar[]) {
+  return [...items].sort((a, b) => {
+    const sd = (b.score?.pontuacao || 0) - (a.score?.pontuacao || 0);
+    if (sd !== 0) return sd;
+    return new Date(b.data_abertura || b.data_publicacao || 0).getTime() - new Date(a.data_abertura || a.data_publicacao || 0).getTime();
+  });
+}
+
+function deduplicarRadar(items: LicitacaoRadar[]) {
+  const seen = new Map<string, LicitacaoRadar>();
+  for (const item of items) {
+    const key = [item.fonte.toLowerCase(), item.id || item.numero_controle || item.link || item.objeto].join('::');
+    if (!seen.has(key)) seen.set(key, item);
+  }
+  return Array.from(seen.values());
+}
+
+async function cacheEstaFresco(): Promise<boolean> {
+  try {
+    if (!isDatabaseConfigured()) return false;
+    const limite = new Date(Date.now() - CACHE_TTL_HORAS * 3600 * 1000);
+    const count = await prisma.licitacaoCache.count({ where: { atualizadoEm: { gte: limite } } });
+    return count > 0;
+  } catch { return false; }
+}
+
+async function buscarDoBanco(filtros: FiltrosBusca): Promise<{ data: any[]; total: number }> {
+  if (!isDatabaseConfigured()) return { data: [], total: 0 };
+  const pagina = filtros.pagina || 1;
+  const tamanhoPagina = filtros.tamanhoPagina || 20;
+  const skip = (pagina - 1) * tamanhoPagina;
+  const where: any = {};
+
+  if (filtros.uf) where.uf = filtros.uf.toUpperCase();
+  if (filtros.palavrasChave) {
+    const termo = filtros.palavrasChave.trim().split(/\s+/)[0];
+    if (termo) {
+      where.objeto = { contains: termo, mode: 'insensitive' };
+    }
+  }
+  if (filtros.valorMin || filtros.valorMax) {
+    where.valorEstimado = {};
+    if (filtros.valorMin) where.valorEstimado.gte = filtros.valorMin;
+    if (filtros.valorMax) where.valorEstimado.lte = filtros.valorMax;
+  }
+
+  try {
+    const [data, total] = await Promise.all([
+      prisma.licitacaoCache.findMany({
+        where,
+        orderBy: [{ dataPublicacao: 'desc' }, { atualizadoEm: 'desc' }],
+        skip,
+        take: tamanhoPagina,
+      }),
+      prisma.licitacaoCache.count({ where }),
+    ]);
+    return { data, total };
+  } catch (error: any) {
+    console.error('[Prisma] Erro ao buscar cache de licitacoes:', error?.message ?? error);
+    return { data: [], total: 0 };
+  }
+}
+
+async function salvarNoBanco(items: LicitacaoPNCP[]): Promise<void> {
+  if (!items.length) return;
+  if (!isDatabaseConfigured()) return;
+  const rows = items.map(normalizarParaBanco);
+  try {
+    await Promise.all(rows.map((row) =>
+      prisma.licitacaoCache.upsert({
+        where: { numeroControlePncp: row.numeroControlePncp },
+        create: row,
+        update: row,
+      }),
+    ));
+    console.log(`[Prisma] ${rows.length} licitações salvas no cache.`);
+  } catch (error: any) {
+    console.error('[Prisma] Erro ao salvar cache de licitacoes:', error?.message ?? error);
+  }
+}
+
+function toDateOrNull(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toIsoOrNull(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function toNumberOrUndefined(value: unknown) {
+  if (value === null || value === undefined) return undefined;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+// ─── Dados de demonstração ─────────────────────────────────────────────────
+const DADOS_DEMO: LicitacaoRadar[] = [
+  { id: 'demo-001', numero_controle: 'DEMO-001-2025', objeto: 'Aquisição de equipamentos de informática — notebooks, desktops e periféricos para uso administrativo', orgao: 'Secretaria Municipal de Educação — SP', uf: 'SP', municipio: 'São Paulo', valor_estimado: 850000, data_abertura: new Date(Date.now() + 5 * 86400000).toISOString(), data_publicacao: new Date(Date.now() - 2 * 86400000).toISOString(), modalidade: 'Pregão Eletrônico', situacao: 'Publicada', link: 'https://www.comprasnet.gov.br', fonte: 'demo', srp: true, score: buildScore(92, { nicho: 20, valor: 18, prazo: 15, orgao: 14, completude: 12, historico: 10 }) },
+  { id: 'demo-002', numero_controle: 'DEMO-002-2025', objeto: 'Contratação de serviços de limpeza e conservação para prédios públicos municipais', orgao: 'Prefeitura Municipal de Curitiba', uf: 'PR', municipio: 'Curitiba', valor_estimado: 420000, data_abertura: new Date(Date.now() + 8 * 86400000).toISOString(), data_publicacao: new Date(Date.now() - 86400000).toISOString(), modalidade: 'Pregão Eletrônico', situacao: 'Publicada', link: 'https://www.comprasnet.gov.br', fonte: 'demo', srp: false, score: buildScore(78, { nicho: 16, valor: 14, prazo: 14, orgao: 12, completude: 12, historico: 8 }) },
+  { id: 'demo-003', numero_controle: 'DEMO-003-2025', objeto: 'Fornecimento de materiais de expediente e papelaria — ata de registro de preços', orgao: 'Tribunal Regional do Trabalho — 2ª Região', uf: 'SP', municipio: 'São Paulo', valor_estimado: 180000, data_abertura: new Date(Date.now() + 3 * 86400000).toISOString(), data_publicacao: new Date(Date.now() - 3 * 86400000).toISOString(), modalidade: 'Pregão Eletrônico', situacao: 'Publicada', link: 'https://www.comprasnet.gov.br', fonte: 'demo', srp: true, score: buildScore(65, { nicho: 12, valor: 10, prazo: 15, orgao: 10, completude: 10, historico: 7 }) },
+  { id: 'demo-004', numero_controle: 'DEMO-004-2025', objeto: 'Serviços de manutenção preventiva e corretiva de ar-condicionado nas unidades de saúde', orgao: 'Secretaria Estadual de Saúde — MG', uf: 'MG', municipio: 'Belo Horizonte', valor_estimado: 310000, data_abertura: new Date(Date.now() + 12 * 86400000).toISOString(), data_publicacao: new Date().toISOString(), modalidade: 'Pregão Eletrônico', situacao: 'Publicada', link: 'https://www.comprasnet.gov.br', fonte: 'demo', srp: false, score: buildScore(71, { nicho: 14, valor: 12, prazo: 13, orgao: 12, completude: 10, historico: 8 }) },
+  { id: 'demo-005', numero_controle: 'DEMO-005-2025', objeto: 'Aquisição de medicamentos e insumos hospitalares para estoque mínimo de urgência', orgao: 'Hospital Federal de Bonsucesso — RJ', uf: 'RJ', municipio: 'Rio de Janeiro', valor_estimado: 1250000, data_abertura: new Date(Date.now() + 6 * 86400000).toISOString(), data_publicacao: new Date(Date.now() - 86400000).toISOString(), modalidade: 'Dispensa Eletrônica', situacao: 'Publicada', link: 'https://www.comprasnet.gov.br', fonte: 'demo', srp: false, score: buildScore(85, { nicho: 18, valor: 20, prazo: 14, orgao: 14, completude: 12, historico: 7 }) },
+];
+
+// ─── Busca ao vivo ──────────────────────────────────────────────────────────
+async function buscarAoVivo(
+  filtros: FiltrosBusca, pagina: number, tamanhoPagina: number, empresa?: EmpresaRadarPerfil | null,
+): Promise<{ data: LicitacaoRadar[]; total: number; totalPaginas: number; fonte: FonteRadar; aviso?: string }> {
+  const [pncpResult, comprasGovResult] = await Promise.allSettled([
+    buscarContratacoesPNCP({ ...filtros, pagina: 1, tamanhoPagina: 50 }),
+    buscarLicitacoesComprasGov({ descricao: filtros.palavrasChave, uf: filtros.uf, valorMin: filtros.valorMin, valorMax: filtros.valorMax, modalidade: filtros.modalidade, pagina: 1 }),
+  ]);
+  const pncpItems = pncpResult.status === 'fulfilled' ? pncpResult.value.data.map((i: LicitacaoPNCP) => normalizarDoPncp(i, filtros, empresa)) : [];
+  const comprasGovItems = comprasGovResult.status === 'fulfilled' ? comprasGovResult.value.data.map((i: LicitacaoComprasGov) => normalizarDoComprasGov(i, filtros, empresa)) : [];
+  if (pncpResult.status === 'fulfilled' && pncpResult.value.data.length > 0) {
+    salvarNoBanco(pncpResult.value.data).catch((e) => console.warn('[Prisma] Cache falhou:', e?.message));
+  }
+  const merged = ordenarRadar(deduplicarRadar([...pncpItems, ...comprasGovItems]));
+  if (merged.length === 0) {
+    return { data: [], total: 0, totalPaginas: 0, fonte: 'vazio', aviso: 'Nenhum edital encontrado nas fontes oficiais.' };
+  }
+  let fonte: FonteRadar = 'mista';
+  if (pncpItems.length > 0 && comprasGovItems.length === 0) fonte = 'pncp';
+  if (comprasGovItems.length > 0 && pncpItems.length === 0) fonte = 'comprasgov';
+  const notices: string[] = [];
+  if (pncpResult.status === 'rejected') notices.push('PNCP indisponível');
+  if (comprasGovResult.status === 'rejected') notices.push('Compras.gov indisponível');
+  const from = (pagina - 1) * tamanhoPagina;
+  return { data: merged.slice(from, from + tamanhoPagina), total: merged.length, totalPaginas: Math.ceil(merged.length / tamanhoPagina), fonte, aviso: notices.length ? `Resultados parciais — ${notices.join(' · ')}.` : undefined };
+}
+
+// ─── Função principal exportada ────────────────────────────────────────────
+export async function listarLicitacoes(
+  filtros: FiltrosBusca, empresa?: EmpresaRadarPerfil | null,
+): Promise<{ data: LicitacaoRadar[]; total: number; totalPaginas: number; fonte: FonteRadar; aviso?: string }> {
+  const pagina = filtros.pagina || 1;
+  const tamanhoPagina = filtros.tamanhoPagina || 20;
+
+  // 1. Cache PostgreSQL
+  const cache = await buscarDoBanco(filtros);
+  const cacheNormalizado = cache.data.map((row) => normalizarDoBanco(row, filtros, empresa));
+  if (cacheNormalizado.length > 0) {
+    const fresco = await cacheEstaFresco();
+    if (fresco) {
+      console.log('[Licitações] Cache fresco PostgreSQL.');
+      return { data: cacheNormalizado, total: cache.total, totalPaginas: Math.ceil(cache.total / tamanhoPagina), fonte: 'cache' };
+    }
+    buscarAoVivo(filtros, 1, 50, empresa).catch((e) => console.warn('[Bg]', e?.message));
+    return { data: cacheNormalizado, total: cache.total, totalPaginas: Math.ceil(cache.total / tamanhoPagina), fonte: 'cache', aviso: 'Cache anterior. Atualizando em segundo plano.' };
+  }
+
+  // 2. PNCP ao vivo com timeout
+  console.log('[Licitações] Cache vazio — consultando PNCP...');
+  try {
+    const resultado = await withTimeout(buscarAoVivo(filtros, pagina, tamanhoPagina, empresa), 20000);
+    if (resultado.data.length > 0) return resultado;
+  } catch (e: any) {
+    console.warn('[Licitações] PNCP falhou:', e?.message);
+  }
+
+  // 3. Dados de demonstração somente com flag explicita
+  if (!isDemoDataEnabled()) {
+    return {
+      data: [],
+      total: 0,
+      totalPaginas: 0,
+      fonte: 'vazio',
+      aviso: 'Nenhum edital encontrado nas fontes oficiais. Dados demo estao desativados.',
+    };
+  }
+
+  console.warn('[Licitações] Usando dados de demonstração por ENABLE_DEMO_DATA=true.');
+  const demo = filtros.uf ? DADOS_DEMO.filter((d) => d.uf === filtros.uf!.toUpperCase()) : DADOS_DEMO;
+  const items = demo.length > 0 ? demo : DADOS_DEMO;
+  const from = (pagina - 1) * tamanhoPagina;
+  return {
+    data: items.slice(from, from + tamanhoPagina),
+    total: items.length,
+    totalPaginas: Math.ceil(items.length / tamanhoPagina),
+    fonte: 'vazio',
+    aviso: 'PNCP indisponível. Exibindo editais de demonstração porque ENABLE_DEMO_DATA=true.',
+  };
+}
+
+// ─── Sincronização manual ──────────────────────────────────────────────────
+export async function sincronizarCache(palavrasChave?: string, uf?: string): Promise<{ sincronizados: number; erro?: string }> {
+  try {
+    console.log('[Sincronização] Iniciando varredura PNCP...');
+    const resultado = await buscarContratacoesPNCP({ palavrasChave, uf, pagina: 1, tamanhoPagina: 100 });
+    await salvarNoBanco(resultado.data);
+    return { sincronizados: resultado.data.length };
+  } catch (error: any) {
+    return { sincronizados: 0, erro: error.message };
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+  });
+
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeout)),
+    timeoutPromise,
+  ]);
+}

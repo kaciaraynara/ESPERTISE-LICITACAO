@@ -1,0 +1,654 @@
+﻿===== Tenant =====
+model Tenant {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  slug      String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  users     User[]
+  companies Company[]
+
+  @@index([active])
+  @@map("tenants")
+}
+
+===== User =====
+model User {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  email                String                  @unique
+  emailNormalized      String                  @unique @map("email_normalized")
+  nome                 String?
+  telefone             String?
+  plano                String                  @default("free")
+  emailVerificado      Boolean                 @default(false) @map("email_verificado")
+  ultimoAcesso         DateTime?               @map("ultimo_acesso") @db.Timestamptz(6)
+  passwordHash         String                  @map("password_hash")
+  aceiteLgpd           Boolean                 @default(false) @map("aceite_lgpd")
+  role                 AccountRole             @default(fornecedor)
+  oabNumero            String?                 @map("oab_numero")
+  oabUf                String?                 @map("oab_uf")
+  crcNumero            String?                 @map("crc_numero")
+  crcUf                String?                 @map("crc_uf")
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt            DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  anonymizedAt         DateTime?               @map("anonymized_at") @db.Timestamptz(6)
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  companies            Company[]
+  documents            Document[]
+  lawyerProfile        JuridicoProfile?
+  legalCasesClient     JuridicoCase[]          @relation("LegalClient")
+  legalCasesLawyer     JuridicoCase[]          @relation("LegalLawyer")
+  legalMessages        JuridicoMessage[]
+  fornecedoresB2B      FornecedorMarketplace[]
+  marketplaceItems     MarketplaceItem[]
+  notifications        Notification[]
+  rbacRoles            UserRole[]              @relation("RbacUserRoles")
+  rbacRolesAssigned    UserRole[]              @relation("RbacAssignedRoles")
+  refreshTokens        RefreshToken[]
+  subscriptions        Subscription[]
+  proposalsCreated     Proposal[]              @relation("ProposalCreator")
+  proposalsResponsible Proposal[]              @relation("ProposalResponsible")
+  biddingPipelines     BiddingPipeline[]
+
+  @@index([tenantId])
+  @@index([deletedAt, anonymizedAt])
+  @@map("users")
+}
+
+===== Company =====
+model Company {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String     @map("tenant_id") @db.Uuid
+  userId           String     @map("user_id") @db.Uuid
+  cnpj             String
+  razaoSocial      String     @map("razao_social")
+  nomeFantasia     String?    @map("nome_fantasia")
+  cnaePrincipal    String?    @map("cnae_principal")
+  municipio        String?
+  uf               String?
+  status           String?
+  nicho            String[]   @default([])
+  palavrasChave    String[]   @default([]) @map("palavras_chave")
+  valorMin         Decimal?   @map("valor_min") @db.Decimal(14, 2)
+  valorMax         Decimal?   @map("valor_max") @db.Decimal(14, 2)
+  regioes          String[]   @default([])
+  orgaosPreferidos String[]   @default([]) @map("orgaos_preferidos")
+  orgaosBloqueados     String[]   @default([]) @map("orgaos_bloqueados")
+  impedimentoLicitacao Boolean    @default(false) @map("impedimento_licitacao")
+  impedimentoDetalhes  String?    @db.Text @map("impedimento_detalhes")
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  certificates     CompanyCertificate[]
+  documents        Document[]
+  proposals        Proposal[]
+
+  @@unique([userId, cnpj])
+  @@unique([tenantId, cnpj])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([uf])
+  @@map("companies")
+}
+
+===== Subscription =====
+model Subscription {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String               @map("user_id") @db.Uuid
+  email                String
+  plano                String
+  categoria            SubscriptionCategory @default(plataforma)
+  status               SubscriptionStatus   @default(trialing)
+  periodoInicio        DateTime             @map("periodo_inicio") @db.Timestamptz(6)
+  periodoFim           DateTime             @map("periodo_fim") @db.Timestamptz(6)
+  cancelarAoFim        Boolean              @default(false) @map("cancelar_ao_fim")
+  mpPayerId            String?              @map("mp_payer_id")
+  mpPreapprovalId      String?              @map("mp_preapproval_id")
+  mpPlanId             String?              @map("mp_plan_id")
+  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, categoria])
+  @@index([email])
+  @@index([mpPayerId])
+  @@index([mpPreapprovalId])
+  @@map("subscriptions")
+}
+
+===== Document =====
+model Document {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  companyId    String?        @map("company_id") @db.Uuid
+  tipo         String
+  nome         String
+  validade     DateTime?      @db.Timestamptz(6)
+  status       DocumentStatus @default(valido)
+  url          String?
+  arquivoNome  String?        @map("arquivo_nome")
+  criadoEm     DateTime       @default(now()) @map("criado_em") @db.Timestamptz(6)
+  atualizadoEm DateTime       @default(now()) @updatedAt @map("atualizado_em") @db.Timestamptz(6)
+  company      Company?       @relation(fields: [companyId], references: [id], onUpdate: NoAction)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([validade])
+  @@map("documents")
+}
+
+===== CompanyCertificate =====
+model CompanyCertificate {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  type             String    // 'RECEITA', 'FGTS', 'TRABALHISTA', 'ESTADUAL', 'MUNICIPAL'
+  issueDate        DateTime? @map("issue_date") @db.Date
+  expirationDate   DateTime  @map("expiration_date") @db.Date
+  status           String    @default("VALID") // 'VALID', 'EXPIRED', 'WARNING'
+  documentUrl      String?   @map("document_url")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([expirationDate])
+  @@map("company_certificates")
+}
+
+===== Notification =====
+model Notification {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String             @map("user_id") @db.Uuid
+  tipo        NotificationType
+  titulo      String
+  mensagem    String
+  canal       String             @default("painel")
+  status      NotificationStatus @default(enviada)
+  enviadaEm   DateTime?          @map("enviada_em") @db.Timestamptz(6)
+  licitacaoId String?            @map("licitacao_id")
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  lida        Boolean            @default(false)
+  link        String?
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdAt])
+  @@index([userId, lida], map: "notifications_user_lida_idx")
+  @@map("notifications")
+}
+
+===== ProcurementNotice =====
+model ProcurementNotice {
+  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?                  @map("tenant_id")
+  source         String
+  externalId     String?                  @map("external_id")
+  dedupeKey      String                   @unique @map("dedupe_key")
+  contentHash    String                   @map("content_hash")
+  noticeNumber   String?                  @map("notice_number")
+  modality          String?
+  modalityEnum      ProcurementModality?     @map("modality_enum")
+  judgmentCriterion JudgmentCriterion?       @map("judgment_criterion")
+  executionRegime   ExecutionRegime?         @map("execution_regime")
+  exclusiveMeEpp    Boolean                  @default(false) @map("exclusive_me_epp")
+  buyerName         String?                  @map("buyer_name")
+  buyerDocument     String?                  @map("buyer_document")
+  object            String
+  uf                String?
+  municipality      String?
+  estimatedValue    Decimal?                 @map("estimated_value") @db.Decimal(18, 2)
+  status            String?
+  url               String?
+  publishedAt       DateTime?                @map("published_at") @db.Timestamptz(6)
+  openingAt         DateTime?                @map("opening_at") @db.Timestamptz(6)
+  closingAt         DateTime?                @map("closing_at") @db.Timestamptz(6)
+  rawPayload        Json?                    @map("raw_payload")
+  classification    Json?
+  metadata          Json?
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  biddingHistory    BiddingHistory[]
+  legalAnalyses     LegalAnalysis[]
+  lots              ProcurementLot[]
+  items             ProcurementItem[]
+  attachments       ProcurementAttachment[]
+  requirements      ProcurementRequirement[]
+  proposals         Proposal[]
+  events            ProcurementEvent[]
+  biddingPipelines  BiddingPipeline[]
+
+  @@index([tenantId])
+  @@index([source, externalId])
+  @@index([uf, publishedAt])
+  @@index([modality])
+  @@index([contentHash])
+  @@map("procurement_notices")
+}
+
+===== ProcurementLot =====
+model ProcurementLot {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String?  @map("tenant_id")
+  procurementNoticeId String   @map("procurement_notice_id") @db.Uuid
+  lotNumber           String   @map("lot_number")
+  title               String
+  description         String?
+  estimatedValue      Decimal? @map("estimated_value") @db.Decimal(18, 2)
+  status              String?
+  metadata            Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  procurementNotice ProcurementNotice @relation(fields: [procurementNoticeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items             ProcurementItem[]
+
+  @@unique([procurementNoticeId, lotNumber])
+  @@index([tenantId])
+  @@index([procurementNoticeId])
+  @@map("procurement_lots")
+}
+
+===== ProcurementItem =====
+model ProcurementItem {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String?  @map("tenant_id")
+  procurementNoticeId String   @map("procurement_notice_id") @db.Uuid
+  lotId               String?  @map("lot_id") @db.Uuid
+  itemNumber          String   @map("item_number")
+  description         String
+  quantity            Decimal? @db.Decimal(18, 4)
+  unit                String?
+  estimatedUnitValue  Decimal? @map("estimated_unit_value") @db.Decimal(18, 4)
+  estimatedTotalValue     Decimal? @map("estimated_total_value") @db.Decimal(18, 2)
+  brandReference          Boolean  @default(false) @map("brand_reference")
+  catalogoCodigo          String?  @map("catalogo_codigo")
+  catalogoPrecoReferencia Decimal? @map("catalogo_preco_referencia") @db.Decimal(18, 4)
+  metadata                Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  procurementNotice ProcurementNotice @relation(fields: [procurementNoticeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lot               ProcurementLot?   @relation(fields: [lotId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([procurementNoticeId, itemNumber])
+  @@index([tenantId])
+  @@index([procurementNoticeId])
+  @@index([lotId])
+  @@index([brandReference])
+  @@map("procurement_items")
+}
+
+===== ProcurementAttachment =====
+model ProcurementAttachment {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String?  @map("tenant_id")
+  procurementNoticeId String   @map("procurement_notice_id") @db.Uuid
+  source              String
+  externalId          String?  @map("external_id")
+  attachmentType      String   @map("attachment_type")
+  fileName            String   @map("file_name")
+  fileUrl             String   @map("file_url")
+  mimeType            String?  @map("mime_type")
+  contentHash         String?  @map("content_hash")
+  extractedText       String?  @map("extracted_text") @db.Text
+  metadata            Json?
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  procurementNotice ProcurementNotice @relation(fields: [procurementNoticeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([procurementNoticeId, fileUrl])
+  @@index([tenantId])
+  @@index([procurementNoticeId])
+  @@index([attachmentType])
+  @@map("procurement_attachments")
+}
+
+===== ProcurementRequirement =====
+model ProcurementRequirement {
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String? @map("tenant_id")
+  procurementNoticeId String  @map("procurement_notice_id") @db.Uuid
+  requirementType     String  @map("requirement_type")
+  title               String
+  description         String  @db.Text
+  severity            String?
+  mandatory           Boolean @default(true)
+  detectedFrom        String? @map("detected_from")
+  evidenceChunkId     String? @map("evidence_chunk_id") @db.Uuid
+  metadata            Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  procurementNotice ProcurementNotice @relation(fields: [procurementNoticeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  evidenceChunk     DocumentChunk?    @relation(fields: [evidenceChunkId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([tenantId])
+  @@index([procurementNoticeId])
+  @@index([requirementType])
+  @@index([mandatory])
+  @@map("procurement_requirements")
+}
+
+===== ProcurementEvent =====
+model ProcurementEvent {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  procurementNoticeId String               @map("procurement_notice_id") @db.Uuid
+  eventType           ProcurementEventType @map("event_type")
+  title               String
+  description         String               @db.Text
+  status              String               @default("filed")
+  filedAt             DateTime             @map("filed_at") @db.Timestamptz(6)
+  deadlineAt          DateTime?            @map("deadline_at") @db.Timestamptz(6)
+  respondedAt         DateTime?            @map("responded_at") @db.Timestamptz(6)
+  responseText        String?              @map("response_text") @db.Text
+  metadata            Json?
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  procurementNotice ProcurementNotice @relation(fields: [procurementNoticeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([procurementNoticeId])
+  @@index([eventType])
+  @@map("procurement_events")
+}
+
+===== DocumentChunk =====
+model DocumentChunk {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String?                  @map("tenant_id")
+  sourceType              String                   @map("source_type")
+  sourceId                String                   @map("source_id")
+  chunkIndex              Int                      @map("chunk_index")
+  contentHash             String                   @map("content_hash")
+  content                 String
+  tokenCount              Int?                     @map("token_count")
+  embeddingModel          String?                  @map("embedding_model")
+  embeddingDimensions     Int?                     @map("embedding_dimensions")
+  embedding               Unsupported("vector")?
+  metadata                Json?
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  aiCitations             AiCitation[]
+  draftEvidence           DraftEvidence[]
+  procurementRequirements ProcurementRequirement[]
+
+  @@unique([sourceType, sourceId, chunkIndex])
+  @@index([tenantId])
+  @@index([sourceType, sourceId])
+  @@index([contentHash])
+  @@map("document_chunks")
+}
+
+===== AiRun =====
+model AiRun {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String?              @map("tenant_id")
+  userId            String?              @map("user_id")
+  requestId         String?              @map("request_id")
+  purpose           String               @default("lex_grounded_response")
+  provider          String?
+  status            String               @default("started")
+  question          String               @db.Text
+  prompt            String?              @db.Text
+  response          String?              @db.Text
+  sourceIds         String[]             @default([]) @map("source_ids")
+  chunkIds          String[]             @default([]) @map("chunk_ids")
+  ruleCodes         String[]             @default([]) @map("rule_codes")
+  confidence        Decimal?             @db.Decimal(5, 4)
+  limitations       String[]             @default([])
+  failureReason     String?              @map("failure_reason") @db.Text
+  metadata          Json?
+  startedAt         DateTime             @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?            @map("completed_at") @db.Timestamptz(6)
+  failedAt          DateTime?            @map("failed_at") @db.Timestamptz(6)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  citations         AiCitation[]
+  legalAnalyses     LegalAnalysis[]
+  retrievalSessions AiRetrievalSession[]
+  draftEvidence     DraftEvidence[]
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([purpose, createdAt])
+  @@map("ai_runs")
+}
+
+===== AiRetrievalSession =====
+model AiRetrievalSession {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aiRunId       String       @map("ai_run_id") @db.Uuid
+  tenantId      String?      @map("tenant_id")
+  query         String       @db.Text
+  status        String       @default("running")
+  retrievalMode String       @default("postgres_text") @map("retrieval_mode")
+  sourcesFound  Int          @default(0) @map("sources_found")
+  chunksFound   Int          @default(0) @map("chunks_found")
+  rulesFound    Int          @default(0) @map("rules_found")
+  sourceIds     String[]     @default([]) @map("source_ids")
+  chunkIds      String[]     @default([]) @map("chunk_ids")
+  ruleCodes     String[]     @default([]) @map("rule_codes")
+  context       Json?
+  limitations   String[]     @default([])
+  startedAt     DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime?    @map("completed_at") @db.Timestamptz(6)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  aiRun         AiRun        @relation(fields: [aiRunId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  citations     AiCitation[]
+
+  @@index([tenantId, createdAt])
+  @@index([aiRunId])
+  @@index([status, createdAt])
+  @@map("ai_retrieval_sessions")
+}
+
+===== AiCitation =====
+model AiCitation {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aiRunId            String              @map("ai_run_id") @db.Uuid
+  retrievalSessionId String?             @map("retrieval_session_id") @db.Uuid
+  sourceType         String              @map("source_type")
+  sourceId           String              @map("source_id")
+  chunkId            String?             @map("chunk_id") @db.Uuid
+  ruleCode           String?             @map("rule_code")
+  citationType       String              @default("chunk") @map("citation_type")
+  label              String?
+  excerpt            String              @db.Text
+  confidence         Decimal?            @db.Decimal(5, 4)
+  metadata           Json?
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  aiRun              AiRun               @relation(fields: [aiRunId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  retrievalSession   AiRetrievalSession? @relation(fields: [retrievalSessionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  chunk              DocumentChunk?      @relation(fields: [chunkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([aiRunId])
+  @@index([retrievalSessionId])
+  @@index([sourceType, sourceId])
+  @@index([chunkId])
+  @@index([ruleCode])
+  @@map("ai_citations")
+}
+
+===== LegalAnalysis =====
+model LegalAnalysis {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aiRunId             String?            @map("ai_run_id") @db.Uuid
+  tenantId            String?            @map("tenant_id")
+  userId              String?            @map("user_id")
+  procurementNoticeId String?            @map("procurement_notice_id") @db.Uuid
+  analysisType        String             @default("lex_grounded_response") @map("analysis_type")
+  status              String             @default("completed")
+  title               String?
+  summary             String?            @db.Text
+  result              Json
+  sourceIds           String[]           @default([]) @map("source_ids")
+  chunkIds            String[]           @default([]) @map("chunk_ids")
+  ruleCodes           String[]           @default([]) @map("rule_codes")
+  confidence          Decimal?           @db.Decimal(5, 4)
+  limitations         String[]           @default([])
+  reviewedById        String?            @map("reviewed_by_id")
+  reviewedAt          DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  aiRun               AiRun?             @relation(fields: [aiRunId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  procurementNotice   ProcurementNotice? @relation(fields: [procurementNoticeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  draftEvidence       DraftEvidence[]
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([aiRunId])
+  @@index([procurementNoticeId])
+  @@index([analysisType, status])
+  @@map("legal_analyses")
+}
+
+===== JuridicoCase =====
+model JuridicoCase {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientUserId    String            @map("client_user_id") @db.Uuid
+  lawyerUserId    String            @map("lawyer_user_id") @db.Uuid
+  assunto         String
+  editalId        String?           @map("edital_id")
+  editalObjeto    String?           @map("edital_objeto")
+  descricao       String
+  telefoneCliente String?           @map("telefone_cliente")
+  status          LegalCaseStatus   @default(novo)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastMessageAt   DateTime          @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  client          User              @relation("LegalClient", fields: [clientUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lawyer          User              @relation("LegalLawyer", fields: [lawyerUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  messages        JuridicoMessage[]
+  review          JuridicoReview?
+
+  @@index([clientUserId])
+  @@index([lawyerUserId])
+  @@index([status])
+  @@map("juridico_cases")
+}
+
+===== JuridicoMessage =====
+model JuridicoMessage {
+  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId       String                 @map("case_id") @db.Uuid
+  senderUserId String                 @map("sender_user_id") @db.Uuid
+  senderTipo   LegalMessageSenderType @map("sender_tipo")
+  senderNome   String                 @map("sender_nome")
+  conteudo     String
+  createdAt    DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  legalCase    JuridicoCase           @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender       User                   @relation(fields: [senderUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([caseId, createdAt], map: "juridico_messages_case_created_idx")
+  @@map("juridico_messages")
+}
+
+===== JuridicoReview =====
+model JuridicoReview {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId       String       @unique @map("case_id") @db.Uuid
+  lawyerUserId String       @map("lawyer_user_id") @db.Uuid
+  clientUserId String       @map("client_user_id") @db.Uuid
+  nota         Int
+  comentario   String?
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  legalCase    JuridicoCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([lawyerUserId])
+  @@index([clientUserId])
+  @@map("juridico_reviews")
+}
+
+===== Proposal =====
+model Proposal {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String         @map("company_id") @db.Uuid
+  procurementNoticeId String?        @map("procurement_notice_id") @db.Uuid
+  titulo              String
+  status              ProposalStatus @default(RASCUNHO)
+  moeda               String         @default("BRL")
+  validadeDias        Int?           @map("validade_dias")
+  validadeAte         DateTime?      @map("validade_ate") @db.Timestamptz(6)
+  prazoEntregaDias    Int?           @map("prazo_entrega_dias")
+  condicoesPagamento  String?        @map("condicoes_pagamento") @db.Text
+  garantia            String?        @db.Text
+  observacoes         String?        @db.Text
+  createdById         String         @map("created_by_id") @db.Uuid
+  responsibleUserId   String?        @map("responsible_user_id") @db.Uuid
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  procurementNotice ProcurementNotice? @relation(fields: [procurementNoticeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy         User               @relation("ProposalCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsibleUser   User?              @relation("ProposalResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  items             ProposalItem[]
+
+  @@index([companyId, status])
+  @@index([companyId, updatedAt])
+  @@index([procurementNoticeId])
+  @@index([createdById])
+  @@index([responsibleUserId])
+  @@map("proposals")
+}
+
+===== ProposalItem =====
+model ProposalItem {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  proposalId            String   @map("proposal_id") @db.Uuid
+  procurementItemId     String?  @map("procurement_item_id") @db.Uuid
+  codigo                String?
+  numero                String?
+  descricao             String   @db.Text
+  unidade               String
+  quantidade            Decimal  @db.Decimal(18, 4)
+  marca                 String?
+  modelo                String?
+  custoUnitario         Decimal? @map("custo_unitario") @db.Decimal(18, 4)
+  precoUnitarioProposto Decimal? @map("preco_unitario_proposto") @db.Decimal(18, 4)
+  precoTotalProposto    Decimal? @map("preco_total_proposto") @db.Decimal(18, 2)
+  margemPercentual        Decimal? @map("margem_percentual") @db.Decimal(5, 2)
+  catalogoCodigo          String?  @map("catalogo_codigo")
+  catalogoPrecoReferencia Decimal? @map("catalogo_preco_referencia") @db.Decimal(18, 4)
+  posicao                 Int
+  observacoes           String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([proposalId])
+  @@index([proposalId, posicao])
+  @@index([procurementItemId])
+  @@map("proposal_items")
+}
+
+===== AuditEvent =====
+model AuditEvent {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String?  @map("user_id")
+  scope         String
+  action        String
+  outcome       String
+  entityType    String?  @map("entity_type")
+  entityId      String?  @map("entity_id")
+  requestId     String?  @map("request_id")
+  ipHash        String?  @map("ip_hash")
+  userAgentHash String?  @map("user_agent_hash")
+  emailHash     String?  @map("email_hash")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([scope, action, createdAt])
+  @@index([outcome, createdAt])
+  @@map("audit_events")
+}
+

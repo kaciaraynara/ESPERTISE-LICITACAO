@@ -1,0 +1,95 @@
+import { pncpApi } from '@lib/pncp-client';
+import { LicitacaoPNCP, FiltrosBusca } from '@interfaces/pncp.interface';
+
+export type { FiltrosBusca, LicitacaoPNCP };
+
+function numberOrUndefined(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function mapToPncp(raw: any): LicitacaoPNCP {
+  const unidade = raw.unidadeOrgao ?? raw.unidade_orgao ?? {};
+  const orgao = raw.orgaoEntidade ?? raw.orgao_entidade ?? {};
+
+  return {
+    numeroControlePNCP: String(raw.numeroControlePNCP ?? raw.numero_controle_pncp ?? raw.id ?? ''),
+    orgaoEntidade: {
+      razaoSocial: firstString(orgao.razaoSocial, orgao.razaosocial, raw.razaoSocialOrgao, raw.orgao),
+      cnpj: firstString(orgao.cnpj, raw.cnpjOrgao),
+    },
+    unidadeOrgao: {
+      ufSigla: firstString(unidade.ufSigla, unidade.uf, raw.uf),
+      municipioNome: firstString(unidade.municipioNome, unidade.municipio, raw.municipio),
+      nomeUnidade: firstString(unidade.nomeUnidade, raw.nomeUnidade, raw.orgao),
+    },
+    objeto: firstString(raw.objetoCompra, raw.objeto, raw.descricao),
+    valorTotalEstimado: numberOrUndefined(raw.valorTotalEstimado ?? raw.valorEstimado ?? raw.valor),
+    dataPublicacaoPncp: firstString(raw.dataPublicacaoPncp, raw.dataPublicacao, raw.data_publicacao),
+    dataAberturaProposta: firstString(raw.dataAberturaProposta, raw.dataAbertura, raw.data_abertura),
+    dataEncerramentoProposta: firstString(raw.dataEncerramentoProposta, raw.dataEncerramento, raw.data_encerramento),
+    modalidadeId: numberOrUndefined(raw.modalidadeId ?? raw.codigoModalidadeContratacao),
+    modalidadeNome: firstString(raw.modalidadeNome, raw.modalidade),
+    situacaoCompraNome: firstString(raw.situacaoCompraNome, raw.situacao),
+    linkSistemaOrigem: firstString(raw.linkSistemaOrigem, raw.link),
+    linkEditalPNCP: firstString(raw.linkEditalPNCP, raw.linkEdital),
+    srp: Boolean(raw.srp),
+  };
+}
+
+function compactParams(params: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  );
+}
+
+export async function buscarContratacoesPNCP(filtros: FiltrosBusca = {}) {
+  const pagina = filtros.pagina ?? 1;
+  const tamanhoPagina = filtros.tamanhoPagina ?? 20;
+  const modalidade = numberOrUndefined(filtros.modalidade);
+
+  const { data } = await pncpApi.get('/contratacoes/proposta', {
+    params: compactParams({
+      pagina,
+      tamanhoPagina,
+      codigoModalidadeContratacao: modalidade,
+      uf: filtros.uf?.toUpperCase(),
+      dataInicial: filtros.dataInicio,
+      dataFinal: filtros.dataFim,
+      palavraChave: filtros.palavrasChave,
+    }),
+  });
+
+  const rawItems: any[] = Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data)
+        ? data
+        : [];
+
+  return {
+    data: rawItems.map(mapToPncp).filter((item: LicitacaoPNCP) => item.numeroControlePNCP),
+    totalRegistros: Number(data?.totalRegistros ?? data?.total ?? rawItems.length) || rawItems.length,
+  };
+}
+
+export class PncpService {
+  public async execute(filters: FiltrosBusca): Promise<{ items: LicitacaoPNCP[]; total: number }> {
+    const result = await buscarContratacoesPNCP(filters);
+    return {
+      items: result.data,
+      total: result.totalRegistros,
+    };
+  }
+}

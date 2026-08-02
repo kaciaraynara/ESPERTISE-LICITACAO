@@ -1,0 +1,2232 @@
+﻿ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 19
+CONTEUDO: import api from '@services/api';
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 122
+CONTEUDO: <div className="flex items-start justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 151
+CONTEUDO: <div className="flex items-center justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 179
+CONTEUDO: { label: 'Prioridade media', value: media, color: '#1E3A8A', helper: 'Pede leitura rapida' },
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 218
+CONTEUDO: <div className="absolute inset-0 flex flex-col items-center justify-center">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 229
+CONTEUDO: <div className="flex items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 230
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 260
+CONTEUDO: <div key={item.label} className="flex flex-col justify-end gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 261
+CONTEUDO: <div className="flex h-40 items-end rounded-lg bg-white p-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 292
+CONTEUDO: <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed border-gray-100 bg-white px-6 text-center">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 318
+CONTEUDO: <div className="flex flex-wrap items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 345
+CONTEUDO: export default function DashboardPage() {
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 352
+CONTEUDO: navigate('/advogado/dashboard', { replace: true });
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 364
+CONTEUDO: queryKey: ['dashboard', 'overview'],
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 367
+CONTEUDO: api.get('/licitacoes', { params: { pagina: 1, tamanhoPagina: 8 } }),
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 368
+CONTEUDO: api.get('/empresas'),
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 369
+CONTEUDO: api.get('/documentos'),
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 450
+CONTEUDO: <div className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center p-8 text-center text-brand-blue">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 452
+CONTEUDO: <p className="mt-3 text-sm text-brand-blue/70">Os dados não foram substituídos por informações simuladas. Tente novamente quando os serviços estiverem disponíveis.</p>
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 460
+CONTEUDO: <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between mb-8">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 462
+CONTEUDO: <div className="mb-4 flex items-center gap-3 text-sm font-black uppercase tracking-[0.3em] text-brand-orange">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 474
+CONTEUDO: <div className="flex flex-wrap gap-4">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 477
+CONTEUDO: className="inline-flex items-center gap-3 bg-brand-orange hover:bg-orange-500 text-white px-8 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-2xl hover:shadow-brand-orange/40 hover:-translate-y-1"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 484
+CONTEUDO: className="inline-flex items-center gap-3 bg-white border-2 border-slate-200 hover:border-brand-blue text-slate-700 hover:text-brand-blue px-8 py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all hover:bg-slate-50"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 497
+CONTEUDO: <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-brand-blue">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 549
+CONTEUDO: className="inline-flex w-full items-center justify-between rounded-xl bg-brand-orange px-6 py-4 text-sm font-black uppercase tracking-widest text-white transition hover:bg-orange-500 shadow-lg"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 556
+CONTEUDO: className="inline-flex w-full items-center justify-between rounded-xl border-2 border-blue-400/30 px-6 py-4 text-sm font-black uppercase tracking-widest text-white transition hover:border-white hover:bg-white/10"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 572
+CONTEUDO: <div className="flex items-start gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 633
+CONTEUDO: <div key={card.titulo} className="group flex flex-col justify-between rounded-3xl border-2 border-slate-100 bg-white p-8 transition-all hover:shadow-xl hover:-translate-y-1">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 634
+CONTEUDO: <div className="flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 651
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 665
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 670
+CONTEUDO: Os graficos abaixo transformam o volume do dia em leitura visual rapida para a equipe.
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 706
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 722
+CONTEUDO: <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 727
+CONTEUDO: <div className="inline-flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-xs font-bold text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 751
+CONTEUDO: <div className="hidden xl:flex flex-col items-center justify-center">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 753
+CONTEUDO: <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#DCE3FF] bg-white text-brand-blue shadow-sm">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 776
+CONTEUDO: title="LEX"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 778
+CONTEUDO: subtitle="Resumo, leitura juridica, proposta e impugnacao para voce decidir mais rapido."
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 785
+CONTEUDO: subtitle="Acesso rapido ao momento da disputa para proteger margem e agir sem perder contexto."
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 793
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 826
+CONTEUDO: ? `${empresaPrincipal.razao_social} tem ${documentosSaudaveis} documento(s) em dia e ${altaPrioridade} edital(is) que pedem resposta comercial mais rapida.`
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 827
+CONTEUDO: : 'Conecte a empresa para o dashboard transformar volume de edital em orientacao pratica de onde agir primeiro.'}
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 856
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 882
+CONTEUDO: <div className="mt-5 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 905
+CONTEUDO: <div className="flex items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 906
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 927
+CONTEUDO: <div className="flex flex-wrap items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 940
+CONTEUDO: <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 954
+CONTEUDO: <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 955
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 991
+CONTEUDO: <div key={licitacao.id} className="flex flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 993
+CONTEUDO: <div className="flex flex-wrap items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1009
+CONTEUDO: <div className="flex flex-wrap items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1021
+CONTEUDO: className="inline-flex items-center gap-1 text-xs font-bold text-brand-blue transition hover:text-[#172554]"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1036
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1049
+CONTEUDO: <div className="flex items-start justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1070
+CONTEUDO: className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-blue transition hover:text-[#172554]"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 1078
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 11
+CONTEUDO: <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden selection:bg-brand-orange selection:text-white">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 15
+CONTEUDO: <div className="max-w-7xl mx-auto px-6 h-36 flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 16
+CONTEUDO: <div className="flex-shrink-0 flex items-center">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 19
+CONTEUDO: <nav className="hidden lg:flex items-center gap-10 text-[15px] font-bold text-slate-600">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 22
+CONTEUDO: <a href="#lex-ia" className="hover:text-brand-orange transition-colors">Inteligência Artificial</a>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 25
+CONTEUDO: <div className="flex items-center gap-4 md:gap-6">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 36
+CONTEUDO: <main className="flex-1">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 39
+CONTEUDO: <section className="relative w-full pt-20 pb-40 md:pt-40 md:pb-64 bg-[#0B1521] flex items-center justify-center text-center overflow-hidden">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 52
+CONTEUDO: className="relative max-w-6xl mx-auto px-6 flex flex-col items-center z-10"
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 65
+CONTEUDO: <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 66
+CONTEUDO: <Link to="/register" className="relative group w-full sm:w-auto bg-brand-orange text-white px-14 py-6 rounded-2xl text-2xl font-black transition-all hover:scale-105 flex items-center justify-center gap-4 overflow-hidden border border-orange-400">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 73
+CONTEUDO: <div className="mt-24 flex flex-col items-center opacity-60">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 75
+CONTEUDO: <div className="flex flex-wrap justify-center items-center gap-10 md:gap-20 grayscale">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 111
+CONTEUDO: <div className="flex gap-4 mt-8">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 117
+CONTEUDO: <div className="absolute inset-0 bg-white/60 backdrop-blur-sm rounded-[3rem] flex items-center justify-center">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 141
+CONTEUDO: <div className="flex justify-center mb-24">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 194
+CONTEUDO: <motion.div initial={{ y: 20, opacity: 0 }} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.2 }} className="md:col-span-3 bg-white rounded-[3rem] p-16 border border-slate-200 shadow-xl flex flex-col md:flex-row items-center gap-12 group">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 195
+CONTEUDO: <div className="flex-1">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 196
+CONTEUDO: <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center mb-8">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 202
+CONTEUDO: <div className="flex-1 w-full bg-slate-50 rounded-2xl border border-slate-100 p-8 h-full flex gap-4 overflow-hidden relative">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 204
+CONTEUDO: <div className="flex-1 space-y-4">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 209
+CONTEUDO: <div className="flex-1 space-y-4 opacity-70 mt-10">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 213
+CONTEUDO: <div className="flex-1 space-y-4 opacity-40 mt-20">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 224
+CONTEUDO: {/* 7. THE SECRET WEAPON: LEX IA */}
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 225
+CONTEUDO: <section id="lex-ia" className="w-full py-40 bg-[#0B1521] text-white relative overflow-hidden">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 230
+CONTEUDO: <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-brand-orange/20 border border-brand-orange/50 text-brand-orange font-black uppercase tracking-widest mb-8">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 234
+CONTEUDO: Apresentando <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-brand-orange">Lex IA.</span><br/>Sua advogada virtual.
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 238
+CONTEUDO: <p>Com a Lex IA, você não precisa pagar milhares de reais para um advogado especialista te defender. Nossa Inteligência Artificial foi treinada em toda a <strong className="text-white">Lei 14.133</strong> e em milhares de <strong className="text-white">Acórdãos do TCU</strong>.</p>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 245
+CONTEUDO: <div className="flex items-center gap-3 mb-8 pb-6 border-b border-slate-800">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 246
+CONTEUDO: <div className="w-12 h-12 rounded-full bg-brand-orange flex items-center justify-center">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 250
+CONTEUDO: <h4 className="font-bold text-white text-lg">Lex IA - Gerador de Peças</h4>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 261
+CONTEUDO: "...conforme o Acórdão 213/2022 do Plenário do TCU, a exigência cumulativa de capital social mínimo e garantia de proposta fere o art. 3º da Lei de Licitações, restringindo a competitividade..."
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 293
+CONTEUDO: <motion.div initial={{ y: 20, opacity: 0 }} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }} className="flex flex-col p-12 bg-white rounded-[3rem] border border-slate-200 shadow-md hover:shadow-2xl transition-all duration-300">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 300
+CONTEUDO: <ul className="space-y-6 mb-12 flex-1">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 301
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-700">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 305
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-700">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 309
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-700">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 320
+CONTEUDO: <motion.div initial={{ y: 20, opacity: 0 }} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="flex flex-col p-14 bg-brand-blue text-white rounded-[3rem] border border-brand-blue shadow-[0_30px_60px_rgba(0,39,135,0.3)] relative transform lg:scale-110 z-10">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 325
+CONTEUDO: <p className="text-blue-200 mt-3 text-lg h-16">Para empresas que querem escalar suas vitórias rapidamente.</p>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 330
+CONTEUDO: <ul className="space-y-6 mb-12 flex-1">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 331
+CONTEUDO: <li className="flex items-center text-lg font-medium text-white">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 335
+CONTEUDO: <li className="flex items-center text-lg font-black text-brand-orange bg-orange-500/10 p-2 rounded-lg -ml-2">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 337
+CONTEUDO: IA Lex (Recursos/Impugnações)
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 339
+CONTEUDO: <li className="flex items-center text-lg font-medium text-white">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 343
+CONTEUDO: <li className="flex items-center text-lg font-medium text-white">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 354
+CONTEUDO: <motion.div initial={{ y: 20, opacity: 0 }} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.2 }} className="flex flex-col p-12 bg-[#0B1521] text-white rounded-[3rem] border border-slate-800 shadow-xl">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 361
+CONTEUDO: <ul className="space-y-6 mb-12 flex-1">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 362
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-300">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 366
+CONTEUDO: <li className="flex items-center text-lg font-bold text-emerald-400">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 370
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-300">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 374
+CONTEUDO: <li className="flex items-center text-lg font-medium text-slate-300">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 392
+CONTEUDO: <div className="max-w-6xl mx-auto text-center relative z-10 flex flex-col items-center">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 400
+CONTEUDO: Você pode continuar lutando contra editais complexos manualmente. <strong className="text-white">Ou você pode se equipar com a ferramenta que os tubarões usam.</strong>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 402
+CONTEUDO: <Link to="/register" className="bg-brand-orange text-white hover:bg-orange-500 px-20 py-8 rounded-full text-3xl font-black transition-all hover:scale-105 shadow-[0_0_100px_rgba(255,90,0,0.6)] inline-flex items-center justify-center gap-6 border border-orange-400">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 413
+CONTEUDO: <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-16">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 414
+CONTEUDO: <div className="flex flex-col items-center md:items-start text-center md:text-left">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 20
+CONTEUDO: import api, { roboApi } from '@services/api';
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 163
+CONTEUDO: { id: `${Date.now()}-${Math.random()}`, time: formatLogTime(), text, type },
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 172
+CONTEUDO: ? api.get(`/licitacoes/${encodeURIComponent(licitacaoId)}`)
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 173
+CONTEUDO: : Promise.resolve(null);
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 177
+CONTEUDO: roboApi.buscarConfig(licitacaoId),
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 178
+CONTEUDO: roboApi.listarLogs(licitacaoId),
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 265
+CONTEUDO: const response = await roboApi.salvarConfig(licitacaoId, payload);
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 361
+CONTEUDO: const souPrimeiro = Math.random() > 0.55;
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 368
+CONTEUDO: void roboApi.processarLance(licitacaoId, {
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 410
+CONTEUDO: <div className="flex items-center justify-between border-b border-[#D8E6FF] bg-white px-5 py-4">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 418
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 440
+CONTEUDO: <div className="flex flex-wrap items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 457
+CONTEUDO: <div className="flex min-h-[520px] flex-col items-center justify-center px-8 text-center">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 469
+CONTEUDO: <div className="flex h-full flex-col bg-[#F3F8FF]">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 471
+CONTEUDO: <div className="mx-auto flex max-w-7xl flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 473
+CONTEUDO: <div className="mb-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 477
+CONTEUDO: <div className="flex flex-wrap items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 479
+CONTEUDO: <span className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 493
+CONTEUDO: <div className="flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 498
+CONTEUDO: className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition ${
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 512
+CONTEUDO: <div className="flex-1 overflow-auto px-6 py-6 lg:px-8">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 516
+CONTEUDO: <div className="flex flex-wrap items-start justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 518
+CONTEUDO: <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em]">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 546
+CONTEUDO: <div className="flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 560
+CONTEUDO: <div className="mt-3 flex items-center justify-between text-xs text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 573
+CONTEUDO: <div className="mb-4 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 604
+CONTEUDO: <div className="mb-4 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 609
+CONTEUDO: <div className="flex flex-col gap-3 sm:flex-row">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 610
+CONTEUDO: <div className="relative flex-1">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 628
+CONTEUDO: <div className="mb-4 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 657
+CONTEUDO: className={`inline-flex items-center justify-center gap-3 rounded-[24px] px-5 py-4 text-sm font-bold uppercase tracking-[0.18em] text-white transition ${
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 681
+CONTEUDO: <section className="tech-panel flex min-h-[420px] flex-col overflow-hidden">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 682
+CONTEUDO: <div className="flex items-center justify-between border-b border-[#D8E6FF] px-5 py-4">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 683
+CONTEUDO: <div className="mb-4 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 695
+CONTEUDO: <div className="flex-1 space-y-2 overflow-y-auto p-5 font-mono text-xs">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 697
+CONTEUDO: <div className="flex items-center gap-2 text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 710
+CONTEUDO: <div key={log.id} className="flex items-start gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 735
+CONTEUDO: <div className="mb-4 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 740
+CONTEUDO: <div className="mb-4 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 781
+CONTEUDO: <div className="mt-5 flex flex-wrap gap-3">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 869
+CONTEUDO: <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Tempo de disputa (simulado)</label>
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 884
+CONTEUDO: <div className="mt-6 flex flex-wrap gap-3">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 908
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 918
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 928
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 25
+CONTEUDO: import { lexApi, licitacoesApi, empresasApi } from '@services/api';
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 128
+CONTEUDO: <span className={`inline-flex items-center rounded-lg border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] ${styles}`}>
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 145
+CONTEUDO: <span className={`inline-flex items-center rounded-lg border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] ${tone}`}>
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 164
+CONTEUDO: <div className="flex items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 194
+CONTEUDO: const response = await licitacoesApi.buscarPorId(licitacaoId);
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 204
+CONTEUDO: const response = await empresasApi.listar();
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 219
+CONTEUDO: lexApi.resumo(payload),
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 220
+CONTEUDO: lexApi.auditar(payload),
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 241
+CONTEUDO: const response = await lexApi.proposta({
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 258
+CONTEUDO: const response = await lexApi.impugnacao({
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 282
+CONTEUDO: className="inline-flex items-center gap-2 text-sm font-semibold text-brand-blue/70 transition hover:text-brand-blue"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 299
+CONTEUDO: <div className="flex flex-wrap items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 311
+CONTEUDO: Tela focada em praticidade: resumo executivo, score de aderencia, proposta estrategica, impugnacao e acesso rapido a sala do robo para participar da disputa sem perder tempo.
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 317
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 325
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 333
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 339
+CONTEUDO: <p className="mt-2 flex items-center gap-1 text-xs text-brand-blue/70">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 347
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 355
+CONTEUDO: <div className="flex flex-wrap gap-3 border-t border-gray-100 px-8 py-5">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 361
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-5 py-3 text-sm font-bold text-brand-blue transition hover:border-brand-blue/20"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 369
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-white px-5 py-3 text-sm font-bold text-brand-blue transition hover:bg-white"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 379
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 404
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 406
+CONTEUDO: <h2 className="text-sm font-bold text-brand-blue">Entrada rapida para analise</h2>
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 428
+CONTEUDO: <div className="flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 453
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 460
+CONTEUDO: Entenda rapidamente objeto, exigencias, datas, riscos e pontos de atencao sem ler o edital inteiro.
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 468
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-blue disabled:opacity-60"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 480
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 489
+CONTEUDO: <div className="mb-2 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 534
+CONTEUDO: <div className="flex flex-wrap items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 553
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 564
+CONTEUDO: className="mt-4 inline-flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-white px-4 py-2 text-xs font-bold text-brand-blue transition hover:bg-white"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 576
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 582
+CONTEUDO: <div key={`${item.documento}-${item.observacao || ''}`} className="flex items-start gap-3 border-b border-gray-100 bg-white px-4 py-3 last:border-b-0">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 604
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 619
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-blue disabled:opacity-60"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 653
+CONTEUDO: <div className="flex items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 660
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-white px-4 py-2 text-xs font-bold text-brand-blue transition hover:bg-white"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 679
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 702
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-blue disabled:opacity-60"
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 713
+CONTEUDO: <div className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 745
+CONTEUDO: <div className="flex items-center justify-between gap-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacaoDetalhePage.tsx
+LINHA: 752
+CONTEUDO: className="inline-flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-4 py-2 text-xs font-bold text-brand-blue transition hover:bg-white"
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 29
+CONTEUDO: <div className="inline-flex items-center gap-2 rounded-lg border border-[#C8DCF9] bg-white p-1 shadow-sm">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 83
+CONTEUDO: const draft = window.sessionStorage.getItem('expertise:lex:sos-draft');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 86
+CONTEUDO: setAssunto('Revisão jurídica da resposta do LEX');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 89
+CONTEUDO: return `${prefix}[Resposta do LEX para revisão humana]\n${draft}`;
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 91
+CONTEUDO: window.sessionStorage.removeItem('expertise:lex:sos-draft');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 92
+CONTEUDO: toast.success('Resposta do LEX adicionada ao atendimento jurídico.');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 152
+CONTEUDO: <div className="mt-8 inline-flex items-center gap-3 rounded-full border-2 border-brand-orange/30 bg-orange-50/50 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-brand-orange">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 204
+CONTEUDO: <Link to="/juridico/advogado" className="mt-6 inline-flex w-full sm:w-auto items-center justify-center gap-3 rounded-xl bg-white px-6 py-4 text-xs font-black uppercase tracking-widest text-brand-blue transition hover:bg-slate-100 shadow-lg">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 215
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 253
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 258
+CONTEUDO: <span className="inline-flex items-center gap-1.5 rounded-lg border-2 border-brand-orange/30 bg-orange-50/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-brand-orange">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 264
+CONTEUDO: <div className="mt-6 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 272
+CONTEUDO: <div className="mt-6 flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-500">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 274
+CONTEUDO: <span className="inline-flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 279
+CONTEUDO: <span className="inline-flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 284
+CONTEUDO: <span className="inline-flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 297
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 371
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 375
+CONTEUDO: className="inline-flex w-full sm:w-auto items-center justify-center gap-3 rounded-xl bg-brand-orange hover:bg-orange-500 px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 392
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 393
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 399
+CONTEUDO: <div className="flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 439
+CONTEUDO: <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 446
+CONTEUDO: <span className={`inline-flex items-center whitespace-nowrap rounded-lg border-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${getCaseStatusTone(caseItem.status)}`}>
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 451
+CONTEUDO: <div className="mt-4 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 465
+CONTEUDO: <div className="rounded-3xl border-2 border-slate-100 bg-slate-50 p-6 lg:p-8 flex flex-col h-[800px]">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 468
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 475
+CONTEUDO: <span className={`inline-flex items-center rounded-lg border-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest ${getCaseStatusTone(selectedCase.status)}`}>
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 486
+CONTEUDO: <div className="flex flex-wrap gap-2 mb-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 520
+CONTEUDO: <div className="mt-6 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 530
+CONTEUDO: <div className="inline-flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 535
+CONTEUDO: <div className="inline-flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 543
+CONTEUDO: <div className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 548
+CONTEUDO: <div key={messageItem.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 550
+CONTEUDO: <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-80">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 571
+CONTEUDO: <div className="flex flex-col sm:flex-row gap-4">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 577
+CONTEUDO: className="flex-1 rounded-2xl border-2 border-slate-200 bg-white px-6 py-4 text-base font-medium text-slate-900 outline-none transition focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 resize-none custom-scrollbar"
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 579
+CONTEUDO: <button type="submit" disabled={enviarMensagem.isPending} className="inline-flex items-center justify-center gap-3 rounded-xl bg-brand-blue hover:bg-[#172554] px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0 sm:self-end">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 617
+CONTEUDO: <div className="mt-4 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 640
+CONTEUDO: <button type="submit" disabled={avaliarCaso.isPending} className="mt-4 inline-flex w-full sm:w-auto items-center justify-center gap-3 rounded-xl bg-brand-orange hover:bg-orange-500 px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 9
+CONTEUDO: import { licitacoesApi } from '../services/api';
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 53
+CONTEUDO: <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 88
+CONTEUDO: const { data } = await licitacoesApi.listar(params);
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 100
+CONTEUDO: ? 'PNCP demorou para responder. Os dados do cache serão exibidos assim que disponíveis — tente novamente em alguns instantes.'
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 139
+CONTEUDO: ? { label: 'Cache Supabase', icon: Database, color: 'text-brand-blue bg-white border-brand-blue/20' }
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 149
+CONTEUDO: <div className="flex flex-col h-full bg-white">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 154
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 156
+CONTEUDO: <div className="flex items-center gap-3 text-sm text-brand-orange font-black uppercase tracking-widest mb-3">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 160
+CONTEUDO: <span className={`flex items-center gap-2 ml-4 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest border ${fonteLabel.color}`}>
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 167
+CONTEUDO: <div className="flex items-center gap-3 mt-4">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 169
+CONTEUDO: <p className="text-lg font-semibold text-slate-500 flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 179
+CONTEUDO: <div className="mt-3 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 194
+CONTEUDO: className="flex items-center justify-center gap-3 px-6 py-4 bg-brand-orange hover:bg-orange-500 disabled:opacity-60 text-white text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-2xl hover:shadow-brand-orange/40 active:scale-95 shrink-0"
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 202
+CONTEUDO: <form onSubmit={handleBuscar} className="flex gap-4 flex-wrap">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 203
+CONTEUDO: <div className="relative flex-1 min-w-[300px]">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 219
+CONTEUDO: className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-100 text-brand-blue/70 text-sm font-bold rounded-lg hover:bg-white transition-all"
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 229
+CONTEUDO: <div className="mt-3 flex flex-wrap gap-3 pt-3 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 254
+CONTEUDO: <div className="flex items-end">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 268
+CONTEUDO: <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 273
+CONTEUDO: <div className={`mb-5 rounded-lg p-4 flex items-start gap-3 animate-in fade-in duration-200 ${
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 292
+CONTEUDO: <div className="flex flex-col items-center justify-center py-24 gap-4">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 306
+CONTEUDO: <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 307
+CONTEUDO: <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 341
+CONTEUDO: <div className="flex flex-col sm:flex-row sm:items-start gap-6 md:gap-8">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 344
+CONTEUDO: <div className={`hidden lg:flex flex-col items-center justify-center w-20 h-20 rounded-2xl shrink-0 font-black text-2xl border-4 ${
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 354
+CONTEUDO: <div className="flex-1 min-w-0">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 355
+CONTEUDO: <div className="flex flex-wrap items-center gap-3 mb-4">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 368
+CONTEUDO: <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black text-brand-orange bg-orange-50/50 border-2 border-brand-orange/30 uppercase tracking-widest animate-pulse">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 379
+CONTEUDO: <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-500 font-semibold">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 380
+CONTEUDO: <span className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 385
+CONTEUDO: <span className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 391
+CONTEUDO: <span className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 397
+CONTEUDO: <span className="flex items-center gap-2">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 405
+CONTEUDO: <div className="flex sm:flex-col items-center gap-3 shrink-0">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 408
+CONTEUDO: className="flex items-center justify-center gap-2 px-5 py-3.5 bg-brand-orange hover:bg-orange-500 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-md hover:shadow-lg w-full"
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 419
+CONTEUDO: className="flex items-center justify-center gap-2 px-5 py-3.5 bg-white border-2 border-slate-200 hover:border-brand-blue text-slate-600 hover:text-brand-blue text-xs font-black uppercase tracking-widest rounded-xl transition-all w-full"
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 435
+CONTEUDO: <div className="mt-6 flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 439
+CONTEUDO: <div className="flex gap-2">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 19
+CONTEUDO: import api, { documentosApi } from '@services/api';
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 127
+CONTEUDO: const response = await api.get('/empresas');
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 138
+CONTEUDO: const response = await documentosApi.listar(empresaPrincipal?.id ? { empresa_id: empresaPrincipal.id } : undefined);
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 151
+CONTEUDO: documentosApi.criar({
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 173
+CONTEUDO: return documentosApi.upload(formData);
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 181
+CONTEUDO: mutationFn: async (id: string) => documentosApi.remover(id),
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 279
+CONTEUDO: <div className="flex h-full flex-col bg-white">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 282
+CONTEUDO: <div className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 284
+CONTEUDO: <div className="mb-3 flex items-center gap-3 text-sm font-black uppercase tracking-widest text-brand-orange">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 299
+CONTEUDO: className="inline-flex items-center gap-3 rounded-xl bg-brand-orange px-8 py-4 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg hover:shadow-2xl hover:shadow-brand-orange/40 hover:-translate-y-1 hover:bg-orange-500"
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 306
+CONTEUDO: <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 318
+CONTEUDO: <div className="flex gap-2 rounded-xl bg-slate-50 border-2 border-slate-100 p-1.5">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 340
+CONTEUDO: <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 343
+CONTEUDO: <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 385
+CONTEUDO: <div className="mt-6 flex gap-3">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 389
+CONTEUDO: className="flex-1 rounded-lg bg-white px-4 py-3 text-sm font-bold text-brand-blue transition hover:bg-white"
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 396
+CONTEUDO: className="flex-1 rounded-lg bg-brand-blue px-4 py-3 text-sm font-bold text-white transition hover:bg-[#172554]"
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 427
+CONTEUDO: <div className="flex flex-col items-center">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 428
+CONTEUDO: <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-brand-blue/20 bg-white">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 432
+CONTEUDO: <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1 text-xs font-bold text-brand-blue">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 438
+CONTEUDO: <div className="flex flex-col items-center">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 439
+CONTEUDO: <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg border border-brand-blue/20 bg-white">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 466
+CONTEUDO: <div key={documento.id} className="group flex flex-col rounded-2xl border-2 border-slate-100 bg-white p-6 md:p-8 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-brand-blue/30 transition-all duration-300">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 467
+CONTEUDO: <div className="flex items-start justify-between gap-4 mb-4">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 468
+CONTEUDO: <div className="flex min-w-0 flex-col sm:flex-row sm:items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 469
+CONTEUDO: <div className={`flex items-center justify-center h-12 w-12 rounded-xl border-2 ${documento.status === 'vencido'
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 491
+CONTEUDO: <div className={`flex flex-wrap items-center gap-2 text-sm font-bold ${documento.status === 'vencido'
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 497
+CONTEUDO: <span className="flex items-center gap-1.5">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 502
+CONTEUDO: <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-orange-50/50 border-2 border-brand-orange/30 px-3 py-1 font-black uppercase tracking-widest text-[10px] text-brand-orange animate-pulse">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 509
+CONTEUDO: <div className="flex items-center gap-2 text-sm font-semibold text-slate-400">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 516
+CONTEUDO: <div className="mt-8 flex gap-3">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 522
+CONTEUDO: className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 transition hover:border-brand-blue hover:text-brand-blue shadow-sm"
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 532
+CONTEUDO: className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-xs font-black uppercase tracking-widest transition shadow-sm ${documento.status === 'vencido'
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 569
+CONTEUDO: <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 579
+CONTEUDO: <div key={tipo} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 580
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 581
+CONTEUDO: <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-100 bg-white">
+---
+ARQUIVO: .\frontend\src\pages\CofrePage.tsx
+LINHA: 595
+CONTEUDO: className="inline-flex items-center gap-1.5 self-start rounded-lg border border-gray-100 bg-white px-3 py-2 text-xs font-bold text-brand-blue transition hover:border-brand-blue/20"
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 4
+CONTEUDO: import { lexApi } from '@services/api';
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 19
+CONTEUDO: interface LexViabilidadeModalProps {
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 26
+CONTEUDO: export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, objeto }: LexViabilidadeModalProps) {
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 30
+CONTEUDO: // Mutações simuladas (para plugar na API real depois)
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 32
+CONTEUDO: mutationFn: () => lexApi.resumo({ edital_id: licitacaoId })
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 40
+CONTEUDO: <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-blue/40 backdrop-blur-sm p-4 sm:p-6">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 45
+CONTEUDO: className="w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 48
+CONTEUDO: <div className="flex items-center justify-between p-6 bg-gradient-to-r from-brand-blue to-blue-900 text-white">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 49
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 54
+CONTEUDO: <h2 className="text-xl font-bold tracking-tight">Especialista LEX</h2>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 67
+CONTEUDO: <div className="flex flex-1 overflow-hidden min-h-[500px]">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 72
+CONTEUDO: className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 83
+CONTEUDO: className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 94
+CONTEUDO: className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 105
+CONTEUDO: className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 117
+CONTEUDO: <div className="flex-1 bg-white p-6 overflow-y-auto">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 122
+CONTEUDO: <div className="flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 143
+CONTEUDO: <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Dica LEX</p>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 153
+CONTEUDO: <div className="flex items-center justify-between">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 155
+CONTEUDO: <span className="bg-orange-100 text-brand-orange px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 161
+CONTEUDO: <div className="p-5 bg-orange-50/50 border border-brand-orange/20 rounded-xl flex gap-4 items-start">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 167
+CONTEUDO: <strong className="block mt-2 text-brand-orange">Sugestão LEX:</strong> É altamente recomendável pedir impugnação para permitir o somatório de atestados caso haja restrição.
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 175
+CONTEUDO: <div className="p-5 bg-green-50/50 border border-green-200 rounded-xl flex gap-4 items-start">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 196
+CONTEUDO: <div className="flex items-end gap-2 mb-2">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 203
+CONTEUDO: <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 flex flex-col">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 205
+CONTEUDO: <div className="flex flex-col gap-3">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 206
+CONTEUDO: <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 210
+CONTEUDO: <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 214
+CONTEUDO: <div className="flex justify-between items-center">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 216
+CONTEUDO: <span className="text-sm font-black text-green-600 flex items-center gap-1">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 224
+CONTEUDO: <div className="mt-4 p-4 bg-blue-50 border border-brand-blue/20 rounded-xl flex items-start gap-3">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 228
+CONTEUDO: <strong>Veredito LEX:</strong>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 238
+CONTEUDO: <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-2">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 239
+CONTEUDO: <div className="flex items-center gap-2 mb-4">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 244
+CONTEUDO: <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 overflow-y-auto space-y-4">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 245
+CONTEUDO: <div className="flex gap-3">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 246
+CONTEUDO: <div className="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shrink-0">
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 250
+CONTEUDO: Olá! Eu sou o LEX. Posso te ajudar a navegar por este edital. O que você gostaria de saber? Posso confirmar especificações técnicas, multas ou datas.
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 263
+CONTEUDO: <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-brand-blue hover:bg-blue-900 text-white rounded-lg transition-colors">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 15
+CONTEUDO: import { useLexAI } from '@hooks/useLexAI';
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 72
+CONTEUDO: <span className="inline-flex items-center gap-2 text-white">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 73
+CONTEUDO: <span className="flex items-center gap-1">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 81
+CONTEUDO: <span className="text-xs font-medium text-white">LEX está digitando</span>
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 86
+CONTEUDO: export function LexAdvisor() {
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 97
+CONTEUDO: } = useLexAI();
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 104
+CONTEUDO: window.setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 105
+CONTEUDO: window.setTimeout(() => inputRef.current?.focus(), 160);
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 111
+CONTEUDO: ask(input, 'Dashboard do fornecedor na plataforma Expertise.');
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 123
+CONTEUDO: className="fixed bottom-24 right-6 z-[70] flex h-[560px] w-[560px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-[0_22px_70px_rgba(27,27,27,0.12)]"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 125
+CONTEUDO: <header className="flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 126
+CONTEUDO: <div className="flex items-center gap-3">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 127
+CONTEUDO: <span className="flex h-11 w-11 items-center justify-center rounded-md border border-[#1B1B1B] text-brand-blue">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 131
+CONTEUDO: <p className="text-sm font-semibold text-brand-blue">LEX</p>
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 138
+CONTEUDO: className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-100 text-brand-blue/70 transition hover:border-brand-blue/20 hover:text-brand-blue"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 139
+CONTEUDO: aria-label="Fechar LEX"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 145
+CONTEUDO: <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_180px]">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 146
+CONTEUDO: <div className="flex min-w-0 flex-col">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 147
+CONTEUDO: <div className="flex-1 space-y-4 overflow-y-auto bg-white p-4">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 149
+CONTEUDO: <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 150
+CONTEUDO: {message.role === 'lex' ? (
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 151
+CONTEUDO: <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white text-brand-blue">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 156
+CONTEUDO: message.role === 'lex'
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 166
+CONTEUDO: <div className="flex gap-2">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 167
+CONTEUDO: <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white text-brand-blue">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 179
+CONTEUDO: <div className="mb-3 flex flex-wrap gap-2">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 184
+CONTEUDO: className="inline-flex items-center gap-2 rounded-md border border-gray-100 bg-white px-3 py-2 text-xs font-semibold text-brand-blue transition hover:border-brand-blue/20 disabled:opacity-45"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 193
+CONTEUDO: className="inline-flex items-center gap-2 rounded-md border border-brand-orange/50 bg-brand-orange px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#581C87] disabled:opacity-45"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 199
+CONTEUDO: <form onSubmit={handleSubmit} className="flex gap-2">
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 202
+CONTEUDO: id="lex-input"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 208
+CONTEUDO: className="h-11 flex-1 rounded-md border border-gray-100 bg-white px-3 text-sm text-brand-blue outline-none transition focus:border-brand-blue/20 disabled:opacity-60"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 212
+CONTEUDO: id="lex-send-btn"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 216
+CONTEUDO: className="flex h-11 w-11 items-center justify-center rounded-md bg-brand-blue text-white transition disabled:bg-[#E9E1D8] disabled:text-brand-blue/60"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 235
+CONTEUDO: onClick={() => ask(action.prompt, 'Consulta rápida aberta pelo widget flutuante do LEX.')}
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 238
+CONTEUDO: className="flex w-full items-center gap-3 rounded-md border border-gray-100 bg-white px-3 py-3 text-left text-xs font-semibold text-brand-blue transition hover:border-brand-blue/20 disabled:opacity-50"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 256
+CONTEUDO: id="lex-advisor-btn"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 260
+CONTEUDO: className="fixed bottom-6 right-6 z-[70] flex h-14 items-center gap-3 rounded-lg bg-brand-blue px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-[0_18px_48px_rgba(27,27,27,0.16)]"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 261
+CONTEUDO: aria-label="Abrir LEX"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 264
+CONTEUDO: LEX
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 5
+CONTEUDO: *   • Google Gemini  — via API REST (https://generativelanguage.googleapis.com)
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 6
+CONTEUDO: *   • xAI Grok       — via API compatível com OpenAI (https://api.x.ai/v1)
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 12
+CONTEUDO: *   GEMINI_API_KEY=...
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 14
+CONTEUDO: *   GROK_API_KEY=...
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 16
+CONTEUDO: *   OPENAI_API_KEY=...
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 29
+CONTEUDO: if (env === 'grok' && process.env.GROK_API_KEY && !process.env.GROK_API_KEY.startsWith('sua_')) return 'grok';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 31
+CONTEUDO: if (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.startsWith('sua_')) return 'openai';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 34
+CONTEUDO: if (process.env.GROK_API_KEY && !process.env.GROK_API_KEY.startsWith('sua_')) return 'grok';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 35
+CONTEUDO: if (process.env.OPENAI_API_KEY) return 'openai';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 43
+CONTEUDO: return process.env.GOOGLE_GEMINI_KEY || process.env.GEMINI_API_KEY || '';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 52
+CONTEUDO: const apiKey = getGeminiKey();
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 53
+CONTEUDO: if (!apiKey) {
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 58
+CONTEUDO: _gemini = new GoogleGenerativeAI(apiKey);
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 66
+CONTEUDO: const systemMsg = messages.find((message) => message.role === 'system')?.content || SYSTEM_PROMPT_LEX;
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 91
+CONTEUDO: const apiKey = process.env.GROK_API_KEY!;
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 94
+CONTEUDO: // Grok usa API compatível com OpenAI
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 96
+CONTEUDO: apiKey,
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 97
+CONTEUDO: baseURL: 'https://api.x.ai/v1',
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 118
+CONTEUDO: _ollama = new OpenAI({ baseURL: `${base}/v1`, apiKey: 'ollama' });
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 124
+CONTEUDO: _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 167
+CONTEUDO: if (process.env.GROK_API_KEY && !process.env.GROK_API_KEY.startsWith('sua_')) {
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 183
+CONTEUDO: import { SYSTEM_PROMPT_LEX } from './lex-prompt';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 185
+CONTEUDO: export async function consultarLexAI(params: {
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 190
+CONTEUDO: const response = await consultarLexAIWithProvider(params);
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 194
+CONTEUDO: export async function consultarLexAIWithProvider(params: {
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 207
+CONTEUDO: return grounding.runLex({
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 211
+CONTEUDO: purpose: 'lex_consultar',
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 230
+CONTEUDO: /** Chat livre com o LEX */
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 231
+CONTEUDO: export async function chatLex(messages: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<string> {
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 233
+CONTEUDO: throw new Error('LEX_GROUNDING_REQUIRED');
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 246
+CONTEUDO: throw new Error('LEX_GROUNDING_REQUIRED');
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 263
+CONTEUDO: { role: 'system', content: SYSTEM_PROMPT_LEX },
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 286
+CONTEUDO: throw new Error('LEX_GROUNDING_REQUIRED');
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 305
+CONTEUDO: { role: 'system', content: SYSTEM_PROMPT_LEX },
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 328
+CONTEUDO: throw new Error('LEX_GROUNDING_REQUIRED');
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 344
+CONTEUDO: { role: 'system', content: SYSTEM_PROMPT_LEX },
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 364
+CONTEUDO: throw new Error('LEX_GROUNDING_REQUIRED');
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 386
+CONTEUDO: { role: 'system', content: SYSTEM_PROMPT_LEX },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 6
+CONTEUDO: export class LexController {
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 26
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 30
+CONTEUDO: purpose: 'lex_chat',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 31
+CONTEUDO: metadata: { endpoint: '/lex/chat' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 36
+CONTEUDO: console.error('[LEX] Erro no chat grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 39
+CONTEUDO: message: 'O LEX esta temporariamente indisponivel. Tente novamente.',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 46
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 49
+CONTEUDO: purpose: 'lex_auditoria_preliminar',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 50
+CONTEUDO: metadata: { endpoint: '/lex/auditar' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 55
+CONTEUDO: console.error('[LEX] Erro na auditoria grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 56
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro na auditoria LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 62
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 65
+CONTEUDO: purpose: 'lex_resumo_grounded',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 66
+CONTEUDO: metadata: { endpoint: '/lex/resumo' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 71
+CONTEUDO: console.error('[LEX] Erro no resumo grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 79
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 82
+CONTEUDO: purpose: 'lex_proposta_insumos_grounded',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 83
+CONTEUDO: metadata: { endpoint: '/lex/proposta', nomeEmpresa: nome_empresa ?? null },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 88
+CONTEUDO: console.error('[LEX] Erro na proposta grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 89
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro na proposta LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 96
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 100
+CONTEUDO: purpose: 'lex_impugnacao_precheck',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 101
+CONTEUDO: metadata: { endpoint: '/lex/impugnacao' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 106
+CONTEUDO: console.error('[LEX] Erro na impugnacao grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 107
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro ao gerar analise previa LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 124
+CONTEUDO: const result = await this.grounding.runLex({
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 127
+CONTEUDO: purpose: 'lex_recurso_administrativo',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 128
+CONTEUDO: metadata: { endpoint: '/lex/recurso' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 133
+CONTEUDO: console.error('[LEX] Erro ao gerar recurso grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 134
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro ao gerar recurso administrativo com LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 139
+CONTEUDO: function groundedResponse(res: Response, result: Awaited<ReturnType<AiGroundingService['runLex']>>) {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 7
+CONTEUDO: if (import.meta.env.VITE_API_URL) {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 8
+CONTEUDO: return import.meta.env.VITE_API_URL;
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 12
+CONTEUDO: return 'http://localhost:3001/api/v1';
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 15
+CONTEUDO: return `${window.location.origin}/api/v1`;
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 21
+CONTEUDO: const api: AxiosInstance = axios.create({
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 29
+CONTEUDO: api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 38
+CONTEUDO: api.interceptors.response.use(
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 61
+CONTEUDO: return api(original);
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 79
+CONTEUDO: export const authApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 99
+CONTEUDO: api.post('/auth/register', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 101
+CONTEUDO: api.post('/auth/login', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 102
+CONTEUDO: me: () => api.get('/auth/me'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 103
+CONTEUDO: refresh: () => api.post('/auth/refresh', {}),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 104
+CONTEUDO: logout: () => api.post('/auth/logout', {}),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 107
+CONTEUDO: export const documentosApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 108
+CONTEUDO: listar: (params?: { empresa_id?: string }) => api.get('/documentos', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 116
+CONTEUDO: }) => api.post('/documentos', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 118
+CONTEUDO: api.post('/documentos/upload', formData, {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 121
+CONTEUDO: remover: (id: string) => api.delete(`/documentos/${id}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 125
+CONTEUDO: export const licitacoesApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 126
+CONTEUDO: listar: (params?: Record<string, unknown>) => api.get('/licitacoes', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 127
+CONTEUDO: buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 132
+CONTEUDO: }) => api.post('/licitacoes/sincronizar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 137
+CONTEUDO: export const integracoesApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 138
+CONTEUDO: catalogo: () => api.get('/integracoes/catalogo'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 139
+CONTEUDO: health: () => api.get('/integracoes/health'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 140
+CONTEUDO: cnpj: (cnpj: string) => api.get(`/integracoes/cnpj/${encodeURIComponent(cnpj)}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 141
+CONTEUDO: cnpjPublico: (cnpj: string) => api.get(`/public/cnpj/${encodeURIComponent(cnpj)}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 142
+CONTEUDO: sincronizarPncp: () => api.post('/integracoes/sincronizar/pncp'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 146
+CONTEUDO: export const auditoriaApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 148
+CONTEUDO: api.post(`/auditoria/${encodeURIComponent(licitacaoId)}`, { textoEdital }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 149
+CONTEUDO: buscar: (licitacaoId: string) => api.get(`/licitacoes/${encodeURIComponent(licitacaoId)}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 152
+CONTEUDO: export const aiApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 153
+CONTEUDO: consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 156
+CONTEUDO: export const lexApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 157
+CONTEUDO: resumo: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/resumo', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 158
+CONTEUDO: auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 159
+CONTEUDO: proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 160
+CONTEUDO: impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 161
+CONTEUDO: chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 164
+CONTEUDO: export const impugnacaoApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 165
+CONTEUDO: calcularPrazo: (body: { data_certame: string }) => api.post('/impugnacoes/prazo', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 183
+CONTEUDO: }) => api.post('/impugnacoes/peca', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 186
+CONTEUDO: export const concorrentesApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 188
+CONTEUDO: api.post('/concorrentes/malha-fina', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 191
+CONTEUDO: export const roboApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 192
+CONTEUDO: buscarConfig: (licitacaoId: string) => api.get(`/robo/${encodeURIComponent(licitacaoId)}/config`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 193
+CONTEUDO: salvarConfig: (licitacaoId: string, body: Record<string, unknown>) => api.post(`/robo/${encodeURIComponent(licitacaoId)}/config`, body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 195
+CONTEUDO: api.post(`/robo/${encodeURIComponent(licitacaoId)}/lance`, body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 196
+CONTEUDO: listarLogs: (licitacaoId: string) => api.get(`/robo/${encodeURIComponent(licitacaoId)}/logs`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 197
+CONTEUDO: toggle: (licitacaoId: string) => api.patch(`/robo/${encodeURIComponent(licitacaoId)}/toggle`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 201
+CONTEUDO: export const empresasApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 202
+CONTEUDO: listar: () => api.get('/empresas'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 203
+CONTEUDO: criar: (body: Record<string, unknown>) => api.post('/empresas', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 204
+CONTEUDO: atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/empresas/${id}`, body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 205
+CONTEUDO: buscarPorId: (id: string) => api.get(`/empresas/${id}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 208
+CONTEUDO: export const marketplaceApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 209
+CONTEUDO: listar: (params?: Record<string, unknown>) => api.get('/marketplace', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 211
+CONTEUDO: api.get('/marketplace/fornecedores', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 213
+CONTEUDO: api.post('/marketplace/fornecedores', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 215
+CONTEUDO: api.patch(`/marketplace/fornecedores/${encodeURIComponent(id)}`, body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 217
+CONTEUDO: api.delete(`/marketplace/fornecedores/${encodeURIComponent(id)}`),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 218
+CONTEUDO: prompt: () => api.get('/marketplace/prompt'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 229
+CONTEUDO: }) => api.post('/marketplace/catalogar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 235
+CONTEUDO: }) => api.post('/marketplace/cotar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 238
+CONTEUDO: export const precificacaoApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 245
+CONTEUDO: }) => api.post('/precificacao/viabilidade', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 248
+CONTEUDO: export const juridicoApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 249
+CONTEUDO: planos: () => api.get('/juridico/planos'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 250
+CONTEUDO: minhaAssinatura: () => api.get('/juridico/assinatura'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 251
+CONTEUDO: listarAdvogados: (params?: { busca?: string; uf?: string }) => api.get('/juridico/advogados', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 252
+CONTEUDO: meuPerfil: () => api.get('/juridico/meu-perfil'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 263
+CONTEUDO: }) => api.post('/juridico/meu-perfil', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 264
+CONTEUDO: listarCasos: () => api.get('/juridico/casos'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 272
+CONTEUDO: }) => api.post('/juridico/casos', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 273
+CONTEUDO: enviarMensagem: (id: string, conteudo: string) => api.post(`/juridico/casos/${encodeURIComponent(id)}/mensagens`, { conteudo }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 275
+CONTEUDO: api.patch(`/juridico/casos/${encodeURIComponent(id)}/status`, { status }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 277
+CONTEUDO: api.post(`/juridico/casos/${encodeURIComponent(id)}/avaliacao`, body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 281
+CONTEUDO: export const notificacoesApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 283
+CONTEUDO: api.get('/notificacoes', { params }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 284
+CONTEUDO: marcarTodasComoLidas: () => api.post('/notificacoes/marcar-todas-lidas'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 288
+CONTEUDO: export const pagamentosApi = {
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 290
+CONTEUDO: api.post('/pagamentos/checkout-session', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 292
+CONTEUDO: api.post('/pagamentos/checkout-auth', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 293
+CONTEUDO: criarPortal: (returnUrl: string) => api.post('/pagamentos/portal', { returnUrl }),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 294
+CONTEUDO: minhaAssinatura: () => api.get('/pagamentos/assinatura'),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 297
+CONTEUDO: export default api;
+---
+ARQUIVO: .\backend\src\services\api.ts
+LINHA: 4
+CONTEUDO: export const api = axios.create({
+---
+ARQUIVO: .\backend\src\services\api.ts
+LINHA: 5
+CONTEUDO: baseURL: 'https://pncp.gov.br/api/consulta/v1',
+---
+ARQUIVO: .\backend\src\services\api.ts
+LINHA: 13
+CONTEUDO: api.interceptors.response.use(
+---

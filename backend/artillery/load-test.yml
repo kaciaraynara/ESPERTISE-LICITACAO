@@ -1,0 +1,43 @@
+config:
+  target: "http://localhost:3000/api"
+  phases:
+    # Phase 1: Warm up (50 users over 10 seconds)
+    - duration: 10
+      arrivalRate: 5
+      name: "Warm up the API"
+    # Phase 2: Ramp up to heavy load (1000 users over 60 seconds)
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 50
+      name: "Ramp up to peak load"
+    # Phase 3: Sustained heavy load (50 users per second for 1 minute = 3000 total)
+    - duration: 60
+      arrivalRate: 50
+      name: "Sustained peak load"
+  
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      # Insert a valid dev token here before running tests in prod
+      # Authorization: "Bearer YOUR_TEST_TOKEN"
+
+scenarios:
+  - name: "Licitante acessando Dashboard e Radar"
+    flow:
+      - get:
+          url: "/pca"
+      - think: 2
+      - get:
+          url: "/pipeline"
+      - think: 3
+      - get:
+          url: "/pricing-strategy?uasgId=123"
+  
+  - name: "Uso pesado do Lex (IA)"
+    weight: 2
+    flow:
+      - post:
+          url: "/lex/recurso"
+          json:
+            noticeId: "123"
+            reason: "Inabilitado por erro material na planilha."

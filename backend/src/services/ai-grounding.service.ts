@@ -1,0 +1,923 @@
+import { createHash } from 'crypto';
+import { prisma } from '../database/prisma';
+
+export const AI_GROUNDING_BLOCKED_MESSAGE = 'Não há dados suficientes na base para análise confiável.';
+
+type GroundingAIMessage = { role: 'user' | 'assistant' | 'system'; content: string };
+type ProviderRunner = (messages: GroundingAIMessage[]) => Promise<{ content: string; provider: string }>;
+
+export interface AiGroundingUserContext {
+  tenantId?: string | null;
+  user?: {
+    id?: string | null;
+    email?: string | null;
+    role?: string | null;
+    isAdmin?: boolean;
+    permissions?: string[];
+  };
+  requestId?: string | string[] | null;
+  ip?: string | null;
+  userAgent?: string | string[] | null;
+}
+
+export interface AiGroundingInput {
+  pergunta: string;
+  contexto?: string | null;
+  noticeId?: string | null;
+  purpose?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface GroundingCitation {
+  sourceType: string;
+  sourceId: string;
+  chunkId?: string | null;
+  ruleCode?: string | null;
+  citationType: string;
+  label?: string | null;
+  excerpt: string;
+  confidence: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AiGroundedResponse {
+  aiRunId: string;
+  retrievalSessionId?: string | null;
+  content: string;
+  provider?: string | null;
+  blocked: boolean;
+  citations: GroundingCitation[];
+  sourceIds: string[];
+  chunkIds: string[];
+  ruleCodes: string[];
+  confidence: number;
+  limitations: string[];
+  legalAnalysisId?: string | null;
+}
+
+interface RetrievalResult {
+  notices: any[];
+  chunks: any[];
+  rules: any[];
+  sourceIds: string[];
+  chunkIds: string[];
+  ruleCodes: string[];
+  context: Record<string, unknown>;
+  limitations: string[];
+}
+
+const MAX_NOTICES = 5;
+const MAX_CHUNKS = 12;
+const MAX_RULES = 12;
+const MAX_CITATIONS = 10;
+const QUERY_LIMIT = 2000;
+const CONTEXT_QUERY_LIMIT = 1200;
+const EXCERPT_LIMIT = 900;
+const PROMPT_CHUNK_LIMIT = 1400;
+const SEARCH_STOPWORDS = new Set([
+  'para',
+  'com',
+  'sem',
+  'por',
+  'das',
+  'dos',
+  'uma',
+  'nas',
+  'nos',
+  'que',
+  'ser',
+  'sera',
+  'sao',
+  'de',
+  'da',
+  'do',
+  'em',
+  'na',
+  'no',
+  'ao',
+  'as',
+  'os',
+  'e',
+  'a',
+  'o',
+  'edital',
+  'licitacao',
+  'analise',
+  'resumo',
+]);
+
+const BASE_LIMITATIONS = [
+  'Resposta limitada as fontes recuperadas do banco de dados do EXPERTISE.',
+  'Nao afirma ilegalidade, fraude ou conclusao juridica definitiva.',
+  'Nao substitui revisao juridica humana nem leitura integral do edital e anexos.',
+];
+
+export class AiGroundingService {
+  constructor(
+    private readonly client: any = prisma as any,
+    private readonly providerRunner?: ProviderRunner,
+  ) {}
+
+  async runLex(input: AiGroundingInput, context: AiGroundingUserContext = {}): Promise<AiGroundedResponse> {
+    const pergunta = safeString(input.pergunta, QUERY_LIMIT);
+    if (!pergunta) throw new Error('PERGUNTA_OBRIGATORIA');
+
+    const tenantId = normalizeNullableString(context.tenantId, 120);
+    const purpose = safeString(input.purpose, 120) ?? 'lex_grounded_response';
+    const aiRun = await this.client.aiRun.create({
+      data: {
+        tenantId,
+        userId: normalizeNullableString(context.user?.id, 120),
+        requestId: normalizeHeader(context.requestId),
+        purpose,
+        status: 'started',
+        question: pergunta,
+        limitations: BASE_LIMITATIONS,
+        metadata: sanitizeMetadata({
+          actorRole: context.user?.role ?? null,
+          inputMetadata: input.metadata ?? null,
+        }),
+      },
+    });
+
+    await this.auditAi('ai_run_started', 'success', context, {
+      purpose,
+      noticeId: normalizeNullableString(input.noticeId, 120),
+    }, 'ai_run', aiRun.id);
+
+    let retrievalSessionId: string | null = null;
+
+    try {
+      const retrievalSession = await this.client.aiRetrievalSession.create({
+        data: {
+          aiRunId: aiRun.id,
+          tenantId,
+          query: buildRetrievalQuery(input),
+          status: 'running',
+          retrievalMode: 'postgres_text',
+          limitations: BASE_LIMITATIONS,
+        },
+      });
+      retrievalSessionId = retrievalSession.id;
+
+      const retrieval = await this.retrieve(input, context);
+      const citations = this.buildCitations(retrieval);
+      const validation = validateGrounding(retrieval, citations, retrievalSessionId);
+      const confidence = validation.ok ? calculateConfidence(retrieval) : 0;
+      const limitations = buildLimitations(retrieval, validation.reasons);
+
+      await this.client.aiRetrievalSession.update({
+        where: { id: retrievalSessionId },
+        data: {
+          status: validation.ok ? 'completed' : 'blocked',
+          sourcesFound: retrieval.sourceIds.length,
+          chunksFound: retrieval.chunkIds.length,
+          rulesFound: retrieval.ruleCodes.length,
+          sourceIds: retrieval.sourceIds,
+          chunkIds: retrieval.chunkIds,
+          ruleCodes: retrieval.ruleCodes,
+          context: sanitizeMetadata(retrieval.context),
+          limitations,
+          completedAt: new Date(),
+        },
+      });
+
+      if (!validation.ok) {
+        return this.blockRun(aiRun.id, retrievalSessionId, context, validation.reasons, retrieval, limitations);
+      }
+
+      if (!this.providerRunner) {
+        throw new Error('AI_PROVIDER_RUNNER_REQUIRED');
+      }
+
+      const prompt = buildGroundedPrompt(pergunta, retrieval, citations);
+      const generated = await this.providerRunner([
+        { role: 'system', content: groundedSystemPrompt(input.purpose) },
+        { role: 'user', content: prompt },
+      ]);
+
+      if (containsUnsafeAssertion(generated.content)) {
+        return this.blockRun(aiRun.id, retrievalSessionId, context, ['unsafe_legal_assertion'], retrieval, [
+          ...limitations,
+          'Resposta gerada bloqueada por conter afirmacao juridica conclusiva sem revisao humana.',
+        ]);
+      }
+
+      const completedRetrievalSessionId = retrievalSessionId as string;
+      await this.persistCitations(aiRun.id, completedRetrievalSessionId, citations);
+      const legalAnalysis = await this.persistLegalAnalysis(aiRun.id, generated.content, citations, retrieval, confidence, limitations, context, purpose);
+
+      await this.client.aiRun.update({
+        where: { id: aiRun.id },
+        data: {
+          status: 'completed',
+          provider: generated.provider,
+          prompt,
+          response: generated.content,
+          sourceIds: retrieval.sourceIds,
+          chunkIds: retrieval.chunkIds,
+          ruleCodes: retrieval.ruleCodes,
+          confidence,
+          limitations,
+          completedAt: new Date(),
+        },
+      });
+
+      await this.auditAi('ai_run_completed', 'success', context, {
+        purpose,
+        provider: generated.provider,
+        sourceIds: retrieval.sourceIds,
+        chunkIds: retrieval.chunkIds,
+        ruleCodes: retrieval.ruleCodes,
+        confidence,
+        citations: citations.length,
+        legalAnalysisId: legalAnalysis?.id ?? null,
+      }, 'ai_run', aiRun.id);
+
+      return {
+        aiRunId: aiRun.id,
+        retrievalSessionId,
+        legalAnalysisId: legalAnalysis?.id ?? null,
+        content: generated.content,
+        provider: generated.provider,
+        blocked: false,
+        citations,
+        sourceIds: retrieval.sourceIds,
+        chunkIds: retrieval.chunkIds,
+        ruleCodes: retrieval.ruleCodes,
+        confidence,
+        limitations,
+      };
+    } catch (error: any) {
+      await this.client.aiRun.update({
+        where: { id: aiRun.id },
+        data: {
+          status: 'failed',
+          failureReason: safeString(error?.message, 1000) ?? 'ai_run_failed',
+          failedAt: new Date(),
+        },
+      });
+      if (retrievalSessionId) {
+        await this.client.aiRetrievalSession.update({
+          where: { id: retrievalSessionId },
+          data: {
+            status: 'failed',
+            limitations: ['Falha tecnica durante retrieval ou grounding.'],
+            completedAt: new Date(),
+          },
+        });
+      }
+      await this.auditAi('ai_run_failed', 'failure', context, {
+        reason: safeString(error?.message, 500) ?? 'ai_run_failed',
+      }, 'ai_run', aiRun.id);
+      throw error;
+    }
+  }
+
+  private async retrieve(input: AiGroundingInput, context: AiGroundingUserContext): Promise<RetrievalResult> {
+    const tenantId = normalizeNullableString(context.tenantId, 120);
+    const query = buildRetrievalQuery(input);
+    const keywords = extractKeywords(query);
+    const requestedNoticeId = normalizeNullableString(input.noticeId, 120);
+
+    const requestedNoticeIsUuid = Boolean(
+      requestedNoticeId
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        requestedNoticeId,
+      ),
+    );
+
+    const requestedNoticeWhere = requestedNoticeId
+      ? requestedNoticeIsUuid
+        ? {
+            OR: [
+              { id: requestedNoticeId },
+              { externalId: requestedNoticeId },
+              { noticeNumber: requestedNoticeId },
+            ],
+          }
+        : {
+            OR: [
+              { externalId: requestedNoticeId },
+              { noticeNumber: requestedNoticeId },
+            ],
+          }
+      : null;
+
+    let notices: any[] = requestedNoticeWhere
+      ? await this.client.procurementNotice.findMany({
+          where: {
+            AND: [
+              tenantVisibilityWhere(tenantId),
+              requestedNoticeWhere,
+            ],
+          },
+          take: 1,
+          select: retrievalNoticeSelect(),
+        })
+      : await this.findNoticesByQuery(keywords, tenantId);
+
+    let chunks: any[] = notices.length
+      ? await this.findChunksByNoticeIds(notices.map((notice) => notice.id), tenantId)
+      : [];
+
+    if (!chunks.length && !requestedNoticeId) {
+      chunks = await this.findChunksByQuery(keywords, tenantId);
+      const chunkNoticeIds = unique(chunks.filter((chunk) => chunk.sourceType === 'procurement_notice').map((chunk) => String(chunk.sourceId)));
+      if (chunkNoticeIds.length) {
+        notices = await this.findNoticesByIds(chunkNoticeIds, tenantId);
+      }
+    }
+
+    const rules: any[] = await this.findRules(tenantId);
+    const sourceIds = unique([
+      ...notices.map((notice) => String(notice.id)),
+      ...chunks.filter((chunk) => chunk.sourceType === 'procurement_notice').map((chunk) => String(chunk.sourceId)),
+    ]);
+    const chunkIds = unique(chunks.map((chunk) => String(chunk.id)));
+    const ruleCodes = unique(rules.map((rule) => String(rule.code)).filter(Boolean));
+
+    return {
+      notices,
+      chunks,
+      rules,
+      sourceIds,
+      chunkIds,
+      ruleCodes,
+      context: {
+        retrievalMode: 'postgres_text',
+        requestedNoticeId,
+        keywords,
+        notices: notices.map(mapNoticeContext),
+        chunks: chunks.map(mapChunkContext),
+        rules: rules.map(mapRuleContext),
+      },
+      limitations: BASE_LIMITATIONS,
+    };
+  }
+
+  private async findNoticesByQuery(keywords: string[], tenantId: string | null) {
+    if (!keywords.length) return [];
+    return this.client.procurementNotice.findMany({
+      where: {
+        AND: [
+          tenantVisibilityWhere(tenantId),
+          {
+            OR: keywords.flatMap((keyword) => [
+              { object: { contains: keyword, mode: 'insensitive' } },
+              { noticeNumber: { contains: keyword, mode: 'insensitive' } },
+              { buyerName: { contains: keyword, mode: 'insensitive' } },
+              { externalId: { contains: keyword, mode: 'insensitive' } },
+            ]),
+          },
+        ],
+      },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: MAX_NOTICES,
+      select: retrievalNoticeSelect(),
+    });
+  }
+
+  private async findNoticesByIds(ids: string[], tenantId: string | null) {
+    if (!ids.length) return [];
+    return this.client.procurementNotice.findMany({
+      where: {
+        AND: [
+          tenantVisibilityWhere(tenantId),
+          { id: { in: ids.slice(0, MAX_NOTICES) } },
+        ],
+      },
+      take: MAX_NOTICES,
+      select: retrievalNoticeSelect(),
+    });
+  }
+
+  private async findChunksByNoticeIds(noticeIds: string[], tenantId: string | null) {
+    if (!noticeIds.length) return [];
+    return this.client.documentChunk.findMany({
+      where: {
+        AND: [
+          tenantVisibilityWhere(tenantId),
+          { sourceType: 'procurement_notice' },
+          { sourceId: { in: noticeIds.slice(0, MAX_NOTICES) } },
+        ],
+      },
+      orderBy: [{ sourceId: 'asc' }, { chunkIndex: 'asc' }],
+      take: MAX_CHUNKS,
+      select: retrievalChunkSelect(),
+    });
+  }
+
+  private async findChunksByQuery(keywords: string[], tenantId: string | null) {
+    if (!keywords.length) return [];
+    return this.client.documentChunk.findMany({
+      where: {
+        AND: [
+          tenantVisibilityWhere(tenantId),
+          { sourceType: 'procurement_notice' },
+          {
+            OR: keywords.map((keyword) => ({
+              content: { contains: keyword, mode: 'insensitive' },
+            })),
+          },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_CHUNKS,
+      select: retrievalChunkSelect(),
+    });
+  }
+
+  private async findRules(tenantId: string | null) {
+    return this.client.legalRule.findMany({
+      where: tenantId
+        ? { active: true, workflowStatus: 'active', OR: [{ tenantId: null }, { tenantId }] }
+        : { active: true, workflowStatus: 'active', tenantId: null },
+      orderBy: [{ category: 'asc' }, { code: 'asc' }, { version: 'desc' }],
+      take: MAX_RULES,
+      select: {
+        id: true,
+        tenantId: true,
+        code: true,
+        name: true,
+        description: true,
+        severity: true,
+        category: true,
+        legalBasis: true,
+        version: true,
+        criteria: true,
+        alertMessage: true,
+        recommendation: true,
+      },
+    });
+  }
+
+  private buildCitations(retrieval: RetrievalResult): GroundingCitation[] {
+    const chunkCitations = retrieval.chunks.slice(0, MAX_CITATIONS).map((chunk): GroundingCitation => {
+      const notice = retrieval.notices.find((item) => item.id === chunk.sourceId);
+      return {
+        sourceType: chunk.sourceType,
+        sourceId: String(chunk.sourceId),
+        chunkId: String(chunk.id),
+        citationType: 'chunk',
+        label: buildNoticeLabel(notice, chunk),
+        excerpt: excerpt(chunk.content, EXCERPT_LIMIT),
+        confidence: 0.85,
+        metadata: sanitizeMetadata({
+          chunkIndex: chunk.chunkIndex,
+          tokenCount: chunk.tokenCount ?? null,
+          noticeNumber: notice?.noticeNumber ?? null,
+          source: notice?.source ?? null,
+        }),
+      };
+    });
+
+    const ruleCitations = retrieval.rules.slice(0, Math.max(0, MAX_CITATIONS - chunkCitations.length)).map((rule): GroundingCitation => ({
+      sourceType: 'legal_rule',
+      sourceId: String(rule.id),
+      ruleCode: String(rule.code),
+      citationType: 'legal_rule',
+      label: `${rule.code} - ${rule.name}`,
+      excerpt: excerpt(`${rule.description}\n${rule.alertMessage}\n${rule.recommendation}`, EXCERPT_LIMIT),
+      confidence: 0.8,
+      metadata: sanitizeMetadata({
+        severity: rule.severity,
+        category: rule.category,
+        version: rule.version,
+      }),
+    }));
+
+    return [...chunkCitations, ...ruleCitations];
+  }
+
+  private async persistCitations(aiRunId: string, retrievalSessionId: string, citations: GroundingCitation[]) {
+    if (!citations.length) return;
+    await this.client.aiCitation.createMany({
+      data: citations.map((citation) => ({
+        aiRunId,
+        retrievalSessionId,
+        sourceType: citation.sourceType,
+        sourceId: citation.sourceId,
+        chunkId: citation.chunkId ?? null,
+        ruleCode: citation.ruleCode ?? null,
+        citationType: citation.citationType,
+        label: citation.label ?? null,
+        excerpt: citation.excerpt,
+        confidence: citation.confidence,
+        metadata: sanitizeMetadata(citation.metadata ?? {}),
+      })),
+    });
+  }
+
+  private async persistLegalAnalysis(
+    aiRunId: string,
+    response: string,
+    citations: GroundingCitation[],
+    retrieval: RetrievalResult,
+    confidence: number,
+    limitations: string[],
+    context: AiGroundingUserContext,
+    purpose: string,
+  ) {
+    const legalAnalysis = await this.client.legalAnalysis.create({
+      data: {
+        aiRunId,
+        tenantId: normalizeNullableString(context.tenantId, 120),
+        userId: normalizeNullableString(context.user?.id, 120),
+        procurementNoticeId: retrieval.sourceIds[0] ?? null,
+        analysisType: purpose,
+        status: 'completed',
+        title: 'Resposta LEX com grounding obrigatório',
+        summary: excerpt(response, 1200),
+        result: sanitizeMetadata({
+          response,
+          citations,
+          sourceIds: retrieval.sourceIds,
+          chunkIds: retrieval.chunkIds,
+          ruleCodes: retrieval.ruleCodes,
+        }),
+        sourceIds: retrieval.sourceIds,
+        chunkIds: retrieval.chunkIds,
+        ruleCodes: retrieval.ruleCodes,
+        confidence,
+        limitations,
+      },
+    });
+
+    if (citations.length) {
+      await this.client.draftEvidence.createMany({
+        data: citations.map((citation) => ({
+          aiRunId,
+          legalAnalysisId: legalAnalysis.id,
+          sourceType: citation.sourceType,
+          sourceId: citation.sourceId,
+          chunkId: citation.chunkId ?? null,
+          ruleCode: citation.ruleCode ?? null,
+          evidenceType: citation.citationType,
+          excerpt: citation.excerpt,
+          confidence: citation.confidence,
+          metadata: sanitizeMetadata(citation.metadata ?? {}),
+        })),
+      });
+    }
+
+    return legalAnalysis;
+  }
+
+  private async blockRun(
+    aiRunId: string,
+    retrievalSessionId: string | null,
+    context: AiGroundingUserContext,
+    reasons: string[],
+    retrieval: RetrievalResult,
+    limitations: string[],
+  ): Promise<AiGroundedResponse> {
+    await this.client.aiRun.update({
+      where: { id: aiRunId },
+      data: {
+        status: 'blocked',
+        sourceIds: retrieval.sourceIds,
+        chunkIds: retrieval.chunkIds,
+        ruleCodes: retrieval.ruleCodes,
+        confidence: 0,
+        limitations,
+        failureReason: reasons.join(','),
+        completedAt: new Date(),
+      },
+    });
+
+    if (reasons.some((reason) => ['missing_sources', 'missing_chunks', 'missing_rules', 'missing_citations'].includes(reason))) {
+      await this.auditAi('ai_missing_sources', 'failure', context, {
+        reasons,
+        sourceIds: retrieval.sourceIds,
+        chunkIds: retrieval.chunkIds,
+        ruleCodes: retrieval.ruleCodes,
+      }, 'ai_run', aiRunId);
+    }
+
+    await this.auditAi('ai_grounding_blocked', 'failure', context, {
+      reasons,
+      retrievalSessionId,
+      sourceIds: retrieval.sourceIds,
+      chunkIds: retrieval.chunkIds,
+      ruleCodes: retrieval.ruleCodes,
+    }, 'ai_run', aiRunId);
+
+    return {
+      aiRunId,
+      retrievalSessionId,
+      content: AI_GROUNDING_BLOCKED_MESSAGE,
+      provider: null,
+      blocked: true,
+      citations: [],
+      sourceIds: retrieval.sourceIds,
+      chunkIds: retrieval.chunkIds,
+      ruleCodes: retrieval.ruleCodes,
+      confidence: 0,
+      limitations,
+      legalAnalysisId: null,
+    };
+  }
+
+  private async auditAi(
+    action: string,
+    outcome: string,
+    context: AiGroundingUserContext,
+    metadata: Record<string, unknown>,
+    entityType?: string | null,
+    entityId?: string | null,
+  ) {
+    await this.client.auditEvent.create({
+      data: {
+        userId: normalizeNullableString(context.user?.id, 120),
+        scope: 'ai_grounding',
+        action,
+        outcome,
+        entityType: entityType ?? null,
+        entityId: normalizeNullableString(entityId, 120),
+        requestId: normalizeHeader(context.requestId),
+        ipHash: context.ip ? hashAuditValue(context.ip) : null,
+        userAgentHash: normalizeHeader(context.userAgent) ? hashAuditValue(normalizeHeader(context.userAgent) as string) : null,
+        emailHash: context.user?.email ? hashAuditValue(context.user.email) : null,
+        metadata: sanitizeMetadata({
+          actorRole: context.user?.role ?? null,
+          tenantId: normalizeNullableString(context.tenantId, 120),
+          ...metadata,
+        }),
+      }
+    });
+  }
+}
+
+function buildRetrievalQuery(input: AiGroundingInput) {
+  return [input.pergunta, input.contexto]
+    .map((value) => safeString(value, CONTEXT_QUERY_LIMIT))
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, QUERY_LIMIT);
+}
+
+function validateGrounding(retrieval: RetrievalResult, citations: GroundingCitation[], retrievalSessionId?: string | null) {
+  const reasons: string[] = [];
+  if (!retrievalSessionId) reasons.push('missing_retrieval');
+  if (!retrieval.sourceIds.length) reasons.push('missing_sources');
+  if (!retrieval.chunkIds.length) reasons.push('missing_chunks');
+  if (!retrieval.ruleCodes.length) reasons.push('missing_rules');
+  if (!citations.length) reasons.push('missing_citations');
+
+  const knownChunkIds = new Set(retrieval.chunkIds);
+  const invalidChunk = citations.some((citation) => citation.chunkId && !knownChunkIds.has(citation.chunkId));
+  if (invalidChunk) reasons.push('invalid_chunk_reference');
+
+  const hasChunkCitation = citations.some((citation) => citation.chunkId);
+  if (!hasChunkCitation) reasons.push('missing_chunk_citation');
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+function buildLimitations(retrieval: RetrievalResult, reasons: string[]) {
+  const limitations = [...BASE_LIMITATIONS];
+  if (retrieval.chunks.length < 3) limitations.push('Base documental parcial: poucos chunks disponiveis para analise.');
+  if (!retrieval.rules.length) limitations.push('Nenhuma regra juridica ativa foi recuperada do banco.');
+  if (reasons.length) limitations.push(`Grounding bloqueado por: ${reasons.join(', ')}.`);
+  return unique(limitations);
+}
+
+function calculateConfidence(retrieval: RetrievalResult) {
+  const score = 0.55
+    + Math.min(retrieval.sourceIds.length, 3) * 0.07
+    + Math.min(retrieval.chunkIds.length, 8) * 0.035
+    + Math.min(retrieval.ruleCodes.length, 6) * 0.025;
+  return Number(Math.min(0.92, score).toFixed(4));
+}
+
+function buildGroundedPrompt(pergunta: string, retrieval: RetrievalResult, citations: GroundingCitation[]) {
+  const notices = retrieval.notices.map((notice, index) => [
+    `Fonte ${index + 1}: ${buildNoticeLabel(notice)}`,
+    `ID: ${notice.id}`,
+    `Objeto: ${notice.object}`,
+    `Orgao: ${notice.buyerName ?? 'nao informado'}`,
+    `Modalidade: ${notice.modality ?? 'nao informada'}`,
+    `UF/Municipio: ${notice.uf ?? 'NA'}/${notice.municipality ?? 'nao informado'}`,
+  ].join('\n')).join('\n\n');
+
+  const chunks = retrieval.chunks.map((chunk, index) => [
+    `Chunk ${index + 1} (${chunk.id})`,
+    `SourceId: ${chunk.sourceId}`,
+    excerpt(chunk.content, PROMPT_CHUNK_LIMIT),
+  ].join('\n')).join('\n\n');
+
+  const rules = retrieval.rules.map((rule) => [
+    `Regra ${rule.code} (${rule.version})`,
+    `Nome: ${rule.name}`,
+    `Descricao: ${rule.description}`,
+    `Recomendacao: ${rule.recommendation}`,
+  ].join('\n')).join('\n\n');
+
+  return [
+    '[PERGUNTA]',
+    pergunta,
+    '',
+    '[FONTES ESTRUTURADAS DO BANCO]',
+    notices || 'Nenhuma fonte estruturada.',
+    '',
+    '[CHUNKS RECUPERADOS DO BANCO]',
+    chunks || 'Nenhum chunk recuperado.',
+    '',
+    '[REGRAS JURIDICAS ATIVAS DO BANCO]',
+    rules || 'Nenhuma regra recuperada.',
+    '',
+    '[CITACOES DISPONIVEIS]',
+    JSON.stringify(citations.map((citation) => ({
+      sourceType: citation.sourceType,
+      sourceId: citation.sourceId,
+      chunkId: citation.chunkId ?? null,
+      ruleCode: citation.ruleCode ?? null,
+      excerpt: citation.excerpt.slice(0, 500),
+    })), null, 2),
+    '',
+    '[INSTRUCAO]',
+    'Responda somente com base nas fontes acima. Se as fontes nao sustentarem uma conclusao, diga que a base nao permite analise confiavel. Nao afirme ilegalidade, fraude, dolo ou conclusao definitiva.',
+  ].join('\n');
+}
+import { SYSTEM_PROMPT_LEX } from './lex-prompt';
+
+function groundedSystemPrompt(purpose?: string) {
+  const base = [SYSTEM_PROMPT_LEX];
+
+  if (purpose && purpose.includes('grounded')) {
+    base.push(
+      '',
+      '[MODO DE ANÁLISE DE EDITAL (GROUNDING)]',
+      'Quando estiver analisando os trechos específicos de um edital fornecido abaixo:',
+      '- Use SOMENTE as fontes, chunks e regras recuperadas para basear os fatos referentes ao edital.',
+      '- Não invente ou presuma informações sobre o edital que não estejam no contexto.',
+      '- Não afirme ilegalidade, fraude ou dolo de forma definitiva sobre os atores. Aponte apenas como "riscos" ou "inconformidades aparentes".'
+    );
+  }
+
+  return base.join('\n');
+}
+
+function containsUnsafeAssertion(content: string) {
+  const normalized = normalizeText(content);
+  return [
+    /\bhouve fraude\b/,
+    /\be fraude\b/,
+    /\bfraude comprovada\b/,
+    /\be ilegal\b/,
+    /\bilegalidade comprovada\b/,
+    /\bato ilegal\b/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function retrievalNoticeSelect() {
+  return {
+    id: true,
+    tenantId: true,
+    source: true,
+    externalId: true,
+    noticeNumber: true,
+    modality: true,
+    buyerName: true,
+    buyerDocument: true,
+    object: true,
+    uf: true,
+    municipality: true,
+    estimatedValue: true,
+    status: true,
+    url: true,
+    publishedAt: true,
+    openingAt: true,
+    closingAt: true,
+    classification: true,
+    metadata: true,
+    createdAt: true,
+    updatedAt: true,
+  };
+}
+
+function retrievalChunkSelect() {
+  return {
+    id: true,
+    tenantId: true,
+    sourceType: true,
+    sourceId: true,
+    chunkIndex: true,
+    content: true,
+    tokenCount: true,
+    metadata: true,
+    createdAt: true,
+  };
+}
+
+function tenantVisibilityWhere(tenantId?: string | null) {
+  const normalizedTenantId = normalizeNullableString(tenantId, 120);
+  return normalizedTenantId ? { OR: [{ tenantId: null }, { tenantId: normalizedTenantId }] } : { tenantId: null };
+}
+
+function mapNoticeContext(notice: any) {
+  return sanitizeMetadata({
+    id: notice.id,
+    source: notice.source,
+    externalId: notice.externalId,
+    noticeNumber: notice.noticeNumber,
+    buyerName: notice.buyerName,
+    object: notice.object,
+    uf: notice.uf,
+    municipality: notice.municipality,
+    modality: notice.modality,
+    status: notice.status,
+    url: notice.url,
+  });
+}
+
+function mapChunkContext(chunk: any) {
+  return sanitizeMetadata({
+    id: chunk.id,
+    sourceType: chunk.sourceType,
+    sourceId: chunk.sourceId,
+    chunkIndex: chunk.chunkIndex,
+    excerpt: excerpt(chunk.content, EXCERPT_LIMIT),
+    tokenCount: chunk.tokenCount ?? null,
+  });
+}
+
+function mapRuleContext(rule: any) {
+  return sanitizeMetadata({
+    id: rule.id,
+    code: rule.code,
+    name: rule.name,
+    severity: rule.severity,
+    category: rule.category,
+    version: rule.version,
+    recommendation: rule.recommendation,
+  });
+}
+
+function buildNoticeLabel(notice?: any, chunk?: any) {
+  if (!notice) return `${chunk?.sourceType ?? 'fonte'}:${chunk?.sourceId ?? 'desconhecida'}`;
+  return [notice.source, notice.noticeNumber, notice.buyerName].filter(Boolean).join(' | ') || String(notice.id);
+}
+
+function extractKeywords(query: string) {
+  return unique(normalizeText(query)
+    .split(/[^a-z0-9]+/i)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3 && !SEARCH_STOPWORDS.has(word)))
+    .slice(0, 8);
+}
+
+function normalizeText(value: string) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function excerpt(value: unknown, limit: number) {
+  const text = safeString(value, limit * 2) ?? '';
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 3))}...`;
+}
+
+function safeString(value: unknown, maxLength: number) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
+}
+
+function normalizeNullableString(value: unknown, maxLength: number) {
+  return safeString(value, maxLength) ?? null;
+}
+
+function normalizeHeader(value: unknown) {
+  if (Array.isArray(value)) return normalizeNullableString(value[0], 200);
+  return normalizeNullableString(value, 200);
+}
+
+function unique(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function hashAuditValue(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function sanitizeMetadata(value: unknown): any {
+  if (value === null || value === undefined) return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((item) => sanitizeMetadata(item));
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, item]) => {
+    if (/password|senha|token|secret|authorization|cookie|api[_-]?key|rawpayload|payload|cpf|email|ip|useragent|session|refresh/i.test(key)) {
+      acc[key] = '[redacted]';
+    } else {
+      acc[key] = sanitizeMetadata(item);
+    }
+    return acc;
+  }, {});
+}

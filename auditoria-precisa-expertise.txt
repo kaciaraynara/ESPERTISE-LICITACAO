@@ -1,0 +1,264 @@
+﻿ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 352
+CONTEUDO: navigate('/advogado/dashboard', { replace: true });
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 364
+CONTEUDO: queryKey: ['dashboard', 'overview'],
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 452
+CONTEUDO: <p className="mt-3 text-sm text-brand-blue/70">Os dados não foram substituídos por informações simuladas. Tente novamente quando os serviços estiverem disponíveis.</p>
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 776
+CONTEUDO: title="LEX"
+---
+ARQUIVO: .\frontend\src\pages\DashboardPage.tsx
+LINHA: 827
+CONTEUDO: : 'Conecte a empresa para o dashboard transformar volume de edital em orientacao pratica de onde agir primeiro.'}
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 22
+CONTEUDO: <a href="#lex-ia" className="hover:text-brand-orange transition-colors">Inteligência Artificial</a>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 224
+CONTEUDO: {/* 7. THE SECRET WEAPON: LEX IA */}
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 225
+CONTEUDO: <section id="lex-ia" className="w-full py-40 bg-[#0B1521] text-white relative overflow-hidden">
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 234
+CONTEUDO: Apresentando <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-brand-orange">Lex IA.</span><br/>Sua advogada virtual.
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 238
+CONTEUDO: <p>Com a Lex IA, você não precisa pagar milhares de reais para um advogado especialista te defender. Nossa Inteligência Artificial foi treinada em toda a <strong className="text-white">Lei 14.133</strong> e em milhares de <strong className="text-white">Acórdãos do TCU</strong>.</p>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 250
+CONTEUDO: <h4 className="font-bold text-white text-lg">Lex IA - Gerador de Peças</h4>
+---
+ARQUIVO: .\frontend\src\pages\LandingPage.tsx
+LINHA: 337
+CONTEUDO: IA Lex (Recursos/Impugnações)
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 163
+CONTEUDO: { id: `${Date.now()}-${Math.random()}`, time: formatLogTime(), text, type },
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 173
+CONTEUDO: : Promise.resolve(null);
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 361
+CONTEUDO: const souPrimeiro = Math.random() > 0.55;
+---
+ARQUIVO: .\frontend\src\pages\RoboPage.tsx
+LINHA: 869
+CONTEUDO: <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Tempo de disputa (simulado)</label>
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 83
+CONTEUDO: const draft = window.sessionStorage.getItem('expertise:lex:sos-draft');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 86
+CONTEUDO: setAssunto('Revisão jurídica da resposta do LEX');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 89
+CONTEUDO: return `${prefix}[Resposta do LEX para revisão humana]\n${draft}`;
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 91
+CONTEUDO: window.sessionStorage.removeItem('expertise:lex:sos-draft');
+---
+ARQUIVO: .\frontend\src\pages\JuridicoPage.tsx
+LINHA: 92
+CONTEUDO: toast.success('Resposta do LEX adicionada ao atendimento jurídico.');
+---
+ARQUIVO: .\frontend\src\pages\LicitacoesPage.tsx
+LINHA: 139
+CONTEUDO: ? { label: 'Cache Supabase', icon: Database, color: 'text-brand-blue bg-white border-brand-blue/20' }
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 30
+CONTEUDO: // Mutações simuladas (para plugar na API real depois)
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 54
+CONTEUDO: <h2 className="text-xl font-bold tracking-tight">Especialista LEX</h2>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 143
+CONTEUDO: <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Dica LEX</p>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 167
+CONTEUDO: <strong className="block mt-2 text-brand-orange">Sugestão LEX:</strong> É altamente recomendável pedir impugnação para permitir o somatório de atestados caso haja restrição.
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 228
+CONTEUDO: <strong>Veredito LEX:</strong>
+---
+ARQUIVO: .\frontend\src\components\juridico\LexViabilidadeModal.tsx
+LINHA: 250
+CONTEUDO: Olá! Eu sou o LEX. Posso te ajudar a navegar por este edital. O que você gostaria de saber? Posso confirmar especificações técnicas, multas ou datas.
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 81
+CONTEUDO: <span className="text-xs font-medium text-white">LEX está digitando</span>
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 104
+CONTEUDO: window.setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 105
+CONTEUDO: window.setTimeout(() => inputRef.current?.focus(), 160);
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 111
+CONTEUDO: ask(input, 'Dashboard do fornecedor na plataforma Expertise.');
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 131
+CONTEUDO: <p className="text-sm font-semibold text-brand-blue">LEX</p>
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 139
+CONTEUDO: aria-label="Fechar LEX"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 150
+CONTEUDO: {message.role === 'lex' ? (
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 156
+CONTEUDO: message.role === 'lex'
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 202
+CONTEUDO: id="lex-input"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 212
+CONTEUDO: id="lex-send-btn"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 235
+CONTEUDO: onClick={() => ask(action.prompt, 'Consulta rápida aberta pelo widget flutuante do LEX.')}
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 256
+CONTEUDO: id="lex-advisor-btn"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 261
+CONTEUDO: aria-label="Abrir LEX"
+---
+ARQUIVO: .\frontend\src\components\ui\LexAdvisor.tsx
+LINHA: 264
+CONTEUDO: LEX
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 183
+CONTEUDO: import { SYSTEM_PROMPT_LEX } from './lex-prompt';
+---
+ARQUIVO: .\backend\src\services\ai.service.ts
+LINHA: 230
+CONTEUDO: /** Chat livre com o LEX */
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 31
+CONTEUDO: metadata: { endpoint: '/lex/chat' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 36
+CONTEUDO: console.error('[LEX] Erro no chat grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 39
+CONTEUDO: message: 'O LEX esta temporariamente indisponivel. Tente novamente.',
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 50
+CONTEUDO: metadata: { endpoint: '/lex/auditar' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 55
+CONTEUDO: console.error('[LEX] Erro na auditoria grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 56
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro na auditoria LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 66
+CONTEUDO: metadata: { endpoint: '/lex/resumo' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 71
+CONTEUDO: console.error('[LEX] Erro no resumo grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 83
+CONTEUDO: metadata: { endpoint: '/lex/proposta', nomeEmpresa: nome_empresa ?? null },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 88
+CONTEUDO: console.error('[LEX] Erro na proposta grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 89
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro na proposta LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 101
+CONTEUDO: metadata: { endpoint: '/lex/impugnacao' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 106
+CONTEUDO: console.error('[LEX] Erro na impugnacao grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 107
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro ao gerar analise previa LEX' });
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 128
+CONTEUDO: metadata: { endpoint: '/lex/recurso' },
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 133
+CONTEUDO: console.error('[LEX] Erro ao gerar recurso grounded:', err);
+---
+ARQUIVO: .\backend\src\controllers\lex.controller.ts
+LINHA: 134
+CONTEUDO: return res.status(500).json({ success: false, message: 'Erro ao gerar recurso administrativo com LEX' });
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 157
+CONTEUDO: resumo: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/resumo', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 158
+CONTEUDO: auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 159
+CONTEUDO: proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 160
+CONTEUDO: impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
+---
+ARQUIVO: .\frontend\src\services\api.ts
+LINHA: 161
+CONTEUDO: chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
+---

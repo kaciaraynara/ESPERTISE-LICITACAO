@@ -1,0 +1,45 @@
+{
+  "name": "expertise-licitatoria-frontend",
+  "version": "3.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.3.3",
+    "@phosphor-icons/react": "^2.1.10",
+    "@tanstack/react-query": "^5.17.0",
+    "axios": "^1.6.2",
+    "clsx": "^2.1.0",
+    "dayjs": "^1.11.10",
+    "framer-motion": "^10.18.0",
+    "lucide-react": "^1.28.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.49.2",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.21.1",
+    "recharts": "^2.10.3",
+    "socket.io-client": "^4.8.3",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@axe-core/react": "^4.12.1",
+    "@playwright/test": "^1.61.1",
+    "@types/react": "^18.2.46",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^2.1.9"
+  }
+}
