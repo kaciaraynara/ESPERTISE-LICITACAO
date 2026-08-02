@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import axios from 'axios';
 import { CircleNotch, CheckCircle, WarningCircle, InstagramLogo, ArrowRight, ShieldCheck } from '@phosphor-icons/react';
-import BrandLogo from '@components/brand/BrandLogo';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi } from '@services/api';
@@ -35,29 +34,16 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type ForgotFormValues = z.infer<typeof forgotSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-const carouselPhrases = [
-   "SUA OPERAÇÃO PROTEGIDA 24H POR DIA",
-   "O REVISOR QUE ENCONTRA AS ARMADILHAS DOS PREGOEIROS"
-];
-
 export default function AuthPages() {
    const navigate = useNavigate();
    const location = useLocation();
    const setAuth = useAuthStore(state => state.setAuth);
 
    const [activeView, setActiveView] = useState<'login' | 'register' | 'forgot'>('login');
-   const [phraseIndex, setPhraseIndex] = useState(0);
    useEffect(() => {
       if (location.pathname === '/register') setActiveView('register');
       else if (location.pathname === '/login') setActiveView('login');
    }, [location.pathname]);
-
-   useEffect(() => {
-      const interval = setInterval(() => {
-         setPhraseIndex(prev => (prev + 1) % carouselPhrases.length);
-      }, 5000);
-      return () => clearInterval(interval);
-   }, []);
 
    // -----------------------------
    // LOGIN FORM LOGIC
@@ -109,7 +95,7 @@ export default function AuthPages() {
       if (sanitized.length === 14) {
          setIsLoadingCnpj(true);
          axios.get(`https://brasilapi.com.br/api/cnpj/v1/${sanitized}`)
-            .then(res => regSetValue('razoesocial', res.data.razao_social || ''))
+            .then((res: any) => regSetValue('razoesocial', res.data.razao_social || ''))
             .catch(() => regSetValue('razoesocial', ''))
             .finally(() => setIsLoadingCnpj(false));
       } else {
@@ -117,10 +103,33 @@ export default function AuthPages() {
       }
    }, [cnpjValue, regSetValue, regWatch]);
 
-   const onRegister = async () => {
-      localStorage.setItem('token', 'novo_token_operacional');
-      toast.success('Conta criada com sucesso.');
-      navigate('/dashboard', { replace: true });
+   const onRegister = async (data: RegisterFormValues) => {
+      try {
+         const response = await authApi.register({
+            nome: data.nome,
+            email: data.email,
+            senha: data.password,
+            telefone: data.whatsapp,
+            cnpj: data.cnpj,
+            razao_social: data.razoesocial,
+            aceite_lgpd: true,
+            role: 'fornecedor'
+         });
+
+         const { user, accessToken } = response.data?.data || {};
+         
+         if (accessToken) {
+            localStorage.setItem('token', accessToken);
+            setAuth(user, accessToken);
+            toast.success('Conta corporativa criada com sucesso!');
+            navigate('/dashboard', { replace: true });
+         } else {
+            toast.success('Empresa cadastrada! Faça o login para acessar.');
+            setActiveView('login');
+         }
+      } catch (error: any) {
+         toast.error(error.response?.data?.message || 'Falha ao registrar empresa. Verifique os dados.');
+      }
    };
 
    // -----------------------------
@@ -130,9 +139,14 @@ export default function AuthPages() {
       resolver: zodResolver(forgotSchema)
    });
 
-   const onForgot = (data: ForgotFormValues) => {
-      toast.success('Instruções enviadas para ' + data.email);
-      setActiveView('login');
+   const onForgot = async (data: ForgotFormValues) => {
+      try {
+         await authApi.forgotPassword({ email: data.email });
+         toast.success('Se o e-mail estiver cadastrado, você receberá as instruções em instantes.');
+         setActiveView('login');
+      } catch (error: any) {
+         toast.error(error.response?.data?.message || 'Falha ao processar solicitação de recuperação.');
+      }
    };
 
    return (

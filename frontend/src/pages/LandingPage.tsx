@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle2, Zap, HelpCircle, ArrowRight, Instagram, LockKey, ChartLineUp, Target, Database, Buildings } from 'lucide-react';
+import { ShieldCheck, CheckCircle, Question, ArrowRight, InstagramLogo, LockKey, ChartLineUp, Target, Database, Buildings } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 
 export default function LandingPage() {
@@ -9,7 +9,10 @@ export default function LandingPage() {
   // Estados - Hero Section
   const [cnpj, setCnpj] = useState('');
   const [razaoSocial, setRazaoSocial] = useState('');
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
+  const [cnpjError, setCnpjError] = useState(false);
   
   // Estados - Calculadora
   const [processosMensais, setProcessosMensais] = useState(10);
@@ -19,17 +22,30 @@ export default function LandingPage() {
   // Estados - FAQ
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Consulta automática de CNPJ (Vercel Style)
+  // Consulta automática de CNPJ (BrasilAPI Real)
   useEffect(() => {
     const cleanCnpj = cnpj.replace(/\D/g, '');
     if (cleanCnpj.length === 14) {
       setIsLoadingCnpj(true);
-      setTimeout(() => {
-        setRazaoSocial('EMPRESA DE ENGENHARIA CONTRATADA LTDA');
-        setIsLoadingCnpj(false);
-      }, 1000);
+      setCnpjError(false);
+      fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`)
+        .then(res => {
+           if (!res.ok) throw new Error('CNPJ Inválido');
+           return res.json();
+        })
+        .then(data => {
+           setRazaoSocial(data.razao_social || 'EMPRESA ENCONTRADA (SEM RAZÃO SOCIAL)');
+        })
+        .catch(() => {
+           setRazaoSocial('');
+           setCnpjError(true);
+        })
+        .finally(() => {
+           setIsLoadingCnpj(false);
+        });
     } else {
       if (razaoSocial) setRazaoSocial('');
+      if (cnpjError) setCnpjError(false);
     }
   }, [cnpj]);
 
@@ -141,27 +157,30 @@ export default function LandingPage() {
                 <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-5">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do responsável</label>
-                    <input type="text" placeholder="Seu nome completo" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
+                    <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome completo" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">E-mail corporativo</label>
-                    <input type="email" placeholder="diretoria@empresa.com" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="diretoria@empresa.com" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
                   </div>
 
                   <div className="flex flex-col gap-1.5 relative">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">CNPJ da empresa</label>
-                    <input type="text" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" maxLength={18} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
+                    <input type="text" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" maxLength={18} className={`h-12 w-full rounded-xl border ${cnpjError ? 'border-red-500' : 'border-slate-200'} bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none`} />
                     {isLoadingCnpj && (
                       <div className="absolute right-4 top-[34px] animate-spin h-5 w-5 border-2 border-[#EA580C] border-t-transparent rounded-full"></div>
+                    )}
+                    {cnpjError && (
+                      <span className="text-[10px] font-bold text-red-500 uppercase mt-1">CNPJ não encontrado na Receita Federal</span>
                     )}
                   </div>
 
                   <AnimatePresence>
-                     {razaoSocial && (
+                     {razaoSocial && !cnpjError && (
                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                          <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 mt-2 flex items-center gap-3">
-                           <CheckCircle2 className="text-emerald-500 h-6 w-6 flex-shrink-0" />
+                           <CheckCircle className="text-emerald-500 h-6 w-6 flex-shrink-0" weight="fill" />
                            <div>
                               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Razão Social Encontrada</p>
                               <p className="text-xs font-black text-[#0A2540] mt-1">{razaoSocial}</p>
@@ -171,7 +190,7 @@ export default function LandingPage() {
                      )}
                   </AnimatePresence>
 
-                  <button onClick={() => navigate('/register')} className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#EA580C] text-xs font-black uppercase tracking-widest text-white shadow-lg transition-all hover:bg-orange-600 active:scale-95 group overflow-hidden relative">
+                  <button onClick={() => navigate('/register', { state: { nome, email, cnpj: cnpj.replace(/\D/g, ''), razaoSocial } })} className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#EA580C] text-xs font-black uppercase tracking-widest text-white shadow-lg transition-all hover:bg-orange-600 active:scale-95 group overflow-hidden relative">
                     <span className="relative z-10 flex items-center gap-2">
                        INICIAR CADASTRO AGORA <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                     </span>
@@ -322,13 +341,13 @@ export default function LandingPage() {
                 </p>
                 <ul className="space-y-4">
                    <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-500" /> Criptografia de ponta a ponta
+                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Criptografia de ponta a ponta
                    </li>
                    <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-500" /> Isolamento de dados LGPD
+                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Isolamento de dados LGPD
                    </li>
                    <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-500" /> Backups automáticos redundantes
+                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Backups automáticos redundantes
                    </li>
                 </ul>
              </motion.div>
@@ -359,7 +378,7 @@ export default function LandingPage() {
                  >
                     <span className="font-black text-[#0A2540] text-sm md:text-base uppercase tracking-wider pr-8">{faq.q}</span>
                     <div className={`p-2 rounded-full transition-colors ${activeFaq === i ? 'bg-orange-50' : 'bg-slate-50'}`}>
-                       <HelpCircle className={`h-5 w-5 transition-transform ${activeFaq === i ? 'rotate-180 text-[#EA580C]' : 'text-slate-400'}`} />
+                       <Question className={`h-5 w-5 transition-transform ${activeFaq === i ? 'rotate-180 text-[#EA580C]' : 'text-slate-400'}`} weight="bold" />
                     </div>
                  </button>
                  <AnimatePresence>
@@ -405,7 +424,7 @@ export default function LandingPage() {
            >
               Desenvolvido por Digital Day Software 
               <span className="p-1.5 rounded-full bg-slate-800 group-hover:bg-[#EA580C] transition-colors">
-                 <Instagram className="h-3 w-3" />
+                 <InstagramLogo className="h-4 w-4" weight="fill" />
               </span>
            </a>
         </div>
