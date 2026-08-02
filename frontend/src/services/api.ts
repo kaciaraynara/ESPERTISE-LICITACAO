@@ -21,7 +21,11 @@ function resolveBaseUrl(): string {
     return 'http://localhost:3001/api/v1';
   }
 
-  return `${window.location.origin}/api/v1`;
+  if (typeof window !== 'undefined' && window.location) {
+    return `${window.location.origin}/api/v1`;
+  }
+
+  return '/api/v1'; // Fallback para SSR
 }
 
 const BASE_URL = resolveBaseUrl();
