@@ -181,7 +181,7 @@ export default function AuthPages() {
                transition={{ duration: 0.8, type: "spring", bounce: 0.4 }}
                className="pt-8"
             >
-               <img src="/logo-expertise.png" alt="Expertise" className="w-[60%] h-auto object-contain brightness-0 invert opacity-95 drop-shadow-2xl" />
+               <img src="/logo.png" alt="Expertise" className="w-[60%] h-auto object-contain brightness-0 invert opacity-95 drop-shadow-2xl" />
             </motion.div>
 
             <motion.div
@@ -251,7 +251,7 @@ export default function AuthPages() {
 
             {/* Mobile Header (Only visible on small screens) */}
             <div className="w-full flex lg:hidden items-center justify-center gap-2 mb-8 mt-12">
-               <img src="/logo-expertise.png" alt="Expertise" className="w-[60%] h-auto object-contain" />
+               <img src="/logo.png" alt="Expertise" className="w-[60%] h-auto object-contain" />
             </div>
 
             <div className="w-full max-w-md flex-1 flex flex-col justify-center relative">
