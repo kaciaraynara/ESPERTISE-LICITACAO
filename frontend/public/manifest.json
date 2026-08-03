@@ -1,0 +1,17 @@
+{
+  "short_name": "Expertise",
+  "name": "EXPERTISE Licitatória",
+  "description": "Consulta de editais no PNCP sob demanda e organização documental para fornecedores.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0A2540",
+  "background_color": "#ffffff"
+}

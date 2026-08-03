@@ -13,6 +13,10 @@ import type {
 } from '@/types';
 
 function resolveBaseUrl(): string {
+  if (import.meta.env.PROD) {
+    return '/api/v1'; // Sempre usar o proxy da Vercel em produção
+  }
+
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
@@ -112,8 +116,7 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-
-// â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//─── AUTH ────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (body: {
     email: string;
