@@ -312,7 +312,71 @@ export default function LandingPage() {
          </div>
       </section>
 
-      {/* 8. PERGUNTAS FREQUENTES */}
+      {/* 8. PLANOS */}
+      <section id="planos" className="w-full bg-slate-50 py-24 px-6 md:px-12 border-t border-slate-200">
+         <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-6">
+                  Planos e Preços
+               </motion.h2>
+               <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-lg text-slate-600 font-medium">
+                  Escolha o plano ideal para a sua operação. Do licitante iniciante às grandes equipes estratégicas.
+               </motion.p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+               {/* Plano Basico */}
+               <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm hover:shadow-lg transition-all flex flex-col">
+                  <h3 className="text-2xl font-black text-[#0A2540] mb-2">Básico</h3>
+                  <p className="text-sm text-slate-500 min-h-[40px] mb-6">Para o licitante que está começando a se organizar.</p>
+                  <div className="mb-8">
+                     <span className="text-4xl font-black text-[#0A2540]">R$ 147</span><span className="text-slate-500">/mês</span>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Até 1 CNPJ</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">1 Usuário</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Monitoramento de editais básico</span></li>
+                  </ul>
+                  <button onClick={() => navigate('/register')} className="w-full py-4 rounded-xl font-bold bg-slate-100 text-[#0A2540] hover:bg-slate-200 transition-colors uppercase tracking-widest text-sm">Assinar Básico</button>
+               </motion.div>
+
+               {/* Plano Pro */}
+               <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.1 }} className="bg-[#0A2540] border border-[#0A2540] rounded-3xl p-8 shadow-2xl transform md:-translate-y-4 flex flex-col relative">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#EA580C] text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg whitespace-nowrap">Mais Popular</div>
+                  <h3 className="text-2xl font-black text-white mb-2">Pro</h3>
+                  <p className="text-sm text-blue-200 min-h-[40px] mb-6">A escolha inteligente para quem quer escalar os resultados.</p>
+                  <div className="mb-8">
+                     <span className="text-4xl font-black text-white">R$ 297</span><span className="text-blue-200">/mês</span>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-[#EA580C] w-5 h-5 shrink-0" /><span className="text-sm font-medium text-white">Até 3 CNPJs e 3 Usuários</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-[#EA580C] w-5 h-5 shrink-0" /><span className="text-sm font-medium text-white">Radar 24h Ilimitado</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-[#EA580C] w-5 h-5 shrink-0" /><span className="text-sm font-medium text-white">100 Análises de IA/mês</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-[#EA580C] w-5 h-5 shrink-0" /><span className="text-sm font-medium text-white">Robô de Lances Automático</span></li>
+                  </ul>
+                  <button onClick={() => navigate('/register')} className="w-full py-4 rounded-xl font-bold bg-[#EA580C] hover:bg-orange-600 text-white transition-all shadow-lg hover:shadow-orange-500/30 uppercase tracking-widest text-sm">Assinar Pro</button>
+               </motion.div>
+
+               {/* Plano Master */}
+               <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: 0.2 }} className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm hover:shadow-lg transition-all flex flex-col">
+                  <h3 className="text-2xl font-black text-[#0A2540] mb-2">Master</h3>
+                  <p className="text-sm text-slate-500 min-h-[40px] mb-6">O pacote completo para equipes de alta performance.</p>
+                  <div className="mb-8">
+                     <span className="text-4xl font-black text-[#0A2540]">R$ 497</span><span className="text-slate-500">/mês</span>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Até 10 CNPJs (Usuários ilim.)</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">IA e Lances ilimitados</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Painel Jurídico / Recursos</span></li>
+                     <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Suporte prioritário WhatsApp</span></li>
+                  </ul>
+                  <button onClick={() => navigate('/register')} className="w-full py-4 rounded-xl font-bold bg-slate-100 text-[#0A2540] hover:bg-slate-200 transition-colors uppercase tracking-widest text-sm">Assinar Master</button>
+               </motion.div>
+            </div>
+         </div>
+      </section>
+
+      {/* 9. PERGUNTAS FREQUENTES */}
       <section className="w-full bg-white py-24 px-6 md:px-12 border-t border-slate-100">
          <div className="max-w-3xl mx-auto">
             <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-12 text-center">
@@ -355,7 +419,7 @@ export default function LandingPage() {
          </div>
       </section>
 
-      {/* 9. CHAMADA FINAL */}
+      {/* 10. CHAMADA FINAL */}
       <section className="w-full bg-[#0A2540] py-32 px-6 md:px-12 relative overflow-hidden border-t border-[#0A2540]">
          <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#EA580C]/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/3"></div>
          <div className="max-w-4xl mx-auto text-center relative z-10 flex flex-col items-center">
