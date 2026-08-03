@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, CheckCircle, MagnifyingGlass, FileText, 
   PaperPlaneRight, LockKey, Clock, CaretDown,
-  Money, CaretRight, Target, Lightbulb, Handshake, Users
+  Money, CaretRight, Target, Lightbulb, Users
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 
