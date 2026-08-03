@@ -330,7 +330,7 @@ export default function LandingPage() {
                   <h3 className="text-2xl font-black text-[#0A2540] mb-2">Básico</h3>
                   <p className="text-sm text-slate-500 min-h-[40px] mb-6">Para o licitante que está começando a se organizar.</p>
                   <div className="mb-8">
-                     <span className="text-4xl font-black text-[#0A2540]">R$ 147</span><span className="text-slate-500">/mês</span>
+                     <span className="text-4xl font-black text-[#0A2540]">R$ 69,99</span><span className="text-slate-500">/mês</span>
                   </div>
                   <ul className="space-y-4 mb-8 flex-1">
                      <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Até 1 CNPJ</span></li>
@@ -346,7 +346,7 @@ export default function LandingPage() {
                   <h3 className="text-2xl font-black text-white mb-2">Pro</h3>
                   <p className="text-sm text-blue-200 min-h-[40px] mb-6">A escolha inteligente para quem quer escalar os resultados.</p>
                   <div className="mb-8">
-                     <span className="text-4xl font-black text-white">R$ 297</span><span className="text-blue-200">/mês</span>
+                     <span className="text-4xl font-black text-white">R$ 149,99</span><span className="text-blue-200">/mês</span>
                   </div>
                   <ul className="space-y-4 mb-8 flex-1">
                      <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-[#EA580C] w-5 h-5 shrink-0" /><span className="text-sm font-medium text-white">Até 3 CNPJs e 3 Usuários</span></li>
@@ -362,7 +362,7 @@ export default function LandingPage() {
                   <h3 className="text-2xl font-black text-[#0A2540] mb-2">Master</h3>
                   <p className="text-sm text-slate-500 min-h-[40px] mb-6">O pacote completo para equipes de alta performance.</p>
                   <div className="mb-8">
-                     <span className="text-4xl font-black text-[#0A2540]">R$ 497</span><span className="text-slate-500">/mês</span>
+                     <span className="text-4xl font-black text-[#0A2540]">R$ 249,99</span><span className="text-slate-500">/mês</span>
                   </div>
                   <ul className="space-y-4 mb-8 flex-1">
                      <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Até 10 CNPJs (Usuários ilim.)</span></li>
