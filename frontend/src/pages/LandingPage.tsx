@@ -1,433 +1,342 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle, Question, ArrowRight, InstagramLogo, LockKey, ChartLineUp, Target, Database, Buildings } from '@phosphor-icons/react';
+import { 
+  ShieldCheck, CheckCircle, MagnifyingGlass, FileText, 
+  PaperPlaneRight, LockKey, ChartLineUp, Clock, CaretDown,
+  Money, CaretRight
+} from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
+
+const AnimatedCounter = ({ end, duration = 2, prefix = "", suffix = "" }: { end: number, duration?: number, prefix?: string, suffix?: string }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const increment = end / (duration * 60);
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= end) {
+        setCount(end);
+        clearInterval(timer);
+      } else {
+        setCount(Math.ceil(start));
+      }
+    }, 1000 / 60);
+    return () => clearInterval(timer);
+  }, [end, duration]);
+
+  return <span>{prefix}{count.toLocaleString('pt-BR')}{suffix}</span>;
+};
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  
-  // Estados - Hero Section
-  const [cnpj, setCnpj] = useState('');
-  const [razaoSocial, setRazaoSocial] = useState('');
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
-  const [cnpjError, setCnpjError] = useState(false);
-  
-  // Estados - Calculadora
-  const [processosMensais, setProcessosMensais] = useState(10);
-  const horasPerdidas = processosMensais * 3.5;
-  const dinheiroPerdido = processosMensais * 1250;
-
-  // Estados - FAQ
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Consulta automática de CNPJ (BrasilAPI Real)
-  useEffect(() => {
-    const cleanCnpj = cnpj.replace(/\D/g, '');
-    if (cleanCnpj.length === 14) {
-      setIsLoadingCnpj(true);
-      setCnpjError(false);
-      fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`)
-        .then(res => {
-           if (!res.ok) throw new Error('CNPJ Inválido');
-           return res.json();
-        })
-        .then(data => {
-           setRazaoSocial(data.razao_social || 'EMPRESA ENCONTRADA (SEM RAZÃO SOCIAL)');
-        })
-        .catch(() => {
-           setRazaoSocial('');
-           setCnpjError(true);
-        })
-        .finally(() => {
-           setIsLoadingCnpj(false);
-        });
-    } else {
-      if (razaoSocial) setRazaoSocial('');
-      if (cnpjError) setCnpjError(false);
-    }
-  }, [cnpj]);
-
-  // Faqs data
   const faqs = [
     {
-      q: "O sistema exibe informações reais ou simulações?",
-      a: "Trabalhamos estritamente com dados oficiais capturados em tempo real diretamente dos canais do governo (PNCP e Compras.gov). Se uma fonte pública estiver instável ou indisponível, o painel avisa o operador imediatamente, proibindo informações fictícias."
+      q: "O sistema mostra informações reais ou simulações?",
+      a: "Mostra apenas dados oficiais dos portais do governo."
     },
     {
-      q: "Como a ferramenta impede que minha empresa tenha prejuízo nos lances?",
-      a: "Antes de abrir a sessão pública, você preenche a Calculadora de Preço Seguro inserindo o custo do produto, impostos e frete. O enviador automático respeita esse limite milimetricamente, travando a operação antes de gerar qualquer prejuízo."
+      q: "Como a ferramenta impede que eu tenha prejuízo nos lances?",
+      a: "Você define a margem mínima. O sistema trava automaticamente quando o valor chega nela."
     },
     {
-      q: "Meus documentos estratégicos estão protegidos contra vazamento?",
-      a: "Sim. Toda a sua documentação de habilitação cadastral e dados de faturamento empresarial são guardados sob criptografia bancária rigorosa de alta segurança e isolamento completo no servidor, seguindo a LGPD."
+      q: "Meus documentos estão protegidos?",
+      a: "Sim. Tudo fica criptografado e isolado. Só você tem acesso."
     }
   ];
 
-  // Variantes Framer Motion
+  const tools = [
+    {
+      title: "Buscador de Compras 24h",
+      desc: "Monitora os portais do governo o dia inteiro. Você encontra as compras abertas no seu estado antes de todo mundo.",
+      icon: <MagnifyingGlass weight="fill" className="w-8 h-8 text-[#EA580C]" />
+    },
+    {
+      title: "Revisor de Editais",
+      desc: "Lê o edital em segundos e destaca as exigências que podem desclassificar sua empresa.",
+      icon: <FileText weight="fill" className="w-8 h-8 text-[#EA580C]" />
+    },
+    {
+      title: "Envio Automático de Preços",
+      desc: "Acompanha as ofertas da concorrência e envia seus preços na velocidade máxima, respeitando a margem mínima que você definiu.",
+      icon: <PaperPlaneRight weight="fill" className="w-8 h-8 text-[#EA580C]" />
+    },
+    {
+      title: "Pasta Protegida + Alertas",
+      desc: "Organiza todos os documentos da empresa e avisa no WhatsApp dias antes de qualquer vencimento.",
+      icon: <LockKey weight="fill" className="w-8 h-8 text-[#EA580C]" />
+    }
+  ];
+
   const fadeInUp = {
     hidden: { opacity: 0, y: 40 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, type: "spring", bounce: 0.2 } }
   };
-  
-  const staggerContainer = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
-  };
 
   return (
-    <div className="min-h-screen w-full bg-white font-sans antialiased text-slate-900 selection:bg-[#EA580C] selection:text-white overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[#0A2540] font-sans antialiased text-white selection:bg-[#EA580C] selection:text-white overflow-x-hidden">
       
-      {/* BARRA SUPERIOR (VERCEL BAR) */}
-      <div className="w-full bg-[#0A2540] py-3 text-center transition-colors">
-        <a href="/login" className="text-[11px] font-black uppercase tracking-widest text-slate-200 hover:text-[#EA580C] transition-colors">
-          Acesse sua conta ou cadastre-se 
-        </a>
-      </div>
-
-      {/* HEADER ULTRA-MINIMALISTA */}
-      <header className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 md:px-12">
-          
-          <div className="flex items-center cursor-pointer w-[60%] md:w-auto" onClick={() => window.scrollTo(0,0)}>
-            {/* LOGO CORRIGIDA */}
-            <img src="/logo.png" alt="Expertise Licitatória" className="h-10 md:h-12 w-auto object-contain flex-shrink-0" />
+      {/* HEADER */}
+      <header className="absolute top-0 z-50 w-full bg-transparent">
+        <div className="mx-auto flex h-24 max-w-7xl items-center justify-between px-6 md:px-12">
+          <div className="flex items-center cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+            <img src="/logo.png" alt="Expertise Licitatória" className="h-12 md:h-16 w-auto object-contain brightness-0 invert drop-shadow-md" />
           </div>
-
-          <nav className="hidden items-center gap-10 lg:flex">
-            <a href="#solucoes" className="text-xs font-black uppercase tracking-wider text-slate-500 hover:text-[#0A2540] transition-colors">A Solução</a>
-            <a href="#calculadora" className="text-xs font-black uppercase tracking-wider text-slate-500 hover:text-[#0A2540] transition-colors">O Prejuízo</a>
-            <a href="#seguranca" className="text-xs font-black uppercase tracking-wider text-slate-500 hover:text-[#0A2540] transition-colors">Infraestrutura</a>
-            <a href="#duvidas" className="text-xs font-black uppercase tracking-wider text-slate-500 hover:text-[#0A2540] transition-colors">Dúvidas</a>
-          </nav>
-
-          <div>
-            <button 
-              onClick={() => navigate('/login')}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-black uppercase tracking-wider text-[#0A2540] shadow-sm transition-all hover:bg-slate-50 active:scale-95"
-            >
-              Acessar Plataforma
+          <nav className="hidden lg:flex items-center gap-6">
+            <button onClick={() => navigate('/login')} className="text-sm font-bold uppercase tracking-wider text-white hover:text-[#EA580C] transition-colors">
+              Entrar
             </button>
-          </div>
+            <button onClick={() => navigate('/register')} className="bg-[#EA580C] hover:bg-orange-600 text-white text-sm font-bold uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/30">
+              Criar Conta
+            </button>
+          </nav>
         </div>
       </header>
 
-      <main className="w-full bg-white">
-        
-        {/* DOBRA 1: O IMPACTO INICIAL (HERO) */}
-        <section className="mx-auto max-w-7xl px-6 py-20 md:py-32 md:px-12 border-b border-slate-100">
-          <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-12">
-            
-            <motion.div 
-              initial="hidden" animate="visible" variants={fadeInUp}
-              className="flex flex-col gap-8 lg:col-span-7"
-            >
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 border border-slate-200/60 px-3 py-1 text-slate-500 text-[11px] font-black uppercase tracking-wider w-fit shadow-sm">
-                <span className="h-2 w-2 rounded-full bg-[#EA580C] animate-pulse" />
-                Dados Oficiais em Tempo Real
-              </div>
-
-              <h1 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-4xl md:text-5xl lg:text-[4rem] lg:leading-[1.05]">
-                O jeito mais fácil e seguro de sua empresa fechar grandes contratos com o governo.
-              </h1>
-              
-              <p className="max-w-xl text-lg font-medium text-slate-500 leading-relaxed">
-                Descubra papéis de compras abertos na hora, encontre armadilhas escondidas que tentam te derrubar e mande seus preços automaticamente.
-              </p>
-
-              <div className="flex items-center gap-2 text-[#EA580C] pt-2">
-                <ShieldCheck className="h-5 w-5 flex-shrink-0" />
-                <span className="text-xs font-black uppercase tracking-widest text-[#0A2540]">
-                  Sem jargões técnicos. Apenas resultados reais.
-                </span>
-              </div>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}
-              className="w-full lg:col-span-5 relative"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#0A2540]/5 to-[#EA580C]/5 rounded-3xl transform rotate-3 scale-105 -z-10"></div>
-              <div className="w-full rounded-3xl border border-slate-200/80 bg-white/80 backdrop-blur-xl p-8 shadow-2xl shadow-slate-200/50">
-                <h2 className="mb-6 font-sans font-black text-sm uppercase tracking-tight text-slate-900 border-b border-slate-100 pb-3">
-                  Crie sua central de comando
-                </h2>
-
-                <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do responsável</label>
-                    <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome completo" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">E-mail corporativo</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="diretoria@empresa.com" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none" />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 relative">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">CNPJ da empresa</label>
-                    <input type="text" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" maxLength={18} className={`h-12 w-full rounded-xl border ${cnpjError ? 'border-red-500' : 'border-slate-200'} bg-white px-4 text-sm font-bold text-slate-900 transition-all focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540] outline-none`} />
-                    {isLoadingCnpj && (
-                      <div className="absolute right-4 top-[34px] animate-spin h-5 w-5 border-2 border-[#EA580C] border-t-transparent rounded-full"></div>
-                    )}
-                    {cnpjError && (
-                      <span className="text-[10px] font-bold text-red-500 uppercase mt-1">CNPJ não encontrado na Receita Federal</span>
-                    )}
-                  </div>
-
-                  <AnimatePresence>
-                     {razaoSocial && !cnpjError && (
-                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                         <div className="rounded-xl bg-slate-50 p-4 border border-slate-100 mt-2 flex items-center gap-3">
-                           <CheckCircle className="text-emerald-500 h-6 w-6 flex-shrink-0" weight="fill" />
-                           <div>
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Razão Social Encontrada</p>
-                              <p className="text-xs font-black text-[#0A2540] mt-1">{razaoSocial}</p>
-                           </div>
-                         </div>
-                       </motion.div>
-                     )}
-                  </AnimatePresence>
-
-                  <button onClick={() => navigate('/register', { state: { nome, email, cnpj: cnpj.replace(/\D/g, ''), razaoSocial } })} className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#EA580C] text-xs font-black uppercase tracking-widest text-white shadow-lg transition-all hover:bg-orange-600 active:scale-95 group overflow-hidden relative">
-                    <span className="relative z-10 flex items-center gap-2">
-                       INICIAR CADASTRO AGORA <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                    </span>
-                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                  </button>
-
-                </form>
-              </div>
-            </motion.div>
-
-          </div>
-        </section>
-
-        {/* DOBRA 2: FONTES OFICIAIS */}
-        <section className="border-b border-slate-100 bg-slate-50/50 py-12 overflow-hidden">
-           <div className="max-w-7xl mx-auto px-6 md:px-12">
-              <div className="text-center mb-6">
-                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">JOGAMOS NO TERRENO REAL. ZERO SIMULAÇÕES.</p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
-                 <span className="font-sans font-black text-xl md:text-2xl text-[#0A2540] tracking-tighter uppercase">COMPRAS.GOV</span>
-                 <span className="font-sans font-black text-xl md:text-2xl text-[#0A2540] tracking-tighter uppercase">PNCP</span>
-                 <span className="font-sans font-black text-xl md:text-2xl text-[#0A2540] tracking-tighter uppercase">LICITAÇÕES-E</span>
-                 <span className="font-sans font-black text-xl md:text-2xl text-[#0A2540] tracking-tighter uppercase">BANCO DO BRASIL</span>
-              </div>
-           </div>
-        </section>
-
-        {/* DOBRA 3: A CALCULADORA DA DOR */}
-        <section id="calculadora" className="mx-auto max-w-7xl px-6 py-24 md:py-32 md:px-12 border-b border-slate-100">
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={fadeInUp} className="max-w-3xl mx-auto text-center mb-16">
-              <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl md:text-5xl mb-6">
-                 VOCÊ ESTÁ DEIXANDO DINHEIRO NA MESA TODOS OS DIAS.
-              </h2>
-              <p className="text-lg text-slate-500 font-medium leading-relaxed">
-                 Pesquisar editais manualmente, ler centenas de páginas e perder prazos de lances destrói a margem de lucro da sua operação. Descubra o tamanho do seu prejuízo.
-              </p>
-           </motion.div>
-
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="max-w-4xl mx-auto bg-white rounded-3xl border border-slate-200 p-8 md:p-12 shadow-2xl shadow-slate-200/50">
-              <div className="mb-12">
-                 <label className="flex justify-between items-end mb-6">
-                    <span className="text-sm font-black uppercase tracking-widest text-[#0A2540]">Volume Mensal de Licitações</span>
-                    <span className="text-3xl font-black text-[#EA580C]">{processosMensais}</span>
-                 </label>
-                 <input 
-                    type="range" min="1" max="50" 
-                    value={processosMensais} 
-                    onChange={(e) => setProcessosMensais(Number(e.target.value))}
-                    className="w-full h-3 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#EA580C]"
-                 />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                 <div className="bg-red-50 rounded-2xl p-8 border border-red-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-red-500 mb-2">TEMPO PERDIDO (MÊS)</p>
-                    <p className="text-4xl font-black text-red-950">{horasPerdidas} Horas</p>
-                    <p className="text-sm font-medium text-red-800 mt-2">Buscando e lendo papéis</p>
-                 </div>
-                 <div className="bg-red-50 rounded-2xl p-8 border border-red-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-red-500 mb-2">PREJUÍZO ESTIMADO (MÊS)</p>
-                    <p className="text-4xl font-black text-red-950">
-                       R$ {dinheiroPerdido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-sm font-medium text-red-800 mt-2">Em oportunidades invisíveis</p>
-                 </div>
-              </div>
-           </motion.div>
-        </section>
-
-        {/* DOBRA 4, 5, 6, 7: O ARSENAL FLUTUANTE */}
-        <section id="solucoes" className="mx-auto max-w-7xl px-6 py-24 md:py-32 md:px-12 border-b border-slate-100 bg-slate-50/30">
-           <div className="mb-20 text-center max-w-3xl mx-auto">
-              <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl md:text-5xl mb-6">
-                 O ARSENAL DE GUERRA
-              </h2>
-              <p className="text-lg text-slate-500 font-medium leading-relaxed">
-                 Um conjunto de ferramentas cirúrgicas desenhadas estritamente para colocar você em primeiro lugar no pódio das licitações.
-              </p>
-           </div>
-
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* DOBRA 4 */}
-              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={fadeInUp} className="group relative bg-white rounded-3xl p-10 border border-slate-200 shadow-sm hover:shadow-2xl hover:shadow-[#0A2540]/10 hover:-translate-y-2 transition-all duration-300">
-                 <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 group-hover:scale-110 group-hover:bg-[#0A2540] group-hover:text-white transition-all duration-300">
-                    <Target size={28} />
-                 </div>
-                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">MERCADO ATIVO</div>
-                 <h3 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-2xl mb-4">BUSCADOR DE COMPRAS 24H</h3>
-                 <p className="text-slate-500 font-medium leading-relaxed">O painel monitora os portais do governo o dia todo. Você encontra editais abertos no seu estado antes de todo mundo. Chega de acordar cedo para caçar PDF em sites confusos.</p>
-              </motion.div>
-
-              {/* DOBRA 5 */}
-              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={fadeInUp} className="group relative bg-white rounded-3xl p-10 border border-slate-200 shadow-sm hover:shadow-2xl hover:shadow-[#EA580C]/10 hover:-translate-y-2 transition-all duration-300">
-                 <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-orange-50 text-orange-600 group-hover:scale-110 group-hover:bg-[#EA580C] group-hover:text-white transition-all duration-300">
-                    <ShieldCheck size={28} />
-                 </div>
-                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">SEGURANÇA JURÍDICA</div>
-                 <h3 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-2xl mb-4">REVISOR ANTI-ARMADILHAS</h3>
-                 <p className="text-slate-500 font-medium leading-relaxed">Ler calhamaços de 100 páginas é coisa do passado. O sistema escaneia o edital em segundos e aponta em vermelho exigências absurdas e armadilhas desenhadas para desclassificar a sua empresa.</p>
-              </motion.div>
-
-              {/* DOBRA 6 */}
-              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={fadeInUp} className="group relative bg-white rounded-3xl p-10 border border-slate-200 shadow-sm hover:shadow-2xl hover:shadow-[#0A2540]/10 hover:-translate-y-2 transition-all duration-300">
-                 <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
-                    <ChartLineUp size={28} />
-                 </div>
-                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">OPERAÇÕES</div>
-                 <h3 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-2xl mb-4">ENVIADOR SNIPER DE PREÇOS</h3>
-                 <p className="text-slate-500 font-medium leading-relaxed">Dispute o primeiro lugar na velocidade máxima permitida pelos portais. O sistema cobre as ofertas da concorrência de forma autônoma, travando imediatamente se o valor encostar na sua margem de lucro mínima.</p>
-              </motion.div>
-
-              {/* DOBRA 7 */}
-              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-50px" }} variants={fadeInUp} className="group relative bg-white rounded-3xl p-10 border border-slate-200 shadow-sm hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-2 transition-all duration-300">
-                 <div className="mb-6 inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
-                    <Database size={28} />
-                 </div>
-                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">RISCO ZERO</div>
-                 <h3 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-2xl mb-4">PASTA CRIPTOGRAFADA E ALERTAS</h3>
-                 <p className="text-slate-500 font-medium leading-relaxed">Organização cirúrgica de certidões, balanços e alvarás. Alertas preventivos automáticos direto no seu WhatsApp te avisam dias antes do vencimento para blindar seu CNPJ.</p>
-              </motion.div>
-           </div>
-        </section>
-
-        {/* DOBRA 8: A DIFERENÇA (COMPARATIVO) */}
-        <section className="mx-auto max-w-7xl px-6 py-24 md:py-32 md:px-12 border-b border-slate-100">
-           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="bg-[#0A2540] rounded-[2rem] p-8 md:p-16 text-center relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
-              <h2 className="font-sans font-black uppercase tracking-tighter text-white text-3xl md:text-5xl mb-8 relative z-10">
-                 O SEU CONCORRENTE TRABALHA DURO.<br/>VOCÊ TRABALHA CERTO.
-              </h2>
-              <p className="text-xl text-blue-100 font-medium max-w-3xl mx-auto leading-relaxed relative z-10">
-                 Enquanto eles perdem tardes preenchendo planilhas e checando portais confusos, a Expertise Licitatória faz o trabalho pesado para a sua equipe. <strong>O que você faria com 40 horas livres por semana?</strong>
-              </p>
-           </motion.div>
-        </section>
-
-        {/* DOBRA 9: A FORTALEZA */}
-        <section id="seguranca" className="mx-auto max-w-7xl px-6 py-24 md:py-32 md:px-12 border-b border-slate-100">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp}>
-                <Buildings className="h-16 w-16 text-[#EA580C] mb-8" />
-                <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl md:text-5xl mb-6">
-                  INFRAESTRUTURA DE NÍVEL BANCÁRIO
-                </h2>
-                <p className="text-lg text-slate-500 font-medium leading-relaxed mb-8">
-                  Toda a documentação estratégica e dados de faturamento da sua empresa são processados sob criptografia rigorosa, em servidores isolados. O seu preço e a sua margem são segredos intocáveis.
-                </p>
-                <ul className="space-y-4">
-                   <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Criptografia de ponta a ponta
-                   </li>
-                   <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Isolamento de dados LGPD
-                   </li>
-                   <li className="flex items-center gap-3 text-sm font-bold text-[#0A2540] uppercase tracking-wider">
-                      <CheckCircle className="h-6 w-6 text-emerald-500" weight="fill" /> Backups automáticos redundantes
-                   </li>
-                </ul>
-             </motion.div>
-             <motion.div initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }} className="bg-slate-50 rounded-3xl p-10 border border-slate-200 shadow-xl relative overflow-hidden h-full flex flex-col justify-center">
-                <LockKey className="h-12 w-12 text-slate-400 mb-6" />
-                <h3 className="text-2xl font-black uppercase tracking-tighter text-[#0A2540] mb-4">Seu Cofre Digital</h3>
-                <p className="text-slate-500 font-medium leading-relaxed">
-                  Sem acessos de terceiros. Sem cruzamento de dados. Sua operação é enclausurada e totalmente independente. Você tem a chave e o controle absoluto do seu negócio público.
-                </p>
-             </motion.div>
-          </div>
-        </section>
-
-        {/* DOBRA 10: FAQ LEX E ASSINATURA FINAL */}
-        <section id="duvidas" className="mx-auto max-w-4xl px-6 py-24 md:py-32 md:px-12">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-center mb-16">
-            <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl md:text-5xl">
-              RESTOU ALGUMA DÚVIDA?
-            </h2>
-          </motion.div>
-
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={staggerContainer} className="space-y-4 mb-24">
-            {faqs.map((faq, i) => (
-              <motion.div variants={fadeInUp} key={i} className="border border-slate-200 rounded-2xl bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
-                 <button 
-                    onClick={() => setActiveFaq(activeFaq === i ? null : i)}
-                    className="w-full flex items-center justify-between text-left focus:outline-none"
-                 >
-                    <span className="font-black text-[#0A2540] text-sm md:text-base uppercase tracking-wider pr-8">{faq.q}</span>
-                    <div className={`p-2 rounded-full transition-colors ${activeFaq === i ? 'bg-orange-50' : 'bg-slate-50'}`}>
-                       <Question className={`h-5 w-5 transition-transform ${activeFaq === i ? 'rotate-180 text-[#EA580C]' : 'text-slate-400'}`} weight="bold" />
-                    </div>
-                 </button>
-                 <AnimatePresence>
-                    {activeFaq === i && (
-                       <motion.div 
-                          initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                       >
-                          <p className="mt-4 text-base font-medium text-slate-500 leading-relaxed pt-4 border-t border-slate-100">
-                             {faq.a}
-                          </p>
-                       </motion.div>
-                    )}
-                 </AnimatePresence>
-              </motion.div>
-            ))}
-          </motion.div>
-
-          <div className="text-center">
-             <h3 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-8">
-                PARE DE BRINCAR NO MERCADO PÚBLICO.
-             </h3>
-             <button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-[#EA580C] px-10 text-sm font-black uppercase tracking-widest text-white shadow-xl hover:bg-orange-600 transition-all hover:scale-105 active:scale-95">
-                CRIAR CENTRAL DE COMANDO
-             </button>
-          </div>
-        </section>
-
-      </main>
-
-      {/* FOOTER DIGITAL DAY */}
-      <footer className="w-full bg-[#0A2540] py-8 border-t border-[#0A2540]">
-        <div className="mx-auto flex max-w-7xl flex-col md:flex-row items-center justify-between px-6 md:px-12 gap-6">
-           <div className="flex items-center w-[60%] md:w-auto">
-              <img src="/logo.png" alt="Expertise Licitatória" className="h-8 w-auto object-contain brightness-0 invert opacity-90" />
-           </div>
-           
-           <a 
-              href="https://instagram.com/digitalday_software" 
-              target="_blank" 
-              rel="noreferrer"
-              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors group"
-           >
-              Desenvolvido por Digital Day Software 
-              <span className="p-1.5 rounded-full bg-slate-800 group-hover:bg-[#EA580C] transition-colors">
-                 <InstagramLogo className="h-4 w-4" weight="fill" />
+      {/* 1. HERO SECTION */}
+      <section className="relative pt-40 pb-20 lg:pt-48 lg:pb-32 px-6 md:px-12 flex flex-col lg:flex-row items-center max-w-7xl mx-auto gap-16">
+        <motion.div initial="hidden" animate="visible" variants={fadeInUp} className="w-full lg:w-[55%] flex flex-col gap-8 relative z-10">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter leading-[1.1] text-white drop-shadow-sm">
+            Feche mais contratos com o governo sem perder noites lendo editais.
+          </h1>
+          <p className="text-lg md:text-xl font-medium leading-relaxed text-blue-100 max-w-2xl">
+            Monitore compras abertas 24 horas, descubra exigências perigosas em segundos e envie seus preços automaticamente. Tudo com dados oficiais e proteção total.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 mt-4">
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 pl-2">
+                Dados oficiais em tempo real • Zero simulações
               </span>
-           </a>
-        </div>
+              <button onClick={() => navigate('/register')} className="group flex items-center justify-center gap-3 bg-[#EA580C] hover:bg-orange-600 text-white text-sm md:text-base font-black uppercase tracking-widest px-8 py-5 rounded-xl transition-all shadow-xl hover:shadow-orange-500/40 w-full">
+                Criar minha Central de Comando
+                <CaretRight weight="bold" className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+            <button onClick={() => document.getElementById('ferramentas')?.scrollIntoView({ behavior: 'smooth' })} className="flex items-center justify-center bg-white/10 hover:bg-white/20 text-white text-sm md:text-base font-bold uppercase tracking-widest px-8 py-5 rounded-xl transition-all backdrop-blur-sm mt-6 sm:mt-6 w-full sm:w-auto">
+              Ver como funciona em 90 segundos
+            </button>
+          </div>
+        </motion.div>
+        
+        {/* Mockup / Visual */}
+        <motion.div initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1, delay: 0.3, type: "spring" }} className="w-full lg:w-[45%] relative z-10 hidden md:block">
+           <div className="w-full aspect-[4/3] rounded-2xl bg-gradient-to-br from-[#0f3457] to-[#0a1e35] border border-white/10 shadow-2xl overflow-hidden relative">
+              <div className="absolute top-0 w-full h-10 bg-black/20 flex items-center px-4 gap-2">
+                 <div className="w-3 h-3 rounded-full bg-red-400/50"></div>
+                 <div className="w-3 h-3 rounded-full bg-amber-400/50"></div>
+                 <div className="w-3 h-3 rounded-full bg-emerald-400/50"></div>
+              </div>
+              <div className="p-8 pt-16 h-full flex flex-col gap-4">
+                 <div className="w-full h-12 bg-white/5 rounded-lg border border-white/5 flex items-center px-4 gap-4">
+                    <MagnifyingGlass className="w-5 h-5 text-slate-400" />
+                    <div className="w-1/3 h-2 bg-slate-600 rounded"></div>
+                 </div>
+                 <div className="flex gap-4 h-full">
+                    <div className="w-2/3 h-full bg-white/5 rounded-lg border border-white/5 p-4 flex flex-col gap-4">
+                       <div className="w-1/2 h-3 bg-slate-500 rounded"></div>
+                       <div className="w-3/4 h-2 bg-slate-600 rounded mt-4"></div>
+                       <div className="w-5/6 h-2 bg-slate-600 rounded"></div>
+                       <div className="w-4/6 h-2 bg-slate-600 rounded"></div>
+                    </div>
+                    <div className="w-1/3 h-full flex flex-col gap-4">
+                       <div className="w-full flex-1 bg-[#EA580C]/20 rounded-lg border border-[#EA580C]/30 p-4 flex items-center justify-center">
+                          <ChartLineUp className="w-12 h-12 text-[#EA580C] opacity-50" />
+                       </div>
+                       <div className="w-full flex-1 bg-white/5 rounded-lg border border-white/5"></div>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </motion.div>
+      </section>
+
+      {/* 2. SEÇÃO DE DOR */}
+      <section className="w-full bg-white py-24 px-6 md:px-12 relative border-t border-slate-100">
+         <div className="max-w-5xl mx-auto text-center flex flex-col items-center">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-[#0A2540] mb-6">
+               Você está deixando dinheiro na mesa todos os dias
+            </motion.h2>
+            <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-lg md:text-xl text-slate-600 max-w-3xl mb-16 font-medium leading-relaxed">
+               Pesquisar editais página por página e ler centenas de folhas para encontrar uma exigência escondida suga a energia da sua empresa e impede você de lucrar.
+            </motion.p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-12 sm:gap-24 w-full">
+               <motion.div initial={{ scale: 0.8, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6, type: "spring" }} className="flex flex-col items-center">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-orange-50 text-[#EA580C] mb-6">
+                     <Clock weight="fill" className="w-8 h-8" />
+                  </div>
+                  <div className="text-5xl md:text-6xl font-black text-[#EA580C] tracking-tighter flex items-center gap-2">
+                     <AnimatedCounter end={35} /> <span className="text-2xl md:text-3xl mt-3 uppercase">horas</span>
+                  </div>
+                  <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-4">Buscando e lendo papéis</div>
+               </motion.div>
+
+               <div className="hidden sm:block w-px h-32 bg-slate-200"></div>
+
+               <motion.div initial={{ scale: 0.8, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2, type: "spring" }} className="flex flex-col items-center">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-orange-50 text-[#EA580C] mb-6">
+                     <Money weight="fill" className="w-8 h-8" />
+                  </div>
+                  <div className="text-5xl md:text-6xl font-black text-[#EA580C] tracking-tighter flex items-center gap-2">
+                     <span className="text-2xl md:text-3xl mt-3 uppercase">R$</span> <AnimatedCounter end={12500} />
+                  </div>
+                  <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-4">Em oportunidades invisíveis</div>
+               </motion.div>
+            </div>
+         </div>
+      </section>
+
+      {/* 3. FERRAMENTAS PRINCIPAIS */}
+      <section id="ferramentas" className="w-full bg-[#0A2540] py-24 px-6 md:px-12 border-t border-white/5">
+         <div className="max-w-7xl mx-auto">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-white mb-16 text-center">
+               As ferramentas que colocam você na frente
+            </motion.h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               {tools.map((tool, idx) => (
+                  <motion.div 
+                     key={idx}
+                     initial={{ opacity: 0, y: 30 }}
+                     whileInView={{ opacity: 1, y: 0 }}
+                     viewport={{ once: true }}
+                     transition={{ duration: 0.5, delay: idx * 0.1 }}
+                     whileHover={{ y: -8 }}
+                     className="bg-white/5 border border-white/10 hover:border-[#EA580C]/50 rounded-2xl p-8 md:p-10 transition-all cursor-default group shadow-xl"
+                  >
+                     <div className="w-16 h-16 rounded-xl bg-white/10 group-hover:bg-[#EA580C]/20 flex items-center justify-center mb-6 transition-colors">
+                        {tool.icon}
+                     </div>
+                     <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-wider mb-4 group-hover:text-[#EA580C] transition-colors">{tool.title}</h3>
+                     <p className="text-blue-100/80 text-base md:text-lg leading-relaxed font-medium">
+                        {tool.desc}
+                     </p>
+                  </motion.div>
+               ))}
+            </div>
+         </div>
+      </section>
+
+      {/* 4. COMPARAÇÃO DE REALIDADE */}
+      <section className="w-full bg-slate-50 py-24 px-6 md:px-12">
+         <div className="max-w-5xl mx-auto text-center">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-8">
+               Seu concorrente trabalha duro. Você trabalha certo.
+            </motion.h2>
+            <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-lg md:text-xl text-slate-600 max-w-3xl mx-auto font-medium leading-relaxed mb-12">
+               Enquanto eles perdem tardes preenchendo planilhas e checando sites confusos, a Expertise faz o trabalho pesado.
+            </motion.p>
+            
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="bg-[#0A2540] rounded-3xl p-12 md:p-16 shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-full h-full bg-[#EA580C]/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
+               <h3 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-white relative z-10 leading-snug">
+                  O que você faria com <span className="text-[#EA580C]">40 horas livres</span> por semana?
+               </h3>
+            </motion.div>
+         </div>
+      </section>
+
+      {/* 5. SEGURANÇA E CONFIANÇA */}
+      <section className="w-full bg-white py-24 px-6 md:px-12 border-t border-slate-100">
+         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-16">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="w-full md:w-1/2">
+               <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-8">
+                  Infraestrutura de nível bancário
+               </h2>
+               <p className="text-lg text-slate-600 font-medium leading-relaxed mb-10">
+                  Seu preço, sua margem e seus documentos ficam protegidos. Ninguém mais tem acesso. Você tem a chave e o controle absoluto.
+               </p>
+               <div className="space-y-6">
+                  {[
+                     "Criptografia de ponta a ponta",
+                     "Isolamento total dos seus dados",
+                     "Backups automáticos"
+                  ].map((item, idx) => (
+                     <div key={idx} className="flex items-center gap-4">
+                        <CheckCircle weight="fill" className="text-emerald-500 w-8 h-8 shrink-0" />
+                        <span className="text-lg font-black uppercase tracking-widest text-slate-800">{item}</span>
+                     </div>
+                  ))}
+               </div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.8 }} className="w-full md:w-1/2 flex justify-center">
+               <div className="relative">
+                  <div className="absolute inset-0 bg-[#EA580C]/20 blur-3xl rounded-full"></div>
+                  <ShieldCheck weight="fill" className="w-48 h-48 md:w-64 md:h-64 text-[#0A2540] relative z-10 drop-shadow-2xl" />
+                  <LockKey weight="fill" className="w-16 h-16 text-[#EA580C] absolute bottom-4 right-4 z-20 drop-shadow-lg bg-white rounded-full p-3" />
+               </div>
+            </motion.div>
+         </div>
+      </section>
+
+      {/* 6. PERGUNTAS FREQUENTES */}
+      <section className="w-full bg-slate-50 py-24 px-6 md:px-12">
+         <div className="max-w-3xl mx-auto">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-12 text-center">
+               Perguntas Frequentes
+            </motion.h2>
+            <div className="space-y-4">
+               {faqs.map((faq, idx) => (
+                  <motion.div 
+                     initial={{ opacity: 0, y: 20 }}
+                     whileInView={{ opacity: 1, y: 0 }}
+                     viewport={{ once: true }}
+                     transition={{ delay: idx * 0.1 }}
+                     key={idx} 
+                     className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+                  >
+                     <button 
+                        onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
+                        className="w-full flex items-center justify-between p-6 text-left focus:outline-none"
+                     >
+                        <span className="font-black text-slate-800 uppercase tracking-wider text-sm md:text-base pr-4">{faq.q}</span>
+                        <CaretDown weight="bold" className={`w-6 h-6 text-[#EA580C] transition-transform duration-300 shrink-0 ${activeFaq === idx ? 'rotate-180' : ''}`} />
+                     </button>
+                     <AnimatePresence>
+                        {activeFaq === idx && (
+                           <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                           >
+                              <div className="p-6 pt-0 text-slate-600 font-medium leading-relaxed border-t border-slate-50 mt-2">
+                                 {faq.a}
+                              </div>
+                           </motion.div>
+                        )}
+                     </AnimatePresence>
+                  </motion.div>
+               ))}
+            </div>
+         </div>
+      </section>
+
+      {/* 7. CHAMADA FINAL */}
+      <section className="w-full bg-[#0A2540] py-32 px-6 md:px-12 relative overflow-hidden border-t border-white/10">
+         <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-[#EA580C]/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/3"></div>
+         <div className="max-w-4xl mx-auto text-center relative z-10 flex flex-col items-center">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter text-white mb-8 leading-[1.1]">
+               Pare de perder oportunidades no mercado público.
+            </motion.h2>
+            <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-xl text-blue-100 font-medium mb-12">
+               Crie sua Central de Comando agora e comece a disputar com vantagem real.
+            </motion.p>
+            <motion.button initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} onClick={() => navigate('/register')} className="group flex items-center justify-center gap-3 bg-[#EA580C] hover:bg-orange-600 text-white text-base md:text-lg font-black uppercase tracking-widest px-10 py-6 rounded-xl transition-all shadow-2xl hover:shadow-orange-500/40 w-full md:w-auto">
+               Criar minha Central de Comando
+               <CaretRight weight="bold" className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+            </motion.button>
+         </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="w-full bg-[#06182c] py-8 text-center border-t border-white/5">
+         <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            &copy; {new Date().getFullYear()} Expertise Licitatória. Todos os direitos reservados.
+         </p>
       </footer>
 
     </div>
