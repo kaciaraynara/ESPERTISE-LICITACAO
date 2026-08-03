@@ -24,6 +24,10 @@ const pages = [
 const distDir = path.resolve('dist');
 const ssrDir = path.resolve('dist-ssr');
 const template = await readFile(path.join(distDir, 'index.html'), 'utf8');
+
+// Salva o template vazio original para ser usado como fallback SPA (para que a hidratação não quebre)
+await writeFile(path.join(distDir, 'app.html'), template, 'utf8');
+
 const { render } = await import(pathToFileURL(path.join(ssrDir, 'entry-server.js')).href);
 
 for (const page of pages) {
