@@ -23,6 +23,17 @@ const forgotSchema = z.object({
    email: z.string().email('E-mail corporativo inválido')
 });
 
+const resetSchema = z.object({
+   password: z.string()
+      .min(8, 'A senha deve ter pelo menos 8 caracteres')
+      .regex(/[A-Za-z]/, 'A senha deve conter pelo menos uma letra')
+      .regex(/\d/, 'A senha deve conter pelo menos um número'),
+   confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+   message: 'As senhas não coincidem',
+   path: ['confirmPassword']
+});
+
 const registerSchema = z.object({
    nome: z.string().min(2, 'Nome obrigatório'),
    email: z.string().email('E-mail corporativo inválido'),
@@ -42,6 +53,7 @@ const registerSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 type ForgotFormValues = z.infer<typeof forgotSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function AuthPages() {
@@ -49,16 +61,20 @@ export default function AuthPages() {
    const location = useLocation();
    const setAuth = useAuthStore(state => state.setAuth);
 
-   const [activeView, setActiveView] = useState<'login' | 'register' | 'forgot'>('login');
+   const [activeView, setActiveView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
    
    // Estados para visibilidade de senhas
    const [showLoginPassword, setShowLoginPassword] = useState(false);
    const [showRegPassword, setShowRegPassword] = useState(false);
    const [showRegConfirm, setShowRegConfirm] = useState(false);
+   const [showResetPassword, setShowResetPassword] = useState(false);
+   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
    useEffect(() => {
       if (location.pathname === '/register') setActiveView('register');
       else if (location.pathname === '/login') setActiveView('login');
+      else if (location.pathname === '/forgot-password') setActiveView('forgot');
+      else if (location.pathname === '/reset-password') setActiveView('reset');
    }, [location.pathname]);
 
    // -----------------------------
@@ -157,13 +173,50 @@ export default function AuthPages() {
       resolver: zodResolver(forgotSchema)
    });
 
+   const [devResetLink, setDevResetLink] = useState<string | null>(null);
+
    const onForgot = async (data: ForgotFormValues) => {
       try {
-         await authApi.forgotPassword({ email: data.email });
+         const res = await authApi.forgotPassword({ email: data.email });
          toast.success('Se o e-mail estiver cadastrado, você receberá as instruções em instantes.');
-         setActiveView('login');
+         
+         // Se o backend enviar um devToken (pois não temos envio de email real configurado ainda)
+         if (res.data?.devToken) {
+            const link = `/reset-password?token=${res.data.devToken}`;
+            setDevResetLink(link);
+            toast.success('Modo Teste: Link de recuperação gerado logo abaixo!', { duration: 6000 });
+         } else {
+            setActiveView('login');
+         }
       } catch (error: any) {
          toast.error(error.response?.data?.message || 'Falha ao processar solicitação de recuperação.');
+      }
+   };
+
+   // -----------------------------
+   // RESET PASSWORD LOGIC
+   // -----------------------------
+   const { register: resetForm, handleSubmit: handleResetSubmit, watch: resetWatch, formState: { errors: resetErrors, isSubmitting: resetSubmitting } } = useForm<ResetFormValues>({
+      resolver: zodResolver(resetSchema)
+   });
+
+   const passResetWatch = resetWatch('password');
+   const passResetConfirmWatch = resetWatch('confirmPassword');
+
+   const onReset = async (data: ResetFormValues) => {
+      try {
+         const searchParams = new URLSearchParams(location.search);
+         const token = searchParams.get('token');
+         if (!token) {
+            toast.error('Token de recuperação inválido ou ausente.');
+            return;
+         }
+
+         await authApi.resetPassword({ token, senha: data.password });
+         toast.success('Senha atualizada com sucesso! Faça login com a nova senha.');
+         navigate('/login', { replace: true });
+      } catch (error: any) {
+         toast.error(error.response?.data?.message || 'Falha ao redefinir a senha. O link pode estar expirado.');
       }
    };
 
@@ -224,6 +277,15 @@ export default function AuthPages() {
                         </h2>
                         <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
                            Para manter a segurança das informações de licitação da sua empresa, enviamos um token temporário diretamente para o seu e-mail institucional.
+                        </p>
+                     </motion.div>
+                  ) : (
+                     <motion.div key="text-reset" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
+                        <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
+                           ATUALIZAÇÃO DE CREDENCIAIS
+                        </h2>
+                        <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
+                           Crie uma nova senha de alta complexidade. Proteja suas informações corporativas e estratégias de mercado.
                         </p>
                      </motion.div>
                   )}
@@ -434,6 +496,71 @@ export default function AuthPages() {
 
                         <div className="mt-8 text-center">
                            <button onClick={() => setActiveView('login')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Voltar para Login Seguro</button>
+                        </div>
+
+                        {devResetLink && (
+                           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-4 rounded-xl border border-orange-200 bg-orange-50 text-center">
+                              <p className="text-[10px] font-black uppercase text-orange-600 mb-2 tracking-widest">Simulação de E-mail (Modo Teste)</p>
+                              <a href={devResetLink} onClick={(e) => { e.preventDefault(); navigate(devResetLink); }} className="text-sm font-bold text-[#0A2540] underline underline-offset-4 decoration-orange-400 hover:text-orange-600 transition-colors">
+                                 Clique aqui para atualizar a senha
+                              </a>
+                           </motion.div>
+                        )}
+                     </motion.div>
+                  )}
+
+                  {/* --- RESET PASSWORD VIEW --- */}
+                  {activeView === 'reset' && (
+                     <motion.div key="reset" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="my-auto">
+                        <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-8 flex items-center gap-3">
+                           Nova Senha <LockKey weight="duotone" className="w-8 h-8 text-[#EA580C]" />
+                        </h2>
+
+                        <form onSubmit={handleResetSubmit(onReset)} className="space-y-6">
+                           <div className="relative group">
+                              <input {...resetForm('password')} id="reset_pass" placeholder=" " type={showResetPassword ? 'text' : 'password'} className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
+                              <label htmlFor="reset_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOVA SENHA (MÍN 8 CARACT.)</label>
+                              <button type="button" onClick={() => setShowResetPassword(!showResetPassword)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
+                                 {showResetPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                              {resetErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.password.message}</p>}
+                           </div>
+
+                           <div className="relative group">
+                              <input {...resetForm('confirmPassword')} id="reset_confirm" placeholder=" " type={showResetConfirm ? 'text' : 'password'} className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${passResetWatch && passResetConfirmWatch && passResetWatch === passResetConfirmWatch ? 'border-emerald-300 ring-1 ring-emerald-300' : ''}`} />
+                              <label htmlFor="reset_confirm" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">REPETIR NOVA SENHA</label>
+                              <button type="button" onClick={() => setShowResetConfirm(!showResetConfirm)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
+                                 {showResetConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              </button>
+                              {resetErrors.confirmPassword && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.confirmPassword.message}</p>}
+                           </div>
+
+                           <AnimatePresence>
+                              {passResetWatch && passResetWatch.length > 0 && passResetWatch === passResetConfirmWatch && (
+                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-widest bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+                                    <ShieldCheck weight="fill" className="w-4 h-4" /> Senhas coincidem
+                                 </motion.div>
+                              )}
+                           </AnimatePresence>
+
+                           <motion.button disabled={resetSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-slate-800 transition-colors group disabled:opacity-70 disabled:cursor-not-allowed mt-4">
+                              <span className="relative z-10 flex items-center gap-2">
+                                 {resetSubmitting ? (
+                                    <>
+                                       <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
+                                       ATUALIZANDO...
+                                    </>
+                                 ) : (
+                                    <>
+                                       REDEFINIR SENHA
+                                    </>
+                                 )}
+                              </span>
+                           </motion.button>
+                        </form>
+
+                        <div className="mt-8 text-center">
+                           <button onClick={() => navigate('/login')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Voltar para Login Seguro</button>
                         </div>
                      </motion.div>
                   )}
