@@ -95,11 +95,11 @@ export default function AuthPages() {
       if (sanitized.length === 14) {
          setIsLoadingCnpj(true);
          axios.get(`https://brasilapi.com.br/api/cnpj/v1/${sanitized}`)
-            .then((res: any) => regSetValue('razoesocial', res.data.razao_social || ''))
-            .catch(() => regSetValue('razoesocial', ''))
+            .then((res: any) => regSetValue('razoesocial', res.data.razao_social || '', { shouldValidate: true }))
+            .catch(() => regSetValue('razoesocial', '', { shouldValidate: true }))
             .finally(() => setIsLoadingCnpj(false));
       } else {
-         if (regWatch('razoesocial') !== '') regSetValue('razoesocial', '');
+         if (regWatch('razoesocial') !== '') regSetValue('razoesocial', '', { shouldValidate: true });
       }
    }, [cnpjValue, regSetValue, regWatch]);
 
@@ -265,13 +265,13 @@ export default function AuthPages() {
                            <div className="relative group">
                               <input {...loginForm('email')} id="login_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                               <label htmlFor="login_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL CORPORATIVO</label>
-                              {loginErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {loginErrors.email.message}</p>}
+                              {loginErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.email.message}</p>}
                            </div>
 
                            <div className="relative group">
                               <input {...loginForm('password')} id="login_password" placeholder=" " type="password" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                               <label htmlFor="login_password" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">SENHA DE ACESSO</label>
-                              {loginErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {loginErrors.password.message}</p>}
+                              {loginErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.password.message}</p>}
                            </div>
 
                            <motion.button disabled={loginSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-orange-600 transition-colors group disabled:opacity-70 disabled:cursor-not-allowed">
@@ -308,19 +308,19 @@ export default function AuthPages() {
                            <div className="relative group">
                               <input {...regForm('nome')} id="reg_nome" placeholder=" " type="text" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                               <label htmlFor="reg_nome" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOME DO RESPONSÁVEL</label>
-                              {regErrors.nome && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.nome.message}</p>}
+                              {regErrors.nome && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.nome.message}</p>}
                            </div>
 
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="relative group">
                                  <input {...regForm('email')} id="reg_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                                  <label htmlFor="reg_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL CORPORATIVO</label>
-                                 {regErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.email.message}</p>}
+                                 {regErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.email.message}</p>}
                               </div>
                               <div className="relative group">
                                  <input {...regForm('whatsapp')} id="reg_whats" placeholder=" " type="tel" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                                  <label htmlFor="reg_whats" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">WHATSAPP (COM DDD)</label>
-                                 {regErrors.whatsapp && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.whatsapp.message}</p>}
+                                 {regErrors.whatsapp && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.whatsapp.message}</p>}
                               </div>
                            </div>
 
@@ -328,7 +328,7 @@ export default function AuthPages() {
                               <input {...regForm('cnpj')} id="reg_cnpj" placeholder=" " type="text" maxLength={14} className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all pr-10 shadow-sm" />
                               <label htmlFor="reg_cnpj" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CNPJ DA EMPRESA</label>
                               {isLoadingCnpj && <CircleNotch className="absolute right-4 top-4 h-5 w-5 text-[#EA580C] animate-spin" />}
-                              {regErrors.cnpj && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.cnpj.message}</p>}
+                              {regErrors.cnpj && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.cnpj.message}</p>}
                            </div>
 
                            {isLoadingCnpj ? (
@@ -340,14 +340,14 @@ export default function AuthPages() {
                                  <input {...regForm('razoesocial')} id="reg_razao" placeholder=" " type="text" readOnly className="peer w-full rounded-xl border border-transparent bg-slate-50 px-4 pb-2 pt-6 text-sm font-black uppercase tracking-wider text-[#0A2540] opacity-90 cursor-not-allowed" />
                                  <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-[#0A2540] uppercase tracking-widest pointer-events-none">RAZÃO SOCIAL</label>
                                  {regWatch('razoesocial') && <CheckCircle className="absolute right-4 top-4 h-5 w-5 text-emerald-500" weight="fill" />}
-                                 {regErrors.razoesocial && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.razoesocial.message}</p>}
+                                 {regErrors.razoesocial && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.razoesocial.message}</p>}
                               </div>
                            )}
 
                            <div className="relative group">
                               <input {...regForm('password')} id="reg_pass" placeholder=" " type="password" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                               <label htmlFor="reg_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CRIE SUA SENHA (MÍN 6 CARACTERES)</label>
-                              {regErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {regErrors.password.message}</p>}
+                              {regErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.password.message}</p>}
                            </div>
 
                            <motion.button disabled={regSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-orange-600 transition-colors group mt-6 disabled:opacity-70 disabled:cursor-not-allowed">
@@ -384,7 +384,7 @@ export default function AuthPages() {
                            <div className="relative group">
                               <input {...forgotForm('email')} id="forgot_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
                               <label htmlFor="forgot_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL CORPORATIVO</label>
-                              {forgotErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle /> {forgotErrors.email.message}</p>}
+                              {forgotErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {forgotErrors.email.message}</p>}
                            </div>
 
                            <motion.button disabled={forgotSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-orange-600 transition-colors group disabled:opacity-70 disabled:cursor-not-allowed">
