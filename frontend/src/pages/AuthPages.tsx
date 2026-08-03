@@ -337,8 +337,8 @@ export default function AuthPages() {
                               </div>
                            ) : (
                               <div className="relative">
-                                 <input {...regForm('razoesocial')} id="reg_razao" placeholder=" " type="text" readOnly className="peer w-full rounded-xl border border-transparent bg-slate-50 px-4 pb-2 pt-6 text-sm font-black uppercase tracking-wider text-[#0A2540] opacity-90 cursor-not-allowed" />
-                                 <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-[#0A2540] uppercase tracking-widest pointer-events-none">RAZÃO SOCIAL</label>
+                                 <input {...regForm('razoesocial')} id="reg_razao" placeholder=" " type="text" className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-black uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] outline-none transition-all shadow-sm" />
+                                 <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">RAZÃO SOCIAL</label>
                                  {regWatch('razoesocial') && <CheckCircle className="absolute right-4 top-4 h-5 w-5 text-emerald-500" weight="fill" />}
                                  {regErrors.razoesocial && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.razoesocial.message}</p>}
                               </div>
