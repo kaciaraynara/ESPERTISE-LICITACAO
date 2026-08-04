@@ -277,8 +277,14 @@ export class AuthController {
         data: { resetToken, resetTokenExp },
       });
 
-      // Here you would normally send an email with the token link
-      // e.g. await sendEmail(user.email, resetToken);
+      // Enviar email via Resend
+      const { enviarRecuperacaoSenha } = require('../services/resend.service');
+      await enviarRecuperacaoSenha({
+        email: user.email,
+        nome: user.nome || 'Usuário',
+        token: resetToken,
+      }).catch((e: any) => console.error('[AUTH] Falha ao enviar e-mail de recuperação:', e));
+
       console.log(`[AUTH] Password reset token generated for ${user.email}: ${resetToken}`);
 
       return res.json({ success: true, message: 'Instruções enviadas', devToken: resetToken });

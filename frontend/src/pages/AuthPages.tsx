@@ -247,7 +247,7 @@ export default function AuthPages() {
             />
 
             <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, type: "spring", bounce: 0.4 }} className="pt-8 relative z-10">
-               <img src="/logo.png" alt="Expertise Licitatória" className="w-[60%] max-w-[280px] h-auto object-contain brightness-0 invert opacity-95 drop-shadow-2xl" />
+               <img src="/logo.png" alt="Expertise Licitatória" className="h-14 md:h-16 w-auto object-contain brightness-0 invert opacity-95 drop-shadow-lg mb-8" />
             </motion.div>
 
             <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.2, type: "spring" }} className="z-10 flex flex-col justify-center flex-1 pr-10 mt-12">
@@ -270,7 +270,7 @@ export default function AuthPages() {
                            Cadastre seu CNPJ e tenha um ambiente blindado para analisar editais complexos, monitorar concorrência e preservar o sigilo das suas margens.
                         </p>
                      </motion.div>
-                  ) : (
+                  ) : activeView === 'forgot' ? (
                      <motion.div key="text-forgot" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
                         <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
                            RECUPERAÇÃO DE CONTA CORPORATIVA

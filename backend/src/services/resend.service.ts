@@ -204,6 +204,89 @@ export async function enviarAlertaEdital(params: {
 
   return sendEmail({
     to: params.email,
+    </ol>
+    
+    <a href="https://app.expertise.com.br/dashboard" class="btn">Acessar minha plataforma →</a>
+  `);
+
+  return sendEmail({ to: params.email, subject: `Bem-vindo ao Expertise, ${params.nome}! Sua conta está pronta 🚀`, html });
+}
+
+/**
+ * Alerta de certidão próxima do vencimento
+ */
+export async function enviarAlertaCertidao(params: {
+  email: string;
+  nome: string;
+  certidao: string;
+  diasRestantes: number;
+  validade: string;
+  linkRenovacao: string;
+}) {
+  const { diasRestantes } = params;
+  const urgencia = diasRestantes <= 7 ? 'danger' : diasRestantes <= 15 ? 'alert' : 'warning';
+  const emoji = diasRestantes <= 7 ? '🚨' : diasRestantes <= 15 ? '⚠️' : '📅';
+
+  const html = templateBase(`
+    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">${emoji} Atenção: certidão vencendo em breve</h2>
+    <p style="color:#475569;margin-bottom:16px;">
+      Olá, <strong>${params.nome}</strong>! Uma certidão importante da sua empresa está próxima do vencimento.
+    </p>
+    
+    <div class="alert-box ${urgencia === 'danger' ? 'danger' : ''}">
+      <strong>${params.certidao}</strong><br>
+      <span style="font-size:13px;">Validade: <strong>${new Date(params.validade).toLocaleDateString('pt-BR')}</strong> | 
+      <span style="color:${diasRestantes <= 7 ? '#EF4444' : '#F59E0B'}"><strong>${diasRestantes} dias restantes</strong></span></span>
+    </div>
+    
+    <p style="color:#475569;font-size:14px;line-height:1.6;">
+      Se a certidão vencer <strong>antes do pregão</strong>, você será desclassificado automaticamente (Art. 63 da Lei 14.133/2021). 
+      Renove agora para garantir sua participação.
+    </p>
+    
+    <a href="${params.linkRenovacao}" class="btn btn-green">Renovar certidão agora →</a>
+    <a href="https://app.expertise.com.br/documentos" class="btn" style="margin-left:10px;background:#0052A3;">Ver no Cofre</a>
+  `);
+
+  return sendEmail({
+    to: params.email,
+    subject: `${emoji} ${params.certidao} vence em ${diasRestantes} dias — Renove agora`,
+    html,
+  });
+}
+
+/**
+ * Alerta de novo edital compatível com o perfil
+ */
+export async function enviarAlertaEdital(params: {
+  email: string;
+  nome: string;
+  edital: { objeto: string; orgao: string; valor?: number; prazo: string; link?: string };
+  score: number;
+}) {
+  const { edital, score } = params;
+  const valor = edital.valor ? `R$ ${edital.valor.toLocaleString('pt-BR')}` : 'Sob consulta';
+  const cor = score >= 80 ? '#00A651' : score >= 60 ? '#0066CC' : '#F59E0B';
+
+  const html = templateBase(`
+    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">🎯 Novo edital compatível encontrado!</h2>
+    <p style="color:#475569;margin-bottom:12px;">Olá, <strong>${params.nome}</strong>! O Radar encontrou um edital com alta compatibilidade com o perfil da sua empresa.</p>
+    
+    <div style="border:2px solid ${cor};border-radius:12px;padding:16px;margin:16px 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <span class="tag" style="background:${cor}15;color:${cor};border-color:${cor}40;">Score ${score}/100</span>
+        <span style="font-size:12px;color:#94A3B8;">Abertura: ${new Date(edital.prazo).toLocaleDateString('pt-BR')}</span>
+      </div>
+      <h3 style="font-size:15px;font-weight:700;color:#1A1A2E;line-height:1.4;margin-bottom:6px;">${edital.objeto}</h3>
+      <p style="font-size:13px;color:#475569;">${edital.orgao}</p>
+      <p style="font-size:16px;font-weight:900;color:${cor};margin-top:8px;">${valor}</p>
+    </div>
+    
+    <a href="${edital.link || 'https://app.expertise.com.br/licitacoes'}" class="btn">Analisar edital com LEX →</a>
+  `);
+
+  return sendEmail({
+    to: params.email,
     subject: `🎯 Novo edital: ${edital.objeto.substring(0, 50)}... — Score ${score}/100`,
     html,
   });
@@ -234,6 +317,40 @@ export async function enviarConfirmacaoPagamento(params: {
   return sendEmail({
     to: params.email,
     subject: `✅ Pagamento confirmado — Plano ${params.plano} ativo`,
+    html,
+  });
+}
+
+/**
+ * E-mail de recuperação de senha
+ */
+export async function enviarRecuperacaoSenha(params: {
+  email: string;
+  nome: string;
+  token: string;
+}) {
+  // Ajuste o frontend URL conforme seu ambiente (Vercel, localhost, etc.)
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
+
+  const html = templateBase(`
+    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">Recuperação de Senha Segura</h2>
+    <p style="color:#475569;margin-bottom:16px;">Olá, <strong>${params.nome}</strong>. Recebemos uma solicitação para redefinir a senha da sua conta.</p>
+    
+    <p style="color:#475569;margin-bottom:16px;">
+      Clique no botão abaixo para criar uma nova credencial. Este link é válido por apenas 1 hora.
+    </p>
+    
+    <a href="${resetLink}" class="btn">Redefinir Minha Senha →</a>
+    
+    <p style="color:#94A3B8;font-size:12px;margin-top:24px;">
+      Se você não solicitou esta alteração, por favor, ignore este e-mail.
+    </p>
+  `);
+
+  return sendEmail({
+    to: params.email,
+    subject: `🔐 Instruções para redefinição de senha`,
     html,
   });
 }
