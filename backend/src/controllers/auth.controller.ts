@@ -70,7 +70,14 @@ export class AuthController {
         email: publicUser.email, userId: publicUser.id, role: publicUser.role, ...getAuditContext(req),
       });
 
-      return res.status(201).json({ success: true, data: { user: publicUser, accessToken: tokens.accessToken } });
+      return res.status(201).json({
+        success: true,
+        data: {
+          user: publicUser,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken, // Necessário para sessão cross-site (Vercel ≠ EC2)
+        },
+      });
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ success: false, message: 'Dados inválidos', errors: err.errors });
       
@@ -106,7 +113,14 @@ export class AuthController {
       const { publicUser, tokens } = await authOperationsService.loginUser(email, senha, getAuditContext(req));
       
       setAuthCookies(res, tokens);
-      return res.json({ success: true, data: { user: publicUser, accessToken: tokens.accessToken } });
+      return res.json({
+        success: true,
+        data: {
+          user: publicUser,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken, // Necessário para sessão cross-site (Vercel ≠ EC2)
+        },
+      });
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ success: false, message: 'Dados inválidos', errors: err.errors });
       
@@ -287,7 +301,12 @@ export class AuthController {
 
       console.log(`[AUTH] Password reset token generated for ${user.email}: ${resetToken}`);
 
-      return res.json({ success: true, message: 'Instruções enviadas', devToken: resetToken });
+      return res.json({
+        success: true,
+        message: 'Instruções enviadas',
+        // devToken omitido em produção por segurança
+        ...(process.env.NODE_ENV !== 'production' ? { devToken: resetToken } : {}),
+      });
     } catch (err) {
       console.error('[AUTH] forgotPassword error:', err);
       return res.status(500).json({ success: false, message: 'Erro interno' });

@@ -87,10 +87,10 @@ export default function AuthPages() {
    const onLogin = async (data: LoginFormValues) => {
       try {
          const response = await authApi.login({ email: data.email, senha: data.password });
-         const { user, accessToken } = response.data.data;
+         const { user, accessToken, refreshToken } = response.data.data;
 
          localStorage.setItem('token', accessToken);
-         setAuth(user, accessToken);
+         setAuth(user, accessToken, refreshToken ?? undefined);
 
          toast.success('Acesso seguro liberado. Bem-vindo à sua área protegida.', { icon: '🛡️' });
          navigate('/dashboard', { replace: true });
@@ -150,11 +150,11 @@ export default function AuthPages() {
             role: 'fornecedor'
          });
 
-         const { user, accessToken } = response.data?.data || {};
+         const { user, accessToken, refreshToken } = response.data?.data || {};
          
          if (accessToken) {
             localStorage.setItem('token', accessToken);
-            setAuth(user, accessToken);
+            setAuth(user, accessToken, refreshToken ?? undefined);
             toast.success('Ambiente corporativo criado e criptografado com sucesso!', { icon: '🔐' });
             navigate('/dashboard', { replace: true });
          } else {

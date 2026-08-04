@@ -12,6 +12,8 @@ import type {
   User,
 } from '@/types';
 
+type RefreshRequestBody = { refreshToken?: string | null };
+
 function resolveBaseUrl(): string {
   if (import.meta.env.PROD) {
     return '/api/v1'; // Sempre usar o proxy da Vercel em produção
@@ -37,6 +39,7 @@ const BASE_URL = resolveBaseUrl();
 type RefreshSessionPayload = {
   data: {
     accessToken: string;
+    refreshToken?: string;
     user?: User;
   };
 };
@@ -46,8 +49,13 @@ let redirectingToLogin = false;
 
 function requestSessionRefresh() {
   if (!refreshRequest) {
+    // Envia o refreshToken salvo no store (localStorage persist) no body.
+    // O backend lê req.body?.refreshToken antes do cookie — funciona cross-site sem HTTPS.
+    const body: RefreshRequestBody = {
+      refreshToken: useAuthStore.getState().refreshToken,
+    };
     refreshRequest = axios
-      .post<RefreshSessionPayload>(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
+      .post<RefreshSessionPayload>(`${BASE_URL}/auth/refresh`, body, { withCredentials: true })
       .finally(() => {
         refreshRequest = null;
       });
@@ -93,8 +101,11 @@ api.interceptors.response.use(
         if (!data.data.accessToken) {
           throw new Error('Refresh de sessão sem token de acesso.');
         }
+        // Atualiza tokens no store (persiste no localStorage automaticamente)
         if (data.data.user) {
-          useAuthStore.getState().setAuth(data.data.user, data.data.accessToken);
+          useAuthStore.getState().setAuth(data.data.user, data.data.accessToken, data.data.refreshToken ?? undefined);
+        } else if (data.data.refreshToken) {
+          useAuthStore.getState().setTokens(data.data.accessToken, data.data.refreshToken);
         } else {
           useAuthStore.getState().setAccessToken(data.data.accessToken);
         }
