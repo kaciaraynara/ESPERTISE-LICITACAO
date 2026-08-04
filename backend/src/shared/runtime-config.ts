@@ -27,6 +27,11 @@ export function isOriginAllowed(origin?: string) {
     return true;
   }
 
+  // Permite qualquer domínio da Vercel para não bloquear a API em produção
+  if (origin.includes('vercel.app')) {
+    return true;
+  }
+
   return getAllowedOrigins().includes(origin);
 }
 
