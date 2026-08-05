@@ -15,6 +15,12 @@ import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
 
 const app = express();
+
+app.set('trust proxy', 1);
+
+// Habilita a confiança no proxy da Vercel (1 salto) para leitura correta do IP no express-rate-limit
+app.set('trust proxy', 1);
+
 app.disable('x-powered-by');
 assertProductionConfig();
 
