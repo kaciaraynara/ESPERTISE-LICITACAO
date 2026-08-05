@@ -16,9 +16,7 @@ import setupSockets from './websocket';
 
 const app = express();
 
-app.set('trust proxy', 1);
-
-// Habilita a confiança no proxy da Vercel (1 salto) para leitura correta do IP no express-rate-limit
+// Configuração de Proxy para leitura de IP real na Vercel (1 salto)
 app.set('trust proxy', 1);
 
 app.disable('x-powered-by');
@@ -49,12 +47,12 @@ app.use(cors({
   credentials: true,
 }));
 
-// Liveness não depende de serviços externos.
+// Liveness check
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Readiness só fica positiva quando a conexão real com o PostgreSQL responde.
+// Readiness check
 app.get('/health/readiness', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -71,8 +69,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
   customSiteTitle: 'EXPERTISE API',
 }));
 
-// O store é compartilhado entre instâncias. Se o PostgreSQL cair, a requisição
-// falha fechada e o error middleware devolve 503; não há fallback em memória.
+// Rate Limiter com PostgreSQL Store
 app.use(rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX) || 100,
