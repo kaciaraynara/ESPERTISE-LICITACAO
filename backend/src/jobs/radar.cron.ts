@@ -1,4 +1,4 @@
-import { setupDataPlatformWorkers } from '@services/data-platform';
+import { setupDataPlatformWorkers } from '../services/data-platform';
 import { setupCndRenewalCron } from './cnd-renewal.cron';
 import { setupPrivacyJob } from './privacy.job';
 
