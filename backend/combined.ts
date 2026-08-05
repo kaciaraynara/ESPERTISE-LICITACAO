@@ -40,7 +40,8 @@ export class NoticesOpportunityScoreService {
   constructor(
     private readonly notices = new NoticesSearchService(),
     private readonly errorRadar = new NoticesErrorRadarService(),
-  ) { }
+  ) {}
+
 
   async scoreNotice(
     noticeId: string,

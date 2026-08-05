@@ -87,3 +87,5 @@ export function checkPlanLimit(resourceType: PlanResourceType) {
     }
   };
 }
+// Adicione esta linha ao final do arquivo:
+export const requirePlanFeature = (feature: string) => checkPlanLimit(feature as any);
