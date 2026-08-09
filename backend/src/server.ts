@@ -13,8 +13,12 @@ import { errorMiddleware } from './shared/middlewares/error.middleware';
 import { PostgresRateLimitStore } from './shared/middlewares/postgres-rate-limit.store';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
+import * as precificacaoRoutesImport from './routes/precificacao.routes';
+// Support either a named export `precificacaoRoutes` or a default export
+const precificacaoRoutes = (precificacaoRoutesImport as any).precificacaoRoutes ?? (precificacaoRoutesImport as any).default ?? precificacaoRoutesImport;
 
 const app = express();
+app.use('/api/precificacao', precificacaoRoutes);
 
 // Configuração de Proxy para leitura de IP real na Vercel (1 salto)
 app.set('trust proxy', 1);

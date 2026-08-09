@@ -21,14 +21,17 @@ export class NotificationsWorker {
     let sent = 0;
 
     for (const notice of recentNotices) {
-      const searchableText = `${notice.object} ${notice.buyerName}`.toLowerCase();
+      const buyerName = notice.buyerName ?? '';
+      const objectText = notice.object ?? '';
+      const searchableText = `${objectText} ${buyerName}`.toLowerCase();
 
       for (const company of activeCompanies) {
+        const userPhone = company.user?.telefone;
         const matches = company.palavrasChave.some((keyword) =>
           searchableText.includes(keyword.toLowerCase()),
         );
 
-        if (!matches || !company.user.telefone) {
+        if (!matches || !userPhone) {
           continue;
         }
 
@@ -37,15 +40,15 @@ export class NotificationsWorker {
           '',
           'Nova oportunidade encontrada.',
           '',
-          `*Órgão:* ${notice.buyerName}`,
-          `*Objeto:* ${notice.object}`,
+          `*Órgão:* ${buyerName || 'Não informado'}`,
+          `*Objeto:* ${objectText || 'Não informado'}`,
           notice.estimatedValue !== null
             ? `*Valor estimado:* R$ ${Number(notice.estimatedValue).toFixed(2)}`
             : null,
           notice.url ? `*Fonte oficial:* ${notice.url}` : null,
         ].filter((line): line is string => line !== null);
 
-        await this.sendWhatsApp(company.user.telefone, details.join('\n'));
+        await this.sendWhatsApp(userPhone, details.join('\n'));
         sent += 1;
       }
     }

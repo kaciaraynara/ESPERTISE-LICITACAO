@@ -1,0 +1,31 @@
+export type EtapaFunil = 
+  | 'MAPPING'       // Captado / Em Triagem
+  | 'ANALISE_LEX'   // Em Análise Jurídica/Técnica
+  | 'PROPOSTA'      // Proposta de Preço Elaborada
+  | 'DISPUTA'       // Pregão / Sessão Pública
+  | 'HOMOLOGADO'    // Vencido / Em Contratação
+  | 'PERDIDO';      // Desqualificado / Perdeu Preço
+
+export type Prioridade = 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA';
+
+export interface OportunidadeCRM {
+  id: string;
+  numeroProcesso: string;
+  orgaoComprador: string;
+  uf: string;
+  valorEstimado: number;
+  valorPropostaEmpresa?: number;
+  etapa: EtapaFunil;
+  prioridade: Prioridade;
+  dataSessao: string; // ISO String
+  portal: string; // Ex: "PNCP", "Comprasnet"
+  responsavel: string;
+  margemEstimadaPercentual: number;
+}
+
+export interface MetricasCRM {
+  totalPipeline: number;
+  valorTotalEmDisputa: number;
+  taxaConversao: number;
+  sessoesHoje: number;
+}

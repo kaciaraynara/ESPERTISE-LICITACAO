@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ArrowLeft } from '@phosphor-icons/react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-
 import { authApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
 import {
@@ -23,6 +22,18 @@ import RoboPage from './pages/RoboPage';
 import CofrePage from './pages/CofrePage';
 import PlanosPage from './pages/PlanosPage';
 import ModuleStatusPage from './pages/ModuleStatusPage';
+import { LexFloatingWidget } from './components/LexFloatingWidget';
+// Módulos Ativos Conectados
+import { CrmFunilScreen } from './pages/CRM/CrmFunilScreen';
+import { PrecificacaoPage } from './pages/Precificacao/PrecificacaoPage';
+// Importações no topo do App.tsx
+// Removed unused imports: CatalogoPage, EditaisMonitoradosPage
+// Importações no topo do App.tsx
+import { ScoreOportunidadesPage } from './pages/ScoreOportunidades/ScoreOportunidadesPage';
+import { NulidadesPage } from './pages/Nulidades/NulidadesPage';
+// Importações no topo do App.tsx
+// Removed unused imports: SrpPage, RelatoriosPage
+// Importações no topo do App.tsx
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,7 +51,6 @@ const queryClient = new QueryClient({
 // PROTEÇÃO DE ROTAS SÍNCRONA E DIRETA (SEM LOOPS)
 // ----------------------------------------------------
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  // Lógica blindada: checa estado do Zustand de forma síncrona
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
@@ -141,7 +151,7 @@ export default function App() {
         <div className="flex h-screen w-screen items-center justify-center bg-white font-sans">
           <div className="text-center animate-pulse">
             <h2 className="text-2xl font-black uppercase tracking-tighter text-[#0A2540]">
-              SINCRO-NIZANDO CENTRAL DE COMANDO...
+              SINCRONIZANDO CENTRAL DE COMANDO...
             </h2>
             <p className="text-sm font-medium text-slate-400 mt-2">
               Conectando ao ambiente operacional da Digital Day Software
@@ -165,15 +175,20 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.radar} element={<RadarPage />} />
             <Route path={FORNECEDOR_ROUTES.licitacao_detalhe} element={<LicitacaoDetalhePage />} />
             <Route path={FORNECEDOR_ROUTES.documentos} element={<CofrePage />} />
+            
+            {/* Módulos Operacionais Conectados */}
+            <Route path="/crm" element={<CrmFunilScreen />} />
+            <Route path={FORNECEDOR_ROUTES.precificacao_estrategica} element={<PrecificacaoPage />} />
+
+            {/* Módulos em Desenvolvimento / Status */}
             <Route path={FORNECEDOR_ROUTES.academia} element={<ModuleStatusPage moduleKey="academia" />} />
             <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={<ModuleStatusPage moduleKey="score_oportunidades" />} />
             <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={<ModuleStatusPage moduleKey="radar_nulidades" />} />
             <Route path={FORNECEDOR_ROUTES.srp_carona} element={<ModuleStatusPage moduleKey="srp_carona" />} />
             <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={<ModuleStatusPage moduleKey="editais_monitorados" />} />
-            <Route path={FORNECEDOR_ROUTES.analise_oportunidade} element={<ModuleStatusPage moduleKey="analise_oportunidade" />} />
-            <Route path={FORNECEDOR_ROUTES.estrategia_disputa} element={<ModuleStatusPage moduleKey="estrategia_disputa" />} />
+            <Route path={FORNECEDOR_ROUTES.analise_oportunidade} element={<ScoreOportunidadesPage />} />
+            <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={<NulidadesPage />} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={<RoboPage />} />
-            <Route path={FORNECEDOR_ROUTES.precificacao_estrategica} element={<ModuleStatusPage moduleKey="precificacao_estrategica" />} />
             <Route path={FORNECEDOR_ROUTES.propostas} element={<ModuleStatusPage moduleKey="propostas" />} />
             <Route path={FORNECEDOR_ROUTES.catalogo} element={<ModuleStatusPage moduleKey="catalogo" />} />
             <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={<ModuleStatusPage moduleKey="prazos_alertas" />} />
@@ -188,7 +203,7 @@ export default function App() {
             <Route path="/dashboard" element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
           </Route>
 
-          {/* Pega Tudo */}
+          {/* Fallback 404 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
@@ -211,6 +226,8 @@ export default function App() {
           error: { iconTheme: { primary: '#B91C1C', secondary: '#FFFFFF' } },
         }}
       />
+      {/* Widget do LEX Fixo na Tela */}
+      <LexFloatingWidget />
     </QueryClientProvider>
   );
 }
