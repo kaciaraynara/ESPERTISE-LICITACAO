@@ -27,29 +27,7 @@ export class PlanGuardService {
   async resolveUserPlan(userId: string): Promise<PlanId> {
     const now = new Date();
 
-    const activeSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        categoria: 'plataforma',
-        status: {
-          in: ['active', 'trialing'],
-        },
-        periodoFim: {
-          gte: now,
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-      select: {
-        plano: true,
-      },
-    });
-
-    if (activeSubscription?.plano) {
-      return normalizePlanId(activeSubscription.plano);
-    }
-
+    // 1. Busca o usuário para acessar seu plano direto e ID
     const user = await prisma.user.findUnique({
       where: {
         id: userId,
@@ -67,7 +45,31 @@ export class PlanGuardService {
       );
     }
 
-    return normalizePlanId(user.plano);
+    // 2. Tenta resolver o plano através de uma assinatura ativa do usuário
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: {
+          in: ['active', 'trialing'], // Enum em caixa-baixa conforme o Prisma
+        },
+        periodoFim: {
+          gte: now,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      select: {
+        plano: true,
+      },
+    });
+
+    if (activeSubscription?.plano) {
+      return normalizePlanId(activeSubscription.plano);
+    }
+
+    // 3. Fallback: utiliza o plano atrelado ao registro do próprio usuário
+    return normalizePlanId(user.plano ?? 'free');
   }
 
   async assertFeature(userId: string, feature: PlanFeature): Promise<void> {
