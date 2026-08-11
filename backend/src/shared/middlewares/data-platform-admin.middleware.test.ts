@@ -348,7 +348,7 @@ describe('legal workflow permissions', () => {
     };
     const { requireLegalReview } = loadMiddleware(fakeService);
     const req = {
-      user: { id: 'reviewer-1', email: 'reviewer@expertise.test', plano: 'enterprise', role: 'advogado' },
+      user: { id: 'reviewer-1', email: 'reviewer@expertise.test', plano: 'enterprise', role: 'fornecedor' },
     } as AuthRequest;
     const res = response();
     const next = jest.fn();
@@ -388,7 +388,7 @@ describe('legal workflow permissions', () => {
     };
     const { requireLegalPublish } = loadMiddleware(fakeService);
     const req = {
-      user: { id: 'publisher-1', email: 'publisher@expertise.test', plano: 'enterprise', role: 'advogado' },
+      user: { id: 'publisher-1', email: 'publisher@expertise.test', plano: 'enterprise', role: 'fornecedor' },
     } as AuthRequest;
     const res = response();
     const next = jest.fn();

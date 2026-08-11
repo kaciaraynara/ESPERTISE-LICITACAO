@@ -10,7 +10,7 @@ export interface User {
   email_verificado: boolean;
   ultimo_acesso: string | null;
   created_at: string;
-  role?: 'fornecedor' | 'advogado' | 'contador';
+  role?: 'fornecedor';
   oab_numero?: string | null;
   oab_uf?: string | null;
   crc_numero?: string | null;

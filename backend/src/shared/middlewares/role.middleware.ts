@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware';
 
-export type UserRole = 'fornecedor' | 'advogado' | 'contador';
+export type UserRole = 'fornecedor';
 
 export function requireRole(...roles: UserRole[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {

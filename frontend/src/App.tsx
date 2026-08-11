@@ -23,6 +23,13 @@ import CofrePage from './pages/CofrePage';
 import PlanosPage from './pages/PlanosPage';
 import ModuleStatusPage from './pages/ModuleStatusPage';
 import { LexFloatingWidget } from './components/LexFloatingWidget';
+import ConfiguracoesPage from './pages/Configuracoes/ConfiguracoesPage';
+import { CatalogoPage } from './pages/Catalogo/CatalogoPage';
+import { PrazosAlertasPage } from './pages/PrazosAlertas/PrazosAlertasPage';
+import { InvestigacaoConcorrencialPage } from './pages/InvestigacaoConcorrencial/InvestigacaoConcorrencialPage';
+import { RelatoriosPage } from './pages/Relatorios/RelatoriosPage';
+import { PropostasPage } from './pages/Propostas/PropostasPage';
+import { LexAnalisePage } from './pages/Lex/LexAnalisePage';
 // Módulos Ativos Conectados
 import { CrmFunilScreen } from './pages/CRM/CrmFunilScreen';
 import { PrecificacaoPage } from './pages/Precificacao/PrecificacaoPage';
@@ -183,20 +190,19 @@ export default function App() {
             {/* Módulos em Desenvolvimento / Status */}
             <Route path={FORNECEDOR_ROUTES.academia} element={<ModuleStatusPage moduleKey="academia" />} />
             <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={<ModuleStatusPage moduleKey="score_oportunidades" />} />
-            <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={<ModuleStatusPage moduleKey="radar_nulidades" />} />
             <Route path={FORNECEDOR_ROUTES.srp_carona} element={<ModuleStatusPage moduleKey="srp_carona" />} />
             <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={<ModuleStatusPage moduleKey="editais_monitorados" />} />
             <Route path={FORNECEDOR_ROUTES.analise_oportunidade} element={<ScoreOportunidadesPage />} />
             <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={<NulidadesPage />} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={<RoboPage />} />
-            <Route path={FORNECEDOR_ROUTES.propostas} element={<ModuleStatusPage moduleKey="propostas" />} />
-            <Route path={FORNECEDOR_ROUTES.catalogo} element={<ModuleStatusPage moduleKey="catalogo" />} />
-            <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={<ModuleStatusPage moduleKey="prazos_alertas" />} />
-            <Route path={FORNECEDOR_ROUTES.lex} element={<ModuleStatusPage moduleKey="lex" />} />
-            <Route path={FORNECEDOR_ROUTES.investigacao_concorrencial} element={<ModuleStatusPage moduleKey="investigacao_concorrencial" />} />
-            <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={<ModuleStatusPage moduleKey="relatorios_estrategicos" />} />
+            <Route path={FORNECEDOR_ROUTES.propostas} element={<PropostasPage />} />
+            <Route path={FORNECEDOR_ROUTES.catalogo} element={<CatalogoPage />} />
+            <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={<PrazosAlertasPage />} />
+            <Route path={FORNECEDOR_ROUTES.lex} element={<LexAnalisePage />} />
+            <Route path={FORNECEDOR_ROUTES.investigacao_concorrencial} element={<InvestigacaoConcorrencialPage />} />
+            <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={<RelatoriosPage />} />
             <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
-            <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ModuleStatusPage moduleKey="configuracoes" />} />
+            <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
 
             {/* Alias Seguros */}
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />

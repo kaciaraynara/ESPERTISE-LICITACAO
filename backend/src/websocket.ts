@@ -5,7 +5,7 @@ import { RoboSocketService, SetupRoboPayload, EstrategiaType } from './services/
 import { getAllowedOrigins, getJwtSecret } from './shared/runtime-config';
 import { getBooleanEnv } from './config/env';
 
-type PortalRole = 'fornecedor' | 'advogado' | 'contador';
+type PortalRole = 'fornecedor';
 
 type SocketUser = {
   id?: string;
@@ -16,8 +16,7 @@ type SocketUser = {
 };
 
 function normalizeRole(decoded: any): PortalRole {
-  const role = decoded?.role ?? decoded?.tipo;
-  return role === 'advogado' || role === 'contador' ? role : 'fornecedor';
+  return 'fornecedor';
 }
 
 function normalizeSocketUser(decoded: any): SocketUser {

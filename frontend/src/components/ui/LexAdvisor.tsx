@@ -93,7 +93,7 @@ export function LexAdvisor() {
     lastAnswer,
     ask,
     copyLastAnswer,
-    sendLastAnswerToLawyer,
+
   } = useLexAI();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -185,15 +185,6 @@ export function LexAdvisor() {
                   >
                     <CopySimple className="h-4 w-4" weight="thin" />
                     Copiar resposta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={sendLastAnswerToLawyer}
-                    disabled={!canUseAnswerActions}
-                    className="inline-flex items-center gap-2 rounded-md border border-brand-orange/50 bg-brand-orange px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#581C87] disabled:opacity-45"
-                  >
-                    <UserFocus className="h-4 w-4" weight="thin" />
-                    Enviar para o Advogado
                   </button>
                 </div>
                 <form onSubmit={handleSubmit} className="flex gap-2">

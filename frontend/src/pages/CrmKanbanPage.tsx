@@ -184,11 +184,6 @@ export default function CrmKanbanPage() {
                               Robô
                             </button>
                           )}
-                          {fila.id === 'recursos' && (
-                            <Link to="/juridico" className="text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-md shadow-red-600/20 text-xs">
-                              Malha Fina CNPJ
-                            </Link>
-                          )}
                           <Link to={`/licitante/licitacoes/${encodeURIComponent(String(item.id))}`} className="text-brand-blue/70 group-hover:text-brand-blue bg-white group-hover:bg-slate-50 px-3 py-1.5 rounded-lg border-2 border-transparent group-hover:border-slate-100 transition-all duration-300 flex items-center gap-1">
                             Ver <ArrowRight className="w-3.5 h-3.5" />
                           </Link>

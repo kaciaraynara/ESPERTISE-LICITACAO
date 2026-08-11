@@ -120,8 +120,6 @@ export function getUserInitial(user?: UserDisplaySource | null, fallback = 'L') 
 }
 
 export function getProfileLabel(role?: string | null) {
-  if (role === 'advogado') return 'Jurídico';
-  if (role === 'contador') return 'Fiscal';
   return 'Fornecedor';
 }
 

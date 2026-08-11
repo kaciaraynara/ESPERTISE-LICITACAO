@@ -64,13 +64,6 @@ export function useLexAI() {
     toast.success('Resposta do LEX copiada.');
   }
 
-  function sendLastAnswerToLawyer() {
-    if (!lastAnswer) return;
-
-    window.sessionStorage.setItem('expertise:lex:sos-draft', lastAnswer);
-    toast.success('Resposta separada para revisão jurídica.');
-    window.location.href = '/licitante/juridico';
-  }
 
   return {
     input,
@@ -80,6 +73,6 @@ export function useLexAI() {
     lastAnswer,
     ask,
     copyLastAnswer,
-    sendLastAnswerToLawyer,
+
   };
 }

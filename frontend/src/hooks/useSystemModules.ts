@@ -1,4 +1,4 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { modulesApi, type SystemModule, type SystemModuleStatus } from '@services/api';
 
 export const systemModuleRoutes: Record<string, string> = {
@@ -7,8 +7,6 @@ export const systemModuleRoutes: Record<string, string> = {
   'editais-monitorados': '/fornecedor/editais-monitorados',
   'resumo-editais': '/fornecedor/resumo-editais',
   'assistente-juridico': '/fornecedor/assistente-juridico',
-  juridico: '/fornecedor/juridico',
-  'contabilidade-habilitacao': '/fornecedor/contabilidade-habilitacao',
   'cofre-documental': '/fornecedor/documentos',
   propostas: '/fornecedor/propostas',
   'precificacao-estrategica': '/fornecedor/precificacao-estrategica',

@@ -111,6 +111,7 @@ model Company {
   moduleAccess     CompanyModuleAccess[]
   monitoredNotices CompanyMonitoredNotice[]
   deadlines        Deadline[]
+  catalogItems     CatalogItem[]
 
   @@unique([userId, cnpj])
   @@unique([tenantId, cnpj])
@@ -1471,6 +1472,26 @@ model CompanyMonitoredNotice {
   @@index([userId])
   @@index([status])
   @@map("company_monitored_notices")
+}
+
+model CatalogItem {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId            String   @map("company_id") @db.Uuid
+  sku                  String
+  codigoCatmat         String?  @map("codigo_catmat")
+  nome                 String
+  categoria            String   @default("MATERIAL")
+  custoBase            Decimal? @map("custo_base") @db.Decimal(14, 2)
+  precoMinimoLicitacao Decimal? @map("preco_minimo_licitacao") @db.Decimal(14, 2)
+  unidadeMedida        String   @map("unidade_medida") @default("UN")
+  status               String   @default("ATIVO")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("catalog_items")
 }
 
 model Deadline {

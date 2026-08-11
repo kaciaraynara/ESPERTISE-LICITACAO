@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { Calculator, Zap, Percent } from 'lucide-react';
-import { ComposicaoCustos } from '../../types/precificacao.types';
+import React, { useState } from 'react';
+import { Calculator, Zap, Percent, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { precificacaoApi } from '@services/api';
 
 export const PrecificacaoPage: React.FC = () => {
-  const [custos, setCustos] = useState<ComposicaoCustos>({
+  const [custos, setCustos] = useState({
     custoProdutoServico: 150000.00,
     impostosPercentual: 8.5,
     custoOperacionalPercentual: 5.0,
@@ -12,34 +13,23 @@ export const PrecificacaoPage: React.FC = () => {
 
   const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(250000.00);
 
-  // Cálculos Dinâmicos de Formação de Preço
-  const calculo = useMemo(() => {
-    const { custoProdutoServico, impostosPercentual, custoOperacionalPercentual, margemDesejadaPercentual } = custos;
-    
-    const custoOperacionalVal = custoProdutoServico * (custoOperacionalPercentual / 100);
-    const custoBase = custoProdutoServico + custoOperacionalVal;
-    
-    // Fórmula de Markup / Margin no preço final
-    // Preço = CustoBase / (1 - (Impostos% + Margem%) / 100)
-    const fatorDivisor = 1 - ((impostosPercentual + margemDesejadaPercentual) / 100);
-    const precoSugerido = fatorDivisor > 0 ? custoBase / fatorDivisor : 0;
-    
-    const impostoVal = precoSugerido * (impostosPercentual / 100);
-    const lucroVal = precoSugerido * (margemDesejadaPercentual / 100);
+  const { data: resp, isLoading } = useQuery({
+    queryKey: ['precificacao', custos],
+    queryFn: async () => {
+      const res = await precificacaoApi.calcularViabilidade(custos);
+      return res.data;
+    }
+  });
 
-    // Breakeven (Margem 0%)
-    const fatorBreakeven = 1 - (impostosPercentual / 100);
-    const precoBreakeven = fatorBreakeven > 0 ? custoBase / fatorBreakeven : 0;
+  const calculo = resp?.data || {
+    precoSugerido: 0,
+    precoBreakeven: 0,
+    lucroProjetado: 0,
+    impostoProjetado: 0
+  };
 
-    return {
-      custoOperacionalVal,
-      impostoVal,
-      lucroVal,
-      precoSugerido,
-      precoBreakeven,
-      descontoFrenteEdital: valorMaximoEdital > 0 ? ((valorMaximoEdital - precoSugerido) / valorMaximoEdital) * 100 : 0
-    };
-  }, [custos, valorMaximoEdital]);
+  const custoOperacionalVal = custos.custoProdutoServico * (custos.custoOperacionalPercentual / 100);
+  const descontoFrenteEdital = valorMaximoEdital > 0 ? ((valorMaximoEdital - calculo.precoSugerido) / valorMaximoEdital) * 100 : 0;
 
   const formatarMoeda = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -67,7 +57,9 @@ export const PrecificacaoPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm text-right">
             <span className="text-[10px] font-bold text-slate-400 block uppercase">Limite de Segurança (Breakeven)</span>
-            <span className="text-sm font-black text-rose-600">{formatarMoeda(calculo.precoBreakeven)}</span>
+            <span className="text-sm font-black text-rose-600">
+              {isLoading ? <Loader2 size={16} className="animate-spin inline text-rose-600" /> : formatarMoeda(calculo.precoBreakeven)}
+            </span>
           </div>
         </div>
       </header>
@@ -152,7 +144,13 @@ export const PrecificacaoPage: React.FC = () => {
         <div className="lg:col-span-7 space-y-6">
           
           {/* CARD PREÇO SUGERIDO */}
-          <div className="bg-gradient-to-br from-[#0B1736] to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="bg-gradient-to-br from-[#0B1736] to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+            {isLoading && (
+              <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-10">
+                <Loader2 size={32} className="animate-spin text-orange-500" />
+              </div>
+            )}
+            
             <div>
               <span className="text-xs text-orange-400 font-bold uppercase tracking-wider block">
                 Preço Ideal da Proposta Inicial
@@ -165,28 +163,31 @@ export const PrecificacaoPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 text-center">
+            <div className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/10 text-center relative z-20">
               <span className="text-[10px] text-slate-300 font-bold uppercase block">Desconto Fixo vs Edital</span>
               <span className="text-xl font-extrabold text-emerald-400">
-                {calculo.descontoFrenteEdital.toFixed(2)}%
+                {descontoFrenteEdital.toFixed(2)}%
               </span>
             </div>
           </div>
 
           {/* BREAKDOWN DE CUSTOS (DRE) */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 relative overflow-hidden">
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10" />
+            )}
             <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
               Demonstrativo de Resultado do Lance (DRE Projeção)
             </h3>
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2 text-xs relative z-20">
               <div className="flex justify-between py-1 border-b border-slate-50">
                 <span className="text-slate-600 font-medium">Receita Bruta (Preço da Proposta)</span>
                 <span className="font-bold text-slate-900">{formatarMoeda(calculo.precoSugerido)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-rose-600">
                 <span>(-) Impostos ({custos.impostosPercentual}%)</span>
-                <span className="font-bold">-{formatarMoeda(calculo.impostoVal)}</span>
+                <span className="font-bold">-{formatarMoeda(calculo.impostoProjetado)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
                 <span>(-) Custo Direto (Aquisição)</span>
@@ -194,11 +195,11 @@ export const PrecificacaoPage: React.FC = () => {
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
                 <span>(-) Frete e Logística ({custos.custoOperacionalPercentual}%)</span>
-                <span className="font-bold">-{formatarMoeda(calculo.custoOperacionalVal)}</span>
+                <span className="font-bold">-{formatarMoeda(custoOperacionalVal)}</span>
               </div>
               <div className="flex justify-between py-2 pt-3 font-extrabold text-sm text-emerald-600 bg-emerald-50/50 px-2 rounded-lg">
                 <span>(=) Lucro Líquido Projetado</span>
-                <span>{formatarMoeda(calculo.lucroVal)}</span>
+                <span>{formatarMoeda(calculo.lucroProjetado)}</span>
               </div>
             </div>
           </div>

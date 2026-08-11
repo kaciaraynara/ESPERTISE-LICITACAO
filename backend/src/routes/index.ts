@@ -17,23 +17,47 @@ import { TransparenciaController } from '../controllers/transparencia.controller
 import { DashboardController } from '../controllers/dashboard.controller';
 import { PipelineController } from '../controllers/pipeline.controller';
 import { PricingController } from '../controllers/pricing.controller';
+
+// Sub-roteadores
 import documentosRoutes from './documentos.routes';
 import documentTemplatesRoutes from './document-templates.routes';
 import lexRoutes from './lex.routes';
 import roboRoutes from './robo.routes';
 import marketplaceRoutes from './marketplace.routes';
+import catalogoRoutes from './catalogo.routes';
+import prazosRoutes from './prazos.routes';
 import empresasRoutes from './empresas.routes';
 import authRoutes from './auth.routes';
+import cofreRoutes from './cofre.routes';
+import crmRoutes from './crm.routes';
+import precificacaoRoutes from './precificacao.routes';
+import analiseViabilidadeRoutes from './analise-viabilidade.routes';
+
+// Middlewares
 import { AuthRequest, authMiddleware } from '../shared/middlewares/auth.middleware';
 import { PostgresRateLimitStore } from '../shared/middlewares/postgres-rate-limit.store';
-import { requireAuditRead, requireDataPlatformAdmin, requireLegalAdmin, requireLegalPublish, requireLegalReview, requireRbacAdmin } from '../shared/middlewares/data-platform-admin.middleware';
+import {
+  requireAuditRead,
+  requireDataPlatformAdmin,
+  requireLegalAdmin,
+  requireLegalPublish,
+  requireLegalReview,
+  requireRbacAdmin,
+} from '../shared/middlewares/data-platform-admin.middleware';
 
 import { lexAIRateLimit } from '../shared/middlewares/lex-ai-rate-limit.middleware';
 import { requireRole } from '../shared/middlewares/role.middleware';
 import { requirePlanFeature } from '../shared/middlewares/plan-feature.middleware';
 import { transparenciaRateLimit } from '../shared/middlewares/transparencia-rate-limit.middleware';
+import { validate } from '../shared/middlewares/validate.middleware';
 import { getBooleanEnv, isProduction } from '../config/env';
 
+// Schemas Zod de Validação (ST-102)
+import { createPropostaSchema } from '../schemas/proposta.schema';
+import {
+  gerarPecaImpugnacaoSchema,
+  calcularPrazoImpugnacaoSchema,
+} from '../schemas/impugnacao.schema';
 
 const router = Router();
 
@@ -54,44 +78,51 @@ const transparencia = new TransparenciaController();
 const dashboard = new DashboardController();
 const pipeline = new PipelineController();
 const pricing = new PricingController();
+
 const lexEnabled = getBooleanEnv('ENABLE_LEX', false);
 const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', false);
 const crmEnabled = getBooleanEnv('ENABLE_CRM', false);
-const legacyMarketplaceEnabled = !isProduction()
-  && getBooleanEnv('ENABLE_LEGACY_MARKETPLACE', false);
-const legacyPricingStrategyEnabled = !isProduction()
-  && getBooleanEnv('ENABLE_LEGACY_PRICING_STRATEGY', false);
+const legacyMarketplaceEnabled =
+  !isProduction() && getBooleanEnv('ENABLE_LEGACY_MARKETPLACE', false);
+const legacyPricingStrategyEnabled =
+  !isProduction() && getBooleanEnv('ENABLE_LEGACY_PRICING_STRATEGY', false);
 
 const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => {
   Promise.resolve(handler(req, res, next)).catch(next);
 };
 
+// ==========================================
+// 1. ROTAS PÚBLICAS (Sem autenticação)
+// ==========================================
 router.use('/auth', authRoutes);
 router.get('/public/cnpj/:cnpj', handle(integracoes.consultarCnpj.bind(integracoes) as RequestHandler));
 router.post('/pagamentos/webhook', handle(mercadopago.webhook.bind(mercadopago) as RequestHandler));
 router.get('/pagamentos/planos', handle(mercadopago.listPlanos.bind(mercadopago) as RequestHandler));
 
-// As rotas abaixo exigem uma sessão autenticada.
+// ==========================================
+// 2. MIDDLEWARE DE AUTENTICAÇÃO E RATE LIMIT
+// ==========================================
 router.use(authMiddleware as RequestHandler);
-router.use(rateLimit({
-  windowMs: Number(process.env.USER_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: Number(process.env.USER_RATE_LIMIT_MAX) || 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new PostgresRateLimitStore('api-user'),
-  passOnStoreError: false,
-  keyGenerator: (req) => `user:${(req as AuthRequest).user!.id}`,
-  message: {
-    success: false,
-    code: 'USER_RATE_LIMIT_EXCEEDED',
-    message: 'Limite de requisições da conta excedido. Tente novamente mais tarde.',
-  },
-}));
+router.use(
+  rateLimit({
+    windowMs: Number(process.env.USER_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+    max: Number(process.env.USER_RATE_LIMIT_MAX) || 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new PostgresRateLimitStore('api-user'),
+    passOnStoreError: false,
+    keyGenerator: (req) => `user:${(req as AuthRequest).user!.id}`,
+    message: {
+      success: false,
+      code: 'USER_RATE_LIMIT_EXCEEDED',
+      message: 'Limite de requisições da conta excedido. Tente novamente mais tarde.',
+    },
+  }),
+);
+
+// Roles helpers
 const fornecedor = requireRole('fornecedor') as RequestHandler;
-const advogado = requireRole('advogado') as RequestHandler;
-const contador = requireRole('contador') as RequestHandler;
-const fornecedorOuContador = requireRole('fornecedor', 'contador') as RequestHandler;
-const fornecedorOuAdvogado = requireRole('fornecedor', 'advogado') as RequestHandler;
+const fornecedorOuAdvogado = requireRole('fornecedor') as RequestHandler;
 const auditReadOnly = requireAuditRead as RequestHandler;
 const dataPlatformAdminOnly = requireDataPlatformAdmin as RequestHandler;
 const legalAdminOnly = requireLegalAdmin as RequestHandler;
@@ -99,13 +130,32 @@ const legalReviewOnly = requireLegalReview as RequestHandler;
 const legalPublishOnly = requireLegalPublish as RequestHandler;
 const rbacAdminOnly = requireRbacAdmin as RequestHandler;
 
+// ==========================================
+// 3. ROTAS PROTEGIDAS POR MÓDULO
+// ==========================================
+
+// Dashboard
 router.get('/dashboard/metrics', fornecedor, handle(dashboard.getMetrics.bind(dashboard) as RequestHandler));
+
+// Módulos Recentes
+router.use('/cofre', cofreRoutes);
+router.use('/precificacao', precificacaoRoutes);
+router.use('/analise-viabilidade', analiseViabilidadeRoutes);
+
+if (crmEnabled) {
+  router.use('/crm', crmRoutes);
+  router.post('/pipeline', fornecedor, handle(pipeline.addToPipeline.bind(pipeline) as RequestHandler));
+  router.get('/pipeline', fornecedor, handle(pipeline.listStages.bind(pipeline) as RequestHandler));
+  router.patch('/pipeline/:id', fornecedor, handle(pipeline.moveOpportunity.bind(pipeline) as RequestHandler));
+  router.delete('/pipeline/:id', fornecedor, handle(pipeline.removeFromPipeline.bind(pipeline) as RequestHandler));
+}
 
 if (lexEnabled) {
   router.post('/ai/consultar', lexAIRateLimit, handle(ai.consultar.bind(ai) as RequestHandler));
+  router.use('/lex', lexRoutes);
 }
 
-
+// Admin / Auditoria / RBAC
 router.get('/admin/audit/events', auditReadOnly, handle(auditAdmin.listEvents.bind(auditAdmin) as RequestHandler));
 router.get('/admin/audit/metrics', auditReadOnly, handle(auditAdmin.metrics.bind(auditAdmin) as RequestHandler));
 
@@ -143,6 +193,7 @@ router.post('/admin/legal-rules/:id/activate', legalPublishOnly, handle(legalRul
 router.post('/admin/legal-rules/:id/deactivate', legalAdminOnly, handle(legalRulesAdmin.deactivateRule.bind(legalRulesAdmin) as RequestHandler));
 router.post('/admin/legal-rules/:id/new-version', legalAdminOnly, handle(legalRulesAdmin.createNewVersion.bind(legalRulesAdmin) as RequestHandler));
 
+// Editais / Notices
 router.get('/notices/search', handle(notices.search.bind(notices) as RequestHandler));
 router.get('/notices/:id/chunks', handle(notices.chunks.bind(notices) as RequestHandler));
 router.get('/notices/:id/basic-summary', requirePlanFeature('notices.basic_summary'), handle(notices.basicSummary.bind(notices) as RequestHandler));
@@ -154,33 +205,58 @@ router.get('/notices/:id/proposal-strategy', requirePlanFeature('proposal.strate
 router.get('/notices/:id/pricing-strategy', requirePlanFeature('pricing.strategy'), handle(notices.pricingStrategyReport.bind(notices) as RequestHandler));
 router.get('/notices/:id', handle(notices.getById.bind(notices) as RequestHandler));
 
+// Licitações e Sincronização
 router.get('/licitacoes', fornecedor, handle(licitacoes.listar as RequestHandler));
 router.get('/licitacoes/:id', fornecedor, handle(licitacoes.buscarPorId as RequestHandler));
 router.post('/licitacoes/monitor', fornecedor, handle(licitacoes.monitorar as RequestHandler));
-
-router.use('/documentos', documentosRoutes);
-router.use('/templates', documentTemplatesRoutes);
-
 router.post('/integracoes/sincronizar/pncp', fornecedor, handle(integracoes.sincronizarPncp.bind(integracoes) as RequestHandler));
 
+// Documentos e Empresas e Catalogo
+router.use('/documentos', documentosRoutes);
+router.use('/templates', documentTemplatesRoutes);
 router.use('/empresas', empresasRoutes);
+router.use('/catalogo', catalogoRoutes);
+router.use('/prazos', prazosRoutes);
 
+// Propostas e Impugnações (Com Validação Zod ST-102)
 router.post(
   '/propostas',
   fornecedor,
   requirePlanFeature('proposal.factory'),
+  validate(createPropostaSchema),
   handle(propostas.criarRascunho.bind(propostas) as RequestHandler),
 );
 
-if (lexEnabled) {
-  router.use('/lex', lexRoutes);
-}
+router.post(
+  '/impugnacoes/prazo',
+  fornecedorOuAdvogado,
+  requirePlanFeature('impugnation.simple'),
+  validate(calcularPrazoImpugnacaoSchema),
+  handle(impugnacao.calcularPrazo.bind(impugnacao) as RequestHandler),
+);
 
-router.post('/impugnacoes/prazo', fornecedorOuAdvogado, requirePlanFeature('impugnation.simple'), handle(impugnacao.calcularPrazo.bind(impugnacao) as RequestHandler));
-router.post('/impugnacoes/peca', fornecedorOuAdvogado, requirePlanFeature('impugnation.simple'), handle(impugnacao.gerarPeca.bind(impugnacao) as RequestHandler));
-router.post('/concorrentes/malha-fina', fornecedorOuAdvogado, requirePlanFeature('investigation.cartel_signals'), handle(concorrentes.malhaFina.bind(concorrentes) as RequestHandler));
-router.get('/concorrentes/:cnpj/dossie', fornecedorOuAdvogado, requirePlanFeature('investigation.competitor_intelligence'), handle(concorrentes.dossie.bind(concorrentes) as RequestHandler));
+router.post(
+  '/impugnacoes/peca',
+  fornecedorOuAdvogado,
+  requirePlanFeature('impugnation.simple'),
+  validate(gerarPecaImpugnacaoSchema),
+  handle(impugnacao.gerarPeca.bind(impugnacao) as RequestHandler),
+);
 
+// Concorrentes
+router.post(
+  '/concorrentes/malha-fina',
+  fornecedorOuAdvogado,
+  requirePlanFeature('investigation.cartel_signals'),
+  handle(concorrentes.malhaFina.bind(concorrentes) as RequestHandler),
+);
+
+router.get(
+  '/concorrentes/:cnpj/dossie',
+  fornecedorOuAdvogado,
+  requirePlanFeature('investigation.competitor_intelligence'),
+  handle(concorrentes.dossie.bind(concorrentes) as RequestHandler),
+);
 
 if (bidRobotEnabled) {
   router.use('/robo', roboRoutes);
@@ -190,9 +266,9 @@ if (legacyMarketplaceEnabled) {
   router.use('/marketplace', marketplaceRoutes);
 }
 
+// Notificações e Pagamentos
 router.get('/notificacoes', handle(notificacoes.listar.bind(notificacoes) as RequestHandler));
 router.post('/notificacoes/marcar-todas-lidas', handle(notificacoes.marcarTodasComoLidas.bind(notificacoes) as RequestHandler));
-
 router.post('/pagamentos/checkout', handle(mercadopago.criarCheckout.bind(mercadopago) as RequestHandler));
 router.post('/pagamentos/checkout-auth', handle(mercadopago.criarCheckoutAutenticado.bind(mercadopago) as RequestHandler));
 router.get('/pagamentos/assinatura', fornecedor, handle(mercadopago.minhaAssinatura.bind(mercadopago) as RequestHandler));
@@ -208,19 +284,8 @@ router.get('/transparencia/contratos', transparenciaRateLimit, fornecedor, handl
 router.get('/transparencia/cepim/:cnpj', transparenciaRateLimit, fornecedor, handle(transparencia.consultarCepim.bind(transparencia) as RequestHandler));
 router.get('/transparencia/cnep/:cnpj', transparenciaRateLimit, fornecedor, handle(transparencia.consultarCnep.bind(transparencia) as RequestHandler));
 
-if (crmEnabled) {
-  router.post('/pipeline', fornecedor, handle(pipeline.addToPipeline.bind(pipeline) as RequestHandler));
-  router.get('/pipeline', fornecedor, handle(pipeline.listStages.bind(pipeline) as RequestHandler));
-  router.patch('/pipeline/:id', fornecedor, handle(pipeline.moveOpportunity.bind(pipeline) as RequestHandler));
-  router.delete('/pipeline/:id', fornecedor, handle(pipeline.removeFromPipeline.bind(pipeline) as RequestHandler));
-}
-
 if (legacyPricingStrategyEnabled) {
-  router.post(
-    '/pricing-strategy',
-    fornecedor,
-    handle(pricing.getPricingStrategy.bind(pricing) as RequestHandler),
-  );
+  router.post('/pricing-strategy', fornecedor, handle(pricing.getPricingStrategy.bind(pricing) as RequestHandler));
 }
 
 export default router;

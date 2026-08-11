@@ -45,7 +45,7 @@ export const AcademiaPage: React.FC = () => {
     },
     {
       id: '4',
-      titulo: 'Como Elaborar Impugnações Vencedoras sem Advogado',
+      titulo: 'Como Elaborar Impugnações Vencedoras de Forma Eficiente',
       categoria: 'ESTRATÉGIA',
       duracao: '1h 45m',
       aulasCount: 5,

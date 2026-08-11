@@ -59,7 +59,7 @@ describe('requireRole', () => {
         tenantId: 'tenant-1',
         email: 'a@b.com',
         plano: 'free',
-        role: 'contador',
+        role: 'invalid_role' as any,
       },
     } as AuthRequest;
     const res = mockRes();

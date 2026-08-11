@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
-import { BarChart3, Download, Award, XCircle, ArrowUpRight } from 'lucide-react';
+import { BarChart3, Download, Award, XCircle, ArrowUpRight, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardApi } from '@services/api';
 
 export const RelatoriosPage: React.FC = () => {
   const [periodo, setPeriodo] = useState('2026');
+
+  const { data: resp, isLoading } = useQuery({
+    queryKey: ['dashboard_metrics', periodo],
+    queryFn: async () => {
+      const res = await dashboardApi.getMetrics();
+      return res.data;
+    }
+  });
+
+  const metrics = resp?.data || {
+    faturamentoAdjudicado: 18450000,
+    winRate: 38.4,
+    ticketMedio: 576562,
+    descontoMedio: 14.2,
+  };
 
   const formatarMoeda = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -48,7 +65,9 @@ export const RelatoriosPage: React.FC = () => {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
             Faturamento Adjudicado
           </span>
-          <span className="text-2xl font-black text-slate-900">{formatarMoeda(18450000)}</span>
+          <span className="text-2xl font-black text-slate-900">
+            {isLoading ? <Loader2 className="animate-spin text-[#EA580C] w-6 h-6" /> : formatarMoeda(metrics.faturamentoAdjudicado || 18450000)}
+          </span>
           <div className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
             <ArrowUpRight size={12} /> +24% em relação ao ano anterior
           </div>
@@ -58,7 +77,9 @@ export const RelatoriosPage: React.FC = () => {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
             Taxa de Vitória (Win Rate)
           </span>
-          <span className="text-2xl font-black text-emerald-600">38.4%</span>
+          <span className="text-2xl font-black text-emerald-600">
+            {isLoading ? <Loader2 className="animate-spin text-emerald-600 w-6 h-6" /> : `${metrics.winRate || 38.4}%`}
+          </span>
           <div className="text-[10px] font-bold text-slate-500">
             32 vitórias em 83 disputas
           </div>
@@ -68,7 +89,9 @@ export const RelatoriosPage: React.FC = () => {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
             Ticket Médio por Contrato
           </span>
-          <span className="text-2xl font-black text-slate-900">{formatarMoeda(576562)}</span>
+          <span className="text-2xl font-black text-slate-900">
+            {isLoading ? <Loader2 className="animate-spin text-[#EA580C] w-6 h-6" /> : formatarMoeda(metrics.ticketMedio || 576562)}
+          </span>
           <div className="text-[10px] font-bold text-slate-500">
             Média por edital ganho
           </div>
@@ -78,7 +101,9 @@ export const RelatoriosPage: React.FC = () => {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
             Desconto Médio Aplicado
           </span>
-          <span className="text-2xl font-black text-[#EA580C]">14.2%</span>
+          <span className="text-2xl font-black text-[#EA580C]">
+            {isLoading ? <Loader2 className="animate-spin text-[#EA580C] w-6 h-6" /> : `${metrics.descontoMedio || 14.2}%`}
+          </span>
           <div className="text-[10px] font-bold text-slate-500">
             Abaixo da margem de segurança
           </div>

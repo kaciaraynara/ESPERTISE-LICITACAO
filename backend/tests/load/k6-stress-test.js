@@ -16,7 +16,7 @@ export let options = {
   },
 };
 
-const BASE_URL = 'http://localhost:3333';
+const BASE_URL = 'http://localhost:3001/api/v1';
 
 export default function () {
   // Test notices search endpoint (public / cached endpoint)

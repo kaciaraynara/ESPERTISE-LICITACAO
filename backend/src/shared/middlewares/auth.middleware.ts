@@ -14,7 +14,7 @@ export interface AuthRequest extends Request {
     email_verificado?: boolean;
     ultimo_acesso?: string | null;
     created_at?: string;
-    role?: 'fornecedor' | 'advogado' | 'contador';
+    role?: 'fornecedor';
     isAdmin?: boolean;
     permissions?: string[];
   };
@@ -77,8 +77,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       return res.status(401).json({ success: false, message: 'Token de autenticação incompleto' });
     }
 
-    const roleCandidate = decoded.role ?? decoded.tipo;
-    const role = roleCandidate === 'advogado' || roleCandidate === 'contador' ? roleCandidate : 'fornecedor';
+    const role = 'fornecedor';
     const permissions = Array.isArray(decoded.permissions)
       ? decoded.permissions.filter((permission: unknown): permission is string => typeof permission === 'string')
       : typeof decoded.scope === 'string'

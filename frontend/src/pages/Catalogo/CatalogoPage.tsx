@@ -1,67 +1,57 @@
 import React, { useState } from 'react';
 import {
-  Package, Plus, Search, Edit3, Trash2, Filter
+  Package, Plus, Search, Edit3, Trash2, Filter, Loader2
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { catalogoApi } from '@services/api';
+import toast from 'react-hot-toast';
 
 interface ProdutoCatalogo {
   id: string;
   sku: string;
-  codigoCatmat: string;
+  codigoCatmat: string | null;
   nome: string;
-  categoria: 'MATERIAL' | 'SERVICO' | 'SOFTWARE';
-  custoBase: number;
-  precoMinimoLicitacao: number;
+  categoria: string;
+  custoBase: number | null;
+  precoMinimoLicitacao: number | null;
   unidadeMedida: string;
-  status: 'ATIVO' | 'EM_FALTA' | 'DESCONTINUADO';
+  status: string;
 }
 
 export const CatalogoPage: React.FC = () => {
   const [busca, setBusca] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODOS');
+  
+  const queryClient = useQueryClient();
 
-  const [produtos] = useState<ProdutoCatalogo[]>([
-    {
-      id: '1',
-      sku: 'PRD-001',
-      codigoCatmat: '481239',
-      nome: 'Licença de Software de Gestão Pública com Suporte Técnico',
-      categoria: 'SOFTWARE',
-      custoBase: 8500,
-      precoMinimoLicitacao: 12000,
-      unidadeMedida: 'UN',
-      status: 'ATIVO'
-    },
-    {
-      id: '2',
-      sku: 'PRD-002',
-      codigoCatmat: '312904',
-      nome: 'Serviço de Consultoria Jurídica em Licitações (Hora-Homem)',
-      categoria: 'SERVICO',
-      custoBase: 180,
-      precoMinimoLicitacao: 350,
-      unidadeMedida: 'HORA',
-      status: 'ATIVO'
-    },
-    {
-      id: '3',
-      sku: 'PRD-003',
-      codigoCatmat: '150921',
-      nome: 'Servidor Rack 2U Octa-Core 64GB RAM 2TB SSD',
-      categoria: 'MATERIAL',
-      custoBase: 14000,
-      precoMinimoLicitacao: 18500,
-      unidadeMedida: 'UN',
-      status: 'EM_FALTA'
+  const { data: resp, isLoading } = useQuery({
+    queryKey: ['catalogo_items'],
+    queryFn: async () => {
+      const res = await catalogoApi.listar();
+      return res.data;
     }
-  ]);
+  });
 
-  const formatarMoeda = (val: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const produtos: ProdutoCatalogo[] = resp?.data || [];
+
+  const removerMutation = useMutation({
+    mutationFn: (id: string) => catalogoApi.remover(id),
+    onSuccess: () => {
+      toast.success('Item removido com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['catalogo_items'] });
+    },
+    onError: () => toast.error('Erro ao remover o item.')
+  });
+
+  const formatarMoeda = (val: number | null) => {
+    if (val === null) return '-';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  }
 
   const produtosFiltrados = produtos.filter(p => {
     const atendeBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) || 
                         p.sku.toLowerCase().includes(busca.toLowerCase()) || 
-                        p.codigoCatmat.includes(busca);
+                        (p.codigoCatmat && p.codigoCatmat.includes(busca));
     const atendeCategoria = filtroCategoria === 'TODOS' || p.categoria === filtroCategoria;
     return atendeBusca && atendeCategoria;
   });
@@ -85,7 +75,10 @@ export const CatalogoPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all">
+        <button 
+          onClick={() => toast('Criação será implementada em breve!')}
+          className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all"
+        >
           <Plus size={16} /> NOVO ITEM NO CATÁLOGO
         </button>
       </header>
@@ -119,63 +112,82 @@ export const CatalogoPage: React.FC = () => {
       </div>
 
       {/* TABELA DE PRODUTOS */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-500 uppercase font-black tracking-wider text-[10px] bg-slate-50">
-                <th className="p-4">SKU / CATMAT</th>
-                <th className="p-4">Descrição do Item</th>
-                <th className="p-4 text-center">Tipo</th>
-                <th className="p-4 text-right">Custo Base</th>
-                <th className="p-4 text-right">Preço Mínimo (Licitatório)</th>
-                <th className="p-4 text-center">Status</th>
-                <th className="p-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-              {produtosFiltrados.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4">
-                    <div className="font-bold text-slate-900">{item.sku}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">CATMAT: {item.codigoCatmat}</div>
-                  </td>
-                  <td className="p-4 font-bold text-slate-800">{item.nome}</td>
-                  <td className="p-4 text-center">
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                      {item.categoria}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right font-bold text-slate-600">
-                    {formatarMoeda(item.custoBase)}
-                  </td>
-                  <td className="p-4 text-right font-black text-emerald-600">
-                    {formatarMoeda(item.precoMinimoLicitacao)}
-                  </td>
-                  <td className="p-4 text-center">
-                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded uppercase ${
-                      item.status === 'ATIVO' 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : item.status === 'EM_FALTA' 
-                        ? 'bg-amber-100 text-amber-800' 
-                        : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {item.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="p-4 text-center space-x-2">
-                    <button className="p-1.5 hover:bg-slate-100 rounded text-slate-600">
-                      <Edit3 size={14} />
-                    </button>
-                    <button className="p-1.5 hover:bg-rose-50 rounded text-rose-600">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px]">
+            <Loader2 className="animate-spin text-[#EA580C] w-8 h-8" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500 uppercase font-black tracking-wider text-[10px] bg-slate-50">
+                  <th className="p-4">SKU / CATMAT</th>
+                  <th className="p-4">Descrição do Item</th>
+                  <th className="p-4 text-center">Tipo</th>
+                  <th className="p-4 text-right">Custo Base</th>
+                  <th className="p-4 text-right">Preço Mínimo (Licitatório)</th>
+                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4 text-center">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                {produtosFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center p-8 text-slate-500">
+                      Nenhum item encontrado no catálogo.
+                    </td>
+                  </tr>
+                ) : (
+                  produtosFiltrados.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="font-bold text-slate-900">{item.sku}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">CATMAT: {item.codigoCatmat || '-'}</div>
+                      </td>
+                      <td className="p-4 font-bold text-slate-800">{item.nome}</td>
+                      <td className="p-4 text-center">
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {item.categoria}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right font-bold text-slate-600">
+                        {formatarMoeda(item.custoBase)}
+                      </td>
+                      <td className="p-4 text-right font-black text-emerald-600">
+                        {formatarMoeda(item.precoMinimoLicitacao)}
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded uppercase ${
+                          item.status === 'ATIVO' 
+                            ? 'bg-emerald-100 text-emerald-800' 
+                            : item.status === 'EM_FALTA' 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {item.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center space-x-2">
+                        <button className="p-1.5 hover:bg-slate-100 rounded text-slate-600">
+                          <Edit3 size={14} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if(window.confirm('Deseja realmente remover este item?')) removerMutation.mutate(item.id);
+                          }}
+                          className="p-1.5 hover:bg-rose-50 rounded text-rose-600"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
     </div>

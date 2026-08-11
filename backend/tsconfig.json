@@ -17,6 +17,7 @@
     "sourceMap": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "types": ["jest", "node"],
     "paths": {
       "@modules/*": ["./src/modules/*"],
       "@integrations/*": ["./src/integrations/*"],

@@ -9,25 +9,23 @@ import { openApiSpec } from './config/openapi';
 import { assertProductionConfig, getBooleanEnv } from './config/env';
 import { prisma } from './database/prisma';
 import routes from './routes/index';
-import { errorMiddleware } from './shared/middlewares/error.middleware';
+import licitacaoRoutes from './routes/licitacao.routes';
+import { errorHandler } from './shared/middlewares/error-handler.middleware';
 import { PostgresRateLimitStore } from './shared/middlewares/postgres-rate-limit.store';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
-import * as precificacaoRoutesImport from './routes/precificacao.routes';
-// Support either a named export `precificacaoRoutes` or a default export
-const precificacaoRoutes = (precificacaoRoutesImport as any).precificacaoRoutes ?? (precificacaoRoutesImport as any).default ?? precificacaoRoutesImport;
+import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
 
 const app = express();
-app.use('/api/precificacao', precificacaoRoutes);
 
-// Configuração de Proxy para leitura de IP real na Vercel (1 salto)
+app.use(correlationIdMiddleware);
 app.set('trust proxy', 1);
-
 app.disable('x-powered-by');
 assertProductionConfig();
 
 const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', false);
 
+// 1. Segurança e CORS
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
@@ -51,12 +49,11 @@ app.use(cors({
   credentials: true,
 }));
 
-// Liveness check
+// 2. Health Checks
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Readiness check
 app.get('/health/readiness', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -69,17 +66,18 @@ app.get('/health/readiness', async (_req, res) => {
   }
 });
 
+// 3. Documentação Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
   customSiteTitle: 'EXPERTISE API',
 }));
 
-// Rate Limiter com PostgreSQL Store
+// 4. Rate Limiter Global
 app.use(rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
-  store: new PostgresRateLimitStore('api-ip'),
+  // store: new PostgresRateLimitStore('api-ip'),
   passOnStoreError: false,
   message: {
     success: false,
@@ -88,6 +86,7 @@ app.use(rateLimit({
   },
 }));
 
+// 5. Parser de Body (DEVE vir antes do registro das rotas)
 app.use(express.json({
   limit: '10mb',
   verify: (req: any, _res, buffer) => {
@@ -97,9 +96,14 @@ app.use(express.json({
   },
 }));
 
+// 6. Roteador Principal da API e Novas Rotas
 app.use('/api/v1', routes);
-app.use(errorMiddleware);
+app.use('/api/v1/licitacoes', licitacaoRoutes);
 
+// 7. TRATAMENTO CENTRALIZADO DE ERROS (Sempre o último middleware antes do servidor)
+app.use(errorHandler);
+
+// 8. Inicialização do Servidor HTTP / WebSockets
 const port = Number(process.env.PORT) || 3001;
 const server = http.createServer(app);
 
@@ -115,3 +119,5 @@ server.listen(port, () => {
     bidRobotEnabled,
   }));
 });
+
+export default app;

@@ -9,6 +9,19 @@ import {
   type PlanId,
 } from './plan.constants';
 
+interface UserPlanSource {
+  plano?: string | null;
+  plan?: string | null;
+}
+
+interface SubscriptionPlanSource {
+  plano?: string | null;
+  plan?: string | null;
+  status?: string | null;
+  periodoFim?: Date | string | null;
+  currentPeriodEnd?: Date | string | null;
+}
+
 export class PlanLimitError extends Error {
   public readonly code: string;
   public readonly statusCode: number;
@@ -27,15 +40,7 @@ export class PlanGuardService {
   async resolveUserPlan(userId: string): Promise<PlanId> {
     const now = new Date();
 
-    // 1. Busca o usuário para acessar seu plano direto e ID
-    const user = await prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-      select: {
-        plano: true,
-      },
-    });
+    const user = await this.loadUserPlanSource(userId);
 
     if (!user) {
       throw new PlanLimitError(
@@ -45,31 +50,14 @@ export class PlanGuardService {
       );
     }
 
-    // 2. Tenta resolver o plano através de uma assinatura ativa do usuário
-    const activeSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: {
-          in: ['active', 'trialing'], // Enum em caixa-baixa conforme o Prisma
-        },
-        periodoFim: {
-          gte: now,
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-      select: {
-        plano: true,
-      },
-    });
+    const activeSubscription = await this.loadActiveSubscription(userId, now);
+    const subscriptionPlan = this.getPlanValue(activeSubscription);
 
-    if (activeSubscription?.plano) {
-      return normalizePlanId(activeSubscription.plano);
+    if (subscriptionPlan) {
+      return normalizePlanId(subscriptionPlan);
     }
 
-    // 3. Fallback: utiliza o plano atrelado ao registro do próprio usuário
-    return normalizePlanId(user.plano ?? 'free');
+    return normalizePlanId(this.getPlanValue(user) ?? 'free');
   }
 
   async assertFeature(userId: string, feature: PlanFeature): Promise<void> {
@@ -91,6 +79,47 @@ export class PlanGuardService {
         feature,
       },
     );
+  }
+
+  private async loadUserPlanSource(userId: string): Promise<UserPlanSource | null> {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { plano: true },
+    }) as Promise<UserPlanSource | null>;
+  }
+
+  private async loadActiveSubscription(userId: string, now: Date): Promise<SubscriptionPlanSource | null> {
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: {
+          in: ['active', 'trialing'],
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      select: {
+        plano: true,
+        status: true,
+        periodoFim: true,
+      },
+    }) as SubscriptionPlanSource | null;
+
+    if (!subscription) {
+      return null;
+    }
+
+    const endDate = (subscription as SubscriptionPlanSource & { currentPeriodEnd?: Date | string | null }).currentPeriodEnd ?? subscription.periodoFim;
+    if (endDate && new Date(endDate) < now) {
+      return null;
+    }
+
+    return subscription;
+  }
+
+  private getPlanValue(source?: { plano?: string | null; plan?: string | null } | null): string | null {
+    return source?.plano ?? source?.plan ?? null;
   }
 
   async assertCanCreateCompany(userId: string, currentCompanyCount: number): Promise<void> {

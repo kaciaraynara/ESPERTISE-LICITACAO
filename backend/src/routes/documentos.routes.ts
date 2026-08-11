@@ -10,7 +10,7 @@ const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => 
   Promise.resolve(handler(req, res, next)).catch(next);
 };
 
-const fornecedorOuContador = requireRole('fornecedor', 'contador') as RequestHandler;
+const fornecedorOuContador = requireRole('fornecedor') as RequestHandler;
 
 router.use(authMiddleware as RequestHandler);
 router.use(fornecedorOuContador);

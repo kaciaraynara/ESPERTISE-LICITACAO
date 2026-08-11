@@ -176,6 +176,25 @@ export const documentosApi = {
   remover: (id: string) => api.delete(`/documentos/${id}`),
 };
 
+export const empresasApi = {
+  listar: () => api.get('/empresas'),
+  buscarPorId: (id: string) => api.get(`/empresas/${encodeURIComponent(id)}`),
+  atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/empresas/${encodeURIComponent(id)}`, body),
+  criar: (body: Record<string, unknown>) => api.post('/empresas', body),
+};
+
+export const catalogoApi = {
+  listar: () => api.get('/catalogo'),
+  criar: (body: Record<string, unknown>) => api.post('/catalogo', body),
+  atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/catalogo/${encodeURIComponent(id)}`, body),
+  remover: (id: string) => api.delete(`/catalogo/${encodeURIComponent(id)}`),
+};
+
+export const prazosApi = {
+  listar: () => api.get('/prazos'),
+  concluir: (id: string) => api.patch(`/prazos/${encodeURIComponent(id)}/concluir`),
+};
+
 // ─── Licitações ───────────────────────────────────────────────────────────────
 export const licitacoesApi = {
   listar: (params?: RadarLicitacoesFiltros) => api.get('/licitacoes', { params }),
@@ -234,6 +253,16 @@ export const impugnacaoApi = {
   }) => api.post('/impugnacoes/peca', body),
 };
 
+export const noticesApi = {
+  search: (params: any) => api.get('/notices/search', { params }),
+  getById: (id: string) => api.get(`/notices/${id}`),
+  getErrorRadar: (id: string) => api.get(`/notices/${id}/error-radar`),
+};
+
+export const propostasApi = {
+  criarRascunho: (body: any) => api.post('/propostas', body),
+};
+
 export const concorrentesApi = {
   malhaFina: (body: { cnpjs: string[]; licitacaoId?: string }) =>
     api.post('/concorrentes/malha-fina', body),
@@ -288,45 +317,14 @@ export const marketplaceApi = {
 
 export const precificacaoApi = {
   calcularViabilidade: (body: {
-    preco_lance: number;
-    custo_produto: number;
-    percentual_impostos: number;
-    custo_logistico: number;
-    taxas_administrativas: number;
+    custoProdutoServico: number;
+    impostosPercentual: number;
+    custoOperacionalPercentual: number;
+    margemDesejadaPercentual: number;
   }) => api.post('/precificacao/viabilidade', body),
 };
 
-export const juridicoApi = {
-  planos: () => api.get('/juridico/planos'),
-  minhaAssinatura: () => api.get('/juridico/assinatura'),
-  listarAdvogados: (params?: { busca?: string; uf?: string }) => api.get('/juridico/advogados', { params }),
-  meuPerfil: () => api.get('/juridico/meu-perfil'),
-  salvarPerfil: (body: {
-    nome_exibicao?: string;
-    oab_numero: string;
-    oab_uf: string;
-    especialidades: string[] | string;
-    cidade?: string;
-    uf?: string;
-    bio?: string;
-    contato_publico?: string;
-    plano_mensal: 'juridico_essencial' | 'juridico_profissional';
-  }) => api.post('/juridico/meu-perfil', body),
-  listarCasos: () => api.get('/juridico/casos'),
-  abrirCaso: (body: {
-    lawyer_user_id: string;
-    assunto: string;
-    edital_id?: string;
-    edital_objeto?: string;
-    descricao: string;
-    telefone_cliente?: string;
-  }) => api.post('/juridico/casos', body),
-  enviarMensagem: (id: string, conteudo: string) => api.post(`/juridico/casos/${encodeURIComponent(id)}/mensagens`, { conteudo }),
-  atualizarStatus: (id: string, status: 'novo' | 'em_andamento' | 'concluido') =>
-    api.patch(`/juridico/casos/${encodeURIComponent(id)}/status`, { status }),
-  avaliarCaso: (id: string, body: { nota: number; comentario?: string }) =>
-    api.post(`/juridico/casos/${encodeURIComponent(id)}/avaliacao`, body),
-};
+
 
 // ─── Notificações ────────────────────────────────────────────────────────────
 export const notificacoesApi = {

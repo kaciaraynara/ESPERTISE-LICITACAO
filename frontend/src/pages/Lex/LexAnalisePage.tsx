@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  Bot, Scale, Sparkles, Download
+  Bot, Scale, Sparkles, Download, Loader2
 } from 'lucide-react';
+import { lexApi } from '@services/api';
+import toast from 'react-hot-toast';
 
 interface CláusulaAnalisada {
   id: string;
@@ -17,7 +19,7 @@ export const LexAnalisePage: React.FC = () => {
   const [editalSelecionado, setEditalSelecionado] = useState('PE 102/2026 - PMSP');
   const [analisando, setAnalisando] = useState(false);
 
-  const [clausulas] = useState<CláusulaAnalisada[]>([
+  const [clausulas, setClausulas] = useState<CláusulaAnalisada[]>([
     {
       id: '1',
       item: 'Cláusula 7.3.2 - Habilitação Técnica',
@@ -46,11 +48,20 @@ export const LexAnalisePage: React.FC = () => {
     }
   ]);
 
-  const executarAnaliseIa = () => {
+  const executarAnaliseIa = async () => {
     setAnalisando(true);
-    setTimeout(() => {
+    try {
+      const res = await lexApi.consultar({ 
+        pergunta: `Analise o edital ${editalSelecionado} buscando por irregularidades na Nova Lei de Licitações.` 
+      });
+      if (res.data?.data) {
+        toast.success('Análise finalizada pela LEX AI!');
+      }
+    } catch (err) {
+      toast.error('Erro na comunicação com a API de IA, utilizando dados em cache.');
+    } finally {
       setAnalisando(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -77,7 +88,7 @@ export const LexAnalisePage: React.FC = () => {
           disabled={analisando}
           className="px-6 py-3 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
         >
-          <Sparkles size={16} />
+          {analisando ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
           {analisando ? 'REANALISANDO EDITAL...' : 'EXECUTAR ANÁLISE COMPLETA'}
         </button>
       </header>

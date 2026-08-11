@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import {
   PrismaClient,
   AccountRole,
@@ -8,44 +9,54 @@ import {
   SubscriptionCategory,
   SubscriptionStatus,
 } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// Inicialização necessária para o Prisma v7 com driver adapter
+const connectionString = process.env.DATABASE_URL;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('[SEED] Iniciando o processo de seeding...');
 
-  // 1. Limpeza previa do banco de dados (respeitando a ordem das foreign keys)
+  // Gerar hash para a senha padrão '12345678'
+  const defaultPasswordHash = await bcrypt.hash('12345678', 10);
+
+  // 1. Limpeza prévia do banco de dados (respeitando a ordem das foreign keys)
   console.log('[SEED] Limpando dados antigos...');
-  await prisma.auditLog.deleteMany();
-  await prisma.webhookLog.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.subscription.deleteMany();
-  await prisma.marketplaceItem.deleteMany();
-  await prisma.fornecedorMarketplace.deleteMany();
-  await prisma.juridicoMessage.deleteMany();
-  await prisma.juridicoCase.deleteMany();
-  await prisma.deadline.deleteMany();
-  await prisma.juridicoProfile.deleteMany();
-  await prisma.investigationSignal.deleteMany();
-  await prisma.legalPattern.deleteMany();
-  await prisma.jurisprudence.deleteMany();
-  await prisma.legalDocument.deleteMany();
-  await prisma.documentChunk.deleteMany();
-  await prisma.document.deleteMany();
-  await prisma.annualProcurementPlan.deleteMany();
-  await prisma.roboSession.deleteMany();
-  await prisma.biddingPipeline.deleteMany();
-  await prisma.procurementEvent.deleteMany();
-  await prisma.legalAnalysis.deleteMany();
-  await prisma.proposal.deleteMany();
-  await prisma.procurementRequirement.deleteMany();
-  await prisma.procurementItem.deleteMany();
-  await prisma.procurementNotice.deleteMany();
-  await prisma.companyMonitoredNotice.deleteMany();
-  await prisma.companyModuleAccess.deleteMany();
-  await prisma.companyCertificate.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.company.deleteMany();
+  await prisma.auditLog.deleteMany().catch(() => {});
+  await prisma.webhookLog.deleteMany().catch(() => {});
+  await prisma.payment.deleteMany().catch(() => {});
+  await prisma.subscription.deleteMany().catch(() => {});
+  await prisma.marketplaceItem.deleteMany().catch(() => {});
+  await prisma.fornecedorMarketplace.deleteMany().catch(() => {});
+  await prisma.juridicoMessage.deleteMany().catch(() => {});
+  await prisma.juridicoCase.deleteMany().catch(() => {});
+  await prisma.deadline.deleteMany().catch(() => {});
+  await prisma.juridicoProfile.deleteMany().catch(() => {});
+  await prisma.investigationSignal.deleteMany().catch(() => {});
+  await prisma.legalPattern.deleteMany().catch(() => {});
+  await prisma.jurisprudence.deleteMany().catch(() => {});
+  await prisma.legalDocument.deleteMany().catch(() => {});
+  await prisma.documentChunk.deleteMany().catch(() => {});
+  await prisma.document.deleteMany().catch(() => {});
+  await prisma.annualProcurementPlan.deleteMany().catch(() => {});
+  await prisma.roboSession.deleteMany().catch(() => {});
+  await prisma.biddingPipeline.deleteMany().catch(() => {});
+  await prisma.procurementEvent.deleteMany().catch(() => {});
+  await prisma.legalAnalysis.deleteMany().catch(() => {});
+  await prisma.proposal.deleteMany().catch(() => {});
+  await prisma.procurementRequirement.deleteMany().catch(() => {});
+  await prisma.procurementItem.deleteMany().catch(() => {});
+  await prisma.procurementNotice.deleteMany().catch(() => {});
+  await prisma.companyMonitoredNotice.deleteMany().catch(() => {});
+  await prisma.companyModuleAccess.deleteMany().catch(() => {});
+  await prisma.companyCertificate.deleteMany().catch(() => {});
+  await prisma.user.deleteMany().catch(() => {});
+  await prisma.company.deleteMany().catch(() => {});
 
   // 2. Criar Empresa Principal
   console.log('[SEED] Criando Empresa principal...');
@@ -80,13 +91,14 @@ async function main() {
     },
   });
 
-  // 3. Criar Usuarios (usando os Enums do Prisma AccountRole)
-  console.log('[SEED] Criando Usuarios...');
+  // 3. Criar Usuários (Incluindo seu e-mail principal)
+  console.log('[SEED] Criando Usuários...');
   const adminUser = await prisma.user.create({
     data: {
       companyId: company.id,
-      name: 'Administrador Principal',
-      email: 'admin@expertise.com.br',
+      name: 'Raynara Kácia',
+      email: 'kaciaraynaraa@gmail.com',
+      passwordHash: defaultPasswordHash,
       role: AccountRole.ADMIN,
       active: true,
       juridicoProfile: {
@@ -110,9 +122,10 @@ async function main() {
   await prisma.user.create({
     data: {
       companyId: company.id,
-      name: 'Gerente de Licitacoes',
-      email: 'gerente@expertise.com.br',
-      role: AccountRole.MANAGER,
+      name: 'Administrador Sistema',
+      email: 'admin@expertise.com.br',
+      passwordHash: defaultPasswordHash,
+      role: AccountRole.ADMIN,
       active: true,
     },
   });
@@ -120,15 +133,16 @@ async function main() {
   await prisma.user.create({
     data: {
       companyId: company.id,
-      name: 'Analista de Licitacoes',
-      email: 'analista@expertise.com.br',
-      role: AccountRole.USER,
+      name: 'Gerente de Licitacoes',
+      email: 'gerente@expertise.com.br',
+      passwordHash: defaultPasswordHash,
+      role: AccountRole.MANAGER,
       active: true,
     },
   });
 
-  // 4. Criar Licitacao (ProcurementNotice) e sub-elementos
-  console.log('[SEED] Criando Licitacao e Itens...');
+  // 4. Criar Licitação (ProcurementNotice) e sub-elementos
+  console.log('[SEED] Criando Licitação e Itens...');
   const notice = await prisma.procurementNotice.create({
     data: {
       companyId: company.id,
@@ -202,7 +216,7 @@ async function main() {
         create: [
           {
             eventType: 'PUBLICACAO_EDITAL',
-            description: 'Edital publicado no Diario Oficial da Uniao',
+            description: 'Edital publicado no Diario Oficial da Uniau',
           },
         ],
       },
@@ -224,8 +238,8 @@ async function main() {
     },
   });
 
-  // 5. Criar Jurisprudencia (Usando os campos: summary, fullContent, keywords)
-  console.log('[SEED] Criando Jurisprudencias...');
+  // 5. Criar Jurisprudência
+  console.log('[SEED] Criando Jurisprudências...');
   await prisma.jurisprudence.createMany({
     data: [
       {
@@ -252,8 +266,8 @@ async function main() {
     ],
   });
 
-  // 6. Criar Padroes Juridicos e Sinais
-  console.log('[SEED] Criando Padroes Juridicos e Sinais...');
+  // 6. Criar Padrões Jurídicos e Sinais
+  console.log('[SEED] Criando Padrões Jurídicos e Sinais...');
   await prisma.legalPattern.create({
     data: {
       patternType: 'RESTRICAO_COMPETITIVIDADE',
@@ -303,11 +317,11 @@ async function main() {
     },
   });
 
-  // 8. Criar Plano Anual de Contratacoes
-  console.log('[SEED] Criando Plano Anual de Contratacoes...');
+  // 8. Criar Plano Anual de Contratações
+  console.log('[SEED] Criando Plano Anual de Contratações...');
   await prisma.annualProcurementPlan.create({
     data: {
-      companyId: company.id,
+      company: { connect: { id: company.id } },
       year: 2026,
       title: 'Plano Anual de Contratacoes Publicas Previstas - TI',
       rawContent: {
@@ -334,8 +348,8 @@ async function main() {
     },
   });
 
-  // 10. Criar Casos Juridicos
-  console.log('[SEED] Criando Casos Juridicos...');
+  // 10. Criar Casos Jurídicos
+  console.log('[SEED] Criando Casos Jurídicos...');
   await prisma.juridicoCase.create({
     data: {
       title: 'Recurso Administrativo - Pregao Eletronico 001/2026',
@@ -351,8 +365,8 @@ async function main() {
     },
   });
 
-  // 11. Criar Assinatura e Historico Financeiro
-  console.log('[SEED] Criando Assinatura e Historico Financeiro...');
+  // 11. Criar Assinatura e Histórico Financeiro
+  console.log('[SEED] Criando Assinatura e Histórico Financeiro...');
   await prisma.subscription.create({
     data: {
       companyId: company.id,
@@ -402,14 +416,15 @@ async function main() {
     },
   });
 
-  console.log('[SEED] Seeding concluido com sucesso!');
+  console.log('✅ [SEED] Seeding concluído com sucesso!');
 }
 
 main()
   .catch((e) => {
-    console.error('[SEED] Erro durante a execucao do seed:', e);
+    console.error('❌ [SEED] Erro durante a execução do seed:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

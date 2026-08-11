@@ -274,7 +274,6 @@ export default function LicitacaoDetalhePage() {
   if (!licitacaoId) return null;
 
   const lic = licitacaoQuery.data;
-  const juridicoHref = `/juridico?edital=${encodeURIComponent(licitacaoId)}&objeto=${encodeURIComponent(lic?.objeto || '')}`;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6 lg:p-8">

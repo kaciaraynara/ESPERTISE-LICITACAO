@@ -1,11 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, Building, ShieldCheck, Bell, 
-  Cpu, Save, CheckCircle2
+  Cpu, Save, CheckCircle2, Loader2
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { empresasApi } from '@services/api';
+import toast from 'react-hot-toast';
 
-export const ConfiguracoesPage: React.FC = () => {
+export default function ConfiguracoesPage() {
   const [abaAtiva, setAbaAtiva] = useState<'EMPRESA' | 'CERTIFICADO' | 'INTEGRACOES' | 'NOTIFICACOES'>('EMPRESA');
+  const queryClient = useQueryClient();
+
+  const { data: empresasResp, isLoading } = useQuery({
+    queryKey: ['minhas_empresas'],
+    queryFn: async () => {
+      const res = await empresasApi.listar();
+      return res.data;
+    }
+  });
+
+  const empresa = empresasResp?.data?.[0];
+
+  const [formData, setFormData] = useState({
+    razaoSocial: '',
+    cnpj: '',
+    cnaePrincipal: '',
+    status: '',
+    whatsapp: '', // Futuro
+  });
+
+  useEffect(() => {
+    if (empresa) {
+      setFormData({
+        razaoSocial: empresa.razaoSocial || '',
+        cnpj: empresa.cnpj || '',
+        cnaePrincipal: empresa.cnaePrincipal || '',
+        status: empresa.status || '',
+        whatsapp: '+55 (11) 98888-7777', // Fixo por enquanto
+      });
+    }
+  }, [empresa]);
+
+  const mutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (empresa?.id) {
+        return empresasApi.atualizar(empresa.id, data);
+      } else {
+        return empresasApi.criar(data);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Configurações salvas com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['minhas_empresas'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Erro ao salvar configurações.');
+    }
+  });
+
+  const handleSave = () => {
+    mutation.mutate({
+      razaoSocial: formData.razaoSocial,
+      cnpj: formData.cnpj,
+      cnaePrincipal: formData.cnaePrincipal,
+      status: formData.status,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-orange" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-8">
@@ -26,8 +94,13 @@ export const ConfiguracoesPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all">
-          <Save size={16} /> SALVAR ALTERAÇÕES
+        <button 
+          onClick={handleSave}
+          disabled={mutation.isPending}
+          className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+        >
+          {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
+          SALVAR ALTERAÇÕES
         </button>
       </header>
 
@@ -84,8 +157,9 @@ export const ConfiguracoesPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-600 mb-1">Razão Social</label>
                 <input 
                   type="text" 
-                  defaultValue="TechGov Soluções em Tecnologia Ltda" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  value={formData.razaoSocial}
+                  disabled
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
                 />
               </div>
 
@@ -93,26 +167,34 @@ export const ConfiguracoesPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ</label>
                 <input 
                   type="text" 
-                  defaultValue="12.345.678/0001-90" 
+                  value={formData.cnpj}
+                  onChange={(e) => setFormData(p => ({ ...p, cnpj: e.target.value }))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Porte da Empresa</label>
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900">
+                <label className="block text-xs font-bold text-slate-600 mb-1">Porte da Empresa / Status</label>
+                <select 
+                  value={formData.status}
+                  disabled
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
+                >
+                  <option value="">Selecione...</option>
                   <option value="EPP">Empresa de Pequeno Porte (EPP)</option>
                   <option value="ME">Microempresa (ME)</option>
                   <option value="DEMAIS">Demais (Geral)</option>
+                  <option value="ATIVA">Ativa</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Inscrição Estadual</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">CNAE Principal</label>
                 <input 
                   type="text" 
-                  defaultValue="109.283.441.110" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  value={formData.cnaePrincipal}
+                  disabled
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
                 />
               </div>
             </div>
@@ -177,7 +259,8 @@ export const ConfiguracoesPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-600 mb-1">Número do WhatsApp para Alertas Urgentes</label>
                 <input 
                   type="text" 
-                  defaultValue="+55 (11) 98888-7777" 
+                  value={formData.whatsapp}
+                  onChange={(e) => setFormData(p => ({ ...p, whatsapp: e.target.value }))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                 />
               </div>
@@ -189,4 +272,4 @@ export const ConfiguracoesPage: React.FC = () => {
 
     </div>
   );
-};
+}
