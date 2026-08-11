@@ -40,16 +40,16 @@ type EssentialNavigationItem = {
   icon: Icon;
   exact?: boolean;
 };
-
 const essentialNavigation: EssentialNavigationItem[] = [
   { path: FORNECEDOR_ROUTES.dashboard, label: 'Página Inicial', icon: House, exact: true },
   { path: FORNECEDOR_ROUTES.academia, label: 'Academia do Licitante', icon: GraduationCap },
   { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass },
+  { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye },
+  { path: FORNECEDOR_ROUTES.analise_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle },
   { path: FORNECEDOR_ROUTES.score_oportunidades, label: 'Score de Oportunidades', icon: ChartBar },
   { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle },
   { path: FORNECEDOR_ROUTES.srp_carona, label: 'SRP e Carona', icon: Copy },
   { path: FORNECEDOR_ROUTES.editais_monitorados, label: 'Editais Monitorados', icon: Bookmark },
-  { path: FORNECEDOR_ROUTES.analise_oportunidade, label: 'Análise de Oportunidade', icon: CheckCircle },
   { path: FORNECEDOR_ROUTES.estrategia_disputa, label: 'Estratégia de Disputa', icon: Crosshair },
   { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances', icon: Robot },
   { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: CurrencyDollar },
@@ -66,7 +66,6 @@ const documentsNavigation: EssentialNavigationItem = {
 const secondaryNavigation: EssentialNavigationItem[] = [
   { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos e Alertas', icon: Clock },
   { path: FORNECEDOR_ROUTES.lex, label: 'LEX Inteligência', icon: Brain },
-  { path: FORNECEDOR_ROUTES.investigacao_concorrencial, label: 'Investigação Concorrencial', icon: Eye },
   { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios Estratégicos', icon: ChartPie },
   { path: FORNECEDOR_ROUTES.planos, label: 'Planos', icon: CreditCard },
   { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear },

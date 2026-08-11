@@ -10,6 +10,8 @@ export const FORNECEDOR_ROUTES = {
   editais_monitorados: `${FORNECEDOR_PREFIX}/editais-monitorados`,
   analise_oportunidade: `${FORNECEDOR_PREFIX}/analise-oportunidade`,
   estrategia_disputa: `${FORNECEDOR_PREFIX}/estrategia-disputa`,
+  historico_concorrentes: `${FORNECEDOR_PREFIX}/historico-concorrentes`,
+  analise_viabilidade: `${FORNECEDOR_PREFIX}/analise-viabilidade`,
   precificacao_estrategica: `${FORNECEDOR_PREFIX}/precificacao`,
   propostas: `${FORNECEDOR_PREFIX}/propostas`,
   catalogo: `${FORNECEDOR_PREFIX}/catalogo`,
