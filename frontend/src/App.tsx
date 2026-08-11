@@ -16,7 +16,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import LandingPage from './pages/LandingPage';
 import AuthPages from './pages/AuthPages';
 import DashboardPage from './pages/DashboardPage';
-import { LicitacoesPage } from './pages/LicitacoesPage';
+import LicitacoesPage from './pages/LicitacoesPage';
 import LicitacaoDetalhePage from './pages/LicitacaoDetalhePage';
 import RoboPage from './pages/RoboPage';
 import CofrePage from './pages/CofrePage';

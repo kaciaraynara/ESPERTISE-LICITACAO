@@ -1,5 +1,4 @@
-import React from 'react';
-import { ArrowLeft, ShieldCheck, FileText, Scale } from 'lucide-react';
+import { ArrowLeft, Scale, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function TermosDeUsoPage() {

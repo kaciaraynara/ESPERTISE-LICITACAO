@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bookmark, Eye, Building2, Clock, Search, Loader2
 } from 'lucide-react';
@@ -154,7 +154,8 @@ export const EditaisMonitoradosPage: React.FC = () => {
               </div>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
 
     </div>

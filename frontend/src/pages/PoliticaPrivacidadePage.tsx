@@ -1,5 +1,4 @@
-import React from 'react';
-import { ArrowLeft, ShieldCheck, Lock, FileText } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function PoliticaPrivacidadePage() {

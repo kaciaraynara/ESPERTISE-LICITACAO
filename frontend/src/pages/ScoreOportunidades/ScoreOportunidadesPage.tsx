@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Target, ShieldAlert, Zap, BarChart3, 
   AlertTriangle, Building2, Loader2
@@ -215,7 +215,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
             </div>
 
           </div>
-        ))}
+          ))
+        )}
       </div>
 
     </div>

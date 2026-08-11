@@ -1,7 +1,3 @@
-import { FORNECEDOR_ROUTES } from '@/routes';
-import { Link } from 'react-router-dom';
-import { useAuthStore } from '@/store/auth.store';
-import { getUserDisplayName } from '@/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const mockChartData = [

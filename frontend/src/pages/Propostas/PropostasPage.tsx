@@ -19,8 +19,8 @@ interface ItemProposta {
 export const PropostasPage: React.FC = () => {
   const user = useAuthStore(state => state.user);
   
-  const [razaoSocial] = useState(user?.razao_social || 'Razão Social Padrão');
-  const [cnpj] = useState(user?.cnpj || '00.000.000/0001-00');
+  const [razaoSocial] = useState((user as any)?.razao_social || 'Razão Social Padrão');
+  const [cnpj] = useState((user as any)?.cnpj || '00.000.000/0001-00');
   const [titulo, setTitulo] = useState('Proposta Comercial Padrão');
   const [validadePropostaDias, setValidadePropostaDias] = useState(60);
   const [prazoEntregaDias, setPrazoEntregaDias] = useState(15);
@@ -49,7 +49,7 @@ export const PropostasPage: React.FC = () => {
     setSaving(true);
     try {
       await propostasApi.criarRascunho({
-        companyId: user?.empresaId || user?.id || '00000000-0000-0000-0000-000000000000',
+        companyId: (user as any)?.empresaId || user?.id || '00000000-0000-0000-0000-000000000000',
         titulo,
         validadeDias: validadePropostaDias,
         prazoEntregaDias,

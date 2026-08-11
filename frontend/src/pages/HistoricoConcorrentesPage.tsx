@@ -1,6 +1,3 @@
-import { useState } from 'react';
-import { FORNECEDOR_ROUTES } from '@/routes';
-import { Link } from 'react-router-dom';
 import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts';
 import { Funnel } from '@phosphor-icons/react';
 
