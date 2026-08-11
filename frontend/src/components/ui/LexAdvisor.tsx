@@ -8,7 +8,6 @@ import {
   Scales,
   ShieldCheck,
   SpinnerGap,
-  UserFocus,
   WarningCircle,
   X,
 } from '@phosphor-icons/react';

@@ -119,7 +119,7 @@ export function getUserInitial(user?: UserDisplaySource | null, fallback = 'L') 
   return getUserDisplayName(user, fallback).charAt(0).toUpperCase();
 }
 
-export function getProfileLabel(role?: string | null) {
+export function getProfileLabel(_role?: string | null) {
   return 'Fornecedor';
 }
 

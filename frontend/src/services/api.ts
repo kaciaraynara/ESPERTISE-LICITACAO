@@ -229,6 +229,7 @@ export const lexApi = {
   proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
   impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
   chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
+  consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
 };
 
 export const impugnacaoApi = {
@@ -277,13 +278,6 @@ export const roboApi = {
   toggle: (licitacaoId: string) => api.patch(`/robo/${encodeURIComponent(licitacaoId)}/toggle`),
 };
 
-// â”€â”€â”€ Empresas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export const empresasApi = {
-  listar: () => api.get('/empresas'),
-  criar: (body: Record<string, unknown>) => api.post('/empresas', body),
-  atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/empresas/${id}`, body),
-  buscarPorId: (id: string) => api.get(`/empresas/${id}`),
-};
 
 export const marketplaceApi = {
   listar: (params?: Record<string, unknown>) => api.get('/marketplace', { params }),
@@ -316,12 +310,7 @@ export const marketplaceApi = {
 };
 
 export const precificacaoApi = {
-  calcularViabilidade: (body: {
-    custoProdutoServico: number;
-    impostosPercentual: number;
-    custoOperacionalPercentual: number;
-    margemDesejadaPercentual: number;
-  }) => api.post('/precificacao/viabilidade', body),
+  calcularViabilidade: (body: any) => api.post('/precificacao/viabilidade', body),
 };
 
 

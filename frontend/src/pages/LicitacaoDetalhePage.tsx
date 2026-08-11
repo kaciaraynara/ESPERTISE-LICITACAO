@@ -372,7 +372,7 @@ export default function LicitacaoDetalhePage() {
                 Sala do Robô
               </Link>
               <Link
-                to={juridicoHref}
+                to={'/fornecedor/lex'}
                 className="inline-flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-white px-5 py-3 text-sm font-bold text-brand-blue transition hover:bg-white"
               >
                 <Gavel className="h-4 w-4" />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  AlertOctagon, FileText, Send, Plus, 
+  AlertOctagon, FileText, Send, 
   Clock, Search, Loader2
 } from 'lucide-react';
 import { noticesApi } from '@services/api';

@@ -19,7 +19,7 @@ export const LexAnalisePage: React.FC = () => {
   const [editalSelecionado, setEditalSelecionado] = useState('PE 102/2026 - PMSP');
   const [analisando, setAnalisando] = useState(false);
 
-  const [clausulas, setClausulas] = useState<CláusulaAnalisada[]>([
+  const [clausulas] = useState<CláusulaAnalisada[]>([
     {
       id: '1',
       item: 'Cláusula 7.3.2 - Habilitação Técnica',

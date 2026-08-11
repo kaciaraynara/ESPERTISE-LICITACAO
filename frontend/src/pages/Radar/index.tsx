@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Target, Search, AlertTriangle, Bookmark, Filter, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
+import { Target, Search, Filter, RefreshCw, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { licitacoesApi } from '@services/api';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,7 @@ export default function RadarPage() {
   const { data: resp, isLoading } = useQuery({
     queryKey: ['licitacoes_radar', activeTab],
     queryFn: async () => {
-      const res = await licitacoesApi.listar({ limit: 10 });
+      const res = await licitacoesApi.listar({ limit: 10 } as any);
       return res.data;
     }
   });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Search, BarChart2, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { concorrentesApi, api } from '@services/api';
+import api from '@services/api';
 import toast from 'react-hot-toast';
 
 export const InvestigacaoConcorrencialPage: React.FC = () => {
