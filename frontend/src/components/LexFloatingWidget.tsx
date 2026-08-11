@@ -51,9 +51,17 @@ export const LexFloatingWidget: React.FC = () => {
     try {
       // 2. Chamada real para o Backend / API de IA do EXPERTISE
       // Altere a rota '/lex/chat' para a rota exata do seu controller no NestJS/Express
-      const response = await api.post('/lex/chat', { prompt: userQuery });
+      const chatMessages = messages.map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      })).filter(m => !m.content.includes('Não consegui me conectar') && !m.content.includes('Olá! Sou o LEX'));
       
-      const botResponseText = response.data?.answer || response.data?.message || response.data?.response;
+      chatMessages.push({ role: 'user', content: userQuery });
+
+      const response = await api.post('/lex/chat', { messages: chatMessages });
+      
+      // O endpoint groundedResponse do backend retorna { data: { text: ... } } ou algo do tipo
+      const botResponseText = response.data?.answer || response.data?.message || response.data?.response || response.data?.data?.text || response.data?.data?.answer;
 
       const lexMsg: Message = {
         id: (Date.now() + 1).toString(),

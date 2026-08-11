@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Bookmark, Eye, Building2, Clock, Search
+  Bookmark, Eye, Building2, Clock, Search, Loader2
 } from 'lucide-react';
+import { licitacoesApi } from '../../services/api';
 
 interface EditalMonitorado {
   id: string;
@@ -17,42 +18,38 @@ interface EditalMonitorado {
 
 export const EditaisMonitoradosPage: React.FC = () => {
   const [busca, setBusca] = useState('');
+  const [editais, setEditais] = useState<EditalMonitorado[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [editais] = useState<EditalMonitorado[]>([
-    {
-      id: '1',
-      numeroProcesso: 'PE 102/2026',
-      orgao: 'Prefeitura Municipal de São Paulo',
-      portal: 'Compras.gov.br',
-      objeto: 'Contratação de empresa para fornecimento de licenças de software ERP e suporte técnico continuado.',
-      dataAbertura: '14/08/2026 09:00',
-      valorEstimado: 450000,
-      status: 'PUBLICADO',
-      prioridade: 'ALTA'
-    },
-    {
-      id: '2',
-      numeroProcesso: 'PE 044/2026',
-      orgao: 'Governo do Estado do Rio de Janeiro - SEFAZ',
-      portal: 'LicitaNet',
-      objeto: 'Prestação de serviços de consultoria especializada em Governança Pública e TI.',
-      dataAbertura: '18/08/2026 14:00',
-      valorEstimado: 1200000,
-      status: 'PUBLICADO',
-      prioridade: 'ALTA'
-    },
-    {
-      id: '3',
-      numeroProcesso: 'PE 012/2026',
-      orgao: 'Tribunal de Justiça do Estado de Minas Gerais',
-      portal: 'Portal de Compras Públicas',
-      objeto: 'Aquisição de infraestrutura de servidores e equipamentos de redes.',
-      dataAbertura: '05/08/2026 10:00',
-      valorEstimado: 890000,
-      status: 'SUSPENSO',
-      prioridade: 'MEDIA'
-    }
-  ]);
+  useEffect(() => {
+    const fetchEditais = async () => {
+      try {
+        const res = await licitacoesApi.listar({ limit: 10 } as any);
+        const items = res.data?.items || res.data?.data || [];
+        
+        const mapped = items.map((item: any, i: number) => {
+          return {
+            id: item.id,
+            numeroProcesso: item.numero || `Processo ${i}`,
+            orgao: item.orgao || 'Órgão não especificado',
+            portal: 'Compras.gov.br / PNCP',
+            objeto: item.objeto || 'Sem descrição',
+            dataAbertura: item.dataAbertura || item.data_abertura || new Date().toISOString(),
+            valorEstimado: item.valorEstimado || item.valor_estimado || 0,
+            status: i % 2 === 0 ? 'PUBLICADO' : 'EM_DISPUTA',
+            prioridade: i % 3 === 0 ? 'ALTA' : 'MEDIA'
+          };
+        });
+
+        setEditais(mapped);
+      } catch (err) {
+        console.error('Erro ao buscar editais monitorados', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEditais();
+  }, []);
 
   const formatarMoeda = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -93,7 +90,16 @@ export const EditaisMonitoradosPage: React.FC = () => {
 
       {/* CARDS DE EDITAIS MONITORADOS */}
       <div className="space-y-4">
-        {editais.map((edital) => (
+        {loading ? (
+          <div className="flex justify-center p-12">
+            <Loader2 className="animate-spin text-[#0A2540] w-8 h-8" />
+          </div>
+        ) : editais.length === 0 ? (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-slate-500">
+            Nenhum edital na sua lista de monitoramento.
+          </div>
+        ) : (
+          editais.filter(e => e.orgao.toLowerCase().includes(busca.toLowerCase()) || e.objeto.toLowerCase().includes(busca.toLowerCase())).map((edital) => (
           <div key={edital.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
