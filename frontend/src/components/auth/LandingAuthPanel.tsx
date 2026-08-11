@@ -102,6 +102,8 @@ export function LandingAuthPanel() {
   const [registerCnpj, setRegisterCnpj] = useState('');
   const [registerRazaoSocial, setRegisterRazaoSocial] = useState('');
   const [registerNomeFantasia, setRegisterNomeFantasia] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [expectedCaptcha] = useState(() => Math.floor(Math.random() * 5) + 3);
   const [registerMunicipio, setRegisterMunicipio] = useState('');
   const [registerUf, setRegisterUf] = useState('');
   const [registerCnae, setRegisterCnae] = useState('');
@@ -187,6 +189,13 @@ export function LandingAuthPanel() {
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setInlineError('');
+
+    if (parseInt(captchaAnswer) !== expectedCaptcha + 4) {
+      setInlineError('Verificação anti-robô incorreta. Prove que você é humano.');
+      setSubmitting(false);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -473,6 +482,20 @@ export function LandingAuthPanel() {
             </div>
           </label>
 
+          {/* ANTI-BOT CHALLENGE */}
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+            <div className="text-sm font-medium text-slate-700">
+              Verificação Humana: Quanto é {expectedCaptcha} + 4?
+            </div>
+            <input
+              type="number"
+              required
+              value={captchaAnswer}
+              onChange={(e) => setCaptchaAnswer(e.target.value)}
+              className="w-20 px-3 py-2 bg-white border border-slate-300 rounded-md focus:border-brand-blue focus:ring-1 focus:ring-brand-blue text-center text-slate-900 font-bold"
+            />
+          </div>
+
           <label className="flex items-start gap-3 rounded-md border border-gray-100 bg-white px-4 py-3">
             <input
               type="checkbox"
@@ -481,7 +504,7 @@ export function LandingAuthPanel() {
               className="mt-1 h-4 w-4 rounded border-gray-100 bg-transparent text-brand-blue"
             />
             <span className="text-sm leading-6 text-brand-blue/70">
-              Aceito os termos de uso, tratamento de dados e política de privacidade da plataforma.
+              Aceito os <a href="/termos" target="_blank" className="text-brand-blue hover:underline">termos de uso</a> e <a href="/privacidade" target="_blank" className="text-brand-blue hover:underline">política de privacidade</a> da plataforma.
             </span>
           </label>
 

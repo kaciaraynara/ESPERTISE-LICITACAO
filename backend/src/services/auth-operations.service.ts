@@ -321,6 +321,36 @@ export class AuthOperationsService {
       return { publicUser, tokens };
     });
   }
+
+  // --- LGPD Compliance ---
+  
+  async exportUserData(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: true,
+      },
+    });
+
+    if (!user) throw new ApiError('Usuário não encontrado.', 404);
+
+    // Strip sensitive fields like passwordHash
+    const { passwordHash, ...safeUserData } = user;
+    return safeUserData;
+  }
+
+  async deleteUserAccount(userId: string) {
+    // Soft Delete para manter integridade, auditoria e futura anonimização (LGPD job)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date() },
+    });
+
+    // Remove all refresh tokens to force immediate logout
+    await prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+  }
 }
 
 export const authOperationsService = new AuthOperationsService();

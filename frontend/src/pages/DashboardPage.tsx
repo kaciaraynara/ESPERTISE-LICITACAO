@@ -51,16 +51,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Alerta */}
-      <div className="mb-6 rounded-lg bg-red-50 p-4 border border-red-100 flex items-center gap-3 text-red-700">
-        <div className="w-2 h-2 rounded-full bg-red-500"></div>
-        <span className="text-sm font-semibold">Prazo de impugnação: Pregão 042/2024 — hoje</span>
-      </div>
 
-      <div className="mb-6 rounded-lg bg-blue-50/50 p-4 border border-blue-100 flex items-center gap-3 text-brand-blue">
-        <span className="text-xl leading-none">*</span>
-        <span className="text-sm font-medium">3 novos editais no radar correspondem ao seu perfil</span>
-      </div>
 
       {/* Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
@@ -189,30 +180,30 @@ export default function DashboardPage() {
               <div className="group">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="font-bold text-slate-700 group-hover:text-[#0A2540] transition-colors">Editais monitorados</span>
-                  <span className="text-slate-500 font-medium">7/50</span>
+                  <span className="text-slate-500 font-medium">{metrics.editaisMonitorados}/∞</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#0A2540] w-[14%] rounded-full group-hover:bg-[#EA580C] transition-colors"></div>
+                  <div className="h-full bg-[#0A2540] w-full rounded-full group-hover:bg-[#EA580C] transition-colors"></div>
                 </div>
               </div>
 
               <div className="group">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="font-bold text-slate-700 group-hover:text-[#0A2540] transition-colors">Análises do Especialista</span>
-                  <span className="text-slate-500 font-medium">12/30</span>
+                  <span className="text-slate-500 font-medium">{metrics.analisesNulidade}/∞</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#EA580C] w-[40%] rounded-full group-hover:bg-orange-500 transition-colors"></div>
+                  <div className="h-full bg-[#EA580C] w-full rounded-full group-hover:bg-orange-500 transition-colors"></div>
                 </div>
               </div>
 
               <div className="group">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="font-bold text-slate-700 group-hover:text-[#0A2540] transition-colors">Propostas</span>
-                  <span className="text-slate-500 font-medium">8/30</span>
+                  <span className="text-slate-500 font-medium">{metrics.propostasCriadas}/∞</span>
                 </div>
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-[26%] rounded-full group-hover:bg-emerald-400 transition-colors"></div>
+                  <div className="h-full bg-emerald-500 w-full rounded-full group-hover:bg-emerald-400 transition-colors"></div>
                 </div>
               </div>
             </div>
@@ -228,17 +219,8 @@ export default function DashboardPage() {
               <Link to={FORNECEDOR_ROUTES.documentos} className="text-[10px] font-bold text-slate-400 hover:text-[#0A2540] transition-colors">Ver &rarr;</Link>
             </div>
             <div className="space-y-2">
-              <div className="p-3 rounded-lg hover:bg-slate-50 transition-colors group cursor-default">
-                <p className="font-bold text-sm text-slate-700 group-hover:text-[#0A2540] transition-colors">CND Federal</p>
-                <p className="text-xs text-slate-400 group-hover:text-[#EA580C] transition-colors">15/08/2025</p>
-              </div>
-              <div className="p-3 rounded-lg hover:bg-slate-50 transition-colors group cursor-default">
-                <p className="font-bold text-sm text-slate-700 group-hover:text-[#0A2540] transition-colors">FGTS</p>
-                <p className="text-xs text-slate-400 group-hover:text-[#EA580C] transition-colors">02/09/2025</p>
-              </div>
-              <div className="p-3 rounded-lg hover:bg-slate-50 transition-colors group cursor-default">
-                <p className="font-bold text-sm text-slate-700 group-hover:text-[#0A2540] transition-colors">Balanço Patrimonial</p>
-                <p className="text-xs text-slate-400 group-hover:text-[#EA580C] transition-colors">31/12/2025</p>
+              <div className="p-3 text-center text-slate-500 text-sm">
+                Nenhum documento sincronizado.
               </div>
             </div>
           </div>

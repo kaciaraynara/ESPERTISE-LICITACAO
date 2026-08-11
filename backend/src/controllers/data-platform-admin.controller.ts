@@ -71,6 +71,11 @@ export class DataPlatformAdminController {
     return res.json({ success: true, data: result });
   }
 
+  async runTcuIngestion(req: AuthRequest, res: Response) {
+    const result = await this.service.runTcuIngestion(buildFetchInput(req.body), buildContext(req));
+    return res.json({ success: true, data: result });
+  }
+
   async consumeIndexTasks(req: AuthRequest, res: Response) {
     const result = await this.service.consumeIndexTasks({
       batchSize: bodyNumber(req.body?.batchSize),

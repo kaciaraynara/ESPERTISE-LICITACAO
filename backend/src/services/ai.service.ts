@@ -17,7 +17,7 @@ export async function chatWithProvider(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-1.5-pro' });
+    const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-3.5-flash' });
 
     let systemInstruction = '';
     const geminiHistory: any[] = [];

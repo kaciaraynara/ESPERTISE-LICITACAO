@@ -8,7 +8,9 @@ export type AuthLogEvent =
   | 'REGISTER_DUPLICATED_EMAIL'
   | 'TOKEN_REFRESH'
   | 'TOKEN_INVALID'
-  | 'LOGOUT';
+  | 'LOGOUT'
+  | 'LGPD_TERMS_ACCEPTED'
+  | 'LGPD_ACCOUNT_DELETED';
 
 type AuthLogContext = {
   email?: string | null;

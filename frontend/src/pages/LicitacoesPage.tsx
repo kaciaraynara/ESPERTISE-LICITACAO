@@ -81,15 +81,31 @@ export default function LicitacoesPage() {
         pagina: pg,
         tamanhoPagina: 20,
       };
-      if (busca.trim())         params.palavrasChave = busca.trim();
+      if (busca.trim())         params.q = busca.trim();
       if (ufSel !== 'Todos')    params.uf = ufSel;
-      if (modalidadeSel !== 'Todos') params.modalidade = modalidadeSel;
+      if (modalidadeSel !== 'Todos') {
+        const pncpModMap: Record<string, number> = {
+          'Pregão Eletrônico': 6,
+          'Dispensa Eletrônica': 4,
+          'Concorrência': 5,
+          'Credenciamento': 12,
+        };
+        params.modalidade = pncpModMap[modalidadeSel] || modalidadeSel;
+      }
 
       const { data } = await licitacoesApi.listar(params);
 
-      if (data.success) {
-        setLicitacoes(data.data || []);
-        setMeta(data.meta || null);
+      if (data && (data.items || data.data)) {
+        setLicitacoes(data.items || data.data || []);
+        setMeta({
+          total: data.total || data.totalRegistros || 0,
+          pagina: data.pagina || pg,
+          tamanhoPagina: data.tamanhoPagina || 20,
+          totalPaginas: data.totalPaginas || Math.ceil((data.total || data.totalRegistros || 0) / (data.tamanhoPagina || 20)) || 1,
+          fonte: data.fontesComErro?.length === 0 ? 'mista' : 'vazio',
+          aviso: data.fontesComErro?.length > 0 ? `Algumas fontes apresentaram erro: ${data.fontesComErro.join(', ')}` : undefined,
+          perfilRadar: data.perfilRadar,
+        });
         setPagina(pg);
         setUltimaAtualizacao(new Date());
       }

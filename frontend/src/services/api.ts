@@ -158,6 +158,8 @@ export const authApi = {
   me: () => api.get('/auth/me'),
   updateProfile: (body: { nome?: string; telefone?: string; senha?: string }) =>
     api.put('/auth/update-profile', body),
+  exportData: () => api.get('/auth/export-data'),
+  deleteAccount: () => api.delete('/auth/account'),
   refresh: requestSessionRefresh,
   logout: () => api.post('/auth/logout', {}),
 };

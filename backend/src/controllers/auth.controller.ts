@@ -69,6 +69,9 @@ export class AuthController {
       await logAuthEvent('REGISTER_SUCCESS', {
         email: publicUser.email, userId: publicUser.id, role: publicUser.role, ...getAuditContext(req),
       });
+      await logAuthEvent('LGPD_TERMS_ACCEPTED', {
+        email: publicUser.email, userId: publicUser.id, role: publicUser.role, ...getAuditContext(req),
+      });
 
       return res.status(201).json({
         success: true,
@@ -351,6 +354,29 @@ export class AuthController {
     } catch (err) {
       console.error('[AUTH] resetPassword error:', err);
       return res.status(500).json({ success: false, message: 'Erro interno' });
+    }
+  }
+
+  // --- LGPD Endpoints ---
+  async exportData(req: any, res: Response) {
+    try {
+      const data = await authOperationsService.exportUserData(req.user.id);
+      return res.json({ success: true, data });
+    } catch (err: any) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+  }
+
+  async deleteAccount(req: any, res: Response) {
+    try {
+      await authOperationsService.deleteUserAccount(req.user.id);
+      clearAuthCookies(res);
+      await logAuthEvent('LGPD_ACCOUNT_DELETED', {
+        userId: req.user.id, ...getAuditContext(req as Request)
+      });
+      return res.json({ success: true, message: 'Conta excluída com sucesso e dados marcados para anonimização.' });
+    } catch (err: any) {
+      return res.status(400).json({ success: false, message: err.message });
     }
   }
 }

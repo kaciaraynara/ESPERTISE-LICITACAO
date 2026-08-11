@@ -12,6 +12,7 @@ import { NoticesController } from '../controllers/notices.controller';
 import { NotificacoesController } from '../controllers/notificacoes.controller';
 import { PropostasController } from '../controllers/propostas.controller';
 import { RbacAdminController } from '../controllers/rbac-admin.controller';
+import { superAdminController } from '../controllers/super-admin.controller';
 import { MercadoPagoController } from '../controllers/mercadopago.controller';
 import { TransparenciaController } from '../controllers/transparencia.controller';
 import { DashboardController } from '../controllers/dashboard.controller';
@@ -159,6 +160,11 @@ if (lexEnabled) {
 router.get('/admin/audit/events', auditReadOnly, handle(auditAdmin.listEvents.bind(auditAdmin) as RequestHandler));
 router.get('/admin/audit/metrics', auditReadOnly, handle(auditAdmin.metrics.bind(auditAdmin) as RequestHandler));
 
+// Super Admin
+router.get('/admin/super/metrics', rbacAdminOnly, handle(superAdminController.getMetrics.bind(superAdminController) as RequestHandler));
+router.get('/admin/super/users', rbacAdminOnly, handle(superAdminController.listUsers.bind(superAdminController) as RequestHandler));
+router.post('/admin/super/email', rbacAdminOnly, handle(superAdminController.sendEmail.bind(superAdminController) as RequestHandler));
+
 router.get('/admin/data-platform/jobs', dataPlatformAdminOnly, handle(dataPlatformAdmin.listJobs.bind(dataPlatformAdmin) as RequestHandler));
 router.get('/admin/data-platform/events', dataPlatformAdminOnly, handle(dataPlatformAdmin.listEvents.bind(dataPlatformAdmin) as RequestHandler));
 router.get('/admin/data-platform/tasks', dataPlatformAdminOnly, handle(dataPlatformAdmin.listTasks.bind(dataPlatformAdmin) as RequestHandler));
@@ -166,6 +172,7 @@ router.get('/admin/data-platform/cursors', dataPlatformAdminOnly, handle(dataPla
 router.get('/admin/data-platform/metrics', dataPlatformAdminOnly, handle(dataPlatformAdmin.metrics.bind(dataPlatformAdmin) as RequestHandler));
 router.post('/admin/data-platform/ingest/pncp', dataPlatformAdminOnly, handle(dataPlatformAdmin.runPncpIngestion.bind(dataPlatformAdmin) as RequestHandler));
 router.post('/admin/data-platform/ingest/comprasgov', dataPlatformAdminOnly, handle(dataPlatformAdmin.runComprasGovIngestion.bind(dataPlatformAdmin) as RequestHandler));
+router.post('/admin/data-platform/ingest/tcu', dataPlatformAdminOnly, handle(dataPlatformAdmin.runTcuIngestion.bind(dataPlatformAdmin) as RequestHandler));
 router.post('/admin/data-platform/index/consume', dataPlatformAdminOnly, handle(dataPlatformAdmin.consumeIndexTasks.bind(dataPlatformAdmin) as RequestHandler));
 router.post('/admin/data-platform/requeue/skipped', dataPlatformAdminOnly, handle(dataPlatformAdmin.requeueSkipped.bind(dataPlatformAdmin) as RequestHandler));
 router.post('/admin/data-platform/requeue/failed', dataPlatformAdminOnly, handle(dataPlatformAdmin.requeueFailed.bind(dataPlatformAdmin) as RequestHandler));
@@ -202,6 +209,7 @@ router.get('/notices/:id/legal-precheck', requirePlanFeature('notices.legal_prec
 router.get('/notices/:id/error-radar', requirePlanFeature('notices.error_radar'), handle(notices.errorRadarReport.bind(notices) as RequestHandler));
 router.get('/notices/:id/opportunity-score', requirePlanFeature('notices.opportunity_score'), handle(notices.opportunityScoreReport.bind(notices) as RequestHandler));
 router.get('/notices/:id/proposal-strategy', requirePlanFeature('proposal.strategy'), handle(notices.proposalStrategyReport.bind(notices) as RequestHandler));
+router.post('/notices/:id/proposal-document', requirePlanFeature('proposal.strategy'), handle(notices.generateProposalDocument.bind(notices) as RequestHandler));
 router.get('/notices/:id/pricing-strategy', requirePlanFeature('pricing.strategy'), handle(notices.pricingStrategyReport.bind(notices) as RequestHandler));
 router.get('/notices/:id', handle(notices.getById.bind(notices) as RequestHandler));
 

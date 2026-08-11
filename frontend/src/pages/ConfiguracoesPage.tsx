@@ -13,6 +13,9 @@ export default function ConfiguracoesPage() {
   const [telefone, setTelefone] = useState(user?.telefone ?? '');
   const [senha, setSenha] = useState('');
   const [confirmSenha, setConfirmSenha] = useState('');
+  const [exportando, setExportando] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +52,41 @@ export default function ConfiguracoesPage() {
     logout();
     toast.success('Sessão encerrada com segurança.');
     navigate('/login');
+  };
+
+  const handleExportarDados = async () => {
+    setExportando(true);
+    try {
+      const { authApi } = await import('@services/api');
+      const response = await authApi.exportData(); // Need to ensure api is exported properly, or use fetch
+      const dataStr = JSON.stringify(response.data.data, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meus_dados_expertise_${new Date().getTime()}.json`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Download dos seus dados iniciado.');
+    } catch (err) {
+      toast.error('Erro ao exportar dados. Tente novamente.');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleExcluirConta = async () => {
+    setDeleting(true);
+    try {
+      const { authApi } = await import('@services/api');
+      await authApi.deleteAccount();
+      toast.success('Sua conta foi excluída e seus dados serão anonimizados.');
+      logout();
+      navigate('/login');
+    } catch (err) {
+      toast.error('Erro ao excluir conta.');
+      setDeleting(false);
+    }
   };
 
   return (
@@ -164,6 +202,35 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
 
+        {/* SESSÃO: PRIVACIDADE E LGPD */}
+        <div className="bg-white p-6 rounded-lg border border-red-100 shadow-sm">
+          <h2 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-5 h-5 text-red-600" />
+            Privacidade e Exclusão de Conta (LGPD)
+          </h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Você tem o direito de exportar uma cópia dos seus dados ou solicitar a exclusão permanente de sua conta.
+          </p>
+          
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={handleExportarDados}
+              disabled={exportando}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-semibold rounded-lg transition-colors"
+            >
+              {exportando ? 'Preparando...' : 'Exportar Meus Dados'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-lg transition-colors border border-red-200"
+            >
+              Excluir Conta Permanentemente
+            </button>
+          </div>
+        </div>
+
         {/* BOTÃO DE SALVAR */}
         <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
           <button
@@ -184,8 +251,44 @@ export default function ConfiguracoesPage() {
             {salvando ? 'Salvando...' : 'Salvar Alterações'}
           </button>
         </div>
-
       </form>
+
+      {/* Modal de Exclusão de Conta */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="bg-red-600 p-4 text-center">
+              <h3 className="text-lg font-bold text-white">Zona de Risco: Excluir Conta</h3>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-700 mb-4 font-medium">
+                Esta ação é <strong className="text-red-600">irreversível</strong>. 
+                Sua conta será desativada instantaneamente e seus dados entrarão em processo automático de anonimização, conforme a LGPD.
+              </p>
+              <p className="text-sm text-slate-700 mb-6 font-medium">
+                Você tem certeza absoluta que deseja excluir a sua conta?
+              </p>
+              
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 font-semibold rounded-lg"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleExcluirConta}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg"
+                >
+                  {deleting ? 'Excluindo...' : 'Sim, Excluir Minha Conta'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

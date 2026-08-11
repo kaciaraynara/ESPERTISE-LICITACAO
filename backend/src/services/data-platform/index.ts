@@ -12,3 +12,5 @@ export * from './indexing-consumer.service';
 export * from './worker.service';
 export * from './connectors/pncp.adapter';
 export * from './connectors/comprasgov.adapter';
+export * from './tcu-ingestion.service';
+export * from './connectors/tcu.adapter';

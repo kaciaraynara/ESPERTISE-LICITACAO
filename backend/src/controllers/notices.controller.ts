@@ -6,7 +6,9 @@ import { NoticesErrorRadarService } from '../services/notices-error-radar.servic
 import { NoticesOpportunityScoreService } from '../services/notices-opportunity-score.service';
 import { NoticesProposalStrategyService } from '../services/notices-proposal-strategy.service';
 import { NoticesPricingStrategyService } from '../services/notices-pricing-strategy.service';
+import { documentGenerationService } from '../services/document-generation.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { prisma } from '../database/prisma';
 
 export class NoticesController {
   constructor(
@@ -161,6 +163,54 @@ export class NoticesController {
       }
 
       throw error;
+    }
+  }
+
+  async generateProposalDocument(req: AuthRequest, res: Response) {
+    try {
+      const template = await prisma.documentTemplate.findFirst({
+        where: { templateType: 'proposta', active: true },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!template) {
+        return res.status(404).json({ success: false, message: 'Template de proposta não encontrado.' });
+      }
+
+      const input = { ...(req.query ?? {}), ...(req.body ?? {}) };
+      const strategy = await this.proposalStrategy.buildStrategy(req.params.id, input, buildContext(req));
+      const notice = await this.service.getNoticeById(req.params.id, {}, buildContext(req));
+
+      if (!strategy || !notice) {
+        return res.status(404).json({ success: false, message: 'Edital não encontrado para gerar proposta.' });
+      }
+
+      const doc = await documentGenerationService.generateDocument({
+        templateId: template.id,
+        format: 'docx',
+        mergeData: {
+          ORGAO_LICITANTE: String(notice.buyerName || 'Órgão Não Informado'),
+          NUMERO_EDITAL: String(notice.noticeNumber || notice.id),
+          RAZAO_SOCIAL: String((input as any).razaoSocial || 'EMPRESA PADRÃO LTDA'),
+          CNPJ: String((input as any).cnpj || '00.000.000/0001-00'),
+          ENDERECO_COMPLETO: String((input as any).endereco || 'Rua Padrão, 123'),
+          TABELA_ITENS_PROPOSTA: 'Item 1 - Conforme Edital\nItem 2 - Conforme Edital',
+          VALOR_TOTAL_GLOBAL: String((input as any).valorGlobal || '0,00'),
+          VALOR_GLOBAL_EXTENSO: 'Zero reais',
+          PRAZO_VALIDADE_DIAS: '60',
+          CIDADE: 'Brasília/DF',
+          DATA_ATUAL: new Date().toLocaleDateString('pt-BR'),
+          REPRESENTANTE_LEGAL: String((input as any).representante || 'Representante Legal')
+        },
+        tenantId: req.user?.tenantId ?? undefined
+      });
+
+      res.setHeader('Content-Type', doc.mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+      return res.send(doc.buffer);
+    } catch (error) {
+      if (error instanceof ZodError) return validationError(res, error);
+      return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Erro interno.' });
     }
   }
 }

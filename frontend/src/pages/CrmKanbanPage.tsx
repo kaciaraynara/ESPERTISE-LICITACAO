@@ -27,55 +27,42 @@ export default function CrmKanbanPage() {
       nome: 'Prospectando / Radar',
       cor: 'border-gray-100 bg-[#FFFFFF]',
       icon: MapPin,
-      items: [
-        { id: 1, obj: 'Aquisição de Software ERP para Gestão Municipal', org: 'Seduc - SP', val: 'R$ 480.000', score: 92, prazo: 'em 3 dias' },
-        { id: 2, obj: 'Fornecimento de Mesas Corporativas para Escritório', org: 'TRT 2ª Região', val: 'R$ 150.000', score: 85, prazo: 'Amanhã' },
-      ]
+      items: []
     },
     {
       id: 'analisando',
       nome: 'Analisando',
       cor: 'border-[#334155]/10 bg-[#F1F5F9]/20',
       icon: FileCheck2,
-      items: [
-        { id: 3, obj: 'Serviços de Infraestrutura Cloud AWS', org: 'Sec. de Educação SP', val: 'R$ 1.200.000', score: 95, statusAnalise: 'Riscos em consolidação...' },
-      ]
+      items: []
     },
     {
       id: 'proposta',
       nome: 'Proposta Enviada',
       cor: 'border-[#1E40AF]/20 bg-[#F8FAFC]',
       icon: FileCheck2,
-      items: [
-        { id: 4, obj: 'Licenciamento SaaS - Office 365 Enterprise', org: 'Prefeitura de Campinas', val: 'R$ 340.000', prazo: 'Aguardando abertura' },
-      ]
+      items: []
     },
     {
       id: 'disputa',
       nome: 'Em Disputa',
       cor: 'border-brand-blue/20 bg-white',
       icon: Zap,
-      items: [
-        { id: 5, obj: 'Computadores Desktop EliteDesk 800 G6', org: 'Receita Federal', val: 'R$ 550.000', lanceAtual: 'R$ 495.000', pos: '1º Lugar' },
-      ]
+      items: []
     },
     {
       id: 'recursos',
       nome: 'Fase de Recursos',
       cor: 'border-brand-orange/20 bg-orange-50/20',
       icon: Zap,
-      items: [
-        { id: 7, obj: 'Licitação de Uniformes Militares', org: 'Ministério da Defesa', val: 'R$ 2.100.000', pos: '2º Lugar', statusRecurso: 'Derrubar 1º Colocado' },
-      ]
+      items: []
     },
     {
       id: 'contratado',
       nome: 'Contrato Assinado',
       cor: 'border-brand-blue/20 bg-[#F2FCF5]',
       icon: Trophy,
-      items: [
-        { id: 6, obj: 'Manutenção Preventiva de Datacenter TIER III', org: 'Tribunal de Justiça - RS', val: 'R$ 890.000', status: 'Empenho publicado' },
-      ]
+      items: []
     }
   ]);
 
@@ -122,6 +109,11 @@ export default function CrmKanbanPage() {
 
                 {/* Cards */}
                 <div className="p-4 flex-1 overflow-y-auto space-y-4 shadow-inner-soft rounded-b-2xl">
+                  {fila.items.length === 0 && (
+                    <div className="flex flex-col items-center justify-center p-8 text-center bg-white/50 border-2 border-dashed border-slate-200 rounded-xl h-40">
+                      <p className="text-sm font-bold text-slate-400">Nenhum edital</p>
+                    </div>
+                  )}
                   {fila.items.map(item => (
                     <div
                       key={item.id}

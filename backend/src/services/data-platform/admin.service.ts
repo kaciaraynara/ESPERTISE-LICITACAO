@@ -239,6 +239,10 @@ export class DataPlatformAdminService {
     return this.auditManualAction('RUN_COMPRASGOV_INGESTION', context, input, () => this.worker.runComprasGovIngestion(input));
   }
 
+  runTcuIngestion(input: DataFetchInput, context: AdminActionContext) {
+    return this.auditManualAction('RUN_TCU_INGESTION', context, input, () => this.worker.runTcuIngestion(input));
+  }
+
   consumeIndexTasks(input: Parameters<DataPlatformWorkerService['consumeSearchIndexTasks']>[0], context: AdminActionContext) {
     return this.auditManualAction('CONSUME_INDEX_TASKS', context, input, () => this.worker.consumeSearchIndexTasks(input));
   }

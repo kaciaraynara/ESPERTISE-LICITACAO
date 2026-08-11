@@ -4,6 +4,7 @@ import { DataPlatformIngestionService } from './ingestion.service';
 import { SearchIndexTaskConsumer } from './indexing-consumer.service';
 import { DataPlatformDistributedLock } from './distributed-lock.service';
 import { DataPlatformLock, dataPlatformLog, withRetry } from './worker-runtime';
+import { TcuIngestionService } from './tcu-ingestion.service';
 
 interface WorkerEnv {
   [key: string]: string | undefined;
@@ -13,14 +14,17 @@ interface WorkerEnv {
   DATA_PLATFORM_INDEX_WORKER_ENABLED?: string;
   DATA_PLATFORM_PNCP_WORKER_ENABLED?: string;
   DATA_PLATFORM_COMPRASGOV_WORKER_ENABLED?: string;
+  DATA_PLATFORM_TCU_WORKER_ENABLED?: string;
   DATA_PLATFORM_PNCP_CRON?: string;
   DATA_PLATFORM_COMPRASGOV_CRON?: string;
+  DATA_PLATFORM_TCU_CRON?: string;
   DATA_PLATFORM_INDEX_CRON?: string;
   DATA_PLATFORM_WORKER_TIMEZONE?: string;
   DATA_PLATFORM_WORKER_MAX_ATTEMPTS?: string;
   DATA_PLATFORM_WORKER_RETRY_BASE_MS?: string;
   DATA_PLATFORM_PNCP_LIMIT?: string;
   DATA_PLATFORM_COMPRASGOV_LIMIT?: string;
+  DATA_PLATFORM_TCU_LIMIT?: string;
   DATA_PLATFORM_PNCP_FILTERS?: string;
   DATA_PLATFORM_COMPRASGOV_FILTERS?: string;
 }
@@ -37,6 +41,7 @@ type ManualRunResult<T> =
 
 const DEFAULT_PNCP_CRON = '*/30 * * * *';
 const DEFAULT_COMPRASGOV_CRON = '10,40 * * * *';
+const DEFAULT_TCU_CRON = '0 3 * * 0'; // Sunday at 3 AM
 const DEFAULT_INDEX_CRON = '*/5 * * * *';
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
@@ -45,6 +50,7 @@ export class DataPlatformWorkerService {
 
   constructor(
     private readonly ingestion = new DataPlatformIngestionService(),
+    private readonly tcuIngestion = new TcuIngestionService(),
     private readonly indexConsumer = new SearchIndexTaskConsumer(),
     private readonly lock: DataPlatformLock = new DataPlatformDistributedLock(),
     private readonly scheduler: CronScheduler = cron,
@@ -71,6 +77,10 @@ export class DataPlatformWorkerService {
       scheduled.push(this.schedule('comprasgov-ingestion', this.env.DATA_PLATFORM_COMPRASGOV_CRON || DEFAULT_COMPRASGOV_CRON, timezone, () => this.runComprasGovIngestion()));
     }
 
+    if (this.isEnabled('DATA_PLATFORM_INGESTION_WORKER_ENABLED', true) && this.isEnabled('DATA_PLATFORM_TCU_WORKER_ENABLED', true)) {
+      scheduled.push(this.schedule('tcu-ingestion', this.env.DATA_PLATFORM_TCU_CRON || DEFAULT_TCU_CRON, timezone, () => this.runTcuIngestion()));
+    }
+
     if (this.isEnabled('DATA_PLATFORM_INDEX_WORKER_ENABLED', true)) {
       scheduled.push(this.schedule('search-index-consumer', this.env.DATA_PLATFORM_INDEX_CRON || DEFAULT_INDEX_CRON, timezone, () => this.consumeSearchIndexTasks()));
     }
@@ -85,9 +95,10 @@ export class DataPlatformWorkerService {
   private async runInitialSynchronization() {
     dataPlatformLog('info', 'DATA_PLATFORM_INITIAL_SYNC_STARTED');
 
-    const [pncp, comprasGov] = await Promise.allSettled([
+    const [pncp, comprasGov, tcu] = await Promise.allSettled([
       this.runPncpIngestion(),
       this.runComprasGovIngestion(),
+      this.runTcuIngestion(),
     ]);
 
     const indexing = await this.consumeSearchIndexTasks();
@@ -95,6 +106,7 @@ export class DataPlatformWorkerService {
     dataPlatformLog('info', 'DATA_PLATFORM_INITIAL_SYNC_COMPLETED', {
       pncp: pncp.status,
       comprasGov: comprasGov.status,
+      tcu: tcu.status,
       indexingStatus: indexing.status,
     });
   }
@@ -115,6 +127,10 @@ export class DataPlatformWorkerService {
 
   runComprasGovIngestion(input: DataFetchInput = {}) {
     return this.runManual('ingestion:compras_gov', () => this.ingestion.ingestComprasGov(mergeFetchInput(defaultComprasGovInput(this.env), input)));
+  }
+
+  runTcuIngestion(input: DataFetchInput = {}) {
+    return this.runManual('ingestion:tcu', () => this.tcuIngestion.ingestTcuAcordaos(input.limit || envNumber(this.env.DATA_PLATFORM_TCU_LIMIT, 20), input.tenantId || undefined));
   }
 
   consumeSearchIndexTasks(input: Parameters<SearchIndexTaskConsumer['consumePending']>[0] = {}) {

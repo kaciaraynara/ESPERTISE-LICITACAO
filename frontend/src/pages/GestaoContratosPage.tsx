@@ -20,45 +20,7 @@ interface Contrato {
 export default function GestaoContratosPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock de Contratos Ativos
-  const [contratos] = useState<Contrato[]>([
-    {
-      id: '1',
-      numero: 'CT-2025/089',
-      orgao: 'Prefeitura Municipal de São Paulo',
-      objeto: 'Fornecimento de infraestrutura e suporte de tecnologia.',
-      valorTotal: 480000.00,
-      saldoRestante: 320000.00,
-      dataInicio: '15/01/2025',
-      dataFim: '15/01/2026',
-      status: 'Ativo',
-      progressoPct: 33
-    },
-    {
-      id: '2',
-      numero: 'CT-2024/412',
-      orgao: 'Tribunal Regional Federal - 3ª Região',
-      objeto: 'Prestação de serviços continuados de consultoria jurídica.',
-      valorTotal: 250000.00,
-      saldoRestante: 41000.00,
-      dataInicio: '10/03/2024',
-      dataFim: '10/03/2025',
-      status: 'Vencendo',
-      progressoPct: 84
-    },
-    {
-      id: '3',
-      numero: 'CT-2024/102',
-      orgao: 'Secretaria Estadual de Saúde',
-      objeto: 'Manutenção preventiva e corretiva de equipamentos.',
-      valorTotal: 890000.00,
-      saldoRestante: 520000.00,
-      dataInicio: '01/06/2024',
-      dataFim: '01/06/2026',
-      status: 'Em Reajuste',
-      progressoPct: 41
-    }
-  ]);
+  const [contratos] = useState<Contrato[]>([]);
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -84,7 +46,7 @@ export default function GestaoContratosPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500">Contratos Ativos</p>
-            <p className="text-xl font-black text-[#0A2540]">3 Contratos</p>
+            <p className="text-xl font-black text-[#0A2540]">{contratos.length} Contratos</p>
           </div>
         </div>
 
@@ -94,7 +56,7 @@ export default function GestaoContratosPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500">Valor Total Sob Gestão</p>
-            <p className="text-xl font-black text-[#0A2540]">R$ 1.620.000</p>
+            <p className="text-xl font-black text-[#0A2540]">R$ 0,00</p>
           </div>
         </div>
 
@@ -104,7 +66,7 @@ export default function GestaoContratosPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500">A Vencer (30 dias)</p>
-            <p className="text-xl font-black text-amber-600">1 Contrato</p>
+            <p className="text-xl font-black text-amber-600">0 Contratos</p>
           </div>
         </div>
 
@@ -114,7 +76,7 @@ export default function GestaoContratosPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500">Reajustes Anuais</p>
-            <p className="text-xl font-black text-purple-700">1 Pendente (IPCA)</p>
+            <p className="text-xl font-black text-purple-700">0 Pendentes</p>
           </div>
         </div>
       </div>
@@ -149,62 +111,76 @@ export default function GestaoContratosPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {contratos.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-4">
-                    <p className="font-black text-[#0A2540]">{c.numero}</p>
-                    <p className="text-[11px] text-slate-500 font-semibold">{c.orgao}</p>
-                    <p className="text-[10px] text-slate-400 truncate max-w-xs">{c.objeto}</p>
-                  </td>
-
-                  <td className="p-4 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5 text-slate-600">
-                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{c.dataInicio} até {c.dataFim}</span>
+              {contratos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-500 font-medium">
+                    <div className="flex flex-col items-center gap-3">
+                      <FileText className="w-10 h-10 text-slate-300" />
+                      <p>Nenhum contrato cadastrado no momento.</p>
+                      <button className="text-brand-blue font-bold text-xs uppercase hover:underline">
+                        Cadastrar primeiro contrato
+                      </button>
                     </div>
-                  </td>
-
-                  <td className="p-4 whitespace-nowrap">
-                    <p className="font-bold text-[#0A2540]">
-                      R$ {c.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Saldo: R$ {c.saldoRestante.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  </td>
-
-                  <td className="p-4 whitespace-nowrap">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      c.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' :
-                      c.status === 'Vencendo' ? 'bg-amber-100 text-amber-800' :
-                      c.status === 'Em Reajuste' ? 'bg-purple-100 text-purple-800' :
-                      'bg-slate-100 text-slate-600'
-                    }`}>
-                      {c.status}
-                    </span>
-                  </td>
-
-                  <td className="p-4 w-40 whitespace-nowrap">
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                        <span>{c.progressoPct}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-[#EA580C] h-full rounded-full" 
-                          style={{ width: `${c.progressoPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="p-4 text-right whitespace-nowrap">
-                    <button className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors">
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                contratos.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-4">
+                      <p className="font-black text-[#0A2540]">{c.numero}</p>
+                      <p className="text-[11px] text-slate-500 font-semibold">{c.orgao}</p>
+                      <p className="text-[10px] text-slate-400 truncate max-w-xs">{c.objeto}</p>
+                    </td>
+
+                    <td className="p-4 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-slate-600">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{c.dataInicio} até {c.dataFim}</span>
+                      </div>
+                    </td>
+
+                    <td className="p-4 whitespace-nowrap">
+                      <p className="font-bold text-[#0A2540]">
+                        R$ {c.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        Saldo: R$ {c.saldoRestante.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    </td>
+
+                    <td className="p-4 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        c.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' :
+                        c.status === 'Vencendo' ? 'bg-amber-100 text-amber-800' :
+                        c.status === 'Em Reajuste' ? 'bg-purple-100 text-purple-800' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {c.status}
+                      </span>
+                    </td>
+
+                    <td className="p-4 w-40 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                          <span>{c.progressoPct}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-[#EA580C] h-full rounded-full" 
+                            style={{ width: `${c.progressoPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="p-4 text-right whitespace-nowrap">
+                      <button className="p-2 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

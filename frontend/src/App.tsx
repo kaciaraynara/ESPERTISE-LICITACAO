@@ -39,8 +39,8 @@ import { PrecificacaoPage } from './pages/Precificacao/PrecificacaoPage';
 import { ScoreOportunidadesPage } from './pages/ScoreOportunidades/ScoreOportunidadesPage';
 import { NulidadesPage } from './pages/Nulidades/NulidadesPage';
 // Importações no topo do App.tsx
-// Removed unused imports: SrpPage, RelatoriosPage
-// Importações no topo do App.tsx
+import TermosDeUsoPage from './pages/TermosDeUsoPage';
+import PoliticaPrivacidadePage from './pages/PoliticaPrivacidadePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -169,6 +169,8 @@ export default function App() {
         <Routes>
           {/* Rotas Institucionais */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/termos" element={<TermosDeUsoPage />} />
+          <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
           
           {/* Rotas de Autenticação */}
           <Route path="/login" element={<PublicRoute><AuthPages /></PublicRoute>} />

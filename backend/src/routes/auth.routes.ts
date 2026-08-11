@@ -33,5 +33,7 @@ router.post('/forgot-password', handle(controller.forgotPassword.bind(controller
 router.post('/reset-password', handle(controller.resetPassword.bind(controller) as RequestHandler));
 router.get('/me', authMiddleware as RequestHandler, handle(controller.me.bind(controller) as RequestHandler));
 router.put('/update-profile', authMiddleware as RequestHandler, handle(controller.updateProfile.bind(controller) as RequestHandler));
+router.get('/export-data', authMiddleware as RequestHandler, handle(controller.exportData.bind(controller) as RequestHandler));
+router.delete('/account', authMiddleware as RequestHandler, handle(controller.deleteAccount.bind(controller) as RequestHandler));
 
 export default router;

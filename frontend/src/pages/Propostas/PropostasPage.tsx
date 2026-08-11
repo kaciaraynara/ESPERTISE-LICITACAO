@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { propostasApi } from '@services/api';
+import { useAuthStore } from '@/store/auth.store';
 
 interface ItemProposta {
   id: string;
@@ -16,33 +17,16 @@ interface ItemProposta {
 }
 
 export const PropostasPage: React.FC = () => {
-  const [razaoSocial] = useState('DIGITAL DAY SOFTWARE E SERVICOS LTDA');
-  const [cnpj] = useState('00.000.000/0001-00');
+  const user = useAuthStore(state => state.user);
+  
+  const [razaoSocial] = useState(user?.razao_social || 'Razão Social Padrão');
+  const [cnpj] = useState(user?.cnpj || '00.000.000/0001-00');
   const [titulo, setTitulo] = useState('Proposta Comercial Padrão');
   const [validadePropostaDias, setValidadePropostaDias] = useState(60);
   const [prazoEntregaDias, setPrazoEntregaDias] = useState(15);
   const [saving, setSaving] = useState(false);
   
-  const [itens, setItens] = useState<ItemProposta[]>([
-    {
-      id: '1',
-      itemNumero: 1,
-      descricao: 'Licenciamento de Software de Gestão Pública com Suporte Técnico 24/7',
-      unidade: 'UN',
-      quantidade: 12,
-      valorUnitario: 14500,
-      marcaModelo: 'Expertise ERP v4.2'
-    },
-    {
-      id: '2',
-      itemNumero: 2,
-      descricao: 'Serviço Especializado de Treinamento e Capacitação de Servidores',
-      unidade: 'HORA',
-      quantidade: 40,
-      valorUnitario: 350,
-      marcaModelo: 'Serviço Próprio'
-    }
-  ]);
+  const [itens, setItens] = useState<ItemProposta[]>([]);
 
   const adicionarItem = () => {
     const novoItem: ItemProposta = {
@@ -65,7 +49,7 @@ export const PropostasPage: React.FC = () => {
     setSaving(true);
     try {
       await propostasApi.criarRascunho({
-        companyId: '00000000-0000-0000-0000-000000000000', // Mock UUID for the demo
+        companyId: user?.empresaId || user?.id || '00000000-0000-0000-0000-000000000000',
         titulo,
         validadeDias: validadePropostaDias,
         prazoEntregaDias,
