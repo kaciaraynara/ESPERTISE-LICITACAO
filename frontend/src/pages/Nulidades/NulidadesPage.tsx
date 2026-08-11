@@ -3,7 +3,7 @@ import {
   AlertOctagon, FileText, Send, 
   Clock, Search, Loader2
 } from 'lucide-react';
-import { noticesApi } from '@services/api';
+import { licitacoesApi, auditoriaApi } from '@services/api';
 
 interface NulidadeImpugnacao {
   id: string;
@@ -24,15 +24,15 @@ export const NulidadesPage: React.FC = () => {
   const fetchNotices = async (q?: string) => {
     setLoading(true);
     try {
-      const res = await noticesApi.search({ q: q || 'licitacao', limit: 5 });
-      const items = res.data?.data || [];
+      const res = await licitacoesApi.listar({ q: q || 'licitacao', limit: 5 } as any);
+      const items = res.data?.items || res.data?.data || [];
       const mapped = items.map((item: any) => ({
         id: item.id,
-        edital: item.title?.substring(0, 50) || item.id,
-        orgao: item.metadata?.orgao || 'Órgão não especificado',
+        edital: item.objeto?.substring(0, 50) || item.id,
+        orgao: item.orgao || 'Órgão não especificado',
         tipoInfracao: 'ANALISANDO_EDITAL',
         resumoIrregularidade: 'Clique em Analisar Edital para buscar possíveis nulidades.',
-        prazoLimiteImpugnacao: item.metadata?.data_abertura || 'Indefinido',
+        prazoLimiteImpugnacao: item.dataAbertura || item.data_abertura || 'Indefinido',
         status: 'RASCUNHO'
       }));
       setNulidades(mapped);
@@ -54,7 +54,7 @@ export const NulidadesPage: React.FC = () => {
   const handleAnalyze = async (id: string) => {
     setAnalyzingId(id);
     try {
-      const res = await noticesApi.getErrorRadar(id);
+      const res = await auditoriaApi.buscar(id);
       const radar = res.data?.data;
       if (radar && radar.issues && radar.issues.length > 0) {
         setNulidades(prev => prev.map(n => {

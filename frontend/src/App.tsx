@@ -16,7 +16,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import LandingPage from './pages/LandingPage';
 import AuthPages from './pages/AuthPages';
 import DashboardPage from './pages/DashboardPage';
-import RadarPage from './pages/Radar';
+import { LicitacoesPage } from './pages/LicitacoesPage';
 import LicitacaoDetalhePage from './pages/LicitacaoDetalhePage';
 import RoboPage from './pages/RoboPage';
 import CofrePage from './pages/CofrePage';
@@ -37,10 +37,9 @@ import { CrmFunilScreen } from './pages/CRM/CrmFunilScreen';
 import { PrecificacaoPage } from './pages/Precificacao/PrecificacaoPage';
 // Importações no topo do App.tsx
 // Removed unused imports: CatalogoPage, EditaisMonitoradosPage
-// Importações no topo do App.tsx
+import { EditaisMonitoradosPage } from './pages/EditaisMonitorados/EditaisMonitoradosPage';
 import { ScoreOportunidadesPage } from './pages/ScoreOportunidades/ScoreOportunidadesPage';
 import { NulidadesPage } from './pages/Nulidades/NulidadesPage';
-// Importações no topo do App.tsx
 import TermosDeUsoPage from './pages/TermosDeUsoPage';
 import PoliticaPrivacidadePage from './pages/PoliticaPrivacidadePage';
 
@@ -183,7 +182,7 @@ export default function App() {
           {/* Rotas Seguras ERP */}
           <Route element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
             <Route path={FORNECEDOR_ROUTES.dashboard} element={<DashboardPage />} />
-            <Route path={FORNECEDOR_ROUTES.radar} element={<RadarPage />} />
+            <Route path={FORNECEDOR_ROUTES.radar} element={<LicitacoesPage />} />
             <Route path={FORNECEDOR_ROUTES.licitacao_detalhe} element={<LicitacaoDetalhePage />} />
             <Route path={FORNECEDOR_ROUTES.documentos} element={<CofrePage />} />
             
@@ -193,9 +192,9 @@ export default function App() {
 
             {/* Módulos em Desenvolvimento / Status */}
             <Route path={FORNECEDOR_ROUTES.academia} element={<ModuleStatusPage moduleKey="academia" />} />
-            <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={<ModuleStatusPage moduleKey="score_oportunidades" />} />
+            <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={<ScoreOportunidadesPage />} />
             <Route path={FORNECEDOR_ROUTES.srp_carona} element={<ModuleStatusPage moduleKey="srp_carona" />} />
-            <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={<ModuleStatusPage moduleKey="editais_monitorados" />} />
+            <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={<EditaisMonitoradosPage />} />
             <Route path={FORNECEDOR_ROUTES.analise_viabilidade} element={<AnaliseViabilidadeDetalhePage />} />
             <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={<NulidadesPage />} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={<RoboPage />} />
