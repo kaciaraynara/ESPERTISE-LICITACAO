@@ -316,8 +316,7 @@ export const precificacaoApi = {
 };
 
 
-
-// ─── Notificações ────────────────────────────────────────────────────────────
+// ─── Auditoria ────────────────────────────────────────────────────────────────
 export const notificacoesApi = {
   listar: (params?: { pagina?: number; limite?: number }) =>
     api.get('/notificacoes', { params }),

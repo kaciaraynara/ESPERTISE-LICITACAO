@@ -81,7 +81,7 @@ export default function LicitacoesPage() {
         pagina: pg,
         tamanhoPagina: 20,
       };
-      if (busca.trim())         params.q = busca.trim();
+      if (busca.trim())         params.busca = busca.trim();
       if (ufSel !== 'Todos')    params.uf = ufSel;
       if (modalidadeSel !== 'Todos') {
         const pncpModMap: Record<string, number> = {
