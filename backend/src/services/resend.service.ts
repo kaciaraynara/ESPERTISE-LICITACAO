@@ -160,8 +160,8 @@ export async function enviarAlertaCertidao(params: {
     </div>
 
     <p style="color:#475569;font-size:14px;line-height:1.6;">
-      Se a certidão vencer <strong>antes do pregão</strong>, você será desclassificado automaticamente (Art. 63 da Lei 14.133/2021).
-      Renove agora para garantir sua participação.
+      A validade informada pode afetar a habilitação conforme as regras do edital. Confirme a situação diretamente no órgão emissor
+      e verifique os requisitos aplicáveis ao seu processo antes de renovar o documento.
     </p>
 
     <a href="${params.linkRenovacao}" class="btn btn-green">Renovar certidão agora →</a>
@@ -276,6 +276,67 @@ export async function enviarRecuperacaoSenha(params: {
   return sendEmail({
     to: params.email,
     subject: `🔐 Instruções para redefinição de senha`,
+    html,
+  });
+}
+
+/**
+ * Alerta de prazo crítico de licitação (24h ou 48h para o vencimento)
+ */
+export async function enviarAlertaPrazo(params: {
+  email: string;
+  nome: string;
+  prazoTitulo: string;
+  tipo: string;
+  dataLimite: Date | string;
+  horasRestantes: number;
+  editalNumero?: string | null;
+  orgao?: string | null;
+  link?: string | null;
+}) {
+  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const { horasRestantes } = params;
+  const is24h = horasRestantes <= 24;
+  const urgenciaCor = is24h ? '#DC2626' : '#D97706';
+  const tagBg = is24h ? '#FEE2E2' : '#FEF3C7';
+  const tagText = is24h ? '#991B1B' : '#92400E';
+  const emoji = is24h ? '🚨' : '⏰';
+  const prazoFormatado = new Date(params.dataLimite).toLocaleString('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+
+  const html = templateBase(`
+    <div style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${tagBg};color:${tagText};margin-bottom:12px;">
+      ${emoji} VENCE EM ${horasRestantes}H
+    </div>
+    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;color:#1A1A2E;">
+      ${emoji} Atenção com seu prazo: ${params.prazoTitulo}
+    </h2>
+    <p style="color:#475569;margin-bottom:16px;line-height:1.5;">
+      Olá, <strong>${params.nome}</strong>! Você possui um prazo licitatório crítico que expira em aproximadamente <strong>${horasRestantes} horas</strong>.
+    </p>
+
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-left:4px solid ${urgenciaCor};border-radius:8px;padding:16px;margin:16px 0;">
+      <p style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${params.prazoTitulo}</p>
+      <p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Tipo de Prazo:</strong> ${params.tipo}</p>
+      <p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Data e Hora Limite:</strong> <span style="color:${urgenciaCor};font-weight:700;">${prazoFormatado}</span></p>
+      ${params.editalNumero ? `<p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Edital:</strong> ${params.editalNumero}</p>` : ''}
+      ${params.orgao ? `<p style="font-size:13px;color:#475569;"><strong>Órgão:</strong> ${params.orgao}</p>` : ''}
+    </div>
+
+    <p style="color:#475569;font-size:13px;line-height:1.5;margin-bottom:20px;">
+      Não perder prazos é indispensável para evitar a preclusão administrativa, desclassificação de propostas ou aplicação de penalidades (Lei 14.133/2021).
+    </p>
+
+    <a href="${params.link || `${appUrl}/prazos`}" class="btn" style="background:${urgenciaCor};">
+      Ver detalhes e agir agora →
+    </a>
+  `);
+
+  return sendEmail({
+    to: params.email,
+    subject: `${emoji} [ALERTA ${horasRestantes}H] ${params.prazoTitulo} vence ${is24h ? 'amanhã' : 'em breve'}`,
     html,
   });
 }

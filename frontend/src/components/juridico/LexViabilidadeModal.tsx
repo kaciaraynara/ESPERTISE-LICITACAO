@@ -47,11 +47,11 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
             {/* Header */}
             <div className="flex items-center justify-between p-6 bg-gradient-to-r from-brand-blue to-blue-900 text-white">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
-                  <Sparkles className="w-6 h-6 text-brand-orange" />
+                <div className="p-1 bg-white/20 rounded-lg backdrop-blur-md w-10 h-10 flex items-center justify-center overflow-hidden">
+                  <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-8 h-8 object-contain" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight">Especialista LEX</h2>
+                  <h2 className="text-xl font-bold tracking-tight">Análise de Editais</h2>
                   <p className="text-blue-100 text-sm truncate max-w-md" title={objeto}>{objeto}</p>
                 </div>
               </div>
@@ -120,7 +120,7 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
                 {activeTab === 'resumo' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-bold text-brand-blue">Resumo Instantâneo</h3>
+                      <h3 className="text-xl font-bold text-brand-blue">Resumo do Edital</h3>
                       <button onClick={() => resumoMutation.mutate()} className="text-sm font-semibold text-brand-orange hover:underline">
                         Gerar Novamente
                       </button>

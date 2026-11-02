@@ -1,9 +1,13 @@
 import { isProduction } from '../config/env';
 
 const DEFAULT_LOCAL_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:4173',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
   'http://127.0.0.1:4173',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
@@ -27,12 +31,14 @@ export function isOriginAllowed(origin?: string) {
     return true;
   }
 
-  // Permite qualquer domínio da Vercel para não bloquear a API em produção
-  if (origin.includes('vercel.app')) {
+  const normalizedOrigin = origin.trim().replace(/\/$/, '');
+
+  if (!isProduction() && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin)) {
     return true;
   }
 
-  return getAllowedOrigins().includes(origin);
+  const allowed = getAllowedOrigins().map((o) => o.replace(/\/$/, ''));
+  return allowed.includes(normalizedOrigin);
 }
 
 export function getJwtSecret() {

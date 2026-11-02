@@ -159,16 +159,16 @@ export default function InteligenciaPage() {
                 tone: 'blue',
               },
               {
-                titulo: 'Radar analisado',
+                titulo: 'Oportunidades consultadas',
                 valor: String(resumo.total),
                 detalhe: 'editais disponíveis para leitura',
                 icon: Target,
                 tone: 'emerald',
               },
               {
-                titulo: 'Score alto',
+                titulo: 'Alta compatibilidade',
                 valor: String(resumo.altaPrioridade),
-                detalhe: 'itens com score >= 80',
+                detalhe: 'editais alinhados ao perfil da empresa',
                 icon: TrendingUp,
                 tone: 'violet',
               },
@@ -221,7 +221,7 @@ export default function InteligenciaPage() {
                     <div key={item.orgao} className="flex items-center justify-between gap-3 px-5 py-4">
                       <div>
                         <p className="text-sm font-bold text-brand-blue">{item.orgao}</p>
-                        <p className="mt-1 text-xs text-brand-blue/70">Presença recorrente no universo consultado pela API.</p>
+                        <p className="mt-1 text-xs text-brand-blue/70">Órgãos que aparecem com frequência nas oportunidades consultadas.</p>
                       </div>
                       <span className="rounded-lg border border-brand-blue/20 bg-white px-3 py-1 text-xs font-bold text-brand-blue">
                         {item.total} ocorrências
@@ -282,5 +282,4 @@ export default function InteligenciaPage() {
     </div>
   );
 }
-
 

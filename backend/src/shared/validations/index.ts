@@ -10,7 +10,7 @@ export const registerSchema = z.object({
   cnpj: z.string()
     .transform((value) => value.replace(/\D/g, ''))
     .refine((value) => value.length === 14, 'CNPJ invalido'),
-  razao_social: z.string().min(3, 'Razao social obrigatoria'),
+  razao_social: z.string().optional(),
   nome_fantasia: z.string().optional(),
   cnae_principal: z.string().optional(),
   municipio: z.string().optional(),

@@ -1,8 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   ShieldCheck, AlertTriangle, XCircle, FileText, Download,
   Search, RefreshCw, CheckCircle2, Clock,
-  Layers, BarChart3, Sparkles, History, Plus
+  Layers, BarChart3, History, Plus
 } from 'lucide-react';
 import { DocumentoCofre } from '../../types/cofre.types';
 
@@ -142,7 +142,7 @@ export const CofreDocumentosScreen: React.FC = () => {
               <BarChart3 size={16} /> <span>Análise de Viabilidade</span>
             </a>
             <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
-              <Sparkles size={16} /> <span>Leitor LEX AI</span>
+              <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-4 h-4 object-contain" /> <span>Análise de Editais</span>
             </a>
             <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-orange-500 text-white font-semibold shadow">
               <ShieldCheck size={16} /> <span>Cofre de Documentos</span>
@@ -168,18 +168,18 @@ export const CofreDocumentosScreen: React.FC = () => {
         <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              Cofre de Habilitação & Certidões
+              Documentos e Certidões
               <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2.5 py-0.5 rounded-full border border-blue-200">
                 Conformidade Jurídica
               </span>
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Repositório central de CNDs, atestados técnicos e balanços. Emissão e validação de prazos em tempo real.
+              Organize certidões, atestados e balanços e acompanhe suas datas de validade.
             </p>
           </div>
 
           <button className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow transition flex items-center gap-2">
-            <Plus size={16} /> Upload de Novo Documento
+            <Plus size={16} /> Adicionar documento
           </button>
         </header>
 

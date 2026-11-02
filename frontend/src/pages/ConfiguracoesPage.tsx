@@ -263,7 +263,7 @@ export default function ConfiguracoesPage() {
             <div className="p-6">
               <p className="text-sm text-slate-700 mb-4 font-medium">
                 Esta ação é <strong className="text-red-600">irreversível</strong>. 
-                Sua conta será desativada instantaneamente e seus dados entrarão em processo automático de anonimização, conforme a LGPD.
+                Sua conta será desativada e seus dados serão tratados conforme a LGPD e os prazos legais aplicáveis.
               </p>
               <p className="text-sm text-slate-700 mb-6 font-medium">
                 Você tem certeza absoluta que deseja excluir a sua conta?

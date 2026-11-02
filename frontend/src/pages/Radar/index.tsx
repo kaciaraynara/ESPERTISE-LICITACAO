@@ -34,7 +34,7 @@ export default function RadarPage() {
         <div>
           <h1 className="text-2xl font-black text-[#0A2540] tracking-tight">Radar de Oportunidades</h1>
           <p className="text-sm font-medium text-slate-500 mt-1">
-            Monitoramento em tempo real do PNCP, inteligência de score e gestão jurídica.
+            Consulte oportunidades do PNCP e acompanhe os principais pontos de cada edital.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -132,12 +132,30 @@ export default function RadarPage() {
                         <span className="font-black text-[#0A2540]">{formatarMoeda(licitacao.valorEstimado || 0)}</span>
                       </div>
                       
-                      <button 
-                        onClick={() => navigate(`/app/licitacoes/${licitacao.id}`)}
-                        className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors"
-                      >
-                        <Search size={14} /> Analisar Edital
-                      </button>
+                      <div className="flex gap-2 mt-2">
+                        <button 
+                          onClick={() => navigate(`/fornecedor/licitacao/${encodeURIComponent(licitacao.id)}`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors"
+                        >
+                          <Search size={14} /> Analisar
+                        </button>
+                        {(() => {
+                          const numPncp = licitacao.numeroControlePNCP || licitacao.numero_controle_pncp;
+                          const portalUrl = licitacao.linkSistemaOrigem || licitacao.documento_url || licitacao.link || (numPncp ? `https://pncp.gov.br/app/editais/${encodeURIComponent(numPncp)}` : null);
+                          if (!portalUrl) return null;
+                          return (
+                            <a
+                              href={portalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-400 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center justify-center"
+                              title="Ver edital no portal oficial (PNCP / Compras.gov)"
+                            >
+                              Portal
+                            </a>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 ))}

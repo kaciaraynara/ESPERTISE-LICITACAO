@@ -4,22 +4,30 @@ import { FiltrosBusca } from '../interfaces/pncp.interface';
 import {
   buscarLicitacaoPorNumeroControle,
   listarLicitacoes,
+  sincronizarLicitacoesPNCP,
+  NoticePersistenceError,
 } from '../services/licitacoes.service';
 import { PncpServiceError } from '../services/pncp.service';
-import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 
 function stringParam(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return String(value);
   return typeof value === 'string' && value.trim()
     ? value.trim()
     : undefined;
 }
 
 function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
+  const rawSrp = source.srp;
   return {
     palavraChave:
       stringParam(source.palavraChave)
       ?? stringParam(source.palavrasChave)
-      ?? stringParam(source.busca),
+      ?? stringParam(source.busca)
+      ?? stringParam(source.search)
+      ?? stringParam(source.q)
+      ?? stringParam(source.termo),
     uf: stringParam(source.uf),
     dataInicial:
       stringParam(source.dataInicial)
@@ -30,10 +38,13 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
     codigoModalidadeContratacao:
       stringParam(source.codigoModalidadeContratacao)
       ?? stringParam(source.modalidade),
-    pagina: stringParam(source.pagina),
+    pagina: stringParam(source.pagina) ?? stringParam(source.page),
     tamanhoPagina:
       stringParam(source.tamanhoPagina)
-      ?? stringParam(source.limite),
+      ?? stringParam(source.limite)
+      ?? stringParam(source.limit)
+      ?? stringParam(source.size),
+    srp: rawSrp === true || rawSrp === 'true',
   };
 }
 
@@ -41,6 +52,14 @@ function sendPncpError(
   res: Response,
   error: unknown,
 ): Response {
+  if (error instanceof NoticePersistenceError || (error as any)?.code === 'NOTICE_PERSISTENCE_FAILED') {
+    return res.status(500).json({
+      success: false,
+      code: 'NOTICE_PERSISTENCE_FAILED',
+      message: (error as Error).message || 'Falha ao persistir edital no banco local.',
+    });
+  }
+
   if (error instanceof PncpServiceError) {
     return res.status(error.statusCode).json({
       success: false,
@@ -67,17 +86,8 @@ export class LicitacoesController {
   ): Promise<Response> => {
     try {
       const filtros = buildFiltros(req.query as Record<string, unknown>);
-      
       const userId = req.user?.id;
-      if (userId && !filtros.palavraChave) {
-        const { prisma } = require('../database/prisma');
-        const company = await prisma.company.findFirst({ where: { userId } });
-        if (company?.cnaePrincipal) {
-           filtros.palavraChave = company.cnaePrincipal;
-        }
-      }
-
-      const resultado = await listarLicitacoes(filtros);
+      const resultado = await listarLicitacoes(filtros, userId, req.user?.tenantId);
 
       return res.json({
         success: true,
@@ -87,6 +97,39 @@ export class LicitacoesController {
           pagina: resultado.pagina,
           tamanhoPagina: resultado.tamanhoPagina,
           totalRegistros: resultado.totalRegistros,
+          totalPaginas: resultado.totalPaginas,
+          atualizadoEm: new Date().toISOString(),
+          perfilRadar: resultado.perfilRadar
+            ? {
+                cnaes: resultado.perfilRadar.cnaes,
+                palavras_chave: resultado.perfilRadar.palavras_chave,
+              }
+            : null,
+          aviso: resultado.aviso,
+        },
+      });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+
+  public sincronizar = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const filtros = buildFiltros((req.body as Record<string, unknown>) || {});
+      const resultado = await sincronizarLicitacoesPNCP(filtros);
+
+      return res.json({
+        success: true,
+        message: `${resultado.totalSincronizados} editais sincronizados com sucesso do PNCP.`,
+        data: {
+          totalSincronizados: resultado.totalSincronizados,
+          items: resultado.items,
+        },
+        meta: {
+          fonte: 'PNCP',
           atualizadoEm: new Date().toISOString(),
         },
       });
@@ -121,7 +164,7 @@ export class LicitacoesController {
       if (!userId) return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
 
       const { prisma } = require('../database/prisma');
-      const company = await prisma.company.findFirst({ where: { userId } });
+      const company = await resolveAuthorizedCompany(userId, req.body?.companyId || req.companyId);
       if (!company) return res.status(404).json({ success: false, message: 'Empresa não encontrada' });
 
       // Search full details on PNCP

@@ -81,6 +81,14 @@ export class LicitacaoController {
 
       const analiseRisco = await checarSancoesCnpj(cnpj);
 
+      if (analiseRisco.statusConsulta === 'CNPJ_INVALIDO') {
+        return res.status(400).json(analiseRisco);
+      }
+
+      if (analiseRisco.statusConsulta !== 'OK') {
+        return res.status(503).json(analiseRisco);
+      }
+
       return res.status(200).json(analiseRisco);
     } catch (error: any) {
       return res.status(error.statusCode || 500).json({

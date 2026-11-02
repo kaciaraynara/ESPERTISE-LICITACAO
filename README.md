@@ -8,7 +8,7 @@ A superfície liberada no frontend contém somente fluxos com contrato implement
 
 - autenticação por e-mail e senha, com access token em memória e refresh token em cookie;
 - Página Inicial baseada nas empresas e nos documentos retornados pela API;
-- Radar de Editais com consulta manual à API oficial do PNCP;
+- Radar de Editais com sincronização diária do PNCP, busca em background e aderência por CNAE;
 - Documentos do Licitante com upload em bucket privado e URL assinada.
 
 Robô de lances, LEX e CRM permanecem desativados por padrão. Score, nulidades, SRP, monitoramento, propostas completas, catálogo, prazos, relatórios e configurações avançadas não são apresentados como prontos enquanto seus fluxos ponta a ponta não estiverem concluídos.
@@ -29,7 +29,7 @@ EXPERTISE/
 - Node.js 20 ou superior;
 - PostgreSQL acessível pela `DATABASE_URL`;
 - credenciais reais do Supabase Storage para upload de documentos;
-- credenciais e IDs de planos do Mercado Pago para checkout;
+- token, segredo do webhook e IDs dos planos do Mercado Pago para checkout recorrente;
 - acesso de rede ao PNCP para o Radar.
 
 ## Backend
@@ -49,7 +49,9 @@ npm run start:api
 npm run start:worker
 ```
 
-O processo da API não deve executar agendamentos. O worker é o ponto de entrada exclusivo dos jobs.
+O processo da API não deve executar agendamentos. O worker é o ponto de entrada exclusivo dos jobs. Para desenvolvimento, execute `npm run dev:worker` em outro terminal. A sincronização do PNCP roda às 2h e às 14h no fuso de Brasília, controlada por `CRON_JOBS_ENABLED`, `ENABLE_CRON_JOBS` e `PNCP_CRON_SCHEDULE`.
+
+O PNCP não recebe CNAE no endpoint de publicação. Ao abrir o Radar ou executar uma busca, a interface consulta as modalidades suportadas no PNCP e persiste os resultados; os termos deduzidos do CNAE são aplicados localmente. O worker também mantém o acervo atualizado diariamente para reduzir a dependência de uma primeira consulta manual.
 
 Endpoints operacionais:
 
@@ -58,9 +60,10 @@ Endpoints operacionais:
 - `/api-docs`: contrato OpenAPI;
 - `/api/v1/auth/*`: autenticação;
 - `/api/v1/empresas`: empresas da conta;
-- `/api/v1/licitacoes`: consulta manual ao PNCP;
+- `/api/v1/licitacoes`: consulta ao acervo sincronizado do PNCP, filtrado pelo perfil CNAE da empresa;
 - `/api/v1/documentos`: documentos;
-- `/api/v1/pagamentos/*`: planos, checkout e webhook do Mercado Pago.
+- `/api/v1/pagamentos/*`: planos, checkout recorrente e consulta de assinatura do Mercado Pago;
+- `/api/v1/webhooks/mercadopago`: confirmação assinada de pagamentos e atualização dos planos.
 
 Use [`.env.example`](./backend/.env.example) como inventário de configuração. Não copie valores de exemplo para produção.
 

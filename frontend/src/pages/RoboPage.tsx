@@ -6,10 +6,11 @@ import {
   Activity,
   AlertTriangle,
   BarChart2,
-  Clock3,
+  CheckCircle,
   Crosshair,
   Globe,
   Link as LinkIcon,
+  Lock,
   Maximize2,
   Minimize2,
   Power,
@@ -137,7 +138,6 @@ export default function RoboPage() {
   const [sessaoNome, setSessaoNome] = useState('Sala de disputa');
   const [scoreAderencia, setScoreAderencia] = useState(scoreQuery || 78);
   const [tempoRestante, setTempoRestante] = useState(120);
-  const [ultimoMovimento, setUltimoMovimento] = useState<'lider' | 'concorrente'>('concorrente');
   const [activeTab, setActiveTab] = useState<ActiveTab>('cockpit');
   const [portalSel, setPortalSel] = useState<DisputePortal>(() => {
     const detectedPortal = inferPortal(portalQuery);
@@ -146,9 +146,9 @@ export default function RoboPage() {
       : detectedPortal;
   });
   const [customUrl, setCustomUrl] = useState<string>(portalQuery && inferPortal(portalQuery).id === 'outros' ? portalQuery : '');
-  const [iframeUrl, setIframeUrl] = useState('');
-  const [iframeExpanded, setIframeExpanded] = useState(false);
-  const [iframeLoading, setIframeLoading] = useState(false);
+  const [iframeUrl, setIframeUrl] = useState<string>('');
+  const [iframeExpanded, setIframeExpanded] = useState<boolean>(false);
+  const [iframeLoading, setIframeLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
 
   const { accessToken } = useAuthStore();
@@ -162,7 +162,7 @@ export default function RoboPage() {
   function addLog(text: string, type: LogEntry['type'] = 'info') {
     setLogs((previous) => [
       ...previous.slice(-119),
-      { id: `${Date.now()}-${Math.random()}`, time: formatLogTime(), text, type },
+      { id: crypto.randomUUID(), time: formatLogTime(), text, type },
     ]);
   }
 
@@ -317,14 +317,15 @@ export default function RoboPage() {
     if (!value || value <= 0) return;
 
     if (value <= stopLossValue) {
-      toast.error('O lance manual viola o piso de seguranca.');
-      addLog(`Lance manual bloqueado em R$ ${value.toLocaleString('pt-BR')}.`, 'alert');
+      toast.error('O lance manual viola o piso de segurança definido.');
+      addLog(`Proposta manual de R$ ${value.toLocaleString('pt-BR')} violaria o piso de R$ ${stopLossValue.toLocaleString('pt-BR')}.`, 'alert');
       return;
     }
 
     socketRef.current?.emit('lance_manual', { valor: value });
     setCurrentValue(value);
     setManualLance('');
+    toast.success('Proposta validada contra a margem. Registre no portal oficial!');
   }
 
   useEffect(() => {
@@ -342,7 +343,7 @@ export default function RoboPage() {
   useEffect(() => {
     const monitorUrl = resolvePortalUrl(portalSel, customUrl, licitacao?.link || portalQuery);
     if (!monitorUrl) return;
-    setIframeUrl((current) => {
+    setIframeUrl((current: string) => {
       if (current === monitorUrl) return current;
       setIframeLoading(true);
       return monitorUrl;
@@ -356,11 +357,15 @@ export default function RoboPage() {
   useEffect(() => {
     if (!accessToken) return;
 
-    const socketUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:3000';
-    
+    const socketUrl =
+      import.meta.env.VITE_API_URL?.replace('/api/v1', '') ||
+      (import.meta.env.PROD && typeof window !== 'undefined'
+        ? window.location.origin
+        : 'http://localhost:3001');
+
     socketRef.current = io(socketUrl, {
       auth: { token: accessToken },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     });
 
     const socket = socketRef.current;
@@ -369,14 +374,19 @@ export default function RoboPage() {
       addLog(log.text, log.type);
     });
 
-    socket.on('lance_enviado', (data: any) => {
+    socket.on('lance_validado', (data: any) => {
       setCurrentValue(data.valor);
-      setUltimoMovimento('lider');
+      addLog(`Lance de R$ ${Number(data.valor).toLocaleString('pt-BR')} validado contra o piso. Registre no portal oficial.`, 'action');
+    });
+
+    socket.on('sugestao_lance', (data: any) => {
+      setCurrentValue(data.valor);
+      addLog(`Sugestão tática (${String(data.estrategia || '').toUpperCase()}): R$ ${Number(data.valor).toLocaleString('pt-BR')}. Submeta no portal oficial.`, 'system');
     });
 
     socket.on('margem_atingida', () => {
       setIsBotActive(false);
-      addLog('Operacao encerrada pelo backend para proteger a margem.', 'alert');
+      addLog('Piso de proteção atingido. Estratégia recomenda interromper novas ofertas para preservar a rentabilidade.', 'alert');
     });
 
     socket.on('robo_status', (data: any) => {
@@ -400,59 +410,81 @@ export default function RoboPage() {
     <section className={`tech-panel overflow-hidden ${iframeExpanded ? 'fixed inset-4 z-50' : 'xl:sticky xl:top-28'}`}>
       <div className="flex items-center justify-between border-b border-[#D8E6FF] bg-white px-5 py-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#3E6FB7]">Painel da disputa</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#3E6FB7]">Acesso ao Portal Oficial</p>
           <p className="mt-1 text-sm font-bold text-brand-blue">
-            {portalAtualUrl ? 'Portal espelhado dentro da sala' : 'Vincule o portal para acompanhar aqui'}
+            {portalAtualUrl ? 'Portal vinculado para a disputa' : 'Defina o portal da licitação'}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {iframeLoading && <RefreshCw className="h-4 w-4 animate-spin text-brand-blue" />}
           {portalAtualUrl && (
-            <button
-              onClick={openPortal}
-              className="rounded-lg border border-[#F1F5F9] bg-white px-3 py-2 text-xs font-bold text-[#143B7A] transition hover:bg-white"
+            <a
+              href={portalAtualUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-blue px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-blue/90 shadow-sm"
             >
-              Recarregar
-            </button>
+              <Globe className="h-3.5 w-3.5" />
+              Abrir Portal Oficial (Nova Aba)
+            </a>
           )}
           <button
-            onClick={() => setIframeExpanded((value) => !value)}
-            className="rounded-lg border border-[#F1F5F9] bg-white p-2 text-brand-blue/70 transition hover:bg-white hover:text-brand-blue"
+            onClick={() => setIframeExpanded((prev) => !prev)}
+            className="tech-outline-button !p-2"
+            title={iframeExpanded ? 'Minimizar' : 'Expandir'}
           >
             {iframeExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
         </div>
       </div>
 
-      {iframeUrl ? (
-        <>
-          <div className="border-b border-[#D8E6FF] px-5 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-lg border border-[#F1F5F9] bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-blue">
-                {portalSel.label}
-              </span>
-              <span className="truncate text-xs font-medium text-brand-blue/70">{iframeUrl}</span>
+      <div className="p-5 space-y-4">
+        {portalAtualUrl ? (
+          <>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700 leading-relaxed">
+              <p className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+                <Shield className="h-4 w-4 text-emerald-600" />
+                Diretrizes de Segurança do Licitante:
+              </p>
+              <ul className="list-disc pl-4 space-y-1 mt-1 text-slate-600">
+                <li>Abra o portal oficial em uma nova janela ou monitor paralelo.</li>
+                <li>Utilize o certificado digital ICP-Brasil autenticado diretamente no seu navegador.</li>
+                <li>Confira se o valor do lance respeita rigorosamente o piso estipulado de <strong>R$ {stopLossValue.toLocaleString('pt-BR')}</strong>.</li>
+                <li>A submissão oficial é de inteira responsabilidade do operador credenciado no certame.</li>
+              </ul>
             </div>
-          </div>
 
-          <iframe
-            src={iframeUrl}
-            title="Monitor de disputa"
-            className={`${iframeExpanded ? 'h-[calc(100vh-128px)]' : 'h-[720px] xl:h-[calc(100vh-270px)] min-h-[640px]'} w-full bg-white`}
-            onLoad={() => setIframeLoading(false)}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-          />
-        </>
-      ) : (
-        <div className="flex min-h-[520px] flex-col items-center justify-center px-8 text-center">
-          <Globe className="mb-4 h-12 w-12 text-brand-blue/70" />
-          <p className="text-lg font-bold text-brand-blue">Nenhum portal espelhado ainda</p>
-          <p className="mt-2 max-w-md text-sm leading-7 text-brand-blue/70">
-            Vincule o link direto da disputa para manter o portal do certame aberto no lado direito da sala, sem quebrar o seu fluxo.
-          </p>
-        </div>
-      )}
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 leading-relaxed">
+              <span className="font-bold text-amber-950">Nota Técnica sobre Navegação: </span>
+              A maioria dos portais governamentais (Compras.gov.br, BNC, etc.) bloqueia exibição embutida por cabeçalhos de segurança (CSP / X-Frame-Options). Utilize o botão acima para operar com segurança em janela oficial.
+            </div>
+
+            {iframeUrl && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between pb-2 text-xs font-bold text-slate-600">
+                  <span>Pré-visualização embutida (se permitida pelo portal):</span>
+                  {iframeLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-brand-blue" />}
+                </div>
+                <iframe
+                  src={iframeUrl}
+                  title="Monitor de disputa"
+                  className="h-[360px] w-full rounded-lg border border-slate-200 bg-white"
+                  onLoad={() => setIframeLoading(false)}
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex min-h-[360px] flex-col items-center justify-center px-8 text-center">
+            <Globe className="mb-4 h-12 w-12 text-brand-blue/70" />
+            <p className="text-lg font-bold text-brand-blue">Nenhum portal vinculado</p>
+            <p className="mt-2 max-w-md text-sm leading-7 text-brand-blue/70">
+              Vincule o link direto da disputa para manter os dados da licitação organizados e acessar o certame com agilidade.
+            </p>
+          </div>
+        )}
+      </div>
     </section>
   );
 
@@ -463,21 +495,35 @@ export default function RoboPage() {
           <div>
             <div className="mb-1 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-blue/70">
               <Activity className="h-3.5 w-3.5" />
-              Sala do Robo de Lances
+              Estratégia de Lances
+              <span className="rounded-lg border border-amber-500 bg-amber-500/10 px-2 py-0.5 text-amber-700 ml-2 text-[10px] font-bold">
+                Você envia os lances no portal oficial
+              </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight text-brand-blue">{sessaoNome}</h1>
               <span className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
                 isBotActive
-                  ? 'border-brand-blue/20 bg-white text-brand-blue'
-                  : 'border-gray-100 bg-white text-brand-blue/70'
+                  ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 bg-white text-slate-600'
               }`}>
-                <span className={`h-2 w-2 rounded-lg ${isBotActive ? 'bg-brand-blue animate-pulse' : 'bg-white'}`} />
-                {isBotActive ? 'Operando' : 'Em preparacao'}
+                <span className={`h-2 w-2 rounded-full ${isBotActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                {isBotActive ? 'Acompanhamento ativo' : 'Planejamento em andamento'}
               </span>
             </div>
+
+            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 leading-relaxed shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-amber-950">Importante: </span>
+                  A plataforma não envia lances por você. Use as informações desta tela como apoio e envie cada oferta diretamente no portal oficial.
+                </div>
+              </div>
+            </div>
+
             <p className="mt-2 text-sm text-brand-blue/70">
-              {licitacao?.objeto || objetoQuery || 'Vincule um edital para disputar com estrategia, protecao de margem e acesso ao portal.'}
+              {licitacao?.objeto || objetoQuery || 'Defina sua margem de segurança e acompanhe a disputa pelo portal oficial.'}
             </p>
           </div>
 
@@ -508,7 +554,7 @@ export default function RoboPage() {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em]">
                     <span className="rounded-lg border border-[#B8D4FF] bg-white px-3 py-1 text-brand-blue">
-                      Score {scoreAderencia}/100
+                      Compatibilidade {scoreAderencia}/100
                     </span>
                     {licitacao?.orgao && (
                       <span className="rounded-lg border border-gray-100 bg-white px-3 py-1 text-brand-blue/70">
@@ -517,18 +563,16 @@ export default function RoboPage() {
                     )}
                   </div>
                   <p className="text-sm leading-7 text-brand-blue/70">
-                    {portalAtualUrl
-                      ? 'A sala esta pronta para monitorar a plataforma da disputa e apoiar o lance em paralelo.'
-                      : 'Selecione o portal da disputa para monitorar a plataforma e entrar no certame sem sair da operacao.'}
+                    Defina seu valor mínimo aceitável e confira o impacto na margem antes de enviar cada lance.
                   </p>
                 </div>
 
                 <div className="rounded-lg border border-gray-100 bg-white px-4 py-3 text-right">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-blue/70">Movimento atual</p>
-                  <p className="mt-1 text-sm font-bold text-brand-blue">
-                    {ultimoMovimento === 'lider' ? 'Voce lidera' : 'Concorrente ativo'}
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-blue/70">Margem da Empresa</p>
+                  <p className="mt-1 text-sm font-bold text-emerald-700">
+                    Piso: R$ {stopLossValue.toLocaleString('pt-BR')}
                   </p>
-                  <p className="mt-1 text-xs text-brand-blue/70">Janela estimada: {tempoRestante}s</p>
+                  <p className="mt-1 text-xs text-brand-blue/70">Margem: R$ {(initialValue - stopLossValue).toLocaleString('pt-BR')}</p>
                 </div>
               </div>
             </div>
@@ -536,7 +580,7 @@ export default function RoboPage() {
             <div className="tech-dark-panel p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-blue/70">Termometro de margem</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-blue/70">Termômetro de Margem</p>
                   <p className="mt-2 text-3xl font-bold">
                     {currentValue > 0 ? `R$ ${currentValue.toLocaleString('pt-BR')}` : 'Aguardando'}
                   </p>
@@ -592,10 +636,14 @@ export default function RoboPage() {
                   </section>
 
                   <section className="tech-panel p-5">
-                    <div className="mb-4 flex items-center gap-2">
+                    <div className="mb-2 flex items-center gap-2">
                       <Send className="h-4 w-4 text-brand-blue" />
-                      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Lance manual</h2>
+                      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Simulação e Validação de Proposta Manual</h2>
                     </div>
+
+                    <p className="mb-3 text-xs text-brand-blue/70">
+                      Informe o valor pretendido para calcular a margem restante e garantir que sua oferta não fira o piso de R$ {stopLossValue.toLocaleString('pt-BR')}.
+                    </p>
 
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <div className="relative flex-1">
@@ -610,7 +658,7 @@ export default function RoboPage() {
                         />
                       </div>
                       <button onClick={handleLanceManual} className="tech-primary-button">
-                        Registrar
+                        Validar Margem
                       </button>
                     </div>
                   </section>
@@ -618,26 +666,38 @@ export default function RoboPage() {
                   <section className="tech-panel p-5">
                     <div className="mb-4 flex items-center gap-2">
                       <Globe className="h-4 w-4 text-brand-blue" />
-                      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Portal vinculado</h2>
+                      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Portal Oficial Vinculado</h2>
                     </div>
 
                     <p className="text-sm leading-7 text-brand-blue/70">
-                      O certame permanece aberto na coluna da direita para voce acompanhar a plataforma oficial sem sair da sala.
+                      Abra o portal oficial em uma janela ao lado para digitar suas ofertas reais com agilidade e proteção.
                     </p>
 
                     <div className="mt-4 rounded-[24px] border border-[#D8E6FF] bg-white p-4">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#3E6FB7]">Destino atual</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#3E6FB7]">Destino Oficial</p>
                       <p className="mt-2 break-all text-sm font-semibold text-brand-blue">
                         {portalAtualUrl || 'Defina o link direto da disputa'}
                       </p>
                     </div>
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <button onClick={openPortal} disabled={!portalAtualUrl} className="tech-primary-button disabled:cursor-not-allowed disabled:opacity-50">
-                        Atualizar painel
-                      </button>
+                      {portalAtualUrl ? (
+                        <a
+                          href={portalAtualUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="tech-primary-button inline-flex items-center justify-center gap-2 text-center"
+                        >
+                          <Globe className="h-4 w-4" />
+                          Acessar Portal (Nova Aba)
+                        </a>
+                      ) : (
+                        <button disabled className="tech-primary-button opacity-50 cursor-not-allowed">
+                          Link não informado
+                        </button>
+                      )}
                       <button onClick={() => setActiveTab('monitor')} className="tech-outline-button">
-                        Ajustar portal
+                        Configurar Portal
                       </button>
                     </div>
                   </section>
@@ -647,12 +707,12 @@ export default function RoboPage() {
                       onClick={() => void (isBotActive ? stopBot() : startBot())}
                       className={`inline-flex items-center justify-center gap-3 rounded-[24px] px-5 py-4 text-sm font-bold uppercase tracking-[0.18em] text-white transition ${
                         isBotActive
-                          ? 'bg-brand-orange/10 hover:bg-brand-orange/10'
+                          ? 'bg-amber-600 hover:bg-amber-700'
                           : 'bg-brand-blue shadow-lg shadow-brand-blue/20 hover:shadow-xl hover:shadow-brand-blue/25'
                       }`}
                     >
                       <Power className="h-4 w-4" />
-                      {isBotActive ? 'Pausar robo' : 'Iniciar robo'}
+                      {isBotActive ? 'Pausar Monitoramento' : 'Ativar Monitoramento Tático'}
                     </button>
 
                     <button
@@ -661,7 +721,7 @@ export default function RoboPage() {
                       className="tech-outline-button disabled:opacity-60"
                     >
                       {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}
-                      Salvar sala
+                      Salvar Estratégia
                     </button>
                   </div>
                 </div>
@@ -894,34 +954,104 @@ export default function RoboPage() {
             </div>
           )}
 
+          <section className="tech-panel p-6 border-l-4 border-l-brand-blue">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="h-5 w-5 text-brand-blue" />
+              <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-brand-blue">
+                Cuidados antes de enviar suas ofertas
+              </h2>
+            </div>
+            <p className="text-xs text-brand-blue/70 mb-4 leading-relaxed">
+              A plataforma não envia lances por você nem acessa certificados digitais. Revise as informações e envie cada oferta diretamente no portal oficial:
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">1. Confira as regras do portal</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Consulte as regras do órgão responsável antes de participar da disputa.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">2. Use o acesso oficial</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Acesse os portais pelos canais oficiais e siga as orientações de cada um.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">3. Proteja seus dados de acesso</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Não compartilhe senhas ou certificados e permita acesso apenas a pessoas autorizadas.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">4. Revise cada oferta</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Confira valores e condições antes de confirmar o envio no portal oficial.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">5. Respeite seu preço mínimo</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Defina o menor valor que sua empresa aceita para evitar propostas abaixo da margem desejada.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">6. Acompanhe a disputa</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Confira o andamento diretamente no portal oficial e ajuste sua estratégia quando necessário.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">7. Consulte o histórico</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Revise as informações registradas na plataforma para acompanhar as alterações realizadas.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[#D8E6FF] bg-white p-3.5 shadow-sm">
+                <span className="font-bold text-brand-blue block mb-1">8. Tenha uma alternativa</span>
+                <p className="text-brand-blue/70 text-[11px] leading-relaxed">
+                  Se a plataforma estiver indisponível, acesse o portal oficial para acompanhar a disputa.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-4 xl:grid-cols-3">
             <div className="tech-panel p-5">
               <div className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-brand-blue" />
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Praticidade operacional</p>
+                <Shield className="h-4 w-4 text-emerald-600" />
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Proteção de Margem</p>
               </div>
               <p className="mt-3 text-sm leading-7 text-brand-blue/70">
-                A sala do robo deixa o portal da disputa e a decisao de lance no mesmo fluxo para reduzir troca de tela durante o pregão.
+                Use o valor mínimo cadastrado como referência ao avaliar uma proposta e proteger a margem da empresa.
               </p>
             </div>
 
             <div className="tech-panel p-5">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-brand-blue" />
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Protecao de margem</p>
+                <Globe className="h-4 w-4 text-brand-blue" />
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Acesse o portal oficial</p>
               </div>
               <p className="mt-3 text-sm leading-7 text-brand-blue/70">
-                O piso trava a operacao automaticamente para evitar lances abaixo do limite rentavel definido pela empresa.
+                Consulte esta tela como apoio e envie suas ofertas diretamente no portal oficial do governo.
               </p>
             </div>
 
             <div className="tech-panel p-5">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-brand-blue" />
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Leitura estrategica</p>
+                <CheckCircle className="h-4 w-4 text-brand-blue" />
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Histórico da empresa</p>
               </div>
               <p className="mt-3 text-sm leading-7 text-brand-blue/70">
-                O score do edital deve andar junto com resumo, proposta e impugnacao para disputar so o que faz sentido comercial e juridico.
+                Consulte as informações registradas para acompanhar as alterações feitas na plataforma.
               </p>
             </div>
           </section>

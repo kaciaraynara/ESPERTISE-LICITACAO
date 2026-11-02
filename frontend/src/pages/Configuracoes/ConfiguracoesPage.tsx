@@ -1,15 +1,26 @@
 import { useState, useEffect } from 'react';
 import { 
   Settings, Building, ShieldCheck, Bell, 
-  Cpu, Save, CheckCircle2, Loader2
+  Cpu, Save, CheckCircle2, Loader2, Send, Plus, Lock
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { empresasApi } from '@services/api';
+import api, { authApi, empresasApi, notificacoesApi } from '@services/api';
+import { useAuthStore } from '@/store/auth.store';
+import { useCompany } from '@/contexts/CompanyContext';
+import { PaywallModal } from '@/components/monetization/PaywallModal';
 import toast from 'react-hot-toast';
 
 export default function ConfiguracoesPage() {
   const [abaAtiva, setAbaAtiva] = useState<'EMPRESA' | 'CERTIFICADO' | 'INTEGRACOES' | 'NOTIFICACOES'>('EMPRESA');
+  const [mostrarFormularioEmpresa, setMostrarFormularioEmpresa] = useState(false);
+  const [novoCnpj, setNovoCnpj] = useState('');
+  const [mostrarModalUpgrade, setMostrarModalUpgrade] = useState(false);
   const queryClient = useQueryClient();
+  const authUser = useAuthStore((state) => state.user);
+  const activePlanId = useAuthStore((state) => state.activePlanId);
+  const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
+  const { refreshCompanies } = useCompany();
+  const updateUser = useAuthStore((state) => state.updateUser);
 
   const { data: empresasResp, isLoading } = useQuery({
     queryKey: ['minhas_empresas'],
@@ -19,14 +30,36 @@ export default function ConfiguracoesPage() {
     }
   });
 
-  const empresa = empresasResp?.data?.[0];
+  const empresas = Array.isArray(empresasResp?.data) ? empresasResp.data : [];
+  const empresa = empresas[0];
+  const plansQuery = useQuery({
+    queryKey: ['planos-disponiveis'],
+    queryFn: async () => {
+      const response = await api.get('/pagamentos/planos');
+      return response.data?.data as Array<{
+        id: string;
+        limites?: { maxCompanies?: number };
+      }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const normalizedPlanId = activePlanId === 'avancado' ? 'pro' : activePlanId;
+  const companyLimit = plansQuery.data?.find((plan) => plan.id === normalizedPlanId)?.limites?.maxCompanies;
+  const hasResolvedCompanyLimit =
+    planAccessLoaded && plansQuery.isSuccess && Number.isInteger(companyLimit) && (companyLimit ?? 0) > 0;
+  const limitReached = hasResolvedCompanyLimit && empresas.length >= (companyLimit ?? 0);
+  const nextPlanLabel = normalizedPlanId === 'basic' || normalizedPlanId === 'free'
+    ? 'Fazer Upgrade para o plano Avançado'
+    : normalizedPlanId === 'pro'
+      ? 'Fazer Upgrade para o plano Master'
+      : 'Ver opções de plano';
 
   const [formData, setFormData] = useState({
     razaoSocial: '',
     cnpj: '',
     cnaePrincipal: '',
     status: '',
-    whatsapp: '', // Futuro
+    whatsapp: authUser?.telefone || '',
   });
 
   useEffect(() => {
@@ -36,20 +69,24 @@ export default function ConfiguracoesPage() {
         cnpj: empresa.cnpj || '',
         cnaePrincipal: empresa.cnaePrincipal || '',
         status: empresa.status || '',
-        whatsapp: '+55 (11) 98888-7777', // Fixo por enquanto
+        whatsapp: authUser?.telefone || '',
       });
     }
   }, [empresa]);
 
   const mutation = useMutation({
-    mutationFn: async (data: any) => {
-      if (empresa?.id) {
-        return empresasApi.atualizar(empresa.id, data);
-      } else {
-        return empresasApi.criar(data);
+    mutationFn: async (data: { empresa: Record<string, unknown>; whatsapp: string }) => {
+      const companyRequest = empresa?.id
+        ? empresasApi.atualizar(empresa.id, data.empresa)
+        : empresasApi.criar(data.empresa);
+      const requests = [companyRequest];
+      if (data.whatsapp !== (authUser?.telefone || '')) {
+        requests.push(authApi.updateProfile({ telefone: data.whatsapp }));
       }
+      return Promise.all(requests);
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
+      updateUser({ telefone: variables.whatsapp });
       toast.success('Configurações salvas com sucesso!');
       queryClient.invalidateQueries({ queryKey: ['minhas_empresas'] });
     },
@@ -58,12 +95,80 @@ export default function ConfiguracoesPage() {
     }
   });
 
+  const addCompanyMutation = useMutation({
+    mutationFn: async (cnpj: string) => empresasApi.criar({ cnpj: cnpj.replace(/\D/g, '') }),
+    onSuccess: async () => {
+      toast.success('Empresa adicionada com sucesso.');
+      setNovoCnpj('');
+      setMostrarFormularioEmpresa(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['minhas_empresas'] }),
+        refreshCompanies(),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message || 'Não foi possível adicionar a empresa.');
+    },
+  });
+
+  const handleAdicionarEmpresa = () => {
+    if (limitReached) {
+      setMostrarFormularioEmpresa(false);
+      setMostrarModalUpgrade(true);
+      return;
+    }
+
+    if (!hasResolvedCompanyLimit) {
+      toast.error('Não foi possível confirmar o limite do seu plano. Tente novamente.');
+      return;
+    }
+
+    setMostrarFormularioEmpresa(true);
+  };
+
+  const handleSubmitNovaEmpresa = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const cnpjLimpo = novoCnpj.replace(/\D/g, '');
+    if (cnpjLimpo.length !== 14) {
+      toast.error('Informe um CNPJ válido com 14 dígitos.');
+      return;
+    }
+    if (limitReached) {
+      setMostrarFormularioEmpresa(false);
+      setMostrarModalUpgrade(true);
+      return;
+    }
+    addCompanyMutation.mutate(cnpjLimpo);
+  };
+
+  const [enviandoSms, setEnviandoSms] = useState(false);
+
+  const handleEnviarSmsTeste = async () => {
+    if (!formData.whatsapp?.trim()) {
+      toast.error('Informe um número de telefone com DDD para testar o envio.');
+      return;
+    }
+    setEnviandoSms(true);
+    const toastId = toast.loading('Disparando ping de teste via WhatsApp/SMS...');
+    try {
+      const res = await notificacoesApi.enviarSmsTeste(formData.whatsapp);
+      toast.success(res.data?.message || 'SMS de teste enviado com sucesso!', { id: toastId });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao disparar SMS de teste.', { id: toastId });
+    } finally {
+      setEnviandoSms(false);
+    }
+  };
+
   const handleSave = () => {
     mutation.mutate({
-      razaoSocial: formData.razaoSocial,
-      cnpj: formData.cnpj,
-      cnaePrincipal: formData.cnaePrincipal,
-      status: formData.status,
+      empresa: {
+        razaoSocial: formData.razaoSocial,
+        cnpj: formData.cnpj,
+        cnaePrincipal: formData.cnaePrincipal,
+        status: formData.status,
+      },
+      whatsapp: formData.whatsapp.trim(),
     });
   };
 
@@ -86,11 +191,11 @@ export default function ConfiguracoesPage() {
               <Settings size={20} />
             </span>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Configurações da Empresa & Integrações
+              Configurações da Empresa
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Gestão de credenciais de portais governamentais, certificado digital A1/A3 e robô de automação.
+            Consulte as opções de acesso aos portais públicos e configure os avisos da sua empresa.
           </p>
         </div>
 
@@ -148,6 +253,107 @@ export default function ConfiguracoesPage() {
         
         {abaAtiva === 'EMPRESA' && (
           <div className="space-y-4">
+            <section aria-labelledby="minhas-empresas-heading" className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 id="minhas-empresas-heading" className="text-sm font-bold text-slate-900">
+                    Minhas Empresas
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {hasResolvedCompanyLimit
+                      ? `${empresas.length} de ${companyLimit} empresas utilizadas no plano ${activePlanId === 'pro' ? 'Avançado' : activePlanId === 'master' ? 'Master' : 'Básico'}.`
+                      : 'Consultando o limite de empresas do seu plano...'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-disabled={limitReached}
+                  onClick={handleAdicionarEmpresa}
+                  className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition-colors ${
+                    limitReached
+                      ? 'cursor-pointer bg-slate-200 text-slate-600 hover:bg-slate-300'
+                      : hasResolvedCompanyLimit
+                        ? 'bg-[#EA580C] text-white hover:bg-orange-600'
+                        : 'cursor-wait bg-slate-200 text-slate-500'
+                  }`}
+                  title={limitReached ? 'Clique para conhecer os planos com mais empresas' : 'Adicionar uma empresa'}
+                >
+                  {limitReached ? <Lock size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+                  {limitReached
+                    ? 'Limite de Empresas Atingido'
+                    : hasResolvedCompanyLimit
+                      ? 'Adicionar Empresa'
+                      : 'Verificando limite...'}
+                </button>
+              </div>
+
+              {plansQuery.isError ? (
+                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  Não foi possível consultar os limites do plano. Tente novamente antes de cadastrar outra empresa.
+                  <button
+                    type="button"
+                    onClick={() => void plansQuery.refetch()}
+                    className="ml-1 underline"
+                  >
+                    Tentar novamente
+                  </button>
+                </p>
+              ) : null}
+
+              {empresas.length > 0 ? (
+                <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+                  {empresas.map((item: any) => (
+                    <li key={item.id} className="flex min-w-0 items-center justify-between gap-3 px-3 py-2.5">
+                      <span className="truncate text-xs font-bold text-slate-800">
+                        {item.razaoSocial || item.razao_social || 'Empresa'}
+                      </span>
+                      <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+                        {item.cnpj || 'CNPJ não informado'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                  Nenhuma empresa cadastrada.
+                </p>
+              )}
+
+              {mostrarFormularioEmpresa && !limitReached ? (
+                <form onSubmit={handleSubmitNovaEmpresa} className="flex flex-col gap-2 rounded-xl border border-blue-100 bg-white p-3 sm:flex-row">
+                  <label htmlFor="novo-cnpj" className="sr-only">CNPJ da nova empresa</label>
+                  <input
+                    id="novo-cnpj"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={novoCnpj}
+                    onChange={(event) => setNovoCnpj(event.target.value)}
+                    placeholder="CNPJ da nova empresa"
+                    maxLength={18}
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addCompanyMutation.isPending}
+                    className="rounded-lg bg-[#0A2540] px-4 py-2 text-xs font-bold text-white disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {addCompanyMutation.isPending ? 'Validando...' : 'Cadastrar CNPJ'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostrarFormularioEmpresa(false);
+                      setNovoCnpj('');
+                    }}
+                    className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                  >
+                    Cancelar
+                  </button>
+                </form>
+              ) : null}
+            </section>
+
             <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
               Informações Cadastrais da Empresa
             </h3>
@@ -155,8 +361,8 @@ export default function ConfiguracoesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Razão Social</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.razaoSocial}
                   disabled
                   className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
@@ -232,7 +438,7 @@ export default function ConfiguracoesPage() {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                 <div>
                   <strong className="text-slate-900 font-bold block">Compras.gov.br (SIASG)</strong>
-                  <span className="text-slate-500 text-[10px]">Autenticação via Certificado A1 + Chave API PNCP</span>
+                  <span className="text-slate-500 text-[10px]">Acesso pelo certificado digital e pelas credenciais do portal</span>
                 </div>
                 <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800">CONECTADO</span>
               </div>
@@ -240,7 +446,7 @@ export default function ConfiguracoesPage() {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
                 <div>
                   <strong className="text-slate-900 font-bold block">LicitaNet / Portal de Compras Públicas</strong>
-                  <span className="text-slate-500 text-[10px]">Integração via Robô de Lances Automático</span>
+                  <span className="text-slate-500 text-[10px]">Envie os lances diretamente no portal oficial</span>
                 </div>
                 <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800">CONECTADO</span>
               </div>
@@ -249,20 +455,52 @@ export default function ConfiguracoesPage() {
         )}
 
         {abaAtiva === 'NOTIFICACOES' && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Disparo de Notificações via WhatsApp & Telegram
-            </h3>
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                <Bell size={18} className="text-[#EA580C]" />
+                Avisos por WhatsApp e SMS
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Receba avisos sobre editais alinhados ao seu perfil, prazos importantes e convocações.
+              </p>
+            </div>
 
-            <div className="space-y-3">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Número do WhatsApp para Alertas Urgentes</label>
-                <input 
-                  type="text" 
-                  value={formData.whatsapp}
-                  onChange={(e) => setFormData(p => ({ ...p, whatsapp: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
-                />
+                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
+                  Número do WhatsApp / Celular para Alertas Urgentes
+                </label>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={formData.whatsapp}
+                      onChange={(e) => setFormData(p => ({ ...p, whatsapp: e.target.value }))}
+                      placeholder="+55 (11) 99999-9999"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleEnviarSmsTeste}
+                    disabled={enviandoSms}
+                    className="px-4 py-2.5 bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 shrink-0 cursor-pointer"
+                    title="Envia uma mensagem de teste para verificar o recebimento dos avisos"
+                  >
+                    {enviandoSms ? (
+                      <Loader2 size={14} className="animate-spin text-orange-400" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    <span>Enviar SMS de Teste</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-emerald-600" />
+                  Você receberá uma mensagem para confirmar que os avisos estão chegando.
+                </p>
               </div>
             </div>
           </div>
@@ -270,6 +508,14 @@ export default function ConfiguracoesPage() {
 
       </div>
 
+      <PaywallModal
+        isOpen={mostrarModalUpgrade}
+        onClose={() => setMostrarModalUpgrade(false)}
+        moduleName="Limite de empresas atingido"
+        title="Amplie sua operação"
+        message={`Você possui ${empresas.length} empresa(s) e atingiu o limite de ${companyLimit ?? empresas.length} do seu plano atual. Faça upgrade para cadastrar novos CNPJs.`}
+        upgradeButtonLabel={nextPlanLabel}
+      />
     </div>
   );
 }

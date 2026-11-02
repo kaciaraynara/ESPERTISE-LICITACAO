@@ -13,6 +13,7 @@ import {
 import { concorrentesApi, impugnacaoApi } from '@services/api';
 import type { DadosFraudePeca, MalhaFinaLicitacao } from '@/types';
 import PainelRiscoCartel from './PainelRiscoCartel';
+import { EditalSelector, EditalOption } from '@components/EditalSelector';
 
 type WizardStep = 'concorrentes' | 'risco' | 'dadosPeca' | 'peca';
 
@@ -41,6 +42,15 @@ export default function RecursoFraudeWizard() {
   const [representanteLegal, setRepresentanteLegal] = useState('');
   const [malhaFina, setMalhaFina] = useState<MalhaFinaLicitacao | null>(null);
   const [peca, setPeca] = useState<PecaGerada | null>(null);
+
+  const handleSelectEdital = (ed: EditalOption) => {
+    setNumeroEdital(ed.numeroEdital);
+    setOrgao(ed.orgao);
+    if (ed.modalidade) setModalidade(ed.modalidade);
+    if (ed.dataCertame) setDataCertame(ed.dataCertame);
+    if (ed.objeto) setObjeto(ed.objeto);
+    toast.success('Edital selecionado: Órgão, Modalidade e Data preenchidos automaticamente!');
+  };
 
   const cnpjs = useMemo(() => splitCnpjs(cnpjsText), [cnpjsText]);
   const currentStepIndex = stepOrder.findIndex((item) => item.id === step);
@@ -204,10 +214,15 @@ export default function RecursoFraudeWizard() {
 
         {step === 'dadosPeca' ? (
           <div className="space-y-6">
+            <EditalSelector
+              label="Localizar Edital Monitorado ou Proposta"
+              onSelectEdital={handleSelectEdital}
+            />
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Data do Certame" value={dataCertame} onChange={setDataCertame} type="date" />
               <Field label="Número do Edital" value={numeroEdital} onChange={setNumeroEdital} placeholder="Pregão 041/2026" />
-              <Field label="Órgão" value={orgao} onChange={setOrgao} placeholder="Secretaria Municipal" />
+              <Field label="Órgão Licitante" value={orgao} onChange={setOrgao} placeholder="Secretaria Municipal" />
               <Field label="Modalidade" value={modalidade} onChange={setModalidade} placeholder="Pregão Eletrônico" />
             </div>
 

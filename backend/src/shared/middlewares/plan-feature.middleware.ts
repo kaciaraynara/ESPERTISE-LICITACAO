@@ -6,7 +6,7 @@ export function checkPlanLimit(feature: PlanFeature) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authUser = (req as Request & { user?: { id?: string } }).user;
-      const userId = authUser?.id ?? req.headers?.['x-user-id'];
+      const userId = authUser?.id;
 
       if (!userId) {
         res.status(401).json({
@@ -20,7 +20,7 @@ export function checkPlanLimit(feature: PlanFeature) {
       await planGuardService.assertFeature(String(userId), feature);
       next();
     } catch (error) {
-      if (!((req as Request & { user?: { id?: string } }).user?.id) && !req.headers?.['x-user-id']) {
+      if (!((req as Request & { user?: { id?: string } }).user?.id)) {
         res.status(401).json({
           success: false,
           code: 'UNAUTHORIZED',

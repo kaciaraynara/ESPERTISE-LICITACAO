@@ -3,15 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import axios from 'axios';
 import { 
    CircleNotch, CheckCircle, WarningCircle, InstagramLogo, 
    ArrowRight, ShieldCheck, Eye, EyeSlash, LockKey
 } from '@phosphor-icons/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { authApi } from '@services/api';
+import { authApi, integracoesApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
+import { FORNECEDOR_ROUTES } from '@/routes';
 
 // Zod Schemas sincronizados com o Backend
 const loginSchema = z.object({
@@ -35,20 +35,14 @@ const resetSchema = z.object({
 });
 
 const registerSchema = z.object({
-   nome: z.string().min(2, 'Nome obrigatório'),
    email: z.string().email('E-mail corporativo inválido'),
-   whatsapp: z.string().min(10, 'WhatsApp inválido'),
    cnpj: z.string().min(14, 'CNPJ inválido'),
-   razoesocial: z.string().min(1, 'Razão Social obrigatória'),
+   razoesocial: z.string().optional(),
+   aceite_lgpd: z.boolean().refine((accepted) => accepted, 'Aceite os termos para continuar.'),
    password: z.string()
       .min(8, 'A senha deve ter pelo menos 8 caracteres')
       .regex(/[A-Za-z]/, 'A senha deve conter pelo menos uma letra')
-      .regex(/\d/, 'A senha deve conter pelo menos um número'),
-   confirmPassword: z.string(),
-   role: z.string().min(1, 'Selecione seu papel operacional')
-}).refine(data => data.password === data.confirmPassword, {
-   message: 'As senhas não coincidem',
-   path: ['confirmPassword']
+      .regex(/\d/, 'A senha deve conter pelo menos um número')
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -66,7 +60,6 @@ export default function AuthPages() {
    // Estados para visibilidade de senhas
    const [showLoginPassword, setShowLoginPassword] = useState(false);
    const [showRegPassword, setShowRegPassword] = useState(false);
-   const [showRegConfirm, setShowRegConfirm] = useState(false);
    const [showResetPassword, setShowResetPassword] = useState(false);
    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -86,16 +79,19 @@ export default function AuthPages() {
 
    const onLogin = async (data: LoginFormValues) => {
       try {
-         const response = await authApi.login({ email: data.email, senha: data.password });
+         const response = await authApi.login({
+            email: data.email.trim().toLowerCase(),
+            senha: data.password
+         });
          const { user, accessToken, refreshToken } = response.data.data;
 
          localStorage.setItem('token', accessToken);
          setAuth(user, accessToken, refreshToken ?? undefined);
 
-         toast.success('Acesso seguro liberado. Bem-vindo à sua área protegida.', { icon: '🛡️' });
-         navigate('/dashboard', { replace: true });
+         toast.success('Bem-vindo à sua área protegida.', { icon: '🛡️' });
+         navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
       } catch (error: any) {
-         toast.error(error.response?.data?.message || 'Acesso negado. Verifique suas credenciais.');
+         toast.error(error.response?.data?.message || 'E-mail ou senha incorretos. Verifique suas credenciais.');
       }
    };
 
@@ -105,48 +101,69 @@ export default function AuthPages() {
    const { register: regForm, handleSubmit: handleRegSubmit, watch: regWatch, setValue: regSetValue, formState: { errors: regErrors, isSubmitting: regSubmitting } } = useForm<RegisterFormValues>({
       resolver: zodResolver(registerSchema),
       defaultValues: {
-         nome: location.state?.nome || '',
          email: location.state?.email || '',
-         whatsapp: location.state?.whatsapp || '',
          cnpj: location.state?.cnpj || '',
          razoesocial: location.state?.razaoSocial || '',
+         aceite_lgpd: false,
          password: '',
-         confirmPassword: '',
-         role: 'Empresário / Diretor'
       }
    });
 
    const cnpjValue = regWatch('cnpj');
-   const passWatch = regWatch('password');
-   const confirmWatch = regWatch('confirmPassword');
    const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
+   const [cnpjLookupError, setCnpjLookupError] = useState<string | null>(null);
 
    useEffect(() => {
       const sanitized = cnpjValue.replace(/\D/g, '').slice(0, 14);
       if (sanitized !== cnpjValue) {
-         regSetValue('cnpj', sanitized);
+         regSetValue('cnpj', sanitized, { shouldValidate: true });
       }
-      if (sanitized.length === 14) {
-         setIsLoadingCnpj(true);
-         axios.get(`https://brasilapi.com.br/api/cnpj/v1/${sanitized}`)
-            .then((res: any) => regSetValue('razoesocial', res.data.razao_social || '', { shouldValidate: true }))
-            .catch(() => regSetValue('razoesocial', '', { shouldValidate: true }))
-            .finally(() => setIsLoadingCnpj(false));
-      } else {
-         if (regWatch('razoesocial') !== '') regSetValue('razoesocial', '', { shouldValidate: true });
+      if (sanitized.length !== 14) {
+         setIsLoadingCnpj(false);
+         setCnpjLookupError(null);
+         regSetValue('razoesocial', '', { shouldValidate: true });
+         return;
       }
-   }, [cnpjValue, regSetValue, regWatch]);
+
+      let isCurrentLookup = true;
+      setIsLoadingCnpj(true);
+      setCnpjLookupError(null);
+      regSetValue('razoesocial', '', { shouldValidate: true });
+      const timeout = window.setTimeout(() => {
+         integracoesApi.cnpjPublico(sanitized)
+            .then((response) => {
+               if (!isCurrentLookup) return;
+               const razaoSocial = response.data?.data?.razao_social;
+               if (typeof razaoSocial !== 'string' || !razaoSocial.trim()) {
+                  throw new Error('A consulta não retornou a razão social.');
+               }
+               regSetValue('razoesocial', razaoSocial.trim(), { shouldValidate: true });
+            })
+            .catch(() => {
+               if (isCurrentLookup) {
+                  setCnpjLookupError('Não foi possível consultar este CNPJ automaticamente. Digite a Razão Social no campo abaixo.');
+               }
+            })
+            .finally(() => {
+               if (isCurrentLookup) setIsLoadingCnpj(false);
+            });
+      }, 400);
+
+      return () => {
+         isCurrentLookup = false;
+         window.clearTimeout(timeout);
+      };
+   }, [cnpjValue, regSetValue]);
 
    const onRegister = async (data: RegisterFormValues) => {
       try {
          const response = await authApi.register({
-            nome: data.nome,
-            email: data.email,
+            nome: 'Administrador da conta',
+            email: data.email.trim().toLowerCase(),
             senha: data.password,
-            telefone: data.whatsapp,
             cnpj: data.cnpj,
-            razao_social: data.razoesocial,
-            aceite_lgpd: true,
+            razao_social: data.razoesocial || '',
+            aceite_lgpd: data.aceite_lgpd,
             role: 'fornecedor'
          });
 
@@ -156,7 +173,7 @@ export default function AuthPages() {
             localStorage.setItem('token', accessToken);
             setAuth(user, accessToken, refreshToken ?? undefined);
             toast.success('Ambiente corporativo criado e criptografado com sucesso!', { icon: '🔐' });
-            navigate('/dashboard', { replace: true });
+            navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
          } else {
             toast.success('Empresa validada! Faça o login para acessar o ambiente.');
             setActiveView('login');
@@ -177,7 +194,7 @@ export default function AuthPages() {
 
    const onForgot = async (data: ForgotFormValues) => {
       try {
-         const res = await authApi.forgotPassword({ email: data.email });
+         const res = await authApi.forgotPassword({ email: data.email.trim().toLowerCase() });
          toast.success('Se o e-mail estiver cadastrado, você receberá as instruções em instantes.');
          
          // Se o backend enviar um devToken (pois não temos envio de email real configurado ainda)
@@ -221,7 +238,7 @@ export default function AuthPages() {
    };
 
    return (
-      <div className="flex min-h-screen w-full bg-white font-sans text-slate-800 relative">
+      <main className="flex min-h-screen w-full bg-white font-sans text-slate-800 relative motion-reduce:animate-none">
          {/* Botão de Escape */}
          <button
             onClick={() => window.location.href = '/'}
@@ -234,57 +251,57 @@ export default function AuthPages() {
          </button>
 
          {/* LEFT PANEL: Institucional, Criptografia e Segurança */}
-         <div className="hidden lg:flex w-1/2 bg-[#0A2540] flex-col justify-between p-12 lg:p-16 relative overflow-hidden">
+         <div className="hidden lg:flex w-1/2 bg-[#F5F8FC] flex-col justify-between p-12 lg:p-16 relative overflow-hidden">
             {/* Animacao de background */}
             <motion.div 
-               className="absolute inset-0 z-0 opacity-10"
+               className="absolute inset-0 z-0 opacity-[0.07]"
                animate={{ backgroundPosition: ['0% 0%', '100% 100%'] }}
                transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
                style={{
-                  backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
-                  backgroundSize: '40px 40px'
+                  backgroundImage: 'radial-gradient(circle at 2px 2px, #0A2540 1px, transparent 0)',
+                  backgroundSize: '36px 36px'
                }}
             />
 
             <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, type: "spring", bounce: 0.4 }} className="pt-8 relative z-10">
-               <img src="/logo.png" alt="Expertise Licitatória" className="h-14 md:h-16 w-auto object-contain brightness-0 invert opacity-95 drop-shadow-lg mb-8" />
+               <img src="/logo.png" alt="Expertise Licitatória" className="h-14 md:h-16 w-auto object-contain opacity-95 mb-8" />
             </motion.div>
 
             <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.2, type: "spring" }} className="z-10 flex flex-col justify-center flex-1 pr-10 mt-12">
                <AnimatePresence mode="wait">
                   {activeView === 'login' ? (
                      <motion.div key="text-login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           AMBIENTE SEGURO DE GESTÃO INSTITUCIONAL
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
+                           Sua vantagem estratégica em licitações públicas.
                         </h2>
-                        <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
-                           Acesse seus dados criptografados, visualize seus prazos estratégicos e envie cotações ao mercado governamental com precisão e controle.
+                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
+                           Acompanhe prazos, oportunidades e informações da sua empresa em um só lugar.
                         </p>
                      </motion.div>
                   ) : activeView === 'register' ? (
                      <motion.div key="text-reg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           PROTEJA SUA EMPRESA COM TECNOLOGIA DE PONTA
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
+                           Sua empresa pronta para novas oportunidades.
                         </h2>
-                        <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
-                           Cadastre seu CNPJ e tenha um ambiente blindado para analisar editais complexos, monitorar concorrência e preservar o sigilo das suas margens.
+                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
+                           Cadastre seu CNPJ para organizar documentos, acompanhar oportunidades e preparar propostas para o mercado público.
                         </p>
                      </motion.div>
                   ) : activeView === 'forgot' ? (
                      <motion.div key="text-forgot" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           RECUPERAÇÃO DE CONTA CORPORATIVA
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
+                           Recupere seu acesso com segurança.
                         </h2>
-                        <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
+                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
                            Para manter a segurança das informações de licitação da sua empresa, enviamos um token temporário diretamente para o seu e-mail institucional.
                         </p>
                      </motion.div>
                   ) : (
                      <motion.div key="text-reset" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-white text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           ATUALIZAÇÃO DE CREDENCIAIS
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
+                           Atualize suas credenciais.
                         </h2>
-                        <p className="text-blue-100 text-lg font-medium leading-relaxed mb-10">
+                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
                            Crie uma nova senha de alta complexidade. Proteja suas informações corporativas e estratégias de mercado.
                         </p>
                      </motion.div>
@@ -293,26 +310,26 @@ export default function AuthPages() {
 
                <div className="space-y-6">
                   {[
-                     'Análise Jurídica Automatizada e Precisa',
-                     'Automação de Cronogramas Críticos',
+                     'Análise assistida de editais',
+                     'Acompanhamento de prazos importantes',
                      'Inteligência Competitiva de Preços',
-                     'Armazenamento Isolado e Criptografado'
+                     'Documentos organizados por empresa'
                   ].map((item, idx) => (
                      <motion.div key={idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.4 + (idx * 0.1) }} className="flex items-center gap-4">
                         <LockKey weight="bold" className="text-[#EA580C] w-6 h-6 shrink-0" />
-                        <span className="text-white font-bold tracking-wide text-sm">{item}</span>
+                        <span className="text-[#0A2540] font-bold tracking-wide text-sm">{item}</span>
                      </motion.div>
                   ))}
                </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.8 }} className="text-slate-400 text-[11px] font-bold uppercase tracking-widest flex items-center gap-3 mt-12 z-10">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.8 }} className="text-slate-500 text-[11px] font-bold uppercase tracking-widest flex items-center gap-3 mt-12 z-10">
                <ShieldCheck size={20} weight="fill" className="text-emerald-500" /> CONFORMIDADE JURÍDICA E PROTEÇÃO DE DADOS ATIVA
             </motion.div>
          </div>
 
          {/* RIGHT PANEL: Formulários */}
-         <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-6 sm:p-12 h-screen overflow-y-auto bg-white relative">
+         <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-6 sm:p-12 min-h-screen lg:h-screen overflow-y-auto bg-white relative">
             {/* Header Mobile */}
             <div className="w-full flex lg:hidden items-center justify-center mb-8 mt-12">
                <img src="/logo.png" alt="Expertise" className="w-[60%] max-w-[200px] h-auto object-contain" />
@@ -323,27 +340,46 @@ export default function AuthPages() {
                   {/* --- LOGIN VIEW --- */}
                   {activeView === 'login' && (
                      <motion.div key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-8 flex items-center gap-3">
-                           Acesso Seguro <ShieldCheck weight="duotone" className="w-8 h-8 text-emerald-500" />
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-3xl mb-3 flex items-center gap-3">
+                           Bem-vindo de volta <ShieldCheck weight="duotone" className="w-8 h-8 text-emerald-500" />
                         </h2>
+                        <p className="mb-8 text-sm text-slate-500">Acesse sua central de oportunidades.</p>
 
                         <form onSubmit={handleLoginSubmit(onLogin)} className="space-y-5">
                            <div className="relative group">
-                              <input {...loginForm('email')} id="login_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#0A2540] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="login_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL CORPORATIVO</label>
+                              <input
+                                 {...loginForm('email')}
+                                 id="login_email"
+                                 placeholder=" "
+                                 type="email"
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-medium lowercase tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                              />
+                              <label htmlFor="login_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL CORPORATIVO</label>
                               {loginErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.email.message}</p>}
                            </div>
 
                            <div className="relative group">
-                              <input {...loginForm('password')} id="login_password" placeholder=" " type={showLoginPassword ? 'text' : 'password'} className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#0A2540] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="login_password" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">SENHA INSTITUCIONAL</label>
-                              <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-3.5 text-slate-400 hover:text-[#0A2540] transition-colors focus:outline-none">
+                              <input
+                                 {...loginForm('password')}
+                                 id="login_password"
+                                 placeholder=" "
+                                 type={showLoginPassword ? 'text' : 'password'}
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-12 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                              />
+                              <label htmlFor="login_password" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">SENHA INSTITUCIONAL</label>
+                              <button type="button" aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-3.5 text-slate-500 hover:text-[#0A2540] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] rounded">
                                  {showLoginPassword ? <EyeSlash className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
                               </button>
                               {loginErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.password.message}</p>}
                            </div>
 
-                           <motion.button disabled={loginSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-slate-800 transition-colors group mt-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                           <motion.button disabled={loginSubmitting} type="submit" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-[0_10px_26px_rgba(234,88,12,0.22)] hover:bg-orange-600 transition-colors group mt-2 disabled:opacity-70 disabled:cursor-not-allowed">
                               <span className="relative z-10 flex items-center gap-2">
                                  {loginSubmitting ? (
                                     <>
@@ -352,13 +388,14 @@ export default function AuthPages() {
                                     </>
                                  ) : (
                                     <>
-                                       ACESSAR AMBIENTE
+                                       ACEDER À PLATAFORMA
                                        <ArrowRight weight="bold" className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                                     </>
                                  )}
                               </span>
                            </motion.button>
                         </form>
+
 
                         <div className="mt-8 flex flex-col items-center gap-4">
                            <button onClick={() => setActiveView('forgot')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Esqueceu seus dados?</button>
@@ -370,88 +407,113 @@ export default function AuthPages() {
                   {/* --- REGISTER VIEW --- */}
                   {activeView === 'register' && (
                      <motion.div key="register" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="my-auto py-8">
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-8 flex items-center gap-3">
-                           Cadastro Corporativo <LockKey weight="duotone" className="w-8 h-8 text-[#EA580C]" />
+                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-3xl mb-3 flex items-center gap-3">
+                           Crie sua conta <LockKey weight="duotone" className="w-8 h-8 text-[#EA580C]" />
                         </h2>
+                        <p className="mb-7 text-sm text-slate-500">Comece com três informações. Validaremos a empresa pelo CNPJ.</p>
 
-                        <form onSubmit={handleRegSubmit(onRegister)} className="space-y-4">
-                           <div className="relative group">
-                              <input {...regForm('nome')} id="reg_nome" placeholder=" " type="text" className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="reg_nome" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOME DO RESPONSÁVEL</label>
-                              {regErrors.nome && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.nome.message}</p>}
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <form onSubmit={handleRegSubmit(onRegister)} className="space-y-5">
+                           <div>
                               <div className="relative group">
-                                 <input {...regForm('email')} id="reg_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                                 <label htmlFor="reg_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL INSTITUCIONAL</label>
+                                 <input
+                                    {...regForm('email')}
+                                    id="reg_email"
+                                    placeholder=" "
+                                    type="email"
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    autoComplete="email"
+                                    required
+                                    className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-medium lowercase tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <label htmlFor="reg_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL INSTITUCIONAL</label>
                                  {regErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.email.message}</p>}
                               </div>
-                              <div className="relative group">
-                                 <input {...regForm('whatsapp')} id="reg_whats" placeholder=" " type="tel" className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                                 <label htmlFor="reg_whats" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">WHATSAPP DA EMPRESA</label>
-                                 {regErrors.whatsapp && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.whatsapp.message}</p>}
-                              </div>
                            </div>
 
                            <div className="relative group">
-                              <input {...regForm('cnpj')} id="reg_cnpj" placeholder=" " type="text" maxLength={14} className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-10 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="reg_cnpj" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CNPJ MATRIZ/FILIAL</label>
+                              <input
+                                 {...regForm('cnpj')}
+                                 id="reg_cnpj"
+                                 placeholder=" "
+                                 type="text"
+                                 inputMode="numeric"
+                                 autoComplete="off"
+                                 maxLength={18}
+                                 required
+                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-10 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                              />
+                              <label htmlFor="reg_cnpj" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CNPJ MATRIZ/FILIAL</label>
                               {isLoadingCnpj && <CircleNotch className="absolute right-4 top-4 h-5 w-5 text-[#EA580C] animate-spin" />}
                               {regErrors.cnpj && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.cnpj.message}</p>}
                            </div>
 
-                           {isLoadingCnpj ? (
-                              <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center justify-center h-[54px]">
-                                 <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity }} className="h-4 bg-slate-300 rounded w-2/3"></motion.div>
-                              </div>
-                           ) : (
-                              <div className="relative">
-                                 <input {...regForm('razoesocial')} id="reg_razao" placeholder=" " type="text" className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-10 pb-2 pt-6 text-sm font-black uppercase tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${regWatch('razoesocial') && !regErrors.razoesocial ? 'border-emerald-200 bg-emerald-50/30' : ''}`} />
-                                 <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">RAZÃO SOCIAL</label>
-                                 {regWatch('razoesocial') && !regErrors.razoesocial && <CheckCircle className="absolute right-4 top-4 h-5 w-5 text-emerald-500" weight="fill" />}
-                                 {regErrors.razoesocial && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.razoesocial.message}</p>}
-                              </div>
-                           )}
+                           <div className="relative">
+                              <input
+                                 {...regForm('razoesocial')}
+                                 id="reg_razao"
+                                 placeholder=" "
+                                 type="text"
+                                 disabled={isLoadingCnpj}
+                                 aria-live="polite"
+                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-10 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100 disabled:bg-slate-50 disabled:text-slate-500"
+                              />
+                              <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">RAZÃO SOCIAL DA EMPRESA</label>
+                              {regWatch('razoesocial') && <CheckCircle className="absolute right-4 top-4 h-5 w-5 text-emerald-500" weight="fill" />}
+                              {isLoadingCnpj && <span className="absolute right-4 top-4 text-xs text-slate-500">Consultando...</span>}
+                              {cnpjLookupError && <p role="status" className="mt-2 text-xs font-medium text-amber-700">{cnpjLookupError}</p>}
+                           </div>
 
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div>
                               <div className="relative group">
-                                 <input {...regForm('password')} id="reg_pass" placeholder=" " type={showRegPassword ? 'text' : 'password'} className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                                 <label htmlFor="reg_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CRIAR SENHA SECRETA</label>
-                                 <button type="button" onClick={() => setShowRegPassword(!showRegPassword)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
+                                 <input
+                                    {...regForm('password')}
+                                    id="reg_pass"
+                                    placeholder=" "
+                                    type={showRegPassword ? 'text' : 'password'}
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    required
+                                    autoComplete="new-password"
+                                    className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-12 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <label htmlFor="reg_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CRIAR SENHA SECRETA</label>
+                                 <button type="button" aria-label={showRegPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showRegPassword} onClick={() => setShowRegPassword(!showRegPassword)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] rounded">
                                     {showRegPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                  </button>
                                  {regErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {regErrors.password.message}</p>}
                               </div>
-                              <div className="relative group">
-                                 <input {...regForm('confirmPassword')} id="reg_confirm" placeholder=" " type={showRegConfirm ? 'text' : 'password'} className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${passWatch && confirmWatch && passWatch === confirmWatch ? 'border-emerald-300 ring-1 ring-emerald-300' : ''}`} />
-                                 <label htmlFor="reg_confirm" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">REPETIR SENHA</label>
-                                 <button type="button" onClick={() => setShowRegConfirm(!showRegConfirm)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
-                                    {showRegConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                 </button>
-                                 {regErrors.confirmPassword && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {regErrors.confirmPassword.message}</p>}
-                              </div>
                            </div>
-                           
-                           {/* Hint de segurança dinâmico */}
-                           <AnimatePresence>
-                              {passWatch && passWatch.length > 0 && passWatch === confirmWatch && (
-                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-widest bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
-                                    <ShieldCheck weight="fill" className="w-4 h-4" /> Senhas coincidem
-                                 </motion.div>
-                              )}
-                           </AnimatePresence>
 
-                           <motion.button disabled={regSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-orange-600 transition-colors group mt-6 disabled:opacity-70 disabled:cursor-not-allowed">
+                           <label className="flex items-start gap-3 text-xs leading-relaxed text-slate-600">
+                              <input
+                                 {...regForm('aceite_lgpd')}
+                                 type="checkbox"
+                                 className="mt-0.5 h-4 w-4 shrink-0 accent-[#EA580C]"
+                              />
+                              <span>
+                                 Li e aceito os <a href="/termos" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Política de Privacidade</a>.
+                                 {regErrors.aceite_lgpd && <span className="mt-1 block text-red-600">{regErrors.aceite_lgpd.message}</span>}
+                              </span>
+                           </label>
+
+                           <p className="flex items-center gap-2 text-xs leading-relaxed text-slate-500">
+                              <LockKey className="h-4 w-4 shrink-0 text-emerald-600" weight="bold" />
+                              Conexão protegida e dados tratados com segurança.
+                           </p>
+
+                           <motion.button disabled={regSubmitting} type="submit" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-[0_10px_26px_rgba(234,88,12,0.22)] hover:bg-orange-600 transition-colors group mt-6 disabled:opacity-70 disabled:cursor-not-allowed">
                               <span className="relative z-10 flex items-center gap-2">
                                  {regSubmitting ? (
                                     <>
                                        <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
-                                       CRIANDO AMBIENTE PROTEGIDO...
+                                       CRIANDO CONTA...
                                     </>
                                  ) : (
                                     <>
-                                       VALIDAR CNPJ E PROTEGER DADOS
+                                       CRIAR CONTA
                                        <ArrowRight weight="bold" className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
                                     </>
                                  )}
@@ -473,8 +535,17 @@ export default function AuthPages() {
 
                         <form onSubmit={handleForgotSubmit(onForgot)} className="space-y-6">
                            <div className="relative group">
-                              <input {...forgotForm('email')} id="forgot_email" placeholder=" " type="email" className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold uppercase tracking-wider text-slate-900 focus:border-[#0A2540] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="forgot_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL INSTITUCIONAL</label>
+                              <input
+                                 {...forgotForm('email')}
+                                 id="forgot_email"
+                                 placeholder=" "
+                                 type="email"
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold lowercase tracking-wider text-slate-900 focus:border-[#0A2540] focus:bg-white outline-none transition-all"
+                              />
+                              <label htmlFor="forgot_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL INSTITUCIONAL</label>
                               {forgotErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {forgotErrors.email.message}</p>}
                            </div>
 
@@ -518,18 +589,36 @@ export default function AuthPages() {
 
                         <form onSubmit={handleResetSubmit(onReset)} className="space-y-6">
                            <div className="relative group">
-                              <input {...resetForm('password')} id="reset_pass" placeholder=" " type={showResetPassword ? 'text' : 'password'} className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all" />
-                              <label htmlFor="reset_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOVA SENHA (MÍN 8 CARACT.)</label>
-                              <button type="button" onClick={() => setShowResetPassword(!showResetPassword)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
+                              <input
+                                 {...resetForm('password')}
+                                 id="reset_pass"
+                                 placeholder=" "
+                                 type={showResetPassword ? 'text' : 'password'}
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all"
+                              />
+                              <label htmlFor="reset_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOVA SENHA (MÍN 8 CARACT.)</label>
+                              <button type="button" onClick={() => setShowResetPassword(!showResetPassword)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none">
                                  {showResetPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                               </button>
                               {resetErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.password.message}</p>}
                            </div>
 
                            <div className="relative group">
-                              <input {...resetForm('confirmPassword')} id="reset_confirm" placeholder=" " type={showResetConfirm ? 'text' : 'password'} className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${passResetWatch && passResetConfirmWatch && passResetWatch === passResetConfirmWatch ? 'border-emerald-300 ring-1 ring-emerald-300' : ''}`} />
-                              <label htmlFor="reset_confirm" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">REPETIR NOVA SENHA</label>
-                              <button type="button" onClick={() => setShowResetConfirm(!showResetConfirm)} className="absolute right-3 top-3.5 text-slate-400 hover:text-[#EA580C] transition-colors focus:outline-none">
+                              <input
+                                 {...resetForm('confirmPassword')}
+                                 id="reset_confirm"
+                                 placeholder=" "
+                                 type={showResetConfirm ? 'text' : 'password'}
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${passResetWatch && passResetConfirmWatch && passResetWatch === passResetConfirmWatch ? 'border-emerald-300 ring-1 ring-emerald-300' : ''}`}
+                              />
+                              <label htmlFor="reset_confirm" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">REPETIR NOVA SENHA</label>
+                              <button type="button" onClick={() => setShowResetConfirm(!showResetConfirm)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none">
                                  {showResetConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                               </button>
                               {resetErrors.confirmPassword && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.confirmPassword.message}</p>}
@@ -570,11 +659,11 @@ export default function AuthPages() {
             {/* Footer Digital Day Software */}
             <div className="w-full text-center mt-8 pt-6 border-t border-slate-100">
                <a href="https://instagram.com/digitalday_software" target="_blank" rel="noreferrer" className="inline-flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-full px-5 py-2 transition-all group">
-                  <span className="text-[10px] text-slate-400 group-hover:text-slate-600 transition-colors uppercase font-bold tracking-widest">Desenvolvido por <strong className="text-[#0A2540]">Digital Day Software</strong></span>
-                  <InstagramLogo weight="fill" className="h-4 w-4 text-slate-400 group-hover:text-[#EA580C] transition-colors" />
+                  <span className="text-[10px] text-slate-500 group-hover:text-slate-600 transition-colors uppercase font-bold tracking-widest">Desenvolvido por <strong className="text-[#0A2540]">Digital Day Software</strong></span>
+                  <InstagramLogo weight="fill" className="h-4 w-4 text-slate-500 group-hover:text-[#EA580C] transition-colors" />
                </a>
             </div>
          </div>
-      </div>
+      </main>
    );
 }

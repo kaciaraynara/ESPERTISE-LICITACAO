@@ -36,7 +36,7 @@ export const AcademiaPage: React.FC = () => {
     },
     {
       id: '3',
-      titulo: 'Algoritmos e Estratégia Prática para Disputa de Lances',
+      titulo: 'Estratégia prática para disputar lances',
       categoria: 'TÁTICAS_DE_DISPUTA',
       duracao: '2h 00m',
       aulasCount: 6,

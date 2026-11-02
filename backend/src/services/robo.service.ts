@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Socket } from 'socket.io';
 import { prisma } from '../database/prisma';
 
@@ -364,96 +365,81 @@ export class RoboSocketService {
     if (payload.estrategia) this.estrategia = payload.estrategia;
     this.isActive = true;
     
-    this.emitLog(`[SISTEMA] Robô Expertise iniciado. Stop-loss ativado em R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}.`, 'system');
+    this.emitLog(`[CENTRAL DE ESTRATÉGIA] Sessão iniciada. Piso de proteção configurado em R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}. Operação manual assistida.`, 'system');
     this.socket.emit('robo_status', { ativo: true, estrategia: this.estrategia });
   }
 
   public pausar() {
     if (!this.isActive) return;
     this.isActive = false;
-    this.emitLog('[EMERGÊNCIA] Robô foi pausado. Operação retornada para controle estritamente manual.', 'alert');
+    this.emitLog('[CENTRAL DE ESTRATÉGIA] Monitoramento tático pausado.', 'alert');
     this.socket.emit('robo_status', { ativo: false });
   }
 
   public atualizarEstrategia(payload: { estrategia: EstrategiaType }) {
     this.estrategia = payload.estrategia;
-    this.emitLog(`[SISTEMA] Estratégia de Inteligência alterada para: ${this.estrategia.toUpperCase()}.`, 'system');
+    this.emitLog(`[ESTRATÉGIA] Perfil tático atualizado para: ${this.estrategia.toUpperCase()}.`, 'system');
     this.socket.emit('robo_status', { ativo: this.isActive, estrategia: this.estrategia });
   }
 
   public processarLanceManual(payload: { valor: number }) {
-    this.emitLog(`[MANUAL] Lance recebido do Cockpit: R$ ${payload.valor.toLocaleString('pt-BR')}. Analisando margem...`, 'info');
+    this.emitLog(`[ANÁLISE DE MARGEM] Avaliando proposta manual de R$ ${payload.valor.toLocaleString('pt-BR')}...`, 'info');
     
     if (payload.valor <= this.lanceMinimoPermitido) {
-      this.emitLog(`[BLOQUEADO] Operação negada! O lance manual violaria o piso de R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}.`, 'alert');
+      this.emitLog(`[BLOQUEIO DE SEGURANÇA] Lance manual de R$ ${payload.valor.toLocaleString('pt-BR')} viola o piso estipulado de R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}.`, 'alert');
       return;
     }
 
-    this.enviarLance(payload.valor);
+    this.valorAtualDisputa = payload.valor;
+    this.emitLog(`[LANCE VALIDADO] Oferta de R$ ${payload.valor.toLocaleString('pt-BR')} aprovada dentro da margem segura. Registre este valor no portal oficial da disputa.`, 'action');
+    this.socket.emit('lance_validado', { valor: this.valorAtualDisputa });
   }
 
   public processarNovoLanceOponente(valorMercado: number, tempoRestante: number) {
     if (!this.isActive) return;
 
-    this.emitLog(`[SCAN] Concorrente cobriu a oferta para R$ ${valorMercado.toLocaleString('pt-BR')}. Tempo de rodada: ${tempoRestante}s`, 'info');
+    this.emitLog(`[CENÁRIO INFORMADO] Valor concorrente informado: R$ ${valorMercado.toLocaleString('pt-BR')}. Tempo de rodada: ${tempoRestante}s`, 'info');
     this.valorAtualDisputa = valorMercado;
 
     if (valorMercado <= this.lanceMinimoPermitido) {
       this.pausar();
-      this.emitLog(`[ALERTA DE MARGEM] O mercado (R$ ${valorMercado.toLocaleString('pt-BR')}) atingiu seu piso de proteção (R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}). O Robô parou a disputa para blindar seu lucro.`, 'alert');
+      this.emitLog(`[ALERTA DE MARGEM] O valor informado (R$ ${valorMercado.toLocaleString('pt-BR')}) atingiu o piso de segurança (R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}). Estratégia recomenda não cobrir para proteger a rentabilidade.`, 'alert');
       this.socket.emit('margem_atingida', { valorMercado, lanceMinimoPermitido: this.lanceMinimoPermitido });
       return;
     }
 
-    let novoLance = 0;
+    let sugestaoLance = 0;
 
     switch (this.estrategia) {
       case 'agressivo':
-        novoLance = valorMercado - 10;
-        this.emitLog(`[IA: AGRESSIVO] Preparando ataque instantâneo. Calculando cobertura agressiva para R$ ${novoLance.toLocaleString('pt-BR')}.`, 'system');
-        this.enviarLance(novoLance);
+        sugestaoLance = valorMercado - 10;
         break;
-
       case 'conservador':
-        novoLance = valorMercado - 0.01;
-        this.emitLog(`[IA: CONSERVADOR] Margem segura. Cobrindo lance oponente com mínima dízima possível: R$ ${novoLance.toLocaleString('pt-BR')}.`, 'system');
-        this.enviarLance(novoLance);
+        sugestaoLance = valorMercado - 0.01;
         break;
-
       case 'sniper':
-        if (tempoRestante <= 3) {
-          novoLance = valorMercado - 5;
-          this.emitLog(`[IA: SNIPER] Últimos ${tempoRestante}s! Disparando tiro letal de precisão: R$ ${novoLance.toLocaleString('pt-BR')}.`, 'system');
-          this.enviarLance(novoLance);
-        } else {
-          this.emitLog(`[IA: SNIPER] Tempo restante longo (${tempoRestante}s). Ocultando nosso interesse. Aguardando a zona de abate.`, 'info');
-        }
+        sugestaoLance = valorMercado - 5;
         break;
     }
-  }
 
-  private enviarLance(valor: number) {
-    if (valor <= this.lanceMinimoPermitido) {
-      this.pausar();
-      this.emitLog(`[ERRO CRÍTICO AFASTADO] Falha matemática detectada no cálculo da IA! Tentativa de oferta de R$ ${valor} violaria o stop-loss. Robô desativado em modo de emergência.`, 'alert');
+    sugestaoLance = Number(sugestaoLance.toFixed(2));
+
+    if (sugestaoLance <= this.lanceMinimoPermitido) {
+      this.emitLog(`[ALERTA DE MARGEM] Sugestão de lance violaria o piso de segurança (R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}). Intervenção recomendada: manter posição ou avaliar lote.`, 'alert');
       return;
     }
-    
-    setTimeout(() => {
-      if (!this.isActive) return;
-      this.valorAtualDisputa = valor;
-      this.emitLog(`[AÇÃO] 🚀 Lance protocolado no provedor com sucesso: R$ ${valor.toLocaleString('pt-BR')}. Somos o primeiro lugar temporário.`, 'action');
-      this.socket.emit('lance_enviado', { valor: this.valorAtualDisputa });
-    }, 400);
+
+    this.emitLog(`[SUGESTÃO TÁTICA (${this.estrategia.toUpperCase()})] Lance recomendado para cobrir: R$ ${sugestaoLance.toLocaleString('pt-BR')}. A submissão deve ser feita manualmente pelo operador no portal oficial.`, 'system');
+    this.socket.emit('sugestao_lance', { valor: sugestaoLance, estrategia: this.estrategia });
   }
 
   private emitLog(mensagem: string, type: 'info' | 'system' | 'action' | 'alert' = 'info') {
     const time = new Date().toLocaleTimeString('pt-BR', { hour12: false });
     this.socket.emit('robo_log', {
-      id: Date.now() + Math.random(),
+      id: `${Date.now()}-${randomUUID()}`,
       time,
       text: mensagem,
-      type
+      type,
     });
   }
 }

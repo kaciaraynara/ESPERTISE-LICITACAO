@@ -252,7 +252,7 @@ export default function EmpresaPage() {
                 <div className="bg-white border border-dashed border-gray-100 rounded-lg p-4 text-center">
                   <User className="w-8 h-8 text-brand-blue/70 mx-auto mb-2" />
                   <p className="text-sm text-brand-blue/70">Digite o CPF e clique em Verificar para consultar o Gov.br</p>
-                  <p className="text-xs text-brand-blue/70 mt-1">A consulta usa a API oficial do Serpro (ConectaGov)</p>
+                  <p className="text-xs text-brand-blue/70 mt-1">Consulta feita pelo serviço oficial do Serpro (ConectaGov)</p>
                 </div>
               )}
             </div>
@@ -311,5 +311,4 @@ export default function EmpresaPage() {
     </div>
   );
 }
-
 

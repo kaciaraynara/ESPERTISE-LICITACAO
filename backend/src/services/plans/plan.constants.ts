@@ -1,26 +1,16 @@
+import {
+  ALL_PLAN_FEATURES as CONFIG_ALL_PLAN_FEATURES,
+  PLAN_FEATURES_CONFIG,
+  type PlanFeatureName,
+} from '../../config/plan-features';
+
 export const PLAN_IDS = ['free', 'basic', 'pro', 'master'] as const;
 
 export type PlanId = (typeof PLAN_IDS)[number];
 
-export const ALL_PLAN_FEATURES = [
-  'notices.basic_summary',
-  'notices.full_summary',
-  'notices.legal_precheck',
-  'notices.error_radar',
-  'notices.opportunity_score',
-  'proposal.factory',
-  'proposal.strategy',
-  'pricing.strategy',
-  'impugnation.simple',
-  'investigation.cartel_signals',
-  'investigation.competitor_intelligence',
-  'catalog.full',
-  'reports.strategic',
-  'lex.advanced',
-  'bid.robot',
-] as const;
+export const ALL_PLAN_FEATURES = CONFIG_ALL_PLAN_FEATURES;
 
-export type PlanFeature = (typeof ALL_PLAN_FEATURES)[number];
+export type PlanFeature = PlanFeatureName;
 
 export interface PlanDefinition {
   id: PlanId;
@@ -50,73 +40,39 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
   },
   basic: {
     id: 'basic',
-    nome: 'Básico',
-    descricao: 'Para licitantes que estão começando a organizar a rotina de participação.',
-    valorMensalCentavos: 6999,
-    maxCompanies: 1,
-    maxUsers: 2,
-    maxMonitoredNotices: 10,
-    maxNullityAnalysesMonth: 3,
-    maxProposalsMonth: 5,
-    features: [
-      'notices.basic_summary',
-      'notices.legal_precheck',
-      'notices.error_radar',
-      'proposal.factory',
-    ],
+    nome: PLAN_FEATURES_CONFIG.BASICO.nome,
+    descricao: PLAN_FEATURES_CONFIG.BASICO.descricao,
+    valorMensalCentavos: PLAN_FEATURES_CONFIG.BASICO.valorMensalCentavos,
+    maxCompanies: PLAN_FEATURES_CONFIG.BASICO.limits.maxCnpjs,
+    maxUsers: PLAN_FEATURES_CONFIG.BASICO.limits.maxUsers,
+    maxMonitoredNotices: PLAN_FEATURES_CONFIG.BASICO.limits.maxMonitoredNotices,
+    maxNullityAnalysesMonth: PLAN_FEATURES_CONFIG.BASICO.limits.maxAnalyses,
+    maxProposalsMonth: PLAN_FEATURES_CONFIG.BASICO.limits.maxProposals,
+    features: PLAN_FEATURES_CONFIG.BASICO.features,
   },
   pro: {
     id: 'pro',
-    nome: 'Pro',
-    descricao: 'Para licitantes recorrentes que precisam analisar, precificar e disputar melhor.',
-    valorMensalCentavos: 14999,
-    maxCompanies: 5,
-    maxUsers: 5,
-    maxMonitoredNotices: 50,
-    maxNullityAnalysesMonth: 30,
-    maxProposalsMonth: 30,
-    features: [
-      'notices.basic_summary',
-      'notices.full_summary',
-      'notices.legal_precheck',
-      'notices.error_radar',
-      'notices.opportunity_score',
-      'proposal.factory',
-      'proposal.strategy',
-      'pricing.strategy',
-      'impugnation.simple',
-      'reports.strategic',
-    ],
+    nome: PLAN_FEATURES_CONFIG.AVANCADO.nome,
+    descricao: PLAN_FEATURES_CONFIG.AVANCADO.descricao,
+    valorMensalCentavos: PLAN_FEATURES_CONFIG.AVANCADO.valorMensalCentavos,
+    maxCompanies: PLAN_FEATURES_CONFIG.AVANCADO.limits.maxCnpjs,
+    maxUsers: PLAN_FEATURES_CONFIG.AVANCADO.limits.maxUsers,
+    maxMonitoredNotices: PLAN_FEATURES_CONFIG.AVANCADO.limits.maxMonitoredNotices,
+    maxNullityAnalysesMonth: PLAN_FEATURES_CONFIG.AVANCADO.limits.maxAnalyses,
+    maxProposalsMonth: PLAN_FEATURES_CONFIG.AVANCADO.limits.maxProposals,
+    features: PLAN_FEATURES_CONFIG.AVANCADO.features,
   },
   master: {
     id: 'master',
-    nome: 'Master',
-    descricao: 'Para licitantes estratégicos com investigação, inteligência avançada e operação em equipe.',
-    valorMensalCentavos: 24999,
-    maxCompanies: 10,
-    maxUsers: 10,
-    maxMonitoredNotices: 200,
+    nome: PLAN_FEATURES_CONFIG.MASTER.nome,
+    descricao: PLAN_FEATURES_CONFIG.MASTER.descricao,
+    valorMensalCentavos: PLAN_FEATURES_CONFIG.MASTER.valorMensalCentavos,
+    maxCompanies: PLAN_FEATURES_CONFIG.MASTER.limits.maxCnpjs,
+    maxUsers: PLAN_FEATURES_CONFIG.MASTER.limits.maxUsers,
+    maxMonitoredNotices: PLAN_FEATURES_CONFIG.MASTER.limits.maxMonitoredNotices,
     maxNullityAnalysesMonth: 100,
-    // O contrato comercial recebido não define um teto mensal de propostas
-    // para o Master. `null` evita publicar um limite inventado.
     maxProposalsMonth: null,
-    features: [
-      'notices.basic_summary',
-      'notices.full_summary',
-      'notices.legal_precheck',
-      'notices.error_radar',
-      'notices.opportunity_score',
-      'proposal.factory',
-      'proposal.strategy',
-      'pricing.strategy',
-      'impugnation.simple',
-      'investigation.cartel_signals',
-      'investigation.competitor_intelligence',
-      'catalog.full',
-      'reports.strategic',
-      'lex.advanced',
-      'bid.robot',
-    ],
+    features: PLAN_FEATURES_CONFIG.MASTER.features,
   },
 };
 
@@ -143,6 +99,11 @@ export function normalizePlanId(plan?: string | null): PlanId {
     starter: 'basic',
     basico: 'basic',
     básico: 'basic',
+    avancado: 'pro',
+    avançado: 'pro',
+    medium: 'pro',
+    medio: 'pro',
+    médio: 'pro',
     profissional: 'pro',
     premium: 'pro',
     enterprise: 'master',

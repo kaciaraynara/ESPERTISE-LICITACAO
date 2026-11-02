@@ -76,7 +76,26 @@ export const CatalogoPage: React.FC = () => {
         </div>
 
         <button 
-          onClick={() => toast('Criação será implementada em breve!')}
+          onClick={async () => {
+            const sku = window.prompt('Digite o SKU:');
+            const nome = window.prompt('Digite o Nome do Item:');
+            const custo = window.prompt('Digite o Custo Base:');
+            if (sku && nome && custo) {
+              try {
+                await catalogoApi.criar({
+                  sku,
+                  nome,
+                  custoBase: Number(custo),
+                  categoria: 'MATERIAL',
+                  status: 'ATIVO'
+                });
+                toast.success('Criado com sucesso!');
+                queryClient.invalidateQueries({ queryKey: ['catalogo_items'] });
+              } catch (e) {
+                toast.error('Erro ao criar no banco.');
+              }
+            }
+          }}
           className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all"
         >
           <Plus size={16} /> NOVO ITEM NO CATÁLOGO

@@ -4,6 +4,7 @@ import axios, {
   InternalAxiosRequestConfig,
   type AxiosResponse,
 } from 'axios';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '@store/auth.store';
 import type {
   DadosFraudePeca,
@@ -14,27 +15,36 @@ import type {
 
 type RefreshRequestBody = { refreshToken?: string | null };
 
-function resolveBaseUrl(): string {
+export function resolveBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '');
+  const isLocalHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  if (configured) {
+    return configured;
+  }
+
+  if (import.meta.env.DEV || isLocalHost) {
+    return 'http://localhost:3001/api/v1';
+  }
+
   if (import.meta.env.PROD) {
     return '/api/v1'; // Sempre usar o proxy da Vercel em produção
   }
 
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3001/api/v1';
+    return import.meta.env.VITE_API_URL.trim().replace(/\/$/, '');
   }
 
   if (typeof window !== 'undefined' && window.location) {
     return `${window.location.origin}/api/v1`;
   }
 
-  return '/api/v1'; // Fallback para SSR
+  return 'http://localhost:3001/api/v1';
 }
 
-const BASE_URL = resolveBaseUrl();
+export const BASE_URL = resolveBaseUrl();
 
 type RefreshSessionPayload = {
   data: {
@@ -71,12 +81,44 @@ const api: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ─── Request interceptor — injetar token ─────────────────────────────────────
+// ─── Request interceptor — injetar token e empresa (Multi-Tenant) ────────────
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = useAuthStore.getState().accessToken;
+  const authState = useAuthStore.getState();
+  const token =
+    authState.accessToken ||
+    (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Captura o ID da empresa ativa no frontend (com fallback imediato para a empresa do usuário logado)
+  let activeCompanyId: string | null = null;
+  if (typeof window !== 'undefined') {
+    const storedCompany = localStorage.getItem('@Expertise:selectedCompany');
+    if (storedCompany) {
+      try {
+        const company = JSON.parse(storedCompany);
+        if (company && (company.id || company.companyId)) {
+          activeCompanyId = String(company.id || company.companyId);
+        }
+      } catch (e) {
+        console.error('Erro ao ler empresa selecionada', e);
+      }
+    }
+  }
+
+  if (!activeCompanyId) {
+    activeCompanyId =
+      authState.user?.company?.id ||
+      authState.user?.company_id ||
+      null;
+  }
+
+  if (activeCompanyId) {
+    config.headers['x-company-id'] = activeCompanyId;
+  }
+
   return config;
 });
 
@@ -124,6 +166,53 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403) {
+      const data = error.response?.data as any;
+      if (
+        data?.code === 'FEATURE_NOT_IN_PLAN' ||
+        data?.code === 'PLAN_LIMIT_EXCEEDED' ||
+        data?.code === 'PLAN_LIMIT_REACHED'
+      ) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('expertise:paywall-triggered', { detail: data }));
+        }
+        const msg = data?.message || 'Recurso exclusivo de planos superiores. Conheça nossos planos para desbloquear.';
+        toast.error(msg, { id: 'plan-limit-toast', duration: 4500 });
+      }
+    }
+
+    // Blindagem corporativa de erros de rede/CORS: preserva mensagens explícitas do backend quando existirem
+    const FRIENDLY_SERVER_ERROR_MSG = 'Nossos servidores estão processando um alto volume de dados do governo. Tente novamente em alguns instantes.';
+    const isNetworkOrCors =
+      !error.response ||
+      error.code === 'ERR_NETWORK' ||
+      (typeof error.message === 'string' &&
+        (error.message.includes('Network Error') ||
+          error.message.toLowerCase().includes('cors')));
+    const isServerError = Boolean(error.response?.status && error.response.status >= 500);
+    const backendExplicitMessage =
+      error.response?.data && typeof error.response.data === 'object'
+        ? (error.response.data as any).message
+        : undefined;
+
+    if (isNetworkOrCors) {
+      error.message = FRIENDLY_SERVER_ERROR_MSG;
+      if (!error.response) {
+        (error as any).response = {
+          data: { message: FRIENDLY_SERVER_ERROR_MSG },
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: {},
+          config: original,
+        };
+      }
+    } else if (isServerError && !backendExplicitMessage) {
+      error.message = FRIENDLY_SERVER_ERROR_MSG;
+      if (error.response?.data && typeof error.response.data === 'object') {
+        (error.response.data as any).message = FRIENDLY_SERVER_ERROR_MSG;
+      }
+    }
+
     return Promise.reject(error);
   },
 );
@@ -136,7 +225,7 @@ export const authApi = {
     telefone?: string;
     aceite_lgpd: boolean;
     cnpj: string;
-    razao_social: string;
+    razao_social?: string;
     nome_fantasia?: string;
     cnae_principal?: string;
     municipio?: string;
@@ -168,6 +257,16 @@ export const dashboardApi = {
   getMetrics: () => api.get('/dashboard/metrics'),
 };
 
+export const certidoesApi = {
+  listar: (params?: { empresa_id?: string }) => api.get('/certidoes', { params }),
+  forceSync: () => api.post('/certidoes/force-sync', {}),
+  download: (id: string, empresaId?: string) =>
+    api.get(`/certidoes/${encodeURIComponent(id)}/download`, {
+      params: { empresa_id: empresaId },
+      responseType: 'blob',
+    }),
+};
+
 export const documentosApi = {
   status: () => api.get<{ success: boolean; data: { available: boolean } }>('/documentos/storage-status'),
   listar: (params?: { empresa_id?: string }) => api.get('/documentos', { params }),
@@ -195,11 +294,22 @@ export const catalogoApi = {
 export const prazosApi = {
   listar: () => api.get('/prazos'),
   concluir: (id: string) => api.patch(`/prazos/${encodeURIComponent(id)}/concluir`),
+  criar: (body: {
+    title: string;
+    type: string;
+    dueAt?: string;
+    date?: string;
+    status?: string;
+    description?: string;
+    companyId?: string;
+    procurementNoticeId?: string;
+  }) => api.post('/prazos', body),
 };
 
 // ─── Licitações ───────────────────────────────────────────────────────────────
 export const licitacoesApi = {
   listar: (params?: RadarLicitacoesFiltros) => api.get('/licitacoes', { params }),
+  sincronizar: (body?: Record<string, unknown>) => api.post('/licitacoes/sincronizar', body || {}),
   buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),
   monitorar: (id: string) => api.post('/licitacoes/monitor', { id }),
 };
@@ -214,7 +324,7 @@ export const integracoesApi = {
   sincronizarPncp: () => api.post('/integracoes/sincronizar/pncp'),
 };
 
-// â”€â”€â”€ Auditoria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Auditoria ───────────────────────────────────────────────────────────────
 export const auditoriaApi = {
   auditar: (licitacaoId: string, textoEdital?: string) =>
     api.post(`/auditoria/${encodeURIComponent(licitacaoId)}`, { textoEdital }),
@@ -225,13 +335,42 @@ export const aiApi = {
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
 };
 
+export interface ExportarParecerPayload {
+  editalSelecionado: string;
+  editalDetalhes: {
+    orgao: string;
+    objeto: string;
+    modalidade?: string;
+  };
+  clausulas: Array<{
+    item: string;
+    categoria: string;
+    textoClausula: string;
+    analiseLex: string;
+    sugestaoImpugnacao?: string;
+    nivelRisco: string;
+  }>;
+  resumo?: {
+    totalClausulas?: number;
+    pontosCriticos?: number;
+    ambiguidades?: number;
+    indiceConformidade?: string;
+  };
+  companyId?: string;
+}
+
 export const lexApi = {
   resumo: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/resumo', body),
   auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body),
   proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
+  analise: (body: { noticeId?: string; licitacaoId?: string; edital_id?: string }) => api.post('/lex/analise', body),
   impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
   chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
+  exportarParecerPdf: (body: ExportarParecerPayload) =>
+    api.post('/lex/parecer-pdf', body, {
+      responseType: 'blob',
+    }),
 };
 
 export const impugnacaoApi = {
@@ -258,17 +397,246 @@ export const impugnacaoApi = {
 
 export const noticesApi = {
   search: (params: any) => api.get('/notices/search', { params }),
-  getById: (id: string) => api.get(`/notices/${id}`),
+  getById: (id: string) => api.get(`/notices/${encodeURIComponent(id)}`),
   getErrorRadar: (id: string) => api.get(`/notices/${id}/error-radar`),
-};
-
-export const propostasApi = {
-  criarRascunho: (body: any) => api.post('/propostas', body),
+  getMinutaImpugnacao: (id: string) => api.get(`/notices/${id}/minuta-impugnacao`),
+  getOpportunityScore: (id: string) => api.get(`/notices/${id}/opportunity-score`),
+  getBatchOpportunityScore: (noticeIds: string[]) =>
+    api.post('/notices/batch-score', { noticeIds }),
 };
 
 export const concorrentesApi = {
+  getDossie: (cnpj: string) => api.get(`/concorrentes/${encodeURIComponent(cnpj)}/dossie`),
   malhaFina: (body: { cnpjs: string[]; licitacaoId?: string }) =>
     api.post('/concorrentes/malha-fina', body),
+};
+
+// ─── Gestão Contratual Pós-Vitória (Contratos, Vigências e Reajuste) ─────────
+export interface ContractAmendmentDto {
+  id: string;
+  contractId: string;
+  numeroAditivo: string;
+  tipo: string;
+  indiceAplicado?: string | null;
+  percentualReajuste?: number | null;
+  valorAnterior: number;
+  valorAcrescimo: number;
+  valorAtualizado: number;
+  dataAssinatura: string;
+  novaDataFim?: string | null;
+  justificativa?: string | null;
+  relatorioCalculo?: string | null;
+  createdAt: string;
+}
+
+export interface ContractValidityPeriodDto {
+  id: string;
+  contractId: string;
+  cicloNumero: number;
+  titulo: string;
+  dataInicio: string;
+  dataFim: string;
+  diasAntecedenciaAlerta: number;
+  status: string;
+  observacoes?: string | null;
+}
+
+export interface ContractDto {
+  id: string;
+  companyId: string;
+  cnpjEmpresa: string;
+  numeroContrato: string;
+  orgao: string;
+  cnpjOrgao?: string | null;
+  objeto: string;
+  valorInicial: number;
+  valorAtual: number;
+  indiceReajuste?: string | null;
+  dataBaseOrcamento?: string | null;
+  dataAssinatura: string;
+  dataInicioVigencia?: string | null;
+  dataFim: string;
+  dedicacaoExclusiva: boolean;
+  isMaoDeObraExclusiva: boolean;
+  predominanciaMaoDeObra: boolean;
+  isFornecimentoGeral: boolean;
+  status: 'ATIVO' | 'ENCERRADO' | 'SUSPENSO' | 'RESCINDIDO' | string;
+  observacoes?: string | null;
+  diasParaVencimento: number;
+  nivelAlertaVencimento: 'VENCIDO' | 'CRITICO' | 'ATENCAO' | 'NORMAL';
+  elegivelReajusteAnual: boolean;
+  aditivos: ContractAmendmentDto[];
+  prazosVigencia: ContractValidityPeriodDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContractGuaranteeDto {
+  id: string;
+  contractId: string | null;
+  tipoGarantia: 'PROPOSTA' | 'CONTRATO';
+  modalidade: 'CAUCAO' | 'SEGURO' | 'FIANCA';
+  valorOriginal: number;
+  status: 'RETIDA' | 'PRONTA_RESGATE' | 'RESGATADA';
+  dataVencimento: string | null;
+  statusAlerta: string | null;
+  comprovanteUrl: string | null;
+  contrato: {
+    id: string;
+    numeroContrato: string;
+    orgao: string;
+    status?: string;
+  } | null;
+}
+
+export interface ContractGuaranteesResponse {
+  success: boolean;
+  data: {
+    totalRetido: number;
+    garantias: ContractGuaranteeDto[];
+  };
+}
+
+export interface ContratosListResponse {
+  success: boolean;
+  data: {
+    company: {
+      id: string;
+      cnpj: string;
+      razaoSocial: string;
+    };
+    kpis: {
+      totalContratos: number;
+      contratosAtivos: number;
+      contratosCriticos: number;
+      contratosElegiveisReajuste: number;
+      valorTotalAtivo: number;
+    };
+    contratos: ContractDto[];
+    alertasVencimento: Array<{
+      id: string;
+      numeroContrato: string;
+      orgao: string;
+      objeto: string;
+      valorAtual: number;
+      dataAssinatura: string;
+      dataFim: string;
+      diasParaVencimento: number;
+      nivelAlertaVencimento: 'VENCIDO' | 'CRITICO' | 'ATENCAO' | 'NORMAL';
+      elegivelReajusteAnual: boolean;
+      indiceReajuste: string;
+      status: string;
+      prazosVigencia: ContractValidityPeriodDto[];
+    }>;
+  };
+}
+
+export interface RelatorioReajusteResponse {
+  success: boolean;
+  message: string;
+  data: {
+    contractId: string;
+    numeroContrato: string;
+    orgao: string;
+    tipoPleito: 'REAJUSTE' | 'REPACTUACAO' | 'REEQUILIBRIO';
+    indiceUtilizado: string;
+    percentualAplicado: number;
+    valorAnterior: number;
+    acrescimoGlobal: number;
+    novoValorContrato: number;
+    impactoMensalEstimado: number;
+    mesesRetroativos: number;
+    valorRetroativoEstimado: number;
+    impactoFinanceiroTotal: number;
+    fundamentoLegal: string;
+    aditivoCriado?: ContractAmendmentDto | null;
+    relatorioTexto: string;
+    geradoEm: string;
+  };
+}
+
+export const contratosApi = {
+  listar: () => api.get<ContratosListResponse>('/contratos'),
+  listarGarantias: () => api.get<ContractGuaranteesResponse>('/contratos/garantias'),
+  gerarOficioRestituicaoGarantia: (id: string) =>
+    api.get<Blob>(`/contratos/garantias/${encodeURIComponent(id)}/restituicao`, {
+      responseType: 'blob',
+    }),
+  gerarOficioRepactuacao: (
+    id: string,
+    body: {
+      salarioAtual: number;
+      novoSalario: number;
+      quantidadePostos: number;
+    },
+  ) =>
+    api.post<Blob>(
+      `/contratos/${encodeURIComponent(id)}/repactuacao/oficio`,
+      body,
+      { responseType: 'blob' },
+    ),
+  criar: (body: {
+    numeroContrato: string;
+    orgao: string;
+    cnpjOrgao?: string;
+    objeto: string;
+    valorInicial: number;
+    valorAtual?: number;
+    indiceReajuste?: string;
+    dataBaseOrcamento?: string;
+    dataAssinatura: string;
+    dataInicioVigencia?: string;
+    dataFim: string;
+    dedicacaoExclusiva?: boolean;
+    predominanciaMaoDeObra?: boolean;
+    status?: string;
+    observacoes?: string;
+  }) => api.post<{ success: boolean; message: string; data: ContractDto }>('/contratos', body),
+  atualizar: (id: string, body: Record<string, unknown>) =>
+    api.patch<{ success: boolean; message: string; data: ContractDto }>(
+      `/contratos/${encodeURIComponent(id)}`,
+      body,
+    ),
+  gerarRelatorioReajuste: (
+    id: string,
+    body: {
+      tipoPleito?: 'REAJUSTE' | 'REPACTUACAO' | 'REEQUILIBRIO';
+      indiceAplicado?: string;
+      percentualReajuste?: number;
+      variacaoMaoDeObraPercentual?: number;
+      variacaoInsumosPercentual?: number;
+      pesoMaoDeObra?: number;
+      mesesRetroativos?: number;
+      justificativaAdicional?: string;
+      registrarAditivo?: boolean;
+    },
+  ) => {
+    const {
+      indiceAplicado,
+      percentualReajuste,
+      justificativaAdicional,
+      ...rest
+    } = body;
+    return api.post<RelatorioReajusteResponse>(
+      `/contratos/${encodeURIComponent(id)}/reajuste`,
+      {
+        ...rest,
+        indiceUtilizado: indiceAplicado,
+        percentualIndice: percentualReajuste,
+        justificativaFatica: justificativaAdicional,
+      },
+    );
+  },
+};
+
+export const crmApi = {
+  getOportunidades: () => api.get('/crm/oportunidades'),
+  createOportunidade: (body: { noticeId: string; stage?: string; notes?: string }) =>
+    api.post('/crm/oportunidades', body),
+  moveOportunidade: (id: string, body: { stage?: string; position?: number }) =>
+    api.patch(`/crm/oportunidades/${encodeURIComponent(id)}/etapa`, body),
+  removeOportunidade: (id: string) => api.delete(`/crm/oportunidades/${encodeURIComponent(id)}`),
+  getMetrics: () => api.get('/crm/metricas'),
 };
 
 export const roboApi = {
@@ -316,21 +684,46 @@ export const precificacaoApi = {
 };
 
 
-// ─── Auditoria ────────────────────────────────────────────────────────────────
+// ─── Editais Monitorados (watchlist) ─────────────────────────────────────────
+export const monitoredNoticesApi = {
+  listar: (params?: { pagina?: number; limite?: number }) =>
+    api.get('/monitored-notices', { params }),
+  remover: (id: string) => api.delete(`/monitored-notices/${encodeURIComponent(id)}`),
+  atualizarPrioridade: (id: string, body: { priority?: string; notes?: string }) =>
+    api.patch(`/monitored-notices/${encodeURIComponent(id)}/prioridade`, body),
+};
+
+// ─── Notificações ──────────────────────────────────────────────────────────────
 export const notificacoesApi = {
   listar: (params?: { pagina?: number; limite?: number }) =>
     api.get('/notificacoes', { params }),
   marcarTodasComoLidas: () => api.post('/notificacoes/marcar-todas-lidas'),
+  enviarSmsTeste: (telefone?: string) =>
+    api.post('/notificacoes/teste-sms', { telefone }),
 };
 
-// â”€â”€â”€ Pagamentos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Pagamentos (Mercado Pago) ───────────────────────────────────────────────
+export interface MinhaAssinaturaResponse {
+  plano: string;
+  nome?: string;
+  features: string[];
+  status: string;
+  ativa: boolean;
+  gateway: 'mercado_pago' | null;
+  periodo_fim?: string;
+  pendingPlanId?: string | null;
+  pendingPlanAt?: string | null;
+}
+
 export const pagamentosApi = {
+  planos: () => api.get('/pagamentos/planos'),
   criarCheckout: (body: { plano: string; successUrl?: string; cancelUrl?: string }) =>
-    api.post('/pagamentos/checkout-auth', body),
+    api.post('/pagamentos/checkout', body),
   criarCheckoutAutenticado: (body: { plano: string; successUrl?: string; cancelUrl?: string }) =>
-    api.post('/pagamentos/checkout-auth', body),
-  criarPortal: (returnUrl: string) => api.post('/pagamentos/portal', { returnUrl }),
-  minhaAssinatura: () => api.get('/pagamentos/assinatura'),
+    api.post('/pagamentos/checkout', body),
+  reconciliarAssinatura: () => api.post('/pagamentos/assinatura/reconciliar', {}),
+  ativarTrial: () => api.post('/pagamentos/trial/ativar', {}),
+  minhaAssinatura: () => api.get<{ success: boolean; data: MinhaAssinaturaResponse }>('/pagamentos/assinatura'),
 };
 
 export default api;
@@ -364,4 +757,163 @@ export interface SystemModulesResponse {
 
 export const modulesApi = {
   listar: () => api.get<SystemModulesResponse>('/modules'),
+};
+
+export const analiseViabilidadeApi = {
+  obterPorEdital: (editalId?: string, params?: Record<string, unknown>) =>
+    api.get(editalId ? `/analise-viabilidade/${encodeURIComponent(editalId)}` : '/analise-viabilidade', { params }),
+};
+
+// ─── Fábrica de Propostas (Lei 14.133/2021) ──────────────────────────────────
+export interface ProposalItemDto {
+  id: string;
+  proposalId: string;
+  posicao: number;
+  numero: string;
+  codigo?: string | null;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  marca?: string | null;
+  modelo?: string | null;
+  custoUnitario?: number | null;
+  custoDireto?: number | null;
+  custoIndireto?: number | null;
+  tributosPercentual?: number | null;
+  encargosPercentual?: number | null;
+  bdiPercentual?: number | null;
+  margemLucroPercentual?: number | null;
+  descontoPercentual?: number | null;
+  precoUnitarioProposto: number | null;
+  precoTotalProposto: number | null;
+  catalogoPrecoReferencia?: number | null;
+  inexequivel: boolean;
+  prazoGarantiaMeses?: number | null;
+  observacoes?: string | null;
+}
+
+export interface ProposalDto {
+  id: string;
+  companyId: string;
+  procurementNoticeId?: string | null;
+  titulo: string;
+  status: string;
+  moeda: string;
+  criterioJulgamento?: string | null;
+  bdiGeral?: number | null;
+  encargosSociais?: number | null;
+  margemMinimaSustentavel?: number | null;
+  valorTotalProposto?: number | null;
+  validadeDias: number;
+  prazoEntregaDias: number;
+  garantia?: string | null;
+  condicoesPagamento?: string | null;
+  declaracaoIndependente: boolean;
+  declaracaoHabilitacao: boolean;
+  declaracaoMenor: boolean;
+  declaracaoMeEpp: boolean;
+  declaracaoInidoneidade: boolean;
+  declaracaoAcessibilidade: boolean;
+  propostaFormatadaText?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  company?: {
+    id: string;
+    razaoSocial: string;
+    nomeFantasia?: string | null;
+    cnpj: string;
+    email?: string | null;
+    telefone?: string | null;
+  };
+  procurementNotice?: {
+    id: string;
+    noticeNumber?: string | null;
+    buyerName?: string | null;
+    object: string;
+    modality?: string | null;
+    judgmentCriterion?: string | null;
+    modoDisputa?: string | null;
+    openingAt?: string | null;
+    closingAt?: string | null;
+    estimatedValue?: number | null;
+    items?: Array<{
+      id?: string;
+      itemNumber?: string | null;
+      description?: string | null;
+      quantity?: number | string | null;
+      unit?: string | null;
+      estimatedUnitValue?: number | string | null;
+      estimatedTotalValue?: number | string | null;
+    }>;
+  } | null;
+  items: ProposalItemDto[];
+}
+
+export interface ProposalComplianceDto {
+  isCompliant: boolean;
+  warnings: string[];
+  errors: string[];
+  declaracoesObrigatorias: {
+    elaboracaoIndependente: boolean;
+    habilitacaoCompleta: boolean;
+    naoEmpregoMenor: boolean;
+    inexistenciaImpedimento: boolean;
+    reservaCargosPcd: boolean;
+    meEpp: boolean;
+  };
+  validadeDias: number;
+  validadeSuficiente: boolean;
+  itensInexequiveis: number;
+}
+
+export const propostasApi = {
+  listar: (params?: { companyId?: string }) =>
+    api.get<{ success: boolean; data: ProposalDto[] }>('/propostas', { params }),
+  obterPorId: (id: string) =>
+    api.get<{ success: boolean; data: ProposalDto }>(`/propostas/${encodeURIComponent(id)}`),
+  criarRascunho: (body: {
+    companyId: string;
+    procurementNoticeId?: string;
+    titulo: string;
+    validadeDias?: number;
+    prazoEntregaDias?: number;
+    bdiGeral?: number;
+    encargosSociais?: number;
+    margemMinimaSustentavel?: number;
+    criterioJulgamento?: string;
+  }) => api.post<{ success: boolean; data: ProposalDto }>('/propostas', body),
+  adicionarItem: (id: string, body: {
+    descricao: string;
+    unidade: string;
+    quantidade: number;
+    numero?: string;
+    marca?: string;
+    modelo?: string;
+    custoDireto?: number | null;
+    custoIndireto?: number | null;
+    tributosPercentual?: number | null;
+    encargosPercentual?: number | null;
+    bdiPercentual?: number | null;
+    margemLucroPercentual?: number | null;
+    precoUnitarioProposto?: number | null;
+    precoTotalProposto?: number | null;
+    prazoGarantiaMeses?: number;
+    observacoes?: string;
+  }) => api.post<{ success: boolean; data: ProposalItemDto }>(`/propostas/${encodeURIComponent(id)}/itens`, body),
+  atualizarProposta: (id: string, body: Record<string, unknown>) =>
+    api.patch<{ success: boolean; data: ProposalDto }>(`/propostas/${encodeURIComponent(id)}`, body),
+  atualizarItem: (id: string, itemId: string, body: Record<string, unknown>) =>
+    api.patch<{ success: boolean; data: ProposalItemDto }>(`/propostas/${encodeURIComponent(id)}/itens/${encodeURIComponent(itemId)}`, body),
+  removerItem: (id: string, itemId: string) =>
+    api.delete<{ success: boolean; data: { deleted: boolean; id: string } }>(`/propostas/${encodeURIComponent(id)}/itens/${encodeURIComponent(itemId)}`),
+  obterCompliance: (id: string) =>
+    api.get<{ success: boolean; data: ProposalComplianceDto }>(`/propostas/${encodeURIComponent(id)}/compliance`),
+  gerarDocumento: (id: string) =>
+    api.post<{ success: boolean; data: { proposalId: string; document: string; compliance: ProposalComplianceDto; valorTotal: number } }>(`/propostas/${encodeURIComponent(id)}/documento`),
+  obterDocumento: (id: string) =>
+    api.get<{ success: boolean; data: { proposalId: string; document: string; compliance: ProposalComplianceDto; valorTotal: number } }>(`/propostas/${encodeURIComponent(id)}/documento`),
+  extrairEditalLex: (body: { noticeId: string; companyId?: string; autoCreate?: boolean }) =>
+    api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/extrair-proposta', body),
+  preencherPropostaViaLex: (body: { proposalId?: string; noticeId: string; companyId?: string; autoCreate?: boolean }) =>
+    api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/preencher-proposta', body),
 };

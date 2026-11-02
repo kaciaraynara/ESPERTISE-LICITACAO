@@ -1,4 +1,5 @@
 import { RequestHandler, Response } from 'express';
+import path from 'path';
 import multer from 'multer';
 import { documentoSchema } from '../shared/validations';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
@@ -53,8 +54,7 @@ export class DocumentosController {
     if (!req.user?.id) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
     }
-    // Neon storage is always available if the API is running
-    return res.json({ success: true, data: { available: true } });
+    return res.json({ success: true, data: { available: true, provider: 'cloud-storage' } });
   }
 
   async download(req: AuthRequest, res: Response) {
@@ -63,21 +63,67 @@ export class DocumentosController {
       if (!userId) return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
 
       const { prisma } = await import('../database/prisma');
+      const tenantId = req.user?.tenantId;
       const doc = await prisma.document.findFirst({
-        where: { id: req.params.id, userId },
-        select: { fileData: true, fileMimeType: true, arquivoNome: true }
+        where: {
+          id: req.params.id,
+          OR: [
+            { userId },
+            ...(tenantId ? [{ company: { tenantId } }] : []),
+          ],
+        },
+        select: { id: true, storageKey: true, url: true, fileMimeType: true, arquivoNome: true },
       });
 
-      if (!doc || !doc.fileData) {
-        return res.status(404).json({ success: false, message: 'Arquivo não encontrado' });
+      if (!doc) {
+        return res.status(404).json({ success: false, message: 'Documento não encontrado' });
       }
 
-      res.setHeader('Content-Type', doc.fileMimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${doc.arquivoNome}"`);
-      return res.send(doc.fileData);
+      if (doc.storageKey) {
+        const { storageService } = await import('../services/storage.service');
+        const downloadUrl = await storageService.getPresignedDownloadUrl(doc.storageKey);
+
+        // Se for URL externa do S3, redireciona diretamente com presigned URL
+        if (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')) {
+          return res.redirect(downloadUrl);
+        }
+
+        // Modo local fallback
+        const fileContent = await storageService.getFileBuffer(doc.storageKey);
+        res.setHeader('Content-Type', doc.fileMimeType || fileContent.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `inline; filename="${doc.arquivoNome || 'documento'}"`);
+        return res.send(fileContent.buffer);
+      }
+
+      if (doc.url && (doc.url.startsWith('http://') || doc.url.startsWith('https://'))) {
+        return res.redirect(doc.url);
+      }
+
+      return res.status(404).json({ success: false, message: 'Arquivo não localizado no armazenamento' });
     } catch (error) {
       console.error('[Documentos] Erro no download:', error);
       return res.status(500).json({ success: false, message: 'Erro ao baixar arquivo' });
+    }
+  }
+
+  async downloadLocal(req: AuthRequest, res: Response) {
+    try {
+      const storageKey = req.params[0] || (req.params as any).storageKey;
+      if (!storageKey) {
+        return res.status(400).json({ success: false, message: 'Chave de armazenamento não informada' });
+      }
+
+      const { storageService } = await import('../services/storage.service');
+      const decodedKey = decodeURIComponent(storageKey);
+      const fileContent = await storageService.getFileBuffer(decodedKey);
+      const fileName = path.basename(decodedKey);
+
+      res.setHeader('Content-Type', fileContent.mimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      return res.send(fileContent.buffer);
+    } catch (error) {
+      console.error('[Documentos] Erro no download local:', error);
+      return res.status(404).json({ success: false, message: 'Arquivo não localizado no armazenamento local' });
     }
   }
 

@@ -1,11 +1,12 @@
 import { prisma } from '../database/prisma';
-// Sem Supabase - Arquivos no banco Neon
 import { ApiError } from '../shared/errors/ApiError';
+import { storageService } from './storage.service';
 
 export type DocumentoWithUrl = {
   id: string;
   user_id: string;
   url?: string | null;
+  tamanho?: number | null;
 };
 
 export class DocumentosService {
@@ -54,6 +55,7 @@ export class DocumentosService {
   }
 
   private mapDocumento(doc: any) {
+    const downloadUrl = `/api/v1/documentos/${doc.id}/download`;
     return {
       id: doc.id,
       user_id: doc.userId,
@@ -62,14 +64,16 @@ export class DocumentosService {
       nome: doc.nome,
       validade: doc.validade ? doc.validade.toISOString() : null,
       status: this.resolveStatus(doc.validade),
-      url: `/api/v1/documentos/${doc.id}/download`,
+      url: doc.storageKey ? downloadUrl : (doc.url || downloadUrl),
       arquivo_nome: doc.arquivoNome,
+      tamanho: doc.tamanho ?? doc.fileSize ?? null,
+      file_size: doc.fileSize ?? doc.tamanho ?? null,
+      file_mime_type: doc.fileMimeType,
+      storage_key: doc.storageKey ?? null,
       criado_em: doc.criadoEm.toISOString(),
       atualizado_em: doc.atualizadoEm.toISOString(),
     };
   }
-
-
 
   async listar(userId: string, empresaId?: string) {
     const tenantId = await this.getTenantId(userId);
@@ -80,12 +84,12 @@ export class DocumentosService {
     const dbDocs = await prisma.document.findMany({
       where: {
         company: { tenantId },
-        ...(empresaId ? { companyId: empresaId } : {})
+        ...(empresaId ? { companyId: empresaId } : {}),
       },
-      orderBy: { atualizadoEm: 'desc' }
+      orderBy: { atualizadoEm: 'desc' },
     });
 
-    return dbDocs.map(doc => this.mapDocumento(doc));
+    return dbDocs.map((doc) => this.mapDocumento(doc));
   }
 
   async criar(userId: string, data: any, file?: Express.Multer.File) {
@@ -96,10 +100,16 @@ export class DocumentosService {
       throw new ApiError('Selecione um arquivo para cadastrar o documento.', 400);
     }
 
-
-
     const nome = data.nome || this.stripKnownExtension(file.originalname);
-    const arquivoNome = file.originalname;
+
+    // Upload seguro para o Object Storage (AWS S3) - NENHUM buffer salvo no PostgreSQL
+    const uploadResult = await storageService.uploadFile({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      userId,
+      folder: 'documentos-cofre',
+    });
 
     const dbDoc = await prisma.document.create({
       data: {
@@ -109,9 +119,12 @@ export class DocumentosService {
         nome,
         validade: data.validade ? new Date(data.validade) : null,
         status: 'valido',
-        arquivoNome,
-        fileData: file.buffer as any,
-        fileMimeType: file.mimetype,
+        arquivoNome: uploadResult.fileName,
+        storageKey: uploadResult.storageKey,
+        fileSize: uploadResult.fileSize,
+        tamanho: uploadResult.fileSize,
+        fileMimeType: uploadResult.mimeType,
+        url: uploadResult.url,
       },
     });
 
@@ -126,16 +139,22 @@ export class DocumentosService {
         company: { tenantId },
       },
     });
+
     if (!doc) {
       throw new ApiError('Documento não encontrado', 404);
     }
+
+    // Remove do bucket S3 caso possua storageKey vinculada
+    if (doc.storageKey) {
+      try {
+        await storageService.deleteFile(doc.storageKey);
+      } catch (storageErr) {
+        console.warn(`[DocumentosService] Falha ao deletar arquivo do bucket (${doc.storageKey}):`, storageErr);
+      }
+    }
+
     await prisma.document.delete({ where: { id: doc.id } });
   }
 }
 
 export const documentosService = new DocumentosService();
-
-
-
-
-

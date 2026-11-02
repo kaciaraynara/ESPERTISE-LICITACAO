@@ -1,5 +1,11 @@
-// ARQUIVO OBSOLETO. Esta interface foi absorvida pelo LicitacoesPage.tsx.
-// O desenvolvedor pode deletar este arquivo em segurança em sessões futuras.
+import LicitacoesPage from './LicitacoesPage';
+
+/**
+ * RadarDeEditais
+ * Fachada para a interface oficial do Radar de Licitações (LicitacoesPage),
+ * garantindo que qualquer navegação ou referência renderize o radar real
+ * com consultas comprovadas ao PNCP, busca, filtros e tratamento de estados vazios.
+ */
 export default function RadarDeEditais() {
-  return null;
+  return <LicitacoesPage />;
 }

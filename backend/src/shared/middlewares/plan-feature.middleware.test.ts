@@ -116,6 +116,22 @@ describe('requirePlanFeature', () => {
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
+  test('retorna 401 e rejeita spoofing via header x-user-id sem sessao autenticada', async () => {
+    const req = {
+      headers: {
+        'x-user-id': 'hacked-victim-id',
+      },
+    } as unknown as Request;
+    const res = buildResponse();
+    const next = jest.fn() as NextFunction;
+
+    await requirePlanFeature('proposal.factory')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(mockedPlanGuard.assertFeature).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
   test('retorna 500 em erro inesperado na validacao do plano', async () => {
     mockedPlanGuard.assertFeature.mockRejectedValueOnce(new Error('Falha inesperada'));
 

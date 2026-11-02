@@ -74,7 +74,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Avaliação automatizada de riscos de inabilitação, capacidade técnica e viabilidade operacional.
+            Confira os requisitos do edital, a compatibilidade com sua empresa e os principais pontos de atenção.
           </p>
         </div>
 
@@ -201,7 +201,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
           {/* DIAGNÓSTICO DA MATRIZ */}
           <div className="bg-[#0A2540] text-white p-6 rounded-2xl shadow-xl space-y-4">
             <h4 className="text-xs font-bold text-[#EA580C] uppercase tracking-wider">
-              Diagnóstico de Risco Automático
+              Análise de Risco
             </h4>
             <p className="text-xs leading-relaxed text-slate-300">
               {resultadoMatriz.motivo}

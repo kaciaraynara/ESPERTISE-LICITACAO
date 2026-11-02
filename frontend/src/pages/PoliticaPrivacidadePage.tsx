@@ -48,11 +48,11 @@ export default function PoliticaPrivacidadePage() {
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">3. Uso da Inteligência Artificial e Sigilo</h2>
           <p>
-            A Expertise Licitatória utiliza IA proprietária e parceira para ler Acórdãos, Manuais do TCU/CGU, e para revisar seus atestados. É importante destacar:
+            Alguns recursos usam inteligência artificial para ajudar a consultar decisões e materiais do TCU e da CGU e revisar documentos. É importante destacar:
           </p>
           <ul className="list-disc pl-6 space-y-2">
-            <li>Os dados inseridos no painel do <strong>Robô Lex</strong> para compor sua proposta NÃO são utilizados para treinar modelos abertos ao público.</li>
-            <li>Os servidores (workers) que processam as predições de faturamento e de risco são isolados logicamente por <em>Tenant</em> (sua empresa isolada das outras).</li>
+            <li>Os dados informados ao <strong>Assistente de Editais</strong> para preparar uma proposta não são utilizados para treinar modelos abertos ao público.</li>
+            <li>Os dados e as informações de cada empresa são separados, e o acesso é limitado às pessoas autorizadas na respectiva conta.</li>
           </ul>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">4. Retenção, Anonimização e Exclusão</h2>
@@ -64,7 +64,7 @@ export default function PoliticaPrivacidadePage() {
             <li><strong>Direito ao Esquecimento (Exclusão):</strong> Deletar sua conta diretamente no painel de <em>Configurações &gt; Privacidade (LGPD)</em>.</li>
           </ul>
           <p>
-            Ao solicitar a exclusão de conta, a Expertise revogará seu acesso imediatamente. Por razões de prevenção a fraudes, segurança e exigências fiscais/judiciais, os dados entram num período de quarentena sob bloqueio lógico (Soft Delete). Em seguida, um serviço automatizado procede com a <strong>Anonimização Irreversível</strong> das informações sensíveis.
+            Ao solicitar a exclusão da conta, seu acesso será encerrado. Alguns dados poderão ser mantidos pelo período necessário para cumprir obrigações legais, prevenir fraudes e proteger a plataforma. Depois desse período, os dados que puderem ser removidos serão excluídos ou anonimizados.
           </p>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">5. Medidas de Segurança Adotadas</h2>

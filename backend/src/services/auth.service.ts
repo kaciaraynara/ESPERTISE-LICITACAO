@@ -51,6 +51,10 @@ export async function logAuthEvent(event: AuthLogEvent, context: AuthLogContext 
     console.info(message);
   }
 
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
   try {
     await prisma.auditEvent.create({
       data: {

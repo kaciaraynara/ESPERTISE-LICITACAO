@@ -6,22 +6,31 @@ import { useLogout } from '../../hooks';
 import { useAuthStore } from '../../store/auth.store';
 import { getUserDisplayName, getUserInitial } from '../../utils';
 import Sidebar from './Sidebar';
+import CompanySelector from './CompanySelector';
 import { resolveProfileNavigation } from './profile-navigation';
+import { useCompany } from '../../contexts/CompanyContext';
 
 const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/dashboard': 'Página Inicial',
-  '/fornecedor/radar': 'Radar de Editais',
-  '/fornecedor/documentos': 'Documentos do Licitante',
+  '/fornecedor/radar': 'Buscar Oportunidades',
+  '/fornecedor/disputas': 'Gestão de Disputas',
+  '/fornecedor/crm': 'Gestão de Disputas',
+  '/fornecedor/propostas': 'Gerador de Propostas',
+  '/fornecedor/catalogo': 'Catálogo de Produtos',
+  '/fornecedor/historico-concorrentes': 'Histórico de Concorrentes',
+  '/fornecedor/documentos': 'Meus Documentos',
+  '/fornecedor/contratos': 'Gestão Contratual Pós-Vitória',
 };
 
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { selectedCompany, switchingCompany } = useCompany();
   const logout = useLogout();
   const user = useAuthStore((state) => state.user);
   const displayName = getUserDisplayName(user, 'Fornecedor');
   const initial = getUserInitial(user, 'F');
-  const groups = resolveProfileNavigation(user?.role);
+  const groups = resolveProfileNavigation(user?.role, user);
   const pageLabel = PAGE_LABELS[location.pathname] || 'Área do fornecedor';
   const dateLabel = new Intl.DateTimeFormat('pt-BR', {
     weekday: 'short',
@@ -76,6 +85,7 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex min-w-0 items-center gap-3">
+            <CompanySelector />
             <p className="hidden items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 md:flex">
               <CalendarBlank className="h-4 w-4" weight="bold" aria-hidden="true" />
               <span className="first-letter:uppercase">{dateLabel}</span>
@@ -146,9 +156,17 @@ export default function DashboardLayout() {
         <main
           id="main-content"
           tabIndex={-1}
+          aria-busy={switchingCompany}
           className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50"
         >
-          <Outlet />
+          <Outlet key={selectedCompany?.id ?? 'no-active-company'} />
+          {switchingCompany ? (
+            <div className="pointer-events-none fixed inset-x-0 top-20 z-20 flex justify-center px-4" role="status" aria-live="polite">
+              <span className="rounded-full border border-blue-100 bg-white/95 px-4 py-2 text-xs font-bold text-brand-blue shadow-md">
+                Atualizando dados da empresa selecionada...
+              </span>
+            </div>
+          ) : null}
         </main>
       </div>
     </div>

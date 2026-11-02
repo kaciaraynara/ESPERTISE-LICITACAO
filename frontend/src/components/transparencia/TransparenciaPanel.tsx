@@ -68,8 +68,8 @@ function CacheIndicator({ meta }: { meta?: { source: string; cached: boolean; re
     <Globe className="h-3.5 w-3.5" />
   );
 
-  const label = meta.source === 'memory' ? 'Cache memória' :
-    meta.source === 'database' ? 'Cache banco' : 'API ao vivo';
+  const label = meta.source === 'memory' ? 'Consulta recente' :
+    meta.source === 'database' ? 'Informações salvas' : 'Fonte oficial';
 
   const bgClass = meta.cached
     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'

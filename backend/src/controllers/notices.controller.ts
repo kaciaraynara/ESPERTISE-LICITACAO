@@ -9,6 +9,7 @@ import { NoticesPricingStrategyService } from '../services/notices-pricing-strat
 import { documentGenerationService } from '../services/document-generation.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
+import { gerarEsqueletoImpugnacao } from '../services/impugnacao.service';
 
 export class NoticesController {
   constructor(
@@ -129,6 +130,46 @@ export class NoticesController {
     }
   }
 
+  async batchOpportunityScore(req: AuthRequest, res: Response) {
+    try {
+      const body = (req.body || {}) as { noticeIds?: string[]; ids?: string[] };
+      const rawIds = Array.isArray(body.noticeIds) ? body.noticeIds : Array.isArray(body.ids) ? body.ids : [];
+      const targetIds = rawIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+      if (!targetIds.length) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_INPUT',
+          message: 'Informe uma lista de IDs de editais (noticeIds).',
+        });
+      }
+
+      // Limita lote para proteger memória e concorrência
+      const limitedIds = targetIds.slice(0, 30);
+      const context = buildContext(req);
+
+      const scorePromises = limitedIds.map(async (id) => {
+        try {
+          const score = await this.opportunityScore.scoreNotice(id, req.query, context);
+          return { noticeId: id, success: Boolean(score), data: score };
+        } catch (err: any) {
+          return { noticeId: id, success: false, data: null, error: err?.message || 'Falha ao calcular score' };
+        }
+      });
+
+      const results = await Promise.all(scorePromises);
+
+      return res.json({
+        success: true,
+        data: results,
+        total: results.length,
+      });
+    } catch (error) {
+      if (error instanceof ZodError) return validationError(res, error);
+      throw error;
+    }
+  }
+
   async proposalStrategyReport(req: AuthRequest, res: Response) {
     try {
       const input = { ...(req.query ?? {}), ...(req.body ?? {}) };
@@ -211,6 +252,64 @@ export class NoticesController {
     } catch (error) {
       if (error instanceof ZodError) return validationError(res, error);
       return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Erro interno.' });
+    }
+  }
+
+  async minutaImpugnacaoReport(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const notice = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [{ id: noticeId }, { externalId: noticeId }, { dedupeKey: `pncp-${noticeId}` }],
+        },
+      });
+
+      if (!notice) {
+        return res.status(404).json({ success: false, message: 'Edital não encontrado para geração da minuta' });
+      }
+
+      const radar = await this.errorRadar.analyzeNotice(notice.id, buildContext(req));
+      const company = req.user?.id ? await prisma.company.findFirst({ where: { userId: req.user.id } }) : null;
+
+      const pontosImpugnacao = radar?.issues?.length
+        ? radar.issues.map((issue) => `${issue.title}. ${issue.description} Recomendação: ${issue.recommendation}`)
+        : ['Exigência editalícia com potencial restrição à ampla competitividade (Art. 9º, I, Lei 14.133/2021)'];
+
+      const dataCertame = notice.openingAt
+        ? new Date(notice.openingAt).toISOString().split('T')[0]
+        : new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0];
+
+      const peca = gerarEsqueletoImpugnacao({
+        orgao: notice.buyerName || 'Órgão Licitante Convocador',
+        setorResponsavel: 'Comissão de Contratação / Agente de Contratação / Pregoeiro',
+        modalidade: notice.modality || 'Pregão Eletrônico',
+        numeroEdital: notice.noticeNumber || notice.externalId || 'S/N',
+        processoAdministrativo: notice.processoAdministrativo || 'Processo Administrativo Oficial',
+        objeto: notice.object,
+        criterioJulgamento: notice.judgmentCriterion || 'Menor Preço / Maior Desconto',
+        plataforma: notice.url || 'Portal Oficial de Compras',
+        dataCertame,
+        nomeEmpresa: company?.razaoSocial || req.user?.nome || 'EMPRESA LICITANTE INTERESSADA',
+        cnpjEmpresa: company?.cnpj || '00.000.000/0001-00',
+        representanteLegal: req.user?.nome || 'Representante Legal',
+        pontosImpugnacao,
+        formato: 'markdown',
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          conteudo: peca.conteudo,
+          prazo: peca.prazo,
+          edital: notice.noticeNumber || notice.externalId || notice.object.substring(0, 50),
+          orgao: notice.buyerName,
+          dataCertame,
+          irregularidades: radar?.issues || [],
+        },
+      });
+    } catch (error) {
+      console.error('[NoticesController] Erro ao gerar minuta:', error);
+      return res.status(500).json({ success: false, message: 'Erro ao gerar minuta de impugnação' });
     }
   }
 }

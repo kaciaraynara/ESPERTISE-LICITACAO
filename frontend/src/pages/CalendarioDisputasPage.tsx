@@ -287,7 +287,7 @@ export default function CalendarioDisputasPage() {
                               ? 'border-brand-blue/20 bg-white text-brand-blue'
                               : 'border-gray-100 bg-white text-brand-blue/70'
                           }`}>
-                            {lic.score.pontuacao}
+                            {lic.score.pontuacao}% de compatibilidade
                           </span>
                         )}
                       </div>
@@ -376,7 +376,7 @@ export default function CalendarioDisputasPage() {
 
               <div className="rounded-lg border border-gray-100 bg-white p-4 text-sm text-brand-blue/70">
                 <p className="font-bold text-brand-blue mb-1">Como usar o calendário</p>
-                <p className="leading-6">Clique em qualquer dia com editais para ver os detalhes e ir direto para análise ou sala do robô.</p>
+                <p className="leading-6">Clique em qualquer dia com editais para ver os detalhes e ir direto para a análise de viabilidade.</p>
               </div>
             </>
           )}

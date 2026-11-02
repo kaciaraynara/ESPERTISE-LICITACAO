@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prisma';
+import { AppError } from '../../shared/errors/app-error';
 import {
   getMinimumPlanForFeature,
   getPlanDefinition,
@@ -8,10 +9,16 @@ import {
   type PlanFeature,
   type PlanId,
 } from './plan.constants';
+import {
+  getMinimumCommercialPlanForFeature,
+  hasCommercialPlanFeature,
+  resolveCommercialPlanKey,
+} from '../../config/plan-features';
 
 interface UserPlanSource {
   plano?: string | null;
   plan?: string | null;
+  planType?: string | null;
 }
 
 interface SubscriptionPlanSource {
@@ -22,17 +29,16 @@ interface SubscriptionPlanSource {
   currentPeriodEnd?: Date | string | null;
 }
 
-export class PlanLimitError extends Error {
-  public readonly code: string;
-  public readonly statusCode: number;
-  public readonly details?: Record<string, unknown>;
+export const FEATURE_MODULE_MAPPING: Partial<Record<PlanFeature, string>> = {
+  'bid.robot': 'bid_robot',
+  'investigation.cartel_signals': 'cartel_signals',
+  'investigation.competitor_intelligence': 'competitor_intelligence',
+};
 
+export class PlanLimitError extends AppError {
   constructor(code: string, message: string, statusCode = 403, details?: Record<string, unknown>) {
-    super(message);
+    super(message, statusCode, code, details);
     this.name = 'PlanLimitError';
-    this.code = code;
-    this.statusCode = statusCode;
-    this.details = details;
   }
 }
 
@@ -57,28 +63,70 @@ export class PlanGuardService {
       return normalizePlanId(subscriptionPlan);
     }
 
-    return normalizePlanId(this.getPlanValue(user) ?? 'free');
+    // Se não há assinatura ativa válida (ou se expirou/cancelou), o plano é estritamente 'free'.
+    // Nunca confia em valor herdado ou manipulado diretamente em User.plano para conceder planos pagos.
+    return 'free';
   }
 
-  async assertFeature(userId: string, feature: PlanFeature): Promise<void> {
+  async assertFeature(userId: string, feature: PlanFeature | string): Promise<void> {
     const planId = await this.resolveUserPlan(userId);
 
-    if (planHasFeature(planId, feature)) {
+    // Verifica o acesso somente com base na assinatura ativa validada pelo servidor.
+    const isAllowed =
+      planHasFeature(planId, feature as PlanFeature) ||
+      hasCommercialPlanFeature(planId, feature);
+
+    if (!isAllowed) {
+      const minimumPlan =
+        getMinimumPlanForFeature(feature as PlanFeature) ??
+        getMinimumCommercialPlanForFeature(feature)?.slug ??
+        'master';
+
+      throw new PlanLimitError(
+        'plan_feature_not_available',
+        this.buildFeatureMessage(minimumPlan),
+        403,
+        {
+          currentPlan: planId,
+          requiredPlan: minimumPlan,
+          feature,
+        },
+      );
+    }
+
+    await this.assertModuleReadiness(feature as PlanFeature);
+  }
+
+  private async assertModuleReadiness(feature: PlanFeature): Promise<void> {
+    const moduleKey = FEATURE_MODULE_MAPPING[feature];
+    if (!moduleKey) {
       return;
     }
 
-    const minimumPlan = getMinimumPlanForFeature(feature);
+    try {
+      const systemModule = await (prisma as any).systemModule?.findUnique({
+        where: { key: moduleKey },
+        select: { key: true, name: true, status: true },
+      });
 
-    throw new PlanLimitError(
-      'plan_feature_not_available',
-      this.buildFeatureMessage(minimumPlan),
-      403,
-      {
-        currentPlan: planId,
-        requiredPlan: minimumPlan,
-        feature,
-      },
-    );
+      if (systemModule && systemModule.status !== 'AVAILABLE') {
+        throw new PlanLimitError(
+          'module_not_ready',
+          `O módulo "${systemModule.name || moduleKey}" está em fase técnica (${systemModule.status}) e ainda não está liberado para produção.`,
+          403,
+          {
+            feature,
+            moduleKey,
+            moduleStatus: systemModule.status,
+          },
+        );
+      }
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        throw error;
+      }
+      // Se a tabela system_modules não existir no banco de testes, prossegue normalmente
+    }
   }
 
   private async loadUserPlanSource(userId: string): Promise<UserPlanSource | null> {
@@ -92,6 +140,7 @@ export class PlanGuardService {
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
+        categoria: 'plataforma',
         status: {
           in: ['active', 'trialing'],
         },
@@ -132,7 +181,7 @@ export class PlanGuardService {
 
     throw new PlanLimitError(
       'company_limit_reached',
-      `Seu plano atual permite cadastrar até ${limits.maxCompanies} empresa(s). Faça upgrade para cadastrar mais empresas.`,
+      `Você atingiu o limite de ${limits.maxCompanies} empresas do seu plano. Faça upgrade para cadastrar novos CNPJs.`,
       403,
       {
         currentPlan: planId,

@@ -41,6 +41,9 @@ function extractErrorMessage(error: unknown) {
     if (response?.status === 409) {
       return 'Já existe uma conta com este email.';
     }
+    if (response?.status === 401) {
+      return response.data?.message || 'E-mail ou senha incorretos. Verifique suas credenciais.';
+    }
     if (response?.data?.message) {
       return response.data.message;
     }
@@ -180,7 +183,9 @@ export function LandingAuthPanel() {
       toast.success('Login realizado com sucesso.');
       navigate(resolveAuthenticatedHome(payload.user.role), { replace: true });
     } catch (error) {
-      setInlineError(extractErrorMessage(error));
+      const msg = extractErrorMessage(error);
+      setInlineError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +307,10 @@ export function LandingAuthPanel() {
                 type="email"
                 value={loginEmail}
                 onChange={(event) => setLoginEmail(event.target.value)}
-                className="w-full bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="w-full bg-transparent text-sm text-[#334155] lowercase outline-none placeholder:text-[#94A3B8]"
                 placeholder="voce@empresa.com"
                 autoComplete="email"
                 required
@@ -318,6 +326,9 @@ export function LandingAuthPanel() {
                 type="password"
                 value={loginSenha}
                 onChange={(event) => setLoginSenha(event.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
                 placeholder="Sua senha"
                 autoComplete="current-password"
@@ -424,6 +435,7 @@ export function LandingAuthPanel() {
                 type="text"
                 value={registerNome}
                 onChange={(event) => setRegisterNome(event.target.value)}
+                spellCheck={false}
                 className="w-full bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
                 placeholder="Seu nome"
                 autoComplete="name"
@@ -456,7 +468,10 @@ export function LandingAuthPanel() {
                   type="email"
                   value={registerEmail}
                   onChange={(event) => setRegisterEmail(event.target.value)}
-                  className="w-full bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full bg-transparent text-sm text-[#334155] lowercase outline-none placeholder:text-[#94A3B8]"
                   placeholder="voce@empresa.com"
                   autoComplete="email"
                   required
@@ -473,6 +488,9 @@ export function LandingAuthPanel() {
                 type="password"
                 value={registerSenha}
                 onChange={(event) => setRegisterSenha(event.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full bg-transparent text-sm text-[#334155] outline-none placeholder:text-[#94A3B8]"
                 placeholder="Min. 8 caracteres com letras e números"
                 autoComplete="new-password"

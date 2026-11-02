@@ -85,6 +85,12 @@ describe('ProposalService', () => {
         moeda: 'BRL',
         createdById: userId,
         responsibleUserId: userId,
+        declaracaoIndependente: false,
+        declaracaoHabilitacao: false,
+        declaracaoMenor: false,
+        declaracaoMeEpp: false,
+        declaracaoInidoneidade: false,
+        declaracaoAcessibilidade: false,
       }),
     });
 
@@ -160,6 +166,7 @@ describe('ProposalService', () => {
       },
       select: {
         id: true,
+        tenantId: true,
       },
     });
 

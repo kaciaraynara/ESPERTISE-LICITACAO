@@ -12,6 +12,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useLexAI } from '@hooks/useLexAI';
+import { ChatMessage } from '../ChatMessage';
 
 type ThinIcon = typeof BookOpenText;
 
@@ -56,15 +57,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: 'Liste riscos críticos e próximos passos antes de enviar lance ou proposta.',
   },
 ];
-
-function renderContent(content: string) {
-  return content.split('\n').map((line, index, lines) => (
-    <span key={`${line}-${index}`}>
-      {line.replace(/\*\*(.*?)\*\*/g, '$1')}
-      {index < lines.length - 1 ? <br /> : null}
-    </span>
-  ));
-}
 
 function TypingPulse() {
   return (
@@ -123,19 +115,19 @@ export function LexAdvisor() {
         >
           <header className="flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-md border border-[#1B1B1B] text-brand-blue">
-                <Scales className="h-6 w-6" weight="thin" />
+              <span className="flex h-11 w-11 items-center justify-center rounded-md border border-[#1B1B1B] bg-slate-50 overflow-hidden p-1">
+                <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-9 h-9 object-contain" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-brand-blue">LEX</p>
-                <p className="text-xs text-brand-blue/70">Lei 14.133/2021, TCU e revisão executiva</p>
+                <p className="text-sm font-semibold text-brand-blue">Assistente de Editais</p>
+                <p className="text-xs text-brand-blue/70">Apoio para consultar a Lei 14.133/2021 e referências do TCU</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-100 text-brand-blue/70 transition hover:border-brand-blue/20 hover:text-brand-blue"
-              aria-label="Fechar LEX"
+              aria-label="Fechar assistente"
             >
               <X className="h-5 w-5" weight="thin" />
             </button>
@@ -147,21 +139,25 @@ export function LexAdvisor() {
                 {messages.map((message) => (
                   <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {message.role === 'lex' ? (
-                      <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white text-brand-blue">
-                        <Scales className="h-4 w-4" weight="thin" />
+                      <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white overflow-hidden p-0.5">
+                        <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-6 h-6 object-contain" />
                       </span>
                     ) : null}
-                    <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6 ${
+                    <div className={`max-w-[86%] rounded-lg border px-4 py-3 text-sm leading-relaxed ${
                       message.role === 'lex'
-                        ? 'border-[#1B1B1B] bg-brand-blue text-white'
-                        : 'border-gray-100 bg-white text-brand-blue'
+                        ? 'border-slate-800 bg-[#0A2540] text-white'
+                        : 'border-slate-200 bg-white text-slate-800'
                     }`}>
-                      {renderContent(message.content)}
+                      <ChatMessage
+                        role={message.role}
+                        content={message.content}
+                        isStreaming={message.isStreaming}
+                      />
                     </div>
                   </div>
                 ))}
 
-                {isLoading ? (
+                {isLoading && !messages.some((m) => m.isStreaming && m.content.length > 0) ? (
                   <div className="flex gap-2">
                     <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white text-brand-blue">
                       <Scales className="h-4 w-4" weight="thin" />
@@ -233,7 +229,7 @@ export function LexAdvisor() {
                   );
                 })}
               </div>
-              <div className="mx-3 mt-2 rounded-md border border-brand-orange/35 bg-[#F3F1FF] p-3 text-xs leading-5 text-[#45378F]">
+              <div className="mx-3 mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
                 Se houver impacto jurídico, envie a resposta para revisão humana antes do protocolo.
               </div>
             </aside>
@@ -250,7 +246,7 @@ export function LexAdvisor() {
         className="fixed bottom-6 right-6 z-[70] flex h-14 items-center gap-3 rounded-lg bg-brand-blue px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-[0_18px_48px_rgba(27,27,27,0.16)]"
         aria-label="Abrir LEX"
       >
-        <Scales className="h-5 w-5" weight="thin" />
+        <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-6 h-6 object-contain" />
         LEX
       </motion.button>
     </>

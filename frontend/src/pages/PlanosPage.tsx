@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Check, Crown, RocketLaunch, Star, ShieldCheck, Spinner } from '@phosphor-icons/react';
-import api from '@services/api';
+import { pagamentosApi } from '@services/api';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/store/auth.store';
 
 interface Plan {
   id: string;
@@ -10,6 +11,8 @@ interface Plan {
   valor: number;
   valorCentavos: number;
   destaque: boolean;
+  features: string[];
+  mercadoPagoConfigurado: boolean;
   limites: {
     maxCompanies: number;
     maxUsers: number;
@@ -20,21 +23,80 @@ interface Plan {
 }
 
 export default function PlanosPage() {
+  const activePlanId = useAuthStore((state) => state.activePlanId);
+  const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
+  const setPlanAccess = useAuthStore((state) => state.setPlanAccess);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPlanos();
+    void syncSubscription();
   }, []);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('status') !== 'success') return;
+
+    let active = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const confirmCheckout = async () => {
+      try {
+        await pagamentosApi.reconciliarAssinatura();
+      } catch {
+        // O webhook pode ainda estar processando; a consulta abaixo continuará tentando.
+      }
+
+      try {
+        const response = await pagamentosApi.minhaAssinatura();
+        const subscription = response.data.data;
+        if (!active) return;
+        setPlanAccess(subscription.plano, subscription.features);
+        if (subscription.ativa) {
+          toast.success(`Plano ${subscription.plano === 'pro' ? 'Avançado' : subscription.plano} ativado.`);
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        }
+      } catch (error) {
+        console.error('[Planos] Falha ao confirmar o status do checkout.', error);
+      }
+
+      attempts += 1;
+      if (attempts < 10 && active) {
+        timer = setTimeout(() => void confirmCheckout(), 2_000);
+      } else if (active) {
+        toast.error('O pagamento ainda está em confirmação. A tela será atualizada quando o gateway confirmar a assinatura.');
+      }
+    };
+
+    void confirmCheckout();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [setPlanAccess]);
+
+  async function syncSubscription() {
+    try {
+      const response = await pagamentosApi.minhaAssinatura();
+      const subscription = response.data.data;
+      setPlanAccess(subscription.plano, subscription.features);
+      return subscription;
+    } catch (error) {
+      console.error('[Planos] Não foi possível consultar a assinatura atual.', error);
+      return null;
+    }
+  }
 
   const fetchPlanos = async () => {
     try {
-      const response = await api.get('/pagamentos/planos');
+      const response = await pagamentosApi.planos();
       if (response.data.success) {
         setPlans(response.data.data.filter((p: Plan) => p.id !== 'free'));
       }
-    } catch (error) {
+    } catch {
       toast.error('Não foi possível carregar os planos no momento.');
     } finally {
       setLoading(false);
@@ -42,14 +104,30 @@ export default function PlanosPage() {
   };
 
   const handleCheckout = async (planId: string) => {
+    if (!planAccessLoaded) {
+      toast.error('Aguarde a confirmação do seu plano atual.');
+      return;
+    }
+
+    if (activePlanId !== 'free') {
+      if (activePlanId === planId) {
+        toast.success('Este já é o seu plano atual.');
+        return;
+      }
+      toast.error('Para alterar uma assinatura ativa, fale com o suporte.');
+      return;
+    }
+
     setCheckoutLoading(planId);
     try {
-      const response = await api.post('/pagamentos/checkout-auth', { plano: planId });
-      if (response.data.success && response.data.data.url) {
+      const response = await pagamentosApi.criarCheckout({ plano: planId });
+      if (response.data?.success && response.data?.data?.url) {
         window.location.href = response.data.data.url;
+        return;
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Erro ao gerar checkout do Mercado Pago.');
+      toast.error('O Mercado Pago não retornou o endereço do checkout.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao iniciar checkout seguro do Mercado Pago.');
     } finally {
       setCheckoutLoading(null);
     }
@@ -73,6 +151,7 @@ export default function PlanosPage() {
         <p className="text-lg text-slate-600 leading-relaxed">
           Escolha o plano ideal para a sua operação. Do licitante iniciante às grandes equipes estratégicas, a EXPERTISE impulsiona suas vitórias.
         </p>
+
       </div>
 
       {/* Cards de Planos */}
@@ -98,6 +177,11 @@ export default function PlanosPage() {
               </p>
             </div>
 
+            {activePlanId === plan.id && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-800">
+                Plano atual
+              </div>
+            )}
             <div className="mb-8">
               <span className="text-4xl font-black tracking-tight">
                 R$ {(plan.valorCentavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -107,7 +191,12 @@ export default function PlanosPage() {
 
             <button
               onClick={() => handleCheckout(plan.id)}
-              disabled={checkoutLoading === plan.id}
+              disabled={
+                checkoutLoading === plan.id ||
+                activePlanId === plan.id ||
+                !plan.mercadoPagoConfigurado ||
+                !planAccessLoaded
+              }
               className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2
                 ${plan.destaque 
                   ? 'bg-brand-orange text-white hover:bg-orange-600 active:scale-95 shadow-lg shadow-brand-orange/30' 
@@ -115,8 +204,14 @@ export default function PlanosPage() {
             >
               {checkoutLoading === plan.id ? (
                 <Spinner className="w-6 h-6 animate-spin" />
+              ) : activePlanId === plan.id ? (
+                'Seu plano atual'
+              ) : !plan.mercadoPagoConfigurado ? (
+                'Checkout em configuração'
+              ) : activePlanId !== 'free' ? (
+                'Fale com o suporte para alterar'
               ) : (
-                'Assinar agora'
+                'Assinar agora via Mercado Pago'
               )}
             </button>
 
@@ -140,11 +235,11 @@ export default function PlanosPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className={`w-5 h-5 flex-shrink-0 ${plan.destaque ? 'text-brand-orange' : 'text-green-500'}`} weight="bold" />
-                  <span>{plan.limites.maxNullityAnalysesMonth} análises de nulidade c/ IA (mês)</span>
+                  <span>{plan.limites.maxNullityAnalysesMonth} análises de exigências em editais por mês</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className={`w-5 h-5 flex-shrink-0 ${plan.destaque ? 'text-brand-orange' : 'text-green-500'}`} weight="bold" />
-                  <span>{plan.limites.maxProposalsMonth === null ? 'Propostas ilimitadas' : `${plan.limites.maxProposalsMonth} propostas automáticas (mês)`}</span>
+                  <span>{plan.limites.maxProposalsMonth === null ? 'Propostas ilimitadas' : `${plan.limites.maxProposalsMonth} propostas por mês`}</span>
                 </li>
                 
                 {/* Funcionalidades Extras Específicas por Plano */}
@@ -173,10 +268,13 @@ export default function PlanosPage() {
       </div>
       
       {/* Footer Segurança */}
-      <div className="mt-16 text-center flex flex-col items-center justify-center gap-2 opacity-60">
-        <ShieldCheck className="w-8 h-8 text-slate-500" />
-        <p className="text-sm font-medium text-slate-500">
-          Pagamento 100% seguro processado via Mercado Pago. Cancele quando quiser.
+      <div className="mt-16 text-center flex flex-col items-center justify-center gap-2 opacity-70">
+        <ShieldCheck className="w-8 h-8 text-emerald-600" />
+        <p className="text-sm font-bold text-slate-700">
+          Pagamento recorrente seguro processado pelo Mercado Pago.
+        </p>
+        <p className="text-xs text-slate-500">
+          O acesso é liberado após a confirmação do pagamento pelo Mercado Pago.
         </p>
       </div>
     </div>

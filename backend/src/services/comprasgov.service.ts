@@ -79,6 +79,11 @@ export interface LicitacaoComprasGov {
   modalidade?: string;
   situacao?: string;
   link?: string;
+  processo?: string;
+  modo_disputa?: string;
+  srp?: boolean;
+  amparo_legal?: string;
+  prazo_minimo_dias_uteis?: number;
 }
 
 interface BuscaComprasGovInput {
@@ -174,31 +179,31 @@ function applyLocalFilters(items: LicitacaoComprasGov[], params: BuscaComprasGov
 function normalizePregao(item: any): LicitacaoComprasGov {
   const uasg = String(
     item.unidadeOrgaoCodigoUnidade
-      || item.co_uasg
-      || item.uasg
-      || item.id_uasg
-      || item.codigo_uasg
-      || '',
+    || item.co_uasg
+    || item.uasg
+    || item.id_uasg
+    || item.codigo_uasg
+    || '',
   );
 
   const numero = String(
     item.numeroCompra
-      || item.numero
-      || item.nu_pregao
-      || item.numero_pregao
-      || item.nr_pregao
-      || '',
+    || item.numero
+    || item.nu_pregao
+    || item.numero_pregao
+    || item.nr_pregao
+    || '',
   );
 
   const id = String(
     item.numeroControlePNCP
-      || item.idCompra
-      || item.id_compra
-      || item.id
-      || item.identificador
-      || item.numero_licitacao
-      || [uasg, numero].filter(Boolean).join('-')
-      || `${Date.now()}-${Math.random()}`,
+    || item.idCompra
+    || item.id_compra
+    || item.id
+    || item.identificador
+    || item.numero_licitacao
+    || [uasg, numero].filter(Boolean).join('-')
+    || `${Date.now()}-${Math.random()}`,
   );
 
   const orgao =
@@ -278,6 +283,13 @@ function normalizePregao(item: any): LicitacaoComprasGov {
       || item.situacao
       || 'Publicada',
     link,
+    processo: item.processo || item.numeroProcesso || item.num_processo || undefined,
+    modo_disputa: item.modoDisputaNome || item.modoDisputa || undefined,
+    srp: typeof item.srp === 'boolean' ? item.srp : undefined,
+    amparo_legal: item.amparoLegal || 'Lei 14.133/2021',
+    prazo_minimo_dias_uteis: item.prazoMinimoDiasUteis || (
+      (item.modalidadeNome || item.modalidade || '').toLowerCase().includes('pregao') ? 8 : 10
+    ),
   };
 }
 
@@ -451,7 +463,7 @@ async function persistComprasGovNotices(items: LicitacaoComprasGov[]) {
     if (!item.id) continue;
     const dedupeKey = `COMPRASGOV:${item.id}`;
     const hash = crypto.createHash('md5').update(JSON.stringify(item)).digest('hex');
-    
+
     await prisma.procurementNotice.upsert({
       where: { dedupeKey },
       create: {
@@ -538,8 +550,19 @@ export function calcularPrecoReferencia(historico: PregaoHistorico[]): {
 
   const valores = historico
     .map((item) => item.valor_homologado)
-    .filter((value) => value > 0)
+    .filter((value) => Number.isFinite(value) && value > 0)
     .sort((a, b) => a - b);
+
+  if (valores.length === 0) {
+    return {
+      media: 0,
+      mediana: 0,
+      minimo: 0,
+      maximo: 0,
+      descontoPctMedio: 0,
+      precoSugerido: 0,
+    };
+  }
 
   const media = valores.reduce((sum, value) => sum + value, 0) / valores.length;
   const mediana = valores[Math.floor(valores.length / 2)];

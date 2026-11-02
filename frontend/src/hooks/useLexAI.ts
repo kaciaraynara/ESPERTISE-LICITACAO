@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { aiApi } from '@services/api';
+import { streamAiChat } from '../services/aiStream.service';
 
 export type LexAIMessage = {
   id: string;
   role: 'user' | 'lex';
   content: string;
+  isStreaming?: boolean;
 };
 
 function createId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 export function useLexAI() {
@@ -32,24 +33,45 @@ export function useLexAI() {
     const cleanQuestion = pergunta.trim();
     if (!cleanQuestion || isLoading) return;
 
+    const botMessageId = createId('lex');
+
     setMessages((current) => [
       ...current,
       { id: createId('user'), role: 'user', content: cleanQuestion },
+      { id: botMessageId, role: 'lex', content: '', isStreaming: true },
     ]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await aiApi.consultar({ pergunta: cleanQuestion, contexto });
-      const resposta = response.data?.data?.resposta || 'Não consegui gerar uma resposta agora.';
-      setMessages((current) => [
-        ...current,
-        { id: createId('lex'), role: 'lex', content: resposta },
-      ]);
+      await streamAiChat({
+        endpoint: '/ai/consultar',
+        pergunta: cleanQuestion,
+        contexto,
+        onChunk: (_chunk, accumulated) => {
+          setMessages((current) =>
+            current.map((msg) =>
+              msg.id === botMessageId ? { ...msg, content: accumulated } : msg
+            )
+          );
+        },
+        onDone: (fullText) => {
+          setMessages((current) =>
+            current.map((msg) =>
+              msg.id === botMessageId
+                ? { ...msg, content: fullText || 'Resposta concluída.', isStreaming: false }
+                : msg
+            )
+          );
+        },
+        onError: (err) => {
+          throw err;
+        },
+      });
     } catch {
       const message = 'Não consegui consultar o LEX agora. Se houver prazo em aberto, envie a dúvida para revisão jurídica e tente novamente em alguns instantes.';
       setMessages((current) => [
-        ...current.filter((item) => item.id !== 'lex-unavailable'),
+        ...current.filter((item) => item.id !== botMessageId && item.id !== 'lex-unavailable'),
         { id: 'lex-unavailable', role: 'lex', content: message },
       ]);
     } finally {

@@ -16,6 +16,7 @@ router.use(authMiddleware as RequestHandler);
 router.use(fornecedorOuContador);
 
 router.get('/storage-status', handle(controller.storageStatus.bind(controller) as RequestHandler));
+router.get('/download-local/*', handle(controller.downloadLocal.bind(controller) as RequestHandler));
 router.get('/', handle(controller.listar.bind(controller) as RequestHandler));
 router.post('/upload', documentosUpload, handle(controller.criar.bind(controller) as RequestHandler));
 router.post('/expedir', handle(controller.expedir.bind(controller) as RequestHandler));

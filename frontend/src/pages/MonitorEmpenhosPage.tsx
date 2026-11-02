@@ -9,9 +9,9 @@ export default function MonitorEmpenhosPage() {
             <div className="bg-white p-2 rounded-lg">
               <FileCheck2 className="w-6 h-6 text-brand-blue" />
             </div>
-            Monitor de Empenhos
+            Acompanhar Empenhos
           </h1>
-          <p className="text-brand-blue/70 mt-1">Acompanhamento automático do Diário Oficial. Não perca prazos de entrega.</p>
+          <p className="text-brand-blue/70 mt-1">Acompanhe publicações no Diário Oficial e confira os prazos de entrega.</p>
         </div>
       </div>
 
@@ -21,10 +21,9 @@ export default function MonitorEmpenhosPage() {
         </div>
         <h3 className="text-xl font-bold text-brand-blue mb-2">Sem empenhos aguardando ação</h3>
         <p className="text-brand-blue/70 max-w-md">
-          O monitor está varrendo o Diário Oficial neste exato momento para alertá-lo quando as notas de empenho dos seus contratos ativos forem publicadas.
+          Consulte as publicações do Diário Oficial para acompanhar notas de empenho dos seus contratos ativos.
         </p>
       </div>
     </div>
   );
 }
-

@@ -164,6 +164,14 @@ function extractSearchableFields(entityType: DataEntityType, payload: Record<str
     base.openingAt = readFirstString(payload, ['dataAbertura', 'dataAberturaProposta', 'data_abertura']);
     base.closingAt = readFirstString(payload, ['dataEncerramento', 'dataEncerramentoProposta', 'data_encerramento']);
     base.publishedAt = readFirstString(payload, ['dataPublicacao', 'dataPublicacaoPncp', 'publishedAt']);
+    base.processoAdministrativo = readFirstString(payload, ['processo', 'processoAdministrativo', 'numeroProcesso', 'num_processo']);
+    base.modoDisputa = readFirstString(payload, ['modoDisputa', 'modoDisputaNome', 'modo_disputa']);
+    base.srp = typeof payload.srp === 'boolean' ? payload.srp : undefined;
+    base.amparoLegal = readFirstString(payload, ['amparoLegal', 'fundamentoLegal', 'amparo_legal', 'lei']) ?? 'Lei 14.133/2021';
+    base.inversaoFases = typeof payload.inversaoFases === 'boolean' ? payload.inversaoFases : true;
+    base.prazoMinimoDiasUteis = payload.prazoMinimoDiasUteis ?? payload.prazo_minimo_dias_uteis ?? (
+      base.modality && String(base.modality).toLowerCase().includes('pregao') ? 8 : 10
+    );
   }
 
   if (entityType === 'company' || entityType === 'supplier') {

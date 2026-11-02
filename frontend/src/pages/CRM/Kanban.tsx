@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export default function KanbanPage() {
   const columns = [
@@ -11,8 +11,8 @@ export default function KanbanPage() {
   return (
     <div className="p-6 h-full flex flex-col w-full max-w-full overflow-hidden">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-brand-blue mb-2">Funil de Oportunidades (CRM)</h1>
-        <p className="text-slate-500">Arraste e solte as licitações para atualizar o status no seu pipeline de vendas.</p>
+        <h1 className="text-3xl font-bold text-brand-blue mb-2">Gestão de Disputas & Oportunidades</h1>
+        <p className="text-slate-500">Arraste e solte as licitações para atualizar a etapa na sua Gestão de Disputas.</p>
       </div>
 
       <div className="flex-1 flex gap-6 overflow-x-auto pb-4">

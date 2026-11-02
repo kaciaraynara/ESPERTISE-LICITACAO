@@ -105,8 +105,14 @@ export class AuthController {
         });
       }
 
-      console.error('[AUTH] Erro ao registrar usuário:', err?.message || err);
-      return sendAuthServiceUnavailable(res);
+      console.error('[AUTH] Erro detalhado ao registrar usuário:', err);
+      return res.status(503).json({
+        success: false,
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+        message: 'O serviço de autenticação está temporariamente indisponível.',
+        debug_error: err?.message,
+        debug_stack: err?.stack
+      });
     }
   }
 
@@ -127,8 +133,20 @@ export class AuthController {
     } catch (err: any) {
       if (err.name === 'ZodError') return res.status(400).json({ success: false, message: 'Dados inválidos', errors: err.errors });
       
-      if (err.message === 'INVALID_CREDENTIALS' || err.message === 'INVALID_PASSWORD_HASH') {
-        return res.status(401).json({ success: false, message: err.message === 'INVALID_PASSWORD_HASH' ? 'Não foi possível validar a senha desta conta. Use recuperar senha.' : 'Email ou senha incorretos.' });
+      if (err.message === 'INVALID_CREDENTIALS' || err.code === 'INVALID_CREDENTIALS') {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_CREDENTIALS',
+          message: 'E-mail ou senha incorretos. Verifique suas credenciais.',
+        });
+      }
+
+      if (err.message === 'INVALID_PASSWORD_HASH' || err.code === 'INVALID_PASSWORD_HASH') {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_PASSWORD_HASH',
+          message: 'Não foi possível validar a senha desta conta. Use recuperar senha.',
+        });
       }
 
       console.error('[AUTH] Erro ao autenticar:', err?.message || err);
@@ -141,10 +159,16 @@ export class AuthController {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const [user, primaryCompany] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.company.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
     if (!user) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
-    return res.json({ success: true, data: authOperationsService.buildPublicUser(user) });
+    return res.json({ success: true, data: authOperationsService.buildPublicUser(user, primaryCompany) });
   }
 
   async updateProfile(req: any, res: Response) {
@@ -167,12 +191,18 @@ export class AuthController {
         return res.status(400).json({ success: false, message: 'Nenhum dado válido fornecido para atualização' });
       }
 
-      const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: dataToUpdate,
-      });
+      const [updatedUser, primaryCompany] = await Promise.all([
+        prisma.user.update({
+          where: { id: userId },
+          data: dataToUpdate,
+        }),
+        prisma.company.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
 
-      return res.json({ success: true, data: authOperationsService.buildPublicUser(updatedUser), message: 'Perfil atualizado com sucesso' });
+      return res.json({ success: true, data: authOperationsService.buildPublicUser(updatedUser, primaryCompany), message: 'Perfil atualizado com sucesso' });
     } catch (err) {
       console.error('[AUTH] updateProfile error:', err);
       return res.status(500).json({ success: false, message: 'Erro ao atualizar perfil' });
@@ -227,6 +257,7 @@ export class AuthController {
         data: {
           user: publicUser,
           accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
         },
       });
     } catch (err) {

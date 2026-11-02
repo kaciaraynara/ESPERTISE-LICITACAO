@@ -60,8 +60,17 @@ interface DocumentRecord {
   status: 'valido' | 'atencao' | 'vencido' | 'sem_validade';
   url?: string | null;
   arquivo_nome?: string | null;
+  tamanho?: number | null;
+  file_size?: number | null;
   criado_em: string;
   atualizado_em?: string;
+}
+
+function formatBytes(bytes?: number | null): string | null {
+  if (!bytes || bytes <= 0) return null;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 interface DocumentView extends DocumentRecord {
@@ -420,7 +429,7 @@ export default function CofrePage() {
       </header>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo documental">
-          <MetricCard label="Arquivos cadastrados" value={counters.total} detail="Total retornado pela API" />
+          <MetricCard label="Arquivos cadastrados" value={counters.total} detail="Total sob custódia segura" />
           <MetricCard label="Regulares" value={counters.valid} detail="Validade superior a 30 dias" />
           <MetricCard label="Atenção" value={counters.attention} detail="Vencimento em até 30 dias" />
           <MetricCard label="Vencidos" value={counters.expired} detail="Prazo de validade encerrado" />
@@ -577,7 +586,7 @@ export default function CofrePage() {
                   <AlertTriangle className="mx-auto h-8 w-8 text-amber-700" aria-hidden="true" />
                   <h2 className="mt-3 text-lg font-bold text-slate-900">Documentos indisponíveis</h2>
                   <p className="mt-2 max-w-lg text-sm leading-6 text-slate-600">
-                    {getErrorMessage(documentsQuery.error, 'A API não retornou seus documentos. Este erro não foi convertido em uma lista vazia.')}
+                    {getErrorMessage(documentsQuery.error, 'Não foi possível carregar seus documentos. Tente novamente.')}
                   </p>
                   <button
                     type="button"
@@ -592,17 +601,31 @@ export default function CofrePage() {
             )}
 
             {!documentsQuery.isLoading && !documentsQuery.isError && filteredDocuments.length === 0 && (
-              <div className="mt-4 flex min-h-56 items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-                <div>
-                  <FolderOpen className="mx-auto h-9 w-9 text-slate-400" aria-hidden="true" />
-                  <h2 className="mt-3 text-lg font-bold text-slate-900">
-                    {documents.length === 0 ? 'Nenhum arquivo enviado' : 'Nenhum resultado para este filtro'}
+              <div className="mt-4 flex min-h-64 items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
+                <div className="max-w-md mx-auto space-y-3">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center mx-auto">
+                    <FolderOpen className="h-8 w-8" aria-hidden="true" />
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                    {documents.length === 0 ? 'Seus documentos estão prontos para organização' : 'Nenhum resultado para este filtro'}
                   </h2>
-                  <p className="mt-2 text-sm text-slate-500">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     {documents.length === 0
-                      ? 'Use o formulário ao lado para enviar o primeiro documento real da empresa.'
-                      : 'Ajuste a busca ou selecione outra situação.'}
+                      ? 'Adicione o Contrato Social, o Balanço Patrimonial ou os atestados da empresa para facilitar a preparação das suas propostas.'
+                      : 'Ajuste os filtros de pesquisa para visualizar os arquivos cadastrados.'}
                   </p>
+                  {documents.length === 0 && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-blue hover:bg-slate-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                      >
+                        <UploadCloud className="h-4 w-4" />
+                        Enviar Primeiro Documento
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -622,6 +645,11 @@ export default function CofrePage() {
                     <h2 className="mt-2 line-clamp-2 text-lg font-bold leading-6 text-slate-900">{documento.nome}</h2>
                     <p className="mt-2 truncate text-xs text-slate-500" title={documento.arquivo_nome ?? undefined}>
                       {documento.arquivo_nome ?? 'Nome original não informado'}
+                      {formatBytes(documento.tamanho || documento.file_size) && (
+                        <span className="ml-1.5 font-bold text-slate-400">
+                          • {formatBytes(documento.tamanho || documento.file_size)}
+                        </span>
+                      )}
                     </p>
 
                     <dl className="mt-5 grid grid-cols-2 gap-3 border-y border-slate-100 py-4 text-sm">
@@ -683,7 +711,7 @@ export default function CofrePage() {
             {!documentsQuery.isLoading && !documentsQuery.isError && documents.length > 0 && (
               <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                Situações calculadas exclusivamente pelas datas de validade retornadas pela API.
+                A situação de cada documento considera as datas de validade registradas.
               </p>
             )}
           </section>

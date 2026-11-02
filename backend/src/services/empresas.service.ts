@@ -29,15 +29,20 @@ export class EmpresasService {
     return {
       id: company.id,
       user_id: company.userId,
+      userId: company.userId,
       cnpj: company.cnpj,
       razao_social: company.razaoSocial,
+      razaoSocial: company.razaoSocial,
       nome_fantasia: company.nomeFantasia,
+      nomeFantasia: company.nomeFantasia,
       cnae_principal: company.cnaePrincipal,
+      cnaePrincipal: company.cnaePrincipal,
       municipio: company.municipio,
       uf: company.uf,
       status: company.status,
       nicho: company.nicho,
       palavras_chave: company.palavrasChave,
+      palavrasChave: company.palavrasChave,
       valor_min: company.valorMin ? Number(company.valorMin) : null,
       valor_max: company.valorMax ? Number(company.valorMax) : null,
       regioes: company.regioes,
@@ -51,7 +56,7 @@ export class EmpresasService {
   public async listar(userId: string) {
     const tenantId = await this.getTenantId(userId);
     const rows = await prisma.company.findMany({
-      where: { tenantId },
+      where: { tenantId, userId },
       orderBy: { updatedAt: 'desc' },
     });
     return rows.map(this.mapCompany);
@@ -60,7 +65,7 @@ export class EmpresasService {
   public async buscarPorId(userId: string, id: string) {
     const tenantId = await this.getTenantId(userId);
     const row = await prisma.company.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, userId },
     });
     
     if (!row) {
@@ -137,7 +142,7 @@ export class EmpresasService {
   public async atualizar(userId: string, id: string, body: Record<string, unknown>) {
     const tenantId = await this.getTenantId(userId);
     const atualRow = await prisma.company.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, userId },
     });
 
     if (!atualRow) {

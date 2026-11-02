@@ -1,7 +1,7 @@
 export async function fetchOportunidadesCRM(): Promise<any[]> {
   const response = await fetch('/api/crm/oportunidades');
   const result = await response.json();
-  if (!result.success) throw new Error(result.message);
+  if (!result.success) throw new Error(result.message || 'Sincronizando dados oficiais...');
   return result.data as any[];
 }
 
@@ -18,6 +18,6 @@ export async function updateEtapaOportunidade(id: string, etapa: string): Promis
 export async function fetchMetricasCRM(): Promise<any> {
   const response = await fetch('/api/crm/metricas');
   const result = await response.json();
-  if (!result.success) throw new Error(result.message);
+  if (!result.success) throw new Error(result.message || 'Sincronizando dados oficiais...');
   return result.data as any;
 }

@@ -3,18 +3,33 @@ export type PlanoUsuario = 'free' | 'basic' | 'pro' | 'premium' | 'starter' | 'p
 
 export interface User {
   id: string;
+  tenant_id?: string;
   email: string;
   nome: string | null;
   telefone: string | null;
   plano: PlanoUsuario;
+  planType?: 'BASIC' | 'MEDIUM' | 'MASTER' | string | null;
+  cnpjsRegistered?: number;
+  monthlyAnalysesUsed?: number;
+  monthlyProposalsUsed?: number;
   email_verificado: boolean;
   ultimo_acesso: string | null;
   created_at: string;
   role?: 'fornecedor';
+  permissoes?: string[];
   oab_numero?: string | null;
   oab_uf?: string | null;
   crc_numero?: string | null;
   crc_uf?: string | null;
+  company_id?: string | null;
+  company?: {
+    id: string;
+    razaoSocial: string;
+    nomeFantasia?: string | null;
+    cnpj: string;
+    uf?: string | null;
+    municipio?: string | null;
+  } | null;
 }
 
 export type NivelScore = 'alto' | 'medio' | 'baixo';
@@ -250,16 +265,21 @@ export interface RadarLicitacao {
   dataAbertura: string | null;
   dataEncerramento: string | null;
   link: string | null;
+  srp?: boolean;
   fonte: 'PNCP';
 }
 
 export interface RadarLicitacoesFiltros {
-  dataFinal: string;
+  dataInicial?: string;
+  dataFinal?: string;
   codigoModalidadeContratacao?: number;
   uf?: string;
+  srp?: boolean;
   palavraChave?: string;
-  pagina: number;
-  tamanhoPagina: number;
+  termo?: string;
+  modalidade?: string;
+  pagina?: number;
+  tamanhoPagina?: number;
 }
 
 export interface RadarLicitacoesResponse {

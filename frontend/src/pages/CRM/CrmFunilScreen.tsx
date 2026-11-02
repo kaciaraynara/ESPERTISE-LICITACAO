@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Search, Sparkles, ShieldCheck, BarChart3, 
+  Search, ShieldCheck, BarChart3, 
   Plus, Calendar, DollarSign, ChevronRight, User, Loader2
 } from 'lucide-react';
 import { useOportunidadesCRM, useMetricasCRM, useMoverEtapaOportunidade } from '../../hooks/useCrmQuery';
@@ -56,7 +56,7 @@ export const CrmFunilScreen: React.FC = () => {
               <BarChart3 size={16} /> <span>CRM & Funil</span>
             </a>
             <a href="/lex" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
-              <Sparkles size={16} /> <span>Leitor LEX AI</span>
+              <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-4 h-4 object-contain" /> <span>Análise de Editais</span>
             </a>
             <a href="/cofre" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
               <ShieldCheck size={16} /> <span>Cofre de Documentos</span>
@@ -72,13 +72,13 @@ export const CrmFunilScreen: React.FC = () => {
         <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between flex-shrink-0">
           <div>
             <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              Pipeline Comercial de Licitações
+              Gestão de Disputas & Oportunidades
               <span className="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Sincronizado via API
+                Informações atualizadas
               </span>
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Gerenciamento em tempo real do ciclo de vida das disputas.
+              Acompanhe cada etapa das suas disputas.
             </p>
           </div>
 
@@ -105,7 +105,7 @@ export const CrmFunilScreen: React.FC = () => {
           </div>
         ) : isError ? (
           <div className="flex-1 flex items-center justify-center bg-slate-100 text-rose-600 font-bold text-sm">
-            Erro ao conectar com a API de CRM.
+            Conexão com os portais governamentais temporariamente indisponível. Tentando novamente...
           </div>
         ) : (
           /* CORPO DO KANBAN */

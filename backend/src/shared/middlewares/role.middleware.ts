@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware';
 
-export type UserRole = 'fornecedor';
+export type UserRole = 'fornecedor' | 'admin' | 'super_admin';
 
 export function requireRole(...roles: UserRole[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -9,6 +9,10 @@ export function requireRole(...roles: UserRole[]) {
 
     if (!role) {
       return res.status(401).json({ success: false, message: 'Usuario nao autenticado' });
+    }
+
+    if (req.user?.isAdmin || role === 'admin' || role === 'super_admin') {
+      return next();
     }
 
     if (!roles.includes(role)) {

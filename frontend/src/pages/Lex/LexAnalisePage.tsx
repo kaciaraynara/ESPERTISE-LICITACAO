@@ -1,66 +1,56 @@
 import React, { useState } from 'react';
 import { 
-  Bot, Scale, Sparkles, Download, Loader2
+  Sparkles, Download, Loader2, CheckCircle
 } from 'lucide-react';
-import { lexApi } from '@services/api';
 import toast from 'react-hot-toast';
-
-interface CláusulaAnalisada {
-  id: string;
-  item: string;
-  categoria: 'RISCO_JURIDICO' | 'EXIGENCIA_ABUSIVA' | 'AMBIGUIDADE' | 'CONFORME';
-  textoClausula: string;
-  analiseLex: string;
-  sugestaoImpugnacao?: string;
-  nivelRisco: 'ALTO' | 'MEDIO' | 'BAIXO';
-}
+import { streamAiChat } from '../../services/aiStream.service';
+import { ChatMessage } from '../../components/ChatMessage';
+import { EditalOption, EditalSelector } from '../../components/EditalSelector';
 
 export const LexAnalisePage: React.FC = () => {
-  const [editalSelecionado, setEditalSelecionado] = useState('PE 102/2026 - PMSP');
+  const [editalSelecionado, setEditalSelecionado] = useState<EditalOption | null>(null);
   const [analisando, setAnalisando] = useState(false);
-
-  const [clausulas] = useState<CláusulaAnalisada[]>([
-    {
-      id: '1',
-      item: 'Cláusula 7.3.2 - Habilitação Técnica',
-      categoria: 'EXIGENCIA_ABUSIVA',
-      textoClausula: 'Exigência de atestado registrado no CREA emitido exclusivamente no mesmo estado do órgão contratante.',
-      analiseLex: 'Restrição indevida de competitividade. A jurisprudência pacífica do TCU (Súmula 272) veda exigência territorial para comprovação de aptidão técnica.',
-      sugestaoImpugnacao: 'Solicita-se a exclusão do trecho "emitido exclusivamente no mesmo estado", por violar o art. 9º, I da Lei 14.133/2021.',
-      nivelRisco: 'ALTO'
-    },
-    {
-      id: '2',
-      item: 'Cláusula 12.1 - Prazos de Pagamento',
-      categoria: 'RISCO_JURIDICO',
-      textoClausula: 'Pagamento efetuado em até 60 (sessenta) dias após liquidação do documento fiscal.',
-      analiseLex: 'O prazo ultrapassa o limite de 30 dias estabelecido como regra geral na Lei 14.133/2021 (art. 143), gerando risco ao fluxo de caixa.',
-      sugestaoImpugnacao: 'Requer-se adequação do prazo máximo para 30 dias contados da entrega definitiva.',
-      nivelRisco: 'MEDIO'
-    },
-    {
-      id: '3',
-      item: 'Cláusula 4.1 - Amostras e Prova de Conceito',
-      categoria: 'CONFORME',
-      textoClausula: 'Apresentação de amostra apenas pelo licitante provisoriamente classificado em primeiro lugar.',
-      analiseLex: 'Totalmente conforme a Nova Lei de Licitações. Impede custos desnecessários antes do julgamento das propostas.',
-      nivelRisco: 'BAIXO'
-    }
-  ]);
+  const [streamingAuditText, setStreamingAuditText] = useState('');
+  const [isAuditStreaming, setIsAuditStreaming] = useState(false);
 
   const executarAnaliseIa = async () => {
+    if (!editalSelecionado) {
+      toast.error('Selecione um edital real monitorado ou vinculado a uma proposta.');
+      return;
+    }
+
     setAnalisando(true);
+    setIsAuditStreaming(true);
+    setStreamingAuditText('');
+
     try {
-      const res = await lexApi.consultar({ 
-        pergunta: `Analise o edital ${editalSelecionado} buscando por irregularidades na Nova Lei de Licitações.` 
+      await streamAiChat({
+        endpoint: '/lex/auditar',
+        noticeId: editalSelecionado.id,
+        pergunta: 'Analise este edital, distinguindo fatos do documento, interpretação jurídica e limitações da análise. Não presuma cláusulas ausentes.',
+        onChunk: (_chunk, accumulated) => {
+          setStreamingAuditText(accumulated);
+        },
+        onDone: (fullText) => {
+          setStreamingAuditText(fullText);
+          setIsAuditStreaming(false);
+          if (fullText.trim()) {
+            toast.success('Análise preliminar concluída. Revise as fontes e limitações antes de tomar decisões.');
+          } else {
+            toast.error('A IA concluiu sem retornar uma análise.');
+          }
+        },
+        onError: (err) => {
+          throw err;
+        },
       });
-      if (res.data?.data) {
-        toast.success('Análise finalizada pela LEX AI!');
-      }
-    } catch (err) {
-      toast.error('Erro na comunicação com a API de IA, utilizando dados em cache.');
+    } catch (err: any) {
+      toast.error(err?.message?.includes('403')
+        ? 'Seu plano não permite executar esta análise.'
+        : 'Não foi possível analisar o edital. Nenhum resultado demonstrativo será exibido.');
     } finally {
       setAnalisando(false);
+      setIsAuditStreaming(false);
     }
   };
 
@@ -71,15 +61,15 @@ export const LexAnalisePage: React.FC = () => {
       <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-2 bg-[#0A2540] text-white rounded-lg shadow-md">
-              <Bot size={20} />
+            <span className="p-1 bg-[#0A2540] text-white rounded-lg shadow-md w-10 h-10 flex items-center justify-center overflow-hidden">
+              <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-8 h-8 object-contain" />
             </span>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              LEX AI - Inteligência Jurídica & Leitura de Edital
+              Análise de Editais
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Análise automatizada por IA para identificação de cláusulas ilícitas, pegadinhas e sugestões de impugnação.
+            Análise preliminar baseada no texto disponível do edital. As conclusões exigem validação profissional.
           </p>
         </div>
 
@@ -89,7 +79,7 @@ export const LexAnalisePage: React.FC = () => {
           className="px-6 py-3 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
         >
           {analisando ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {analisando ? 'REANALISANDO EDITAL...' : 'EXECUTAR ANÁLISE COMPLETA'}
+          {analisando ? 'ANALISANDO EDITAL...' : 'ANALISAR EDITAL SELECIONADO'}
         </button>
       </header>
 
@@ -98,59 +88,51 @@ export const LexAnalisePage: React.FC = () => {
         
         {/* ESQUERDA: LISTA DE CLÁUSULAS */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200">
-            <span className="text-xs font-bold text-slate-700">Edital sob Análise:</span>
-            <select 
-              value={editalSelecionado}
-              onChange={(e) => setEditalSelecionado(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
-            >
-              <option value="PE 102/2026 - PMSP">PE 102/2026 - Prefeitura Municipal de SP</option>
-              <option value="PE 088/2026 - SES">PE 088/2026 - Secretaria de Saúde SP</option>
-            </select>
+          <div className="bg-white p-4 rounded-xl border border-slate-200">
+            <EditalSelector
+              label="Edital real sob análise"
+              onSelectEdital={setEditalSelecionado}
+            />
           </div>
 
-          <div className="space-y-4">
-            {clausulas.map((c) => (
-              <div key={c.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-bold text-xs text-slate-900">{c.item}</span>
-                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded uppercase ${
-                    c.nivelRisco === 'ALTO'
-                      ? 'bg-rose-100 text-rose-800'
-                      : c.nivelRisco === 'MEDIO'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    Risco {c.nivelRisco}
+          {/* Resultado da análise do edital */}
+          {(isAuditStreaming || streamingAuditText) && (
+            <div className="bg-[#0A2540] border border-orange-500/40 rounded-2xl p-5 shadow-xl text-white space-y-3 animate-in fade-in">
+              <div className="flex items-center justify-between border-b border-slate-700 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 bg-slate-800 rounded-lg">
+                    <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-5 h-5 object-contain" />
+                  </div>
+                  <span className="text-xs font-bold text-white tracking-wide">
+                    Análise do edital
                   </span>
                 </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs font-mono text-slate-700">
-                  "{c.textoClausula}"
-                </div>
-
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-start gap-2 text-xs">
-                    <Scale size={16} className="text-[#0A2540] shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold text-slate-900">Parecer Jurídico LEX:</span>
-                      <p className="text-slate-600 mt-0.5">{c.analiseLex}</p>
-                    </div>
-                  </div>
-
-                  {c.sugestaoImpugnacao && (
-                    <div className="mt-3 p-3 bg-orange-50/50 rounded-xl border border-orange-200/60 text-xs">
-                      <span className="font-bold text-[#EA580C] block mb-1">
-                        Minuta Recomendada para Impugnação/Esclarecimento:
-                      </span>
-                      <p className="text-slate-700 italic">{c.sugestaoImpugnacao}</p>
-                    </div>
-                  )}
-                </div>
+                {isAuditStreaming ? (
+                  <span className="flex items-center gap-1.5 text-[10px] text-orange-400 font-bold bg-orange-950/60 px-2 py-0.5 rounded-full border border-orange-500/30">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 animate-ping" />
+                    Lendo Edital...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    <CheckCircle size={12} />
+                    Concluído
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+              <div className="text-xs leading-relaxed text-slate-100 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <ChatMessage
+                  content={streamingAuditText}
+                  isStreaming={isAuditStreaming}
+                />
+              </div>
+            </div>
+          )}
+
+          {!streamingAuditText && !isAuditStreaming && (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 text-sm text-slate-600">
+              Selecione um edital real para iniciar a análise. Não há cláusulas fictícias pré-carregadas.
+            </div>
+          )}
         </div>
 
         {/* DIREITA: PARECER GERAL */}
@@ -162,26 +144,34 @@ export const LexAnalisePage: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div className="flex justify-between border-b border-slate-800 pb-2">
-                <span className="text-slate-400">Total de Cláusulas Analisadas:</span>
-                <span className="font-bold text-white">48</span>
+                <span className="text-slate-400">Edital selecionado:</span>
+                <span className="font-bold text-white">{editalSelecionado ? 'Sim' : 'Não'}</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span className="text-slate-400">Pontos Críticos / Abusivos:</span>
-                <span className="font-bold text-rose-400">2</span>
+                <span className="font-bold text-rose-400">—</span>
               </div>
               <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span className="text-slate-400">Ambiguidades Detectadas:</span>
-                <span className="font-bold text-amber-400">1</span>
+                <span className="font-bold text-amber-400">—</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Índice de Conformidade Legal:</span>
-                <span className="font-bold text-emerald-400">93.7%</span>
+                <span className="font-bold text-emerald-400">—</span>
               </div>
             </div>
 
-            <button className="w-full mt-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2">
-              <Download size={14} /> Exportar Parecer Jurídico (PDF)
+            <button
+              disabled
+              title="A exportação será habilitada quando a análise gerar cláusulas estruturadas verificáveis."
+              className="w-full mt-4 py-2.5 bg-slate-400 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-not-allowed"
+            >
+              <Download size={14} />
+              Exportação estruturada indisponível
             </button>
+            <p className="text-[11px] text-slate-300">
+              A análise textual da IA não é um parecer jurídico formal nem substitui revisão profissional.
+            </p>
           </div>
         </div>
 

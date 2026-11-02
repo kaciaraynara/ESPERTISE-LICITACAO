@@ -2,61 +2,109 @@ import { DataPlatformRunLock } from './worker-runtime';
 import { DataPlatformWorkerService } from './worker.service';
 
 describe('DataPlatformWorkerService', () => {
-  test('nao agenda workers em ambiente de teste mesmo com env habilitada', () => {
-    const scheduler = {
-      validate: jest.fn(() => true),
-      schedule: jest.fn(() => ({ stop: jest.fn() })),
-    };
-    const service = new DataPlatformWorkerService(
-      {} as any,
-      {} as any,
-      new DataPlatformRunLock(),
-      scheduler,
-      {
-        NODE_ENV: 'test',
-        DATA_PLATFORM_WORKERS_ENABLED: 'true',
-      },
-    );
+test('nao agenda workers em ambiente de teste mesmo com env habilitada', () => {
+const scheduler = {
+validate: jest.fn(() => true),
+schedule: jest.fn(() => ({
+stop: jest.fn(),
+})),
+};
 
-    const scheduled = service.start();
+const indexConsumer = {
+  consumePending: jest.fn(),
+  cleanupOldTasks: jest.fn(),
+  requeueSkippedTasks: jest.fn(),
+  requeueFailedTasks: jest.fn(),
+};
 
-    expect(scheduled).toEqual([]);
-    expect(scheduler.schedule).not.toHaveBeenCalled();
-  });
+const service = new DataPlatformWorkerService(
+  {} as any,
+  {} as any,
+  indexConsumer as any,
+  new DataPlatformRunLock(),
+  scheduler,
+  {
+    NODE_ENV: 'test',
+    DATA_PLATFORM_WORKERS_ENABLED: 'true',
+  },
+);
 
-  test('evita ingestao PNCP concorrente pelo lock logico', async () => {
-    let release!: () => void;
-    const ingestion = {
-      ingestPncp: jest.fn(async () => {
-        await new Promise<void>((resolve) => {
-          release = resolve;
-        });
-        return { jobId: 'job-1', source: 'pncp' };
-      }),
-      ingestComprasGov: jest.fn(),
-    };
-    const service = new DataPlatformWorkerService(
-      ingestion as any,
-      {} as any,
-      new DataPlatformRunLock(),
-      { validate: jest.fn(() => true), schedule: jest.fn(() => ({ stop: jest.fn() })) },
-      {
-        NODE_ENV: 'production',
-        DATA_PLATFORM_WORKER_RETRY_BASE_MS: '0',
-      },
-    );
+const scheduled = service.start();
 
-    const first = service.runPncpIngestion();
-    await Promise.resolve();
-    const second = await service.runPncpIngestion();
+expect(scheduled).toEqual([]);
+expect(scheduler.schedule).not.toHaveBeenCalled();
 
-    expect(second).toEqual({ status: 'skipped', reason: 'locked' });
-    expect(ingestion.ingestPncp).toHaveBeenCalledTimes(1);
+});
 
-    release();
-    await expect(first).resolves.toMatchObject({
-      status: 'completed',
-      result: { jobId: 'job-1', source: 'pncp' },
+test('evita ingestao PNCP concorrente pelo lock logico', async () => {
+let release!: () => void;
+
+const ingestion = {
+  ingestPncp: jest.fn(async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
     });
-  });
+
+    return {
+      jobId: 'job-1',
+      source: 'pncp',
+    };
+  }),
+  ingestComprasGov: jest.fn(),
+};
+
+const tcuIngestion = {
+  ingestTcuAcordaos: jest.fn(),
+};
+
+const indexConsumer = {
+  consumePending: jest.fn(),
+  cleanupOldTasks: jest.fn(),
+  requeueSkippedTasks: jest.fn(),
+  requeueFailedTasks: jest.fn(),
+};
+
+const scheduler = {
+  validate: jest.fn(() => true),
+  schedule: jest.fn(() => ({
+    stop: jest.fn(),
+  })),
+};
+
+const service = new DataPlatformWorkerService(
+  ingestion as any,
+  tcuIngestion as any,
+  indexConsumer as any,
+  new DataPlatformRunLock(),
+  scheduler,
+  {
+    NODE_ENV: 'production',
+    DATA_PLATFORM_WORKER_RETRY_BASE_MS: '0',
+  },
+);
+
+const first = service.runPncpIngestion();
+
+await Promise.resolve();
+
+const second = await service.runPncpIngestion();
+
+expect(second).toEqual({
+  status: 'skipped',
+  reason: 'locked',
+});
+
+expect(ingestion.ingestPncp).toHaveBeenCalledTimes(1);
+
+release();
+
+await expect(first).resolves.toMatchObject({
+  status: 'completed',
+  result: {
+    jobId: 'job-1',
+    source: 'pncp',
+  },
+});
+
+});
 });

@@ -183,6 +183,41 @@ describe('NoticesSearchService', () => {
     })}));
   });
 
+  test('inclui itens do edital no detalhe sem incluir itens no payload de busca', async () => {
+    const rawItem = {
+      id: 'item-1',
+      itemNumber: '1',
+      description: 'Papel A4',
+      quantity: 10,
+      unit: 'RESMA',
+      estimatedUnitValue: 25.5,
+      estimatedTotalValue: 255,
+    };
+    const { service, client } = serviceWith({
+      procurementNotice: {
+        findFirst: jest.fn(async () => notice({ items: [rawItem] })),
+      },
+    });
+
+    const result = await service.getNoticeById('notice-1', {}, context);
+
+    expect(client.procurementNotice.findFirst.mock.calls[0][0].select.items).toMatchObject({
+      take: 100,
+      orderBy: { itemNumber: 'asc' },
+    });
+    expect(result).toMatchObject({
+      items: [{
+        id: 'item-1',
+        numero: '1',
+        descricao: 'Papel A4',
+        quantidade: 10,
+        unidade: 'RESMA',
+        valorEstimadoUnitario: 25.5,
+        valorEstimadoTotal: 255,
+      }],
+    });
+  });
+
   test('lista chunks por id sem expor embedding', async () => {
     const { service, client } = serviceWith({
       procurementNotice: {
@@ -264,5 +299,4 @@ describe('NoticesSearchService', () => {
     });
   });
 });
-
 

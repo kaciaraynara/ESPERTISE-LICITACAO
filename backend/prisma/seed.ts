@@ -95,7 +95,7 @@ async function main() {
   console.log('[SEED] Criando Usuários...');
   const adminUser = await prisma.user.create({
     data: {
-      companyId: company.id,
+      company: { connect: { id: company.id } },
       name: 'Raynara Kácia',
       email: 'kaciaraynaraa@gmail.com',
       passwordHash: defaultPasswordHash,
@@ -121,7 +121,7 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      companyId: company.id,
+      company: { connect: { id: company.id } },
       name: 'Administrador Sistema',
       email: 'admin@expertise.com.br',
       passwordHash: defaultPasswordHash,
@@ -132,7 +132,7 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      companyId: company.id,
+      company: { connect: { id: company.id } },
       name: 'Gerente de Licitacoes',
       email: 'gerente@expertise.com.br',
       passwordHash: defaultPasswordHash,
@@ -148,10 +148,10 @@ async function main() {
       companyId: company.id,
       title: 'Aquisicao de Softwares e Servicos de Infraestrutura de TI',
       noticeNumber: 'PE 001/2026',
-      modality: ProcurementModality.PREGAO_ELETRONICO,
-      criterion: JudgmentCriterion.MENOR_PRECO,
-      regime: ExecutionRegime.EMPREITADA_PRECO_GLOBAL,
-      status: DocumentStatus.APPROVED,
+      modality: ProcurementModality.pregao,
+      criterion: JudgmentCriterion.menor_preco,
+      regime: ExecutionRegime.preco_global,
+      status: DocumentStatus.valido,
       organ: 'Ministerio da Gestao e da Inovacao em Servicos Publicos',
       openingDate: new Date('2026-09-15T10:00:00Z'),
       totalAmount: 1500000.00,
@@ -162,17 +162,15 @@ async function main() {
       items: {
         create: [
           {
-            itemNumber: 1,
+            itemNumber: '1',
             description: 'Licenciamento de Software de Gestao de Licitacoes',
             quantity: 10,
-            unitMeasure: 'UNIDADE',
             referenceValue: 50000.00,
           },
           {
-            itemNumber: 2,
+            itemNumber: '2',
             description: 'Servico de Suporte Tecnico Especializado',
             quantity: 1000,
-            unitMeasure: 'HORAS',
             referenceValue: 1000.00,
           },
         ],
@@ -296,7 +294,7 @@ async function main() {
       companyId: company.id,
       title: 'Atestado de Capacidade Tecnica - Servicos de TI',
       fileUrl: 'https://storage.expertise.com.br/docs/atestado_ti.pdf',
-      status: DocumentStatus.APPROVED,
+      status: DocumentStatus.valido,
       chunks: {
         create: [
           {
@@ -312,7 +310,7 @@ async function main() {
       companyId: company.id,
       title: 'Impugnacao ao Edital PE 001/2026',
       type: 'IMPUGNACAO',
-      status: DocumentStatus.DRAFT,
+      status: DocumentStatus.atencao,
       content: 'Excelentissimo Senhor Pregoeiro, vimos por meio desta apresentar a presente Impugnacao...',
     },
   });
@@ -373,7 +371,7 @@ async function main() {
       mpSubscriptionId: 'sub_mp_123456789',
       mpPayerId: 'payer_987654321',
       plan: SubscriptionCategory.PRO,
-      status: SubscriptionStatus.ACTIVE,
+      status: SubscriptionStatus.active,
       currentPeriodStart: new Date('2026-08-01T00:00:00Z'),
       currentPeriodEnd: new Date('2026-09-01T00:00:00Z'),
       payments: {

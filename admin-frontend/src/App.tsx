@@ -1,14 +1,90 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Mail } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Mail, LogOut } from 'lucide-react';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '')
+  || 'http://localhost:3001/api/v1';
+const ADMIN_TOKEN_KEY = 'expertise_admin_access_token';
+
 const api = axios.create({
-  baseURL: 'http://localhost:3000', // adjust for production
-  // you would add auth headers here with a super admin token
+  baseURL: API_BASE_URL,
 });
 
-function Sidebar() {
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+function AdminLogin({ onLogin, message }: { onLogin: (token: string) => void; message: string }) {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const response = await api.post('/auth/login', { email, senha });
+      const token = response.data?.data?.accessToken;
+      if (typeof token !== 'string' || !token) {
+        throw new Error('A API não retornou uma sessão válida.');
+      }
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+      onLogin(token);
+    } catch (requestError: any) {
+      setError(requestError?.response?.data?.message || requestError.message || 'Falha ao autenticar.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center p-6">
+      <form onSubmit={submit} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Expertise Admin</h1>
+          <p className="text-sm text-slate-400 mt-1">Acesso restrito a contas administrativas autorizadas.</p>
+        </div>
+        {(error || message) && <p role="alert" className="text-sm text-rose-300">{error || message}</p>}
+        <label className="block text-sm text-slate-300">
+          E-mail
+          <input
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white"
+          />
+        </label>
+        <label className="block text-sm text-slate-300">
+          Senha
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={senha}
+            onChange={(event) => setSenha(event.target.value)}
+            className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg py-2.5 font-semibold text-white"
+        >
+          {submitting ? 'Verificando acesso...' : 'Entrar'}
+        </button>
+      </form>
+    </main>
+  );
+}
+
+function Sidebar({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="w-64 bg-slate-900 h-screen border-r border-slate-800 flex flex-col">
       <div className="p-6">
@@ -32,16 +108,18 @@ function Sidebar() {
       </nav>
       
       <div className="p-4 border-t border-slate-800 text-center text-xs text-slate-500">
-        Expertise © 2026
+        <button onClick={onLogout} className="inline-flex items-center gap-2 text-slate-400 hover:text-white">
+          <LogOut size={14} /> Sair
+        </button>
       </div>
     </div>
   );
 }
 
-function Layout() {
+function Layout({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">
-      <Sidebar />
+      <Sidebar onLogout={onLogout} />
       <div className="flex-1 overflow-auto">
         <Outlet />
       </div>
@@ -127,8 +205,8 @@ function UsersList() {
       });
       alert('E-mail disparado com sucesso!');
       setEmailModal(null);
-    } catch (err) {
-      alert('Erro ao enviar e-mail');
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'Erro ao enviar e-mail');
     }
   };
 
@@ -224,10 +302,70 @@ function UsersList() {
 }
 
 function App() {
+  const [token, setToken] = useState(() => sessionStorage.getItem(ADMIN_TOKEN_KEY));
+  const [authorized, setAuthorized] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(Boolean(token));
+  const [accessMessage, setAccessMessage] = useState('');
+
+  useEffect(() => {
+    if (!token) {
+      setAuthorized(false);
+      setCheckingAccess(false);
+      return;
+    }
+
+    let active = true;
+    setCheckingAccess(true);
+    api.get('/admin/super/metrics', {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(() => {
+      if (active) {
+        setAuthorized(true);
+        setAccessMessage('');
+        setCheckingAccess(false);
+      }
+    }).catch((error) => {
+      if (!active) return;
+      sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+      setToken(null);
+      setAuthorized(false);
+      setAccessMessage(error?.response?.status === 403
+        ? 'Esta conta não possui permissão administrativa.'
+        : 'Sessão inválida ou serviço indisponível. Entre novamente.');
+      setCheckingAccess(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  const logout = () => {
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    setToken(null);
+    setAuthorized(false);
+  };
+
+  if (checkingAccess) {
+    return <main className="min-h-screen bg-slate-950 text-slate-300 flex items-center justify-center">Validando permissões administrativas...</main>;
+  }
+
+  if (!authorized) {
+    return (
+      <AdminLogin
+        message={accessMessage}
+        onLogin={(nextToken) => {
+          setAccessMessage('');
+          setToken(nextToken);
+        }}
+      />
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<Layout onLogout={logout} />}>
           <Route index element={<Dashboard />} />
           <Route path="users" element={<UsersList />} />
           <Route path="health" element={<div className="p-10"><h2 className="text-2xl font-bold">Health & Logs</h2><p className="text-slate-400">Em breve</p></div>} />

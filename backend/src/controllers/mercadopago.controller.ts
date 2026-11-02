@@ -1,14 +1,8 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
-import {
-  InvalidWebhookSignatureError,
-  Invoice,
-  MercadoPagoConfig,
-  PreApproval,
-  WebhookSignatureValidator,
-} from 'mercadopago';
 import { getPlanDefinition, getPlanLimits, normalizePlanId, type PlanId } from '../services/plans/plan.constants';
+import { mercadoPagoService } from '../services/mercadopago.service';
 import { isProduction } from '../config/env';
 
 type MercadoPagoPlanId = Extract<PlanId, 'basic' | 'pro' | 'master'>;
@@ -45,25 +39,9 @@ const ALIAS_PLANOS: Record<string, MercadoPagoPlanId> = {
 
   master: 'master',
   enterprise: 'master',
-  avancado: 'master',
-  avançado: 'master',
+  avancado: 'pro',
+  avançado: 'pro',
 };
-
-let _mpClient: MercadoPagoConfig | null = null;
-
-function getMpClient() {
-  if (!_mpClient) {
-    const token = process.env.MP_ACCESS_TOKEN;
-
-    if (!token) {
-      throw new Error('MP_ACCESS_TOKEN nao configurado');
-    }
-
-    _mpClient = new MercadoPagoConfig({ accessToken: token });
-  }
-
-  return _mpClient;
-}
 
 function resolvePlanKey(input?: string | null): MercadoPagoPlanId | null {
   const normalized = normalizePlanId(input);
@@ -73,6 +51,12 @@ function resolvePlanKey(input?: string | null): MercadoPagoPlanId | null {
 
   const alias = String(input || '').trim().toLowerCase();
   return ALIAS_PLANOS[alias] ?? null;
+}
+
+function getPlanType(planId: PlanId): 'BASIC' | 'MEDIUM' | 'MASTER' {
+  if (planId === 'master') return 'MASTER';
+  if (planId === 'pro') return 'MEDIUM';
+  return 'BASIC';
 }
 
 function asSingleString(value: unknown): string | null {
@@ -145,9 +129,11 @@ export class MercadoPagoController {
           valor: definition.valorMensalCentavos / 100,
           valorCentavos: definition.valorMensalCentavos,
           destaque: definition.id === 'pro',
+          features: definition.features,
           limites: getPlanLimits(planId),
           mercadoPagoConfigurado: Boolean(
-            getMercadoPagoPlanConfig(planId).preapprovalPlanId,
+            process.env.MP_ACCESS_TOKEN?.trim()
+              && getMercadoPagoPlanConfig(planId).preapprovalPlanId,
           ),
         };
       }),
@@ -173,26 +159,191 @@ export class MercadoPagoController {
       return res.json({
         success: true,
         data: {
-          plano: normalizePlanId(req.user.plano),
+          plano: 'free',
+          features: [],
           status: 'none',
           ativa: false,
+          gateway: null,
+          pendingPlanId: null,
+          pendingPlanAt: null,
         },
       });
     }
 
-    const plano = normalizePlanId(sub.plano);
+    const isExpired = sub.periodoFim ? new Date(sub.periodoFim) < new Date() : false;
+    const isAtiva = ['active', 'trialing'].includes(sub.status) && !isExpired;
+    const plano = isAtiva ? normalizePlanId(sub.plano) : 'free';
 
     return res.json({
       success: true,
       data: {
         plano,
         nome: getPlanDefinition(plano).nome,
-        status: sub.status,
-        ativa: ['active', 'trialing'].includes(sub.status),
+        features: getPlanDefinition(plano).features,
+        status: isExpired ? (sub.status === 'trialing' ? 'expired_trial' : 'expired') : sub.status,
+        ativa: isAtiva,
+        gateway: isAtiva && sub.mpPreapprovalId ? 'mercado_pago' : null,
         mp_preapproval_id: sub.mpPreapprovalId,
-        periodo_fim: sub.periodoFim.toISOString(),
+        periodo_fim: sub.periodoFim?.toISOString(),
+        pendingPlanId: sub.pendingPlanId,
+        pendingPlanAt: sub.pendingPlanAt?.toISOString() ?? null,
       },
     });
+  }
+
+  async ativarTrial(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Não autenticado' });
+    }
+
+    const userId = req.user.id;
+
+    // 1. Verificar se usuário já possui ou possuiu qualquer assinatura da plataforma
+    const existingSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        categoria: 'plataforma',
+      },
+    });
+
+    if (existingSubscription) {
+      return res.status(409).json({
+        success: false,
+        code: 'TRIAL_ALREADY_USED',
+        message: 'Esta conta já utilizou o período de testes ou possui assinatura registrada.',
+      });
+    }
+
+    // 2. Verificar se a empresa (CNPJ) vinculada já utilizou trial em qualquer conta
+    const userCompany = await prisma.company.findFirst({
+      where: { userId },
+      select: { cnpj: true },
+    });
+
+    if (userCompany?.cnpj) {
+      const companySubscriptions = await prisma.subscription.findFirst({
+        where: {
+          categoria: 'plataforma',
+          user: {
+            companies: {
+              some: {
+                cnpj: userCompany.cnpj,
+              },
+            },
+          },
+        },
+      });
+
+      if (companySubscriptions) {
+        return res.status(409).json({
+          success: false,
+          code: 'TRIAL_CNPJ_ALREADY_USED',
+          message: 'O CNPJ desta empresa já usufruiu do período de testes gratuito.',
+        });
+      }
+    }
+
+    // 3. Ativar Trial de 7 dias com plano Pro (determinado exclusivamente pelo servidor)
+    const now = new Date();
+    const TRIAL_DURATION_DAYS = 7;
+    const periodoFim = new Date(now.getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { plano: 'pro', planType: 'MEDIUM' },
+      });
+
+      await tx.subscription.create({
+        data: {
+          userId,
+          email: req.user!.email,
+          plano: 'pro',
+          categoria: 'plataforma',
+          status: 'trialing',
+          periodoInicio: now,
+          periodoFim,
+        },
+      });
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        plano: 'pro',
+        status: 'trialing',
+        dias: TRIAL_DURATION_DAYS,
+        periodoInicio: now.toISOString(),
+        periodoFim: periodoFim.toISOString(),
+      },
+    });
+  }
+
+  async reconciliarAssinatura(req: AuthRequest, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Não autenticado' });
+    }
+
+    const sub = await prisma.subscription.findFirst({
+      where: {
+        userId: req.user.id,
+        categoria: 'plataforma',
+      },
+    });
+
+    if (!sub || !sub.mpPreapprovalId) {
+      return res.status(404).json({
+        success: false,
+        code: 'NO_ACTIVE_MP_SUBSCRIPTION',
+        message: 'Nenhuma assinatura do Mercado Pago encontrada para reconciliação.',
+      });
+    }
+
+    try {
+      const signatureInfo: any = await mercadoPagoService.getSubscription(sub.mpPreapprovalId);
+
+      const mpStatus = asSingleString(signatureInfo.status);
+      const planConfig = getMercadoPagoPlanConfig(resolvePlanKey(sub.plano) || 'pro');
+      const paymentConfirmed = hasConfirmedCharge(signatureInfo, planConfig.valor);
+
+      const isActive = mpStatus === 'authorized' && paymentConfirmed;
+      const isCanceled = mpStatus === 'cancelled';
+      const isPastDue = mpStatus === 'paused';
+
+      const newStatus = isActive ? 'active' : isCanceled ? 'canceled' : isPastDue ? 'past_due' : sub.status;
+      const effectivePlan: PlanId = isActive ? normalizePlanId(sub.plano) : 'free';
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: req.user!.id },
+          data: { plano: effectivePlan, planType: getPlanType(effectivePlan) },
+        });
+
+        await tx.subscription.update({
+          where: { id: sub.id },
+          data: {
+            status: newStatus as any,
+            periodoFim: signatureInfo.next_payment_date ? new Date(signatureInfo.next_payment_date) : sub.periodoFim,
+          },
+        });
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          reconciliado: true,
+          status: newStatus,
+          plano: effectivePlan,
+        },
+      });
+    } catch (error: any) {
+      console.error('[MercadoPago] Erro na reconciliação:', error.message);
+      return res.status(502).json({
+        success: false,
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'Não foi possível consultar o Mercado Pago para reconciliar a assinatura.',
+      });
+    }
   }
 
   async criarCheckoutAutenticado(req: AuthRequest, res: Response) {
@@ -207,7 +358,7 @@ export class MercadoPagoController {
     }
 
     const planConfig = getMercadoPagoPlanConfig(resolved);
-    const backUrl = asSingleString(process.env.MP_BACK_URL);
+    const configuredBackUrl = asSingleString(process.env.MP_BACK_URL);
 
     if (!planConfig.preapprovalPlanId) {
       return res.status(503).json({
@@ -215,7 +366,7 @@ export class MercadoPagoController {
         message: `Plano ${planConfig.nome} ainda não está configurado no Mercado Pago.`,
       });
     }
-    if (!backUrl) {
+    if (!configuredBackUrl) {
       return res.status(503).json({
         success: false,
         message: 'A URL de retorno do Mercado Pago ainda não está configurada.',
@@ -223,27 +374,29 @@ export class MercadoPagoController {
     }
 
     try {
-      const client = getMpClient();
-      const preapproval = new PreApproval(client);
+      const backUrl = new URL(configuredBackUrl);
+      backUrl.searchParams.set('status', 'success');
 
-      const response = await preapproval.create({
-        body: {
-          preapproval_plan_id: planConfig.preapprovalPlanId,
-          payer_email: req.user.email,
-          external_reference: `${req.user.id}:${resolved}`,
-          back_url: backUrl,
-          reason: `Assinatura EXPERTISE ${planConfig.nome}`,
-          auto_recurring: {
-            frequency: 1,
-            frequency_type: 'months',
-            transaction_amount: planConfig.valor,
-            currency_id: 'BRL',
-          },
+      const response = await mercadoPagoService.createSubscription({
+        preapproval_plan_id: planConfig.preapprovalPlanId,
+        payer_email: req.user.email,
+        external_reference: `${req.user.id}:${resolved}`,
+        back_url: backUrl.toString(),
+        reason: `Assinatura EXPERTISE ${planConfig.nome}`,
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: 'months',
+          transaction_amount: planConfig.valor,
+          currency_id: 'BRL',
         },
       });
 
-      const url = (response as any).init_point
-        || (!isProduction() ? (response as any).sandbox_init_point : null);
+      const checkout = response as unknown as {
+        init_point?: string;
+        sandbox_init_point?: string;
+      };
+      const url = checkout.init_point
+        || (!isProduction() ? checkout.sandbox_init_point : null);
 
       if (!url) {
         return res.status(502).json({
@@ -261,7 +414,7 @@ export class MercadoPagoController {
       });
     } catch (error: any) {
       console.error('[MercadoPago] Erro ao criar checkout:', error.message);
-      const configurationError = /^MP_ACCESS_TOKEN/.test(
+      const configurationError = /^(MP_ACCESS_TOKEN|Invalid URL)/.test(
         String(error?.message ?? ''),
       );
 
@@ -304,14 +457,14 @@ export class MercadoPagoController {
     }
 
     try {
-      WebhookSignatureValidator.validate({
+      mercadoPagoService.validateWebhookSignature({
         xSignature,
         xRequestId,
         dataId,
         secret,
       });
     } catch (error) {
-      if (error instanceof InvalidWebhookSignatureError) {
+      if (mercadoPagoService.isInvalidWebhookSignature(error)) {
         return res.status(401).json({
           success: false,
           message: 'Assinatura do webhook inválida.',
@@ -366,14 +519,46 @@ export class MercadoPagoController {
         return res.status(200).send('OK');
       }
 
-      const client = getMpClient();
       let preapprovalId = dataId;
       let confirmedInvoice: any = null;
 
       if (type === 'subscription_authorized_payment') {
-        confirmedInvoice = await new Invoice(client).get({ id: dataId });
+        confirmedInvoice = await mercadoPagoService.getAuthorizedPayment(dataId);
+        const paymentStatus = confirmedInvoice?.payment?.status;
+
+        if (paymentStatus === 'refunded' || paymentStatus === 'charged_back') {
+          preapprovalId = asSingleString(confirmedInvoice.preapproval_id) || '';
+          if (preapprovalId) {
+            const sub = await prisma.subscription.findFirst({
+              where: { mpPreapprovalId: preapprovalId, categoria: 'plataforma' },
+            });
+            if (sub) {
+              await prisma.$transaction(async (tx) => {
+                await tx.user.update({
+                  where: { id: sub.userId },
+                  data: { plano: 'free', planType: 'BASIC' },
+                });
+                await tx.subscription.update({
+                  where: { id: sub.id },
+                  data: { status: 'canceled' },
+                });
+              });
+            }
+          }
+
+          await prisma.mercadoPagoWebhookEvent.update({
+            where: { id: eventId },
+            data: {
+              status: 'processed',
+              processedAt: new Date(),
+              lastError: null,
+            },
+          });
+          return res.status(200).send('OK');
+        }
+
         if (
-          confirmedInvoice?.payment?.status !== 'approved'
+          paymentStatus !== 'approved'
           || confirmedInvoice?.status !== 'processed'
         ) {
           await prisma.mercadoPagoWebhookEvent.update({
@@ -392,7 +577,7 @@ export class MercadoPagoController {
         }
       }
 
-      const signatureInfo: any = await new PreApproval(client).get({ id: preapprovalId });
+      const signatureInfo: any = await mercadoPagoService.getSubscription(preapprovalId);
       const externalReference = asSingleString(signatureInfo.external_reference);
       if (!externalReference) {
         throw new Error('MP_EXTERNAL_REFERENCE_MISSING');
@@ -455,7 +640,7 @@ export class MercadoPagoController {
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
             where: { id: userId },
-            data: { plano: effectivePlan },
+            data: { plano: effectivePlan, planType: getPlanType(effectivePlan) },
           });
 
           await tx.subscription.upsert({

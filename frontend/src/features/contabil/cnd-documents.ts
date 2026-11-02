@@ -14,6 +14,8 @@ export type DocumentoApiRecord = {
   status?: string | null;
   url?: string | null;
   arquivo_nome?: string | null;
+  tamanho?: number | null;
+  file_size?: number | null;
   criado_em?: string | null;
   atualizado_em?: string | null;
 };

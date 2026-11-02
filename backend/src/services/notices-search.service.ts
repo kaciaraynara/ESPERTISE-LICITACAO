@@ -239,7 +239,7 @@ export class NoticesSearchService {
           { id: noticeId },
         ],
       },
-      select: noticeSelect(Boolean(parsed.includeRaw && rawAllowed)),
+      select: noticeSelect(Boolean(parsed.includeRaw && rawAllowed), true),
     });
 
     if (!row) return null;
@@ -559,7 +559,7 @@ function buildNoticeOrderBy(sort: NoticeSearchQuery['sort']) {
   }
 }
 
-function noticeSelect(includeRawPayload: boolean) {
+function noticeSelect(includeRawPayload: boolean, includeItems = false) {
   const select: any = {
     id: true,
     tenantId: true,
@@ -583,6 +583,22 @@ function noticeSelect(includeRawPayload: boolean) {
     createdAt: true,
     updatedAt: true,
   };
+
+  if (includeItems) {
+    select.items = {
+      take: 100,
+      orderBy: { itemNumber: 'asc' },
+      select: {
+        id: true,
+        itemNumber: true,
+        description: true,
+        quantity: true,
+        unit: true,
+        estimatedUnitValue: true,
+        estimatedTotalValue: true,
+      },
+    };
+  }
 
   if (includeRawPayload) select.rawPayload = true;
   return select;
@@ -620,6 +636,17 @@ function mapNotice(row: any, includeRawPayload: boolean) {
     rawPayloadIncluded: false,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
+    items: Array.isArray(row.items)
+      ? row.items.map((item: any) => ({
+          id: item.id,
+          numero: item.itemNumber,
+          descricao: item.description,
+          quantidade: decimalToNumber(item.quantity),
+          unidade: item.unit ?? null,
+          valorEstimadoUnitario: decimalToNumber(item.estimatedUnitValue),
+          valorEstimadoTotal: decimalToNumber(item.estimatedTotalValue),
+        }))
+      : [],
   };
 
   if (includeRawPayload && Object.prototype.hasOwnProperty.call(row, 'rawPayload')) {

@@ -37,17 +37,17 @@ export default function TermosDeUsoPage() {
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">2. Descrição dos Serviços e Natureza da Ferramenta</h2>
           <p>
-            O Expertise Licitatória é um <em>Software as a Service (SaaS)</em> de Inteligência de Mercado e Automação de Processos focado em Licitações Públicas (B2G). Nossos serviços incluem, mas não se limitam a:
+            O Expertise Licitatória é uma plataforma de apoio a empresas que participam de licitações públicas. Entre os recursos oferecidos estão:
           </p>
           <ul className="list-disc pl-6 space-y-2">
-            <li>Automação na busca e leitura de editais públicos em portais como PNCP e Compras.gov.br.</li>
+            <li>Consulta de editais públicos em portais como o PNCP e o Compras.gov.br, com recursos para facilitar sua leitura.</li>
             <li>Monitoramento de prazos, impugnações e recursos.</li>
-            <li>Uso de Inteligência Artificial (Robô Lex) para auxiliar na elaboração de propostas, impugnações e análises de risco baseadas nas legislações vigentes (como a Nova Lei de Licitações - Lei nº 14.333/2021).</li>
+            <li>Assistência na preparação de propostas, impugnações e análises de risco com base nas leis vigentes, incluindo a Lei nº 14.133/2021.</li>
           </ul>
           <div className="bg-orange-50 border border-orange-200 text-orange-800 p-4 rounded-lg my-6 flex items-start">
             <ShieldCheck className="shrink-0 mr-3 mt-1 text-orange-600" />
             <div>
-              <strong>Atenção:</strong> A Plataforma fornece <strong>subsídios e minutas automatizadas</strong> baseadas em dados públicos. <strong>Não substituímos</strong>, de forma alguma, a análise final, o crivo técnico ou a responsabilidade legal do corpo jurídico da sua empresa na submissão de peças e propostas em processos licitatórios. O envio de propostas para os portais do governo permanece sendo de sua exclusiva responsabilidade.
+              <strong>Atenção:</strong> A plataforma fornece <strong>informações de apoio e modelos de documentos</strong> com base em dados públicos. Esses materiais não substituem a revisão da sua equipe nem a orientação jurídica. O envio de propostas aos portais do governo é de sua responsabilidade.
             </div>
           </div>
 
@@ -58,18 +58,18 @@ export default function TermosDeUsoPage() {
           <ul className="list-disc pl-6 space-y-2">
             <li>Fornecer dados reais, válidos e atualizados durante o cadastro.</li>
             <li>Manter a confidencialidade de suas credenciais de acesso, sendo integralmente responsável por todas as atividades que ocorram sob sua conta.</li>
-            <li>Não utilizar meios automatizados de terceiros (como spiders, crawlers, scripts ou robôs não autorizados) para raspar, extrair ou burlar a proteção do nosso banco de dados (CADE, CGU, TCU, etc).</li>
+            <li>Não utilizar ferramentas ou programas para copiar informações ou contornar as proteções da plataforma sem autorização.</li>
             <li>Não utilizar a plataforma para propósitos ilegais, fraude em licitações, conluio ou qualquer atividade que infrinja as leis anticorrupção vigentes.</li>
           </ul>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">4. Propriedade Intelectual</h2>
           <p>
-            O código-fonte, layout, marcas, algoritmos de inteligência artificial, bancos de dados curados, textos e outros componentes do Expertise Licitatória são de propriedade exclusiva da nossa empresa e protegidos pela <strong>Lei de Direitos Autorais (Lei nº 9.610/98)</strong> e <strong>Lei da Propriedade Industrial (Lei nº 9.279/96)</strong>. O acesso à plataforma consiste apenas em uma licença de uso temporária, revogável, não-exclusiva e intransferível.
+            O código, o layout, as marcas, os métodos de análise, os bancos de dados e os textos do Expertise Licitatória pertencem à nossa empresa e são protegidos pela <strong>Lei de Direitos Autorais (Lei nº 9.610/98)</strong> e pela <strong>Lei da Propriedade Industrial (Lei nº 9.279/96)</strong>. O acesso à plataforma é concedido por uma autorização de uso temporária, revogável, não exclusiva e intransferível.
           </p>
 
-          <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">5. Uso de Inteligência Artificial (Robô Lex)</h2>
+          <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">5. Recursos de Análise Assistida</h2>
           <p>
-            Nossas ferramentas utilizam modelos de linguagem avançados (IA). Embora empreguemos extensa curadoria sobre Acórdãos (TCU, CGU) e normativas de Licitação, a inteligência artificial pode estar sujeita a alucinações (geração de conteúdo impreciso).
+            Alguns recursos utilizam inteligência artificial para ajudar na leitura e organização de informações. Os resultados podem conter imprecisões; confira o edital e as fontes oficiais antes de tomar decisões.
             Todo documento gerado (impugnações, defesas, recursos) deve ser lido, validado e assinado pelo representante legal ou advogado do Contratante antes da submissão a órgãos públicos.
           </p>
 

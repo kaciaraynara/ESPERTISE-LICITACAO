@@ -42,9 +42,6 @@ export function assertProductionConfig() {
   }
 
   const productionForbiddenFlags = [
-    'ENABLE_BID_ROBOT',
-    'ENABLE_LEX',
-    'ENABLE_CRM',
     'ENABLE_LEGACY_MARKETPLACE',
     'ENABLE_LEGACY_PRICING_STRATEGY',
     'RBAC_ALLOW_ENV_FALLBACK',

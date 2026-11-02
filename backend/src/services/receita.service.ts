@@ -100,10 +100,15 @@ export class ReceitaFederalServiceError extends Error {
   }
 }
 
+const qsaMemoryCache = new Map<string, { data: ReceitaEmpresaQsa; expiresAt: number }>();
+const QSA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export class ReceitaService {
   private readonly client: AxiosInstance;
+  private readonly useCache: boolean;
 
   constructor(client?: AxiosInstance) {
+    this.useCache = !client;
     this.client = client ?? axios.create({
       baseURL: getBrasilApiBaseUrl(),
       timeout: getNumberEnv('RECEITA_CNPJ_TIMEOUT_MS', 8000),
@@ -125,9 +130,23 @@ export class ReceitaService {
       );
     }
 
+    if (this.useCache) {
+      const cached = qsaMemoryCache.get(cnpjLimpo);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
+
     try {
       const { data } = await this.client.get<BrasilApiCnpjResponse>(`/api/cnpj/v1/${cnpjLimpo}`);
-      return mapBrasilApiCnpjResponse(data, cnpjLimpo);
+      const mapped = mapBrasilApiCnpjResponse(data, cnpjLimpo);
+      if (this.useCache) {
+        qsaMemoryCache.set(cnpjLimpo, {
+          data: mapped,
+          expiresAt: Date.now() + QSA_CACHE_TTL_MS,
+        });
+      }
+      return mapped;
     } catch (error) {
       if (error instanceof ReceitaFederalServiceError) {
         throw error;

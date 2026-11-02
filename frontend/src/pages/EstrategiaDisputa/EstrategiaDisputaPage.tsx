@@ -26,11 +26,11 @@ export const EstrategiaDisputaPage: React.FC = () => {
               <Crosshair size={20} />
             </span>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Estratégia de Disputa & Tática de Lances
+              Estratégia de Disputa & Tática de Lances (Planejamento)
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Configuração tática para disputa em tempo real e automação via robô programado.
+            Planejamento tático de margem e piso mínimo para acompanhamento e operação manual segura.
           </p>
         </div>
 
@@ -38,12 +38,12 @@ export const EstrategiaDisputaPage: React.FC = () => {
           onClick={() => setRoboAtivo(!roboAtivo)}
           className={`px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-lg transition-all ${
             roboAtivo 
-              ? 'bg-rose-600 hover:bg-rose-700 text-white' 
-              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+              : 'bg-[#0A2540] hover:bg-slate-800 text-white'
           }`}
         >
           {roboAtivo ? <Pause size={18} /> : <Play size={18} />}
-          {roboAtivo ? 'PAUSAR AUTOMAÇÃO' : 'ATIVAR ROBÔ DE DISPUTA'}
+          {roboAtivo ? 'PAUSAR SIMULAÇÃO' : 'ATIVAR SIMULAÇÃO TÁTICA'}
         </button>
       </header>
 
@@ -142,7 +142,7 @@ export const EstrategiaDisputaPage: React.FC = () => {
                 onChange={(e) => setLimiteMinimo(parseFloat(e.target.value) || 0)}
                 className="w-full bg-rose-50 border border-rose-200 text-rose-900 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
-              <span className="text-[10px] text-rose-500 mt-1 block font-semibold">O robô não efetuará lances abaixo deste valor</span>
+              <span className="text-[10px] text-rose-500 mt-1 block font-semibold">Trava de segurança: propostas abaixo deste valor são rejeitadas</span>
             </div>
 
             <div>
@@ -171,10 +171,10 @@ export const EstrategiaDisputaPage: React.FC = () => {
         <div className="lg:col-span-4 bg-[#0A2540] text-white p-6 rounded-2xl shadow-xl flex flex-col justify-between">
           <div>
             <span className="text-[10px] font-bold text-[#EA580C] uppercase tracking-wider block">
-              Status do Algoritmo
+              Calculadora de Margem
             </span>
             <h3 className="text-xl font-black mt-1">
-              {roboAtivo ? 'SISTEMA EM OPERAÇÃO' : 'SISTEMA EM STANDBY'}
+              {roboAtivo ? 'SIMULAÇÃO TÁTICA ATIVA' : 'CALCULADORA EM ESPERA'}
             </h3>
             <p className="text-xs text-slate-300 mt-2">
               Modo selecionado: <strong className="text-white">{modoDisputa}</strong>
@@ -198,8 +198,8 @@ export const EstrategiaDisputaPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-400 text-center">
-            Conectado com os portais Compras.gov, LicitaNet e Portal de Compras Públicas.
+          <div className="text-[10px] text-amber-300/80 text-center bg-amber-950/40 p-2.5 rounded-lg border border-amber-800/40">
+            Ambiente de cálculo offline. O envio de propostas deve ser executado manualmente no portal oficial do certame.
           </div>
         </div>
 

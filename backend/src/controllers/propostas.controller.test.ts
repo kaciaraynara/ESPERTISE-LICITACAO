@@ -1,4 +1,13 @@
 const mockCreateDraft = jest.fn();
+const mockAddItem = jest.fn();
+const mockGetById = jest.fn();
+const mockValidateCompliance = jest.fn();
+const mockGenerateOfficialProposalDocument = jest.fn();
+const mockIncrementPlanUsage = jest.fn();
+
+jest.mock('../shared/middlewares/plan-limits.middleware', () => ({
+  incrementPlanUsage: mockIncrementPlanUsage,
+}));
 
 jest.mock('../services/proposal.service', () => {
   const actual = jest.requireActual('../services/proposal.service');
@@ -7,6 +16,10 @@ jest.mock('../services/proposal.service', () => {
     ...actual,
     proposalService: {
       createDraft: mockCreateDraft,
+      addItem: mockAddItem,
+      getById: mockGetById,
+      validateCompliance: mockValidateCompliance,
+      generateOfficialProposalDocument: mockGenerateOfficialProposalDocument,
     },
   };
 });
@@ -83,11 +96,14 @@ describe('PropostasController', () => {
 
     await controller.criarRascunho(req, res);
 
-    expect(mockCreateDraft).toHaveBeenCalledWith(userId, {
-      companyId,
-      titulo: 'Proposta comercial',
-      moeda: 'BRL',
-    });
+    expect(mockCreateDraft).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        companyId,
+        titulo: 'Proposta comercial',
+        moeda: 'BRL',
+      }),
+    );
 
     expect(res.statusCode).toBe(201);
     expect(res.payload).toMatchObject({
@@ -148,5 +164,123 @@ describe('PropostasController', () => {
     ).rejects.toBeInstanceOf(ZodError);
 
     expect(mockCreateDraft).not.toHaveBeenCalled();
+  });
+
+  test('adiciona item na proposta e retorna 201', async () => {
+    const proposalId = '44444444-4444-4444-8444-444444444444';
+    mockAddItem.mockResolvedValue({
+      id: '55555555-5555-4555-8555-555555555555',
+      proposalId,
+      numeroItem: 1,
+      descricao: 'Servidor Dell PowerEdge R750',
+      valorUnitario: 35000,
+      quantidade: 2,
+      valorTotal: 70000,
+      inexequivel: false,
+    });
+
+    const req: any = {
+      user: { id: userId },
+      params: { id: proposalId },
+      body: {
+        numeroItem: 1,
+        descricao: 'Servidor Dell PowerEdge R750',
+        quantidade: 2,
+        valorUnitario: 35000,
+        marca: 'Dell',
+        modelo: 'PowerEdge R750',
+      },
+    };
+    const res = responseMock();
+    const controller = new PropostasController();
+
+    await controller.adicionarItem(req, res);
+
+    expect(mockAddItem).toHaveBeenCalledWith(
+      userId,
+      proposalId,
+      expect.objectContaining({
+        numeroItem: 1,
+        valorUnitario: 35000,
+      }),
+    );
+    expect(res.statusCode).toBe(201);
+    expect(res.payload).toMatchObject({
+      success: true,
+      data: {
+        numeroItem: 1,
+        valorTotal: 70000,
+      },
+    });
+  });
+
+  test('retorna relatorio de compliance da Lei 14.133', async () => {
+    const proposalId = '44444444-4444-4444-8444-444444444444';
+    mockValidateCompliance.mockResolvedValue({
+      isCompliant: true,
+      warnings: [],
+      errors: [],
+      validadeDias: 60,
+      validadeSuficiente: true,
+      itensInexequiveis: 0,
+      declaracoesObrigatorias: {
+        elaboracaoIndependente: true,
+        habilitacaoCompleta: true,
+        naoEmpregoMenor: true,
+        inexistenciaImpedimento: true,
+        reservaCargosPcd: true,
+        meEpp: false,
+      },
+    });
+
+    const req: any = {
+      user: { id: userId },
+      params: { id: proposalId },
+    };
+    const res = responseMock();
+    const controller = new PropostasController();
+
+    await controller.validarCompliance(req, res);
+
+    expect(mockValidateCompliance).toHaveBeenCalledWith(userId, proposalId);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toMatchObject({
+      success: true,
+      data: {
+        isCompliant: true,
+        validadeSuficiente: true,
+      },
+    });
+  });
+
+  test('gera documento oficial de proposta comercial sob Lei 14.133', async () => {
+    const proposalId = '44444444-4444-4444-8444-444444444444';
+    mockGenerateOfficialProposalDocument.mockResolvedValue({
+      proposalId,
+      document: 'PROPOSTA COMERCIAL CONFORME LEI FEDERAL Nº 14.133/2021',
+      valorTotal: 70000,
+      compliance: {
+        isCompliant: true,
+      },
+    });
+
+    const req: any = {
+      user: { id: userId },
+      params: { id: proposalId },
+    };
+    const res = responseMock();
+    const controller = new PropostasController();
+
+    await controller.gerarDocumentoOficial(req, res);
+
+    expect(mockGenerateOfficialProposalDocument).toHaveBeenCalledWith(userId, proposalId);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toMatchObject({
+      success: true,
+      data: {
+        proposalId,
+        valorTotal: 70000,
+      },
+    });
   });
 });

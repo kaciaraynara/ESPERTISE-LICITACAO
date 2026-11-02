@@ -44,7 +44,7 @@ const PLATFORM_PLANS = [
       'Até 50 editais monitorados',
       '30 análises de edital por mês',
       'Análise de Oportunidade',
-      'Precificação Automatizada',
+      'Precificação Segura',
     ],
   },
   {
@@ -64,32 +64,32 @@ const PLATFORM_PLANS = [
 
 const FAQS = [
   {
-    question: "O sistema participa dos lances automaticamente por mim?",
-    answer: "Não. A Expertise Licitatória não retira o seu controle. Nós fornecemos os dados precisos, a leitura inteligente do edital e a organização dos seus documentos para que você dê o seu lance com segurança e certeza do seu lucro."
+    question: "A plataforma envia os lances por mim?",
+    answer: "Não. Você mantém o controle e envia os lances diretamente no portal oficial. A plataforma ajuda a organizar informações, analisar editais e acompanhar sua margem."
   },
   {
     question: "Como funciona a leitura inteligente de editais?",
-    answer: "Nosso sistema cruza o texto do edital com as leis atuais e regras do TCU. Se o edital pedir um documento proibido ou tentar restringir a competição, a plataforma avisa você imediatamente para que seja possível pedir a correção."
+    answer: "A análise destaca exigências e pontos de atenção para ajudar você a revisar o edital. A avaliação não substitui a conferência da equipe nem a orientação jurídica."
   },
   {
     question: "Os dados das licitações são confiáveis?",
-    answer: "Sim. A nossa plataforma é conectada diretamente aos portais oficiais do governo, como o PNCP. Você recebe os dados oficiais e em tempo real."
+    answer: "As oportunidades são consultadas em fontes oficiais, como o PNCP. A disponibilidade e a atualização dependem da publicação e do acesso ao portal de origem."
   },
   {
     question: "Meus documentos ficam seguros no sistema?",
-    answer: "Completamente seguros. Usamos tecnologias de proteção avançadas e criptografia. Só você e sua equipe têm acesso aos arquivos. Trabalhamos seguindo todas as regras da LGPD."
+    answer: "O acesso aos documentos é restrito às pessoas autorizadas na sua conta. Consulte as configurações da empresa para revisar quem tem acesso."
   }
 ];
 
 const FULL_FEATURES = [
-  { icon: MagnifyingGlass, title: "Busca Oficial", desc: "Varredura contínua e oficial diretamente do PNCP." },
-  { icon: ShieldCheck, title: "Auditoria IA", desc: "Aponta falhas e exigências abusivas nos editais em segundos." },
-  { icon: LockKey, title: "Acervo Seguro", desc: "Controle de validade de certidões com alertas automáticos." },
-  { icon: ChartLineUp, title: "Viabilidade", desc: "Algoritmo que indica se a disputa é favorável ao seu negócio." },
-  { icon: Calculator, title: "Preço Exato", desc: "Calculadora de margem para garantir contratos lucrativos." },
-  { icon: Gavel, title: "Base Jurídica", desc: "Modelos dinâmicos para questionar editais direcionados." },
-  { icon: Briefcase, title: "Multi-CNPJ", desc: "Gerencie a documentação de várias empresas na mesma tela." },
-  { icon: Robot, title: "Propostas Automáticas", desc: "Geração de propostas comerciais sem digitação repetitiva." },
+  { icon: MagnifyingGlass, title: "Busca de Oportunidades", desc: "Consulte editais publicados no PNCP e encontre oportunidades para sua empresa." },
+  { icon: ShieldCheck, title: "Análise de Editais", desc: "Veja um resumo das exigências e dos pontos de atenção para apoiar sua decisão." },
+  { icon: LockKey, title: "Meus Documentos", desc: "Organize certidões e acompanhe as datas de validade." },
+  { icon: ChartLineUp, title: "Termômetro de Oportunidade", desc: "Confira a compatibilidade da oportunidade com o perfil da sua empresa." },
+  { icon: Calculator, title: "Análise de Rentabilidade", desc: "Consulte custos e margens para apoiar uma decisão de preço mais segura." },
+  { icon: Gavel, title: "Apoio Jurídico", desc: "Acesse conteúdos e recursos para avaliar exigências do edital." },
+  { icon: Briefcase, title: "Gestão de Empresas", desc: "Organize informações de diferentes empresas na mesma conta." },
+  { icon: Robot, title: "Gerador de Propostas", desc: "Prepare propostas comerciais com menos preenchimento repetitivo." },
 ];
 
 function Accordion({ question, answer }: { question: string, answer: string }) {
@@ -292,7 +292,7 @@ export default function LandingPage() {
                 <div className="relative z-10 pt-6 border-t-2 border-brand-orange">
                   <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-6">Radar PNCP</h3>
                   <p className="text-lg text-slate-400 font-medium leading-relaxed mb-6">
-                    Conexão direta com a fonte de dados oficial. Monitoramento contínuo de novas oportunidades alinhadas exatamente ao perfil do seu CNPJ.
+                    Consulte oportunidades publicadas no PNCP e encontre editais relacionados ao perfil da sua empresa.
                   </p>
                 </div>
               </div>
@@ -301,9 +301,9 @@ export default function LandingPage() {
               <div className="relative">
                 <div className="text-8xl font-black text-white text-outline absolute -top-12 -left-4 opacity-50 z-0 select-none">02</div>
                 <div className="relative z-10 pt-6 border-t-2 border-brand-orange">
-                  <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-6">Auditoria IA</h3>
+                  <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-6">Análise de Editais</h3>
                   <p className="text-lg text-slate-400 font-medium leading-relaxed mb-6">
-                    Varredura automatizada em editais extensos. A inteligência destaca cláusulas restritivas e fornece o embasamento para impugnações imediatas.
+                    Consulte um resumo do edital e os pontos de atenção que podem ajudar sua equipe a decidir se vale participar.
                   </p>
                 </div>
               </div>
@@ -314,7 +314,7 @@ export default function LandingPage() {
                 <div className="relative z-10 pt-6 border-t-2 border-brand-orange">
                   <h3 className="text-3xl font-black uppercase tracking-tight text-white mb-6">Acervo Digital</h3>
                   <p className="text-lg text-slate-400 font-medium leading-relaxed mb-6">
-                    Centralização criptografada do acervo de habilitação da empresa, com gestão inteligente e alertas preditivos de vencimento.
+                    Organização dos documentos de habilitação da empresa, com acompanhamento das datas de vencimento.
                   </p>
                 </div>
               </div>

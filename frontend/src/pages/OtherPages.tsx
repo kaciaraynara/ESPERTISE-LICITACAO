@@ -363,7 +363,7 @@ export function NotificacoesPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-gray-100 pb-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-blue/70">Central executiva</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand-blue/70">Resumo da empresa</p>
           <h1 className="mt-2 text-2xl font-semibold text-brand-blue">Alertas e notificacoes</h1>
         </div>
         <button

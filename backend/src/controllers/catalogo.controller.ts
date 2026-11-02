@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { ApiError } from '../shared/errors/ApiError';
 
@@ -8,7 +8,7 @@ export class CatalogoController {
     const userId = req.user?.id;
     if (!userId) throw new ApiError('Não autenticado', 401);
 
-    const company = await prisma.company.findFirst({ where: { userId } });
+    const company = await resolveAuthorizedCompany(userId, req.companyId);
     if (!company) throw new ApiError('Empresa não encontrada', 404);
 
     const items = await prisma.catalogItem.findMany({
@@ -23,7 +23,7 @@ export class CatalogoController {
     const userId = req.user?.id;
     if (!userId) throw new ApiError('Não autenticado', 401);
 
-    const company = await prisma.company.findFirst({ where: { userId } });
+    const company = await resolveAuthorizedCompany(userId, req.body?.companyId || req.companyId);
     if (!company) throw new ApiError('Empresa não encontrada', 404);
 
     const {

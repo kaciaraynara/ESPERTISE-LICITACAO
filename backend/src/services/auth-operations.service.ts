@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { createHash, randomUUID } from 'crypto';
 import axios from 'axios';
 import { getJwtSecret } from '../shared/runtime-config';
+import { getCommercialPlanConfig } from '../config/plan-features';
 import { consultarCnpjOficial } from './cnpj.service';
 import { isValidPasswordHash, logAuthEvent, normalizeAuthEmail } from './auth.service';
 import { prisma } from '../database/prisma';
@@ -11,6 +12,7 @@ import { ApiError } from '../shared/errors/ApiError';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
+const LGPD_TERMS_VERSION = process.env.LGPD_TERMS_VERSION?.trim() || '1.0';
 
 export type AuthUser = {
   id: string;
@@ -19,6 +21,8 @@ export type AuthUser = {
   nome: string | null;
   telefone: string | null;
   plano: string;
+  planType?: string | null;
+  permissoes?: string[];
   email_verificado: boolean;
   ultimo_acesso: string | null;
   created_at: string;
@@ -27,6 +31,15 @@ export type AuthUser = {
   oab_uf?: string | null;
   crc_numero?: string | null;
   crc_uf?: string | null;
+  company_id?: string | null;
+  company?: {
+    id: string;
+    razaoSocial: string;
+    nomeFantasia: string | null;
+    cnpj: string;
+    uf: string | null;
+    municipio: string | null;
+  } | null;
 };
 
 export type TokenClaims = AuthUser & {
@@ -38,7 +51,20 @@ export class AuthOperationsService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  public buildPublicUser(user: any): AuthUser {
+  public buildPublicUser(user: any, primaryCompany?: any): AuthUser {
+    const resolvedCompany = primaryCompany
+      ? {
+          id: String(primaryCompany.id),
+          razaoSocial: String(primaryCompany.razaoSocial || primaryCompany.razao_social || 'Empresa'),
+          nomeFantasia: primaryCompany.nomeFantasia ?? primaryCompany.nome_fantasia ?? null,
+          cnpj: String(primaryCompany.cnpj || ''),
+          uf: primaryCompany.uf ?? null,
+          municipio: primaryCompany.municipio ?? null,
+        }
+      : null;
+
+    const planConfig = getCommercialPlanConfig(user.planType || user.plano);
+
     return {
       id: user.id,
       tenant_id: user.tenantId,
@@ -46,6 +72,8 @@ export class AuthOperationsService {
       nome: user.nome,
       telefone: user.telefone,
       plano: user.plano,
+      planType: user.planType ?? planConfig.prismaPlanType,
+      permissoes: [...planConfig.features],
       email_verificado: user.emailVerificado,
       ultimo_acesso: user.ultimoAcesso ? user.ultimoAcesso.toISOString() : null,
       created_at: user.createdAt.toISOString(),
@@ -54,6 +82,8 @@ export class AuthOperationsService {
       oab_uf: user.oabUf ?? null,
       crc_numero: user.crcNumero ?? null,
       crc_uf: user.crcUf ?? null,
+      company_id: resolvedCompany?.id ?? null,
+      company: resolvedCompany,
     };
   }
 
@@ -108,7 +138,8 @@ export class AuthOperationsService {
       );
     }
 
-    let empresaOficial;
+    const cleanCnpj = String(cnpj).replace(/\D/g, '');
+    let empresaOficial: any;
     try {
       empresaOficial = await consultarCnpjOficial(cnpj);
     } catch (companyError: any) {
@@ -131,16 +162,26 @@ export class AuthOperationsService {
         );
       }
 
-      throw new ApiError(
-        'Não foi possível validar o CNPJ na fonte oficial. Tente novamente em instantes.',
-        503,
-        axios.isAxiosError(companyError) && companyError.response?.status === 429
-          ? 'CNPJ_RATE_LIMITED'
-          : 'CNPJ_SERVICE_UNAVAILABLE',
-      );
+      // Se todas as fontes públicas falharem temporariamente, mas o usuário preencheu a Razão Social:
+      const fallbackRazao = (validatedData.razao_social || '').trim();
+      if (cleanCnpj.length === 14 && fallbackRazao.length >= 2) {
+        empresaOficial = {
+          cnpj: cleanCnpj,
+          razao_social: fallbackRazao,
+          nome_fantasia: validatedData.nome_fantasia?.trim() || fallbackRazao,
+          municipio: validatedData.municipio || null,
+          uf: validatedData.uf || null,
+          cnae_principal: validatedData.cnae_principal || null,
+          status: 'ATIVO',
+        };
+      } else {
+        throw new ApiError(
+          'Não foi possível validar o CNPJ nas fontes oficiais no momento. Informe a Razão Social da empresa para prosseguir.',
+          400,
+          'CNPJ_REQUIRE_MANUAL_RAZAO',
+        );
+      }
     }
-
-    const cleanCnpj = empresaOficial.cnpj.replace(/\D/g, '');
     if (
       cleanCnpj.length !== 14
       || cleanCnpj !== String(cnpj).replace(/\D/g, '')
@@ -181,7 +222,22 @@ export class AuthOperationsService {
         },
       });
 
-      await tx.company.create({
+      await tx.auditEvent.create({
+        data: {
+          userId: user.id,
+          scope: 'privacy',
+          action: 'LGPD_TERMS_ACCEPTED',
+          outcome: 'success',
+          entityType: 'user',
+          entityId: user.id,
+          metadata: {
+            termsVersion: LGPD_TERMS_VERSION,
+            acceptedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      const createdCompany = await tx.company.create({
         data: {
           tenantId: tenant.id,
           userId: user.id,
@@ -208,7 +264,7 @@ export class AuthOperationsService {
         },
       });
 
-      const publicUser = this.buildPublicUser(user);
+      const publicUser = this.buildPublicUser(user, createdCompany);
       const tokens = this.issueTokens(publicUser);
 
       await tx.refreshToken.create({
@@ -243,8 +299,14 @@ export class AuthOperationsService {
       throw new Error('INVALID_CREDENTIALS');
     }
 
-    const refreshedUser = await prisma.user.update({ where: { id: user.id }, data: { ultimoAcesso: new Date() } });
-    const publicUser = this.buildPublicUser(refreshedUser);
+    const [refreshedUser, primaryCompany] = await Promise.all([
+      prisma.user.update({ where: { id: user.id }, data: { ultimoAcesso: new Date() } }),
+      prisma.company.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+    const publicUser = this.buildPublicUser(refreshedUser, primaryCompany);
     const tokens = this.issueTokens(publicUser);
     
     await prisma.refreshToken.deleteMany({
@@ -303,11 +365,17 @@ export class AuthOperationsService {
         );
       }
 
-      const refreshedUser = await tx.user.update({
-        where: { id: user.id },
-        data: { ultimoAcesso: new Date() },
-      });
-      const publicUser = this.buildPublicUser(refreshedUser);
+      const [refreshedUser, primaryCompany] = await Promise.all([
+        tx.user.update({
+          where: { id: user.id },
+          data: { ultimoAcesso: new Date() },
+        }),
+        tx.company.findFirst({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+      const publicUser = this.buildPublicUser(refreshedUser, primaryCompany);
       const tokens = this.issueTokens(publicUser);
 
       await tx.refreshToken.create({

@@ -1,7 +1,8 @@
 import { Response } from 'express';
 import { AiGroundingService } from '../services/ai-grounding.service';
-import { chatWithProvider } from '../services/ai.service';
+import { chatWithProvider, streamGroundedResultToSse } from '../services/ai.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { handleLexError, groundedResponse } from './lex.controller';
 
 export class AIController {
   constructor(
@@ -16,6 +17,12 @@ export class AIController {
       noticeId?: string;
       licitacaoId?: string;
       edital_id?: string;
+      stream?: boolean;
+      options?: {
+        timeoutMs?: number;
+        modelName?: string;
+        skipCalculation?: boolean;
+      };
     };
     const pergunta = String(body.pergunta ?? body.prompt ?? '').trim();
     const contexto = typeof body.contexto === 'string' ? body.contexto : undefined;
@@ -24,50 +31,49 @@ export class AIController {
     if (!pergunta) {
       return res.status(400).json({
         success: false,
-        message: 'Informe uma pergunta para o LEX IA.',
+        message: 'Digite uma pergunta para o assistente.',
       });
     }
 
+    const isStream =
+      body.stream === true ||
+      req.query.stream === 'true' ||
+      req.headers.accept?.includes('text/event-stream');
+
+    if (isStream) {
+      return streamGroundedResultToSse(
+        res,
+        (onChunk) => this.grounding.runLex(
+          {
+            pergunta,
+            contexto,
+            noticeId,
+            purpose: 'ai_consultar',
+            metadata: { endpoint: '/ai/consultar', role: req.user?.role ?? null },
+            options: { ...body.options, onChunk },
+          },
+          buildGroundingContext(req),
+        ),
+        { endpoint: '/ai/consultar', noticeId },
+      );
+    }
+
     try {
-      const resposta = await this.grounding.runLex({
-        pergunta,
-        contexto,
-        noticeId,
-        purpose: 'ai_consultar',
-        metadata: { endpoint: '/ai/consultar', role: req.user?.role ?? null },
-      }, buildGroundingContext(req));
-
-      if (resposta.blocked) {
-        return res.status(422).json({
-          success: false,
-          message: resposta.content,
-          data: resposta,
-        });
-      }
-
-      return res.json({
-        success: true,
-        data: {
-          resposta: resposta.content,
-          provider: resposta.provider,
-          aiRunId: resposta.aiRunId,
-          retrievalSessionId: resposta.retrievalSessionId,
-          legalAnalysisId: resposta.legalAnalysisId,
-          citations: resposta.citations,
-          sourceIds: resposta.sourceIds,
-          chunkIds: resposta.chunkIds,
-          ruleCodes: resposta.ruleCodes,
-          confidence: resposta.confidence,
-          limitations: resposta.limitations,
-          timestamp: new Date().toISOString(),
+      const resposta = await this.grounding.runLex(
+        {
+          pergunta,
+          contexto,
+          noticeId,
+          purpose: 'ai_consultar',
+          metadata: { endpoint: '/ai/consultar', role: req.user?.role ?? null },
+          options: body.options,
         },
-      });
-    } catch (error) {
-      console.error('[LEX IA] Erro ao consultar provedor IA:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'O LEX IA está temporariamente indisponível.',
-      });
+        buildGroundingContext(req),
+      );
+
+      return groundedResponse(res, resposta);
+    } catch (error: any) {
+      return handleLexError(res, error);
     }
   }
 }
@@ -95,4 +101,3 @@ function clientIp(req: AuthRequest) {
   }
   return req.ip || req.socket?.remoteAddress || null;
 }
-

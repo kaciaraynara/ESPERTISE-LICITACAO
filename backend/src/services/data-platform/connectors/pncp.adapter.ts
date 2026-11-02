@@ -11,18 +11,57 @@ export class PncpDataConnector implements DataConnector {
 
   async fetch(input: DataFetchInput): Promise<RawDataRecord[]> {
     const filters = buildPncpFilters(input);
-    const result = await this.fetchPncp(filters);
-    const fetchedAt = new Date().toISOString();
+    const maxPages = Number(process.env.PNCP_INGEST_MAX_PAGES ?? 20);
+    if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 1000) {
+      throw new Error('PNCP_INGEST_MAX_PAGES deve ser um inteiro entre 1 e 1000.');
+    }
 
-    return result.data.map((item) => ({
-      tenantId: input.tenantId ?? null,
-      source: 'pncp',
-      entityType: 'procurement_notice',
-      externalId: item.numeroControlePNCP,
-      fetchedAt,
-      traceId: input.traceId ?? null,
-      payload: mapPncpPayload(item),
-    }));
+    const records: RawDataRecord[] = [];
+    const firstPage = Number(filters.pagina);
+    let totalPages: number | null = null;
+    let lastPageSize = 0;
+    let responsePageSize = 0;
+
+    for (let pageOffset = 0; pageOffset < maxPages; pageOffset += 1) {
+      const pagina = firstPage + pageOffset;
+      const result = await this.fetchPncp({ ...filters, pagina });
+      lastPageSize = result.data.length;
+      responsePageSize = result.tamanhoPagina;
+      const fetchedAt = new Date().toISOString();
+
+      records.push(...result.data.map((item) => ({
+        tenantId: input.tenantId ?? null,
+        source: 'pncp' as const,
+        entityType: 'procurement_notice' as const,
+        externalId: item.numeroControlePNCP,
+        fetchedAt,
+        traceId: input.traceId ?? null,
+        payload: mapPncpPayload(item),
+      })));
+
+      if (result.totalRegistros !== null) {
+        totalPages = Math.ceil(result.totalRegistros / result.tamanhoPagina);
+        if (pagina >= totalPages) return records;
+      } else if (result.data.length < result.tamanhoPagina) {
+        return records;
+      }
+
+      if (result.data.length === 0) return records;
+      if (pageOffset < maxPages - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (
+      (totalPages !== null && firstPage + maxPages - 1 < totalPages)
+      || (totalPages === null && lastPageSize === responsePageSize)
+    ) {
+      throw new Error(
+        `PNCP excedeu o limite de ${maxPages} páginas; configure PNCP_INGEST_MAX_PAGES para concluir a sincronização.`,
+      );
+    }
+
+    return records;
   }
 }
 

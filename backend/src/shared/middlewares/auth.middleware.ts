@@ -2,8 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../runtime-config';
 import { logAuthEvent, normalizeAuthEmail } from '../../services/auth.service';
+import { prisma } from '../../database/prisma';
 
 export interface AuthRequest extends Request {
+  companyId?: string;
   user?: {
     id: string;
     tenantId: string;
@@ -14,10 +16,119 @@ export interface AuthRequest extends Request {
     email_verificado?: boolean;
     ultimo_acesso?: string | null;
     created_at?: string;
-    role?: 'fornecedor';
+    role?: 'fornecedor' | 'admin' | 'super_admin';
     isAdmin?: boolean;
     permissions?: string[];
+    companyId?: string | null;
   };
+}
+
+/**
+ * Resolve a empresa ativa autorizada para o usuário, respeitando o header x-company-id
+ * ou companyId explícito apenas se pertencer ao userId autenticado (proteção contra IDOR).
+ */
+export async function resolveAuthorizedCompany(userId: string, preferredCompanyId?: string | null) {
+  if (preferredCompanyId && typeof preferredCompanyId === 'string' && preferredCompanyId.trim()) {
+    const requested = await prisma.company.findFirst({
+      where: {
+        id: preferredCompanyId.trim(),
+        userId,
+      },
+    });
+    return requested;
+  }
+
+  return prisma.company.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+function getExplicitCompanyValues(req: AuthRequest): unknown[] {
+  const body = req.body as Record<string, unknown> | undefined;
+  const query = req.query as Record<string, unknown>;
+  return [
+    req.headers['x-company-id'],
+    body?.companyId,
+    body?.empresaId,
+    body?.empresa_id,
+    query.companyId,
+    query.empresaId,
+    query.empresa_id,
+  ];
+}
+
+function getExplicitCompanyIds(values: unknown[]) {
+  return values
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim());
+}
+
+export async function companyContextMiddleware(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Usuário não autenticado.',
+    });
+  }
+
+  const explicitCompanyValues = getExplicitCompanyValues(req);
+  if (explicitCompanyValues.some((value) => value !== undefined && value !== null && typeof value !== 'string')) {
+    return res.status(400).json({
+      success: false,
+      code: 'INVALID_COMPANY_CONTEXT',
+      message: 'O identificador da empresa deve ser informado em formato válido.',
+    });
+  }
+
+  const explicitCompanyIds = getExplicitCompanyIds(explicitCompanyValues);
+  const uniqueCompanyIds = [...new Set(explicitCompanyIds)];
+  if (uniqueCompanyIds.length > 1) {
+    return res.status(403).json({
+      success: false,
+      code: 'COMPANY_CONTEXT_MISMATCH',
+      message: 'A empresa informada não corresponde à empresa ativa.',
+    });
+  }
+
+  const requestedCompanyId =
+    uniqueCompanyIds[0] || req.user.companyId || undefined;
+
+  try {
+    const company = requestedCompanyId
+      ? await prisma.company.findFirst({
+          where: {
+            id: requestedCompanyId,
+            userId: req.user.id,
+            tenantId: req.user.tenantId,
+          },
+        })
+      : await prisma.company.findFirst({
+          where: {
+            userId: req.user.id,
+            tenantId: req.user.tenantId,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+
+    if (requestedCompanyId && !company) {
+      return res.status(403).json({
+        success: false,
+        code: 'COMPANY_ACCESS_DENIED',
+        message: 'A empresa selecionada não está disponível para este usuário.',
+      });
+    }
+
+    req.companyId = company?.id;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
 }
 
 function readCookie(req: Request, name: string) {
@@ -35,8 +146,8 @@ function readCookie(req: Request, name: string) {
 }
 
 function getAccessToken(req: Request) {
-  const authHeader = req.headers.authorization;
-  const [, bearerToken] = authHeader?.split(' ') ?? [];
+  const [scheme, credential] = req.headers.authorization?.trim().split(/\s+/, 2) ?? [];
+  const bearerToken = scheme?.toLowerCase() === 'bearer' ? credential : undefined;
   return bearerToken || readCookie(req, 'expertise_access_token');
 }
 
@@ -77,12 +188,20 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       return res.status(401).json({ success: false, message: 'Token de autenticação incompleto' });
     }
 
-    const role = 'fornecedor';
+    const rawRole = typeof decoded.role === 'string' ? decoded.role.toLowerCase() : 'fornecedor';
+    const role: 'fornecedor' | 'admin' | 'super_admin' =
+      rawRole === 'admin' || rawRole === 'super_admin' ? rawRole : 'fornecedor';
+
     const permissions = Array.isArray(decoded.permissions)
       ? decoded.permissions.filter((permission: unknown): permission is string => typeof permission === 'string')
       : typeof decoded.scope === 'string'
         ? decoded.scope.split(/\s+/).filter(Boolean)
         : [];
+
+    const headerCompanyId = req.headers['x-company-id'];
+    if (typeof headerCompanyId === 'string' && headerCompanyId.trim()) {
+      req.companyId = headerCompanyId.trim();
+    }
 
     req.user = {
       id: decoded.id,
@@ -95,7 +214,13 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       ultimo_acesso: decoded.ultimo_acesso ?? null,
       created_at: decoded.created_at ?? undefined,
       role,
-      isAdmin: decoded.is_admin === true || decoded.admin === true || permissions.includes('data_platform:admin'),
+      companyId: typeof decoded.company_id === 'string' ? decoded.company_id : null,
+      isAdmin:
+        decoded.is_admin === true ||
+        decoded.admin === true ||
+        role === 'admin' ||
+        role === 'super_admin' ||
+        permissions.includes('data_platform:admin'),
       permissions,
     };
     return next();

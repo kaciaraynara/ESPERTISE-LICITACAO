@@ -2,7 +2,6 @@ import { Router, RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { AuthController } from '../controllers/auth.controller';
 import { authMiddleware } from '../shared/middlewares/auth.middleware';
-import { PostgresRateLimitStore } from '../shared/middlewares/postgres-rate-limit.store';
 
 const router = Router();
 const controller = new AuthController();
@@ -11,8 +10,6 @@ const authRateLimit = rateLimit({
   max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 30,
   standardHeaders: true,
   legacyHeaders: false,
-  store: new PostgresRateLimitStore('auth-ip'),
-  passOnStoreError: false,
   message: {
     success: false,
     code: 'AUTH_RATE_LIMIT_EXCEEDED',

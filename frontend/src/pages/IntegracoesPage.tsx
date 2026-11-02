@@ -38,7 +38,7 @@ function normalizeHealthPayload(payload: any): HealthItem[] {
     })) as HealthItem[];
   }
 
-  return [];
+  throw new Error('Não foi possível verificar o estado dos serviços.');
 }
 
 export default function IntegracoesPage() {
@@ -48,12 +48,11 @@ export default function IntegracoesPage() {
   const catalog = useQuery({
     queryKey: ['integracoes', 'catalogo'],
     queryFn: async () => {
-      try {
-        const r = await integracoesApi.catalogo();
-        return (r.data.data as Fonte[]) ?? [];
-      } catch (error) {
-        return null;
+      const response = await integracoesApi.catalogo();
+      if (!Array.isArray(response.data?.data)) {
+        throw new Error('Não foi possível carregar a lista de serviços. Tente novamente.');
       }
+      return response.data.data as Fonte[];
     },
   });
 
@@ -61,12 +60,8 @@ export default function IntegracoesPage() {
   const health = useQuery({
     queryKey: ['integracoes', 'health'],
     queryFn: async () => {
-      try {
-        const r = await integracoesApi.health();
-        return normalizeHealthPayload(r.data);
-      } catch (error) {
-        return null;
-      }
+      const response = await integracoesApi.health();
+      return normalizeHealthPayload(response.data);
     },
     refetchInterval: 60_000,
   });
@@ -82,12 +77,18 @@ export default function IntegracoesPage() {
       const response = await integracoesApi.sincronizarPncp();
 
       if (response.data.success) {
-        toast.success(`${response.data.inseridos ?? response.data.total ?? 0} editais capturados com sucesso!`, { id: toastId });
+        toast.success(
+          `Consulta concluída: ${response.data.persistidos ?? response.data.inseridos ?? 0} editais persistidos, ${response.data.duplicados ?? 0} duplicados.`,
+          { id: toastId },
+        );
       } else {
-        toast.error('Ocorreu um erro no servidor ao processar.', { id: toastId });
+        toast.error(
+          `Sincronização parcial: ${response.data.falhas ?? 0} registros falharam; verifique os detalhes antes de considerar a carga concluída.`,
+          { id: toastId },
+        );
       }
     } catch (error: any) {
-      toast.error('Falha de comunicação com o servidor. Tente novamente.', { id: toastId });
+      toast.error(error?.response?.data?.message || 'Falha ao sincronizar com o PNCP. Tente novamente.', { id: toastId });
     } finally {
       setSincronizando(false);
     }
@@ -99,9 +100,9 @@ export default function IntegracoesPage() {
       {/* CABEÇALHO CORPORATIVO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-brand-blue tracking-tight">Central de Comando Expertise</h1>
+          <h1 className="text-2xl font-bold text-brand-blue tracking-tight">Painel Executivo</h1>
           <p className="text-brand-blue/70 mt-1 text-sm">
-            Gerencie o fluxo de dados, automações e a automação operacional da sua conta.
+            Acompanhe as informações e os serviços conectados à sua conta.
           </p>
         </div>
 
@@ -115,7 +116,7 @@ export default function IntegracoesPage() {
           ) : (
             <DownloadCloud className="w-4 h-4" />
           )}
-          {sincronizando ? 'Baixando Editais...' : 'Sincronizar PNCP Agora'}
+          {sincronizando ? 'Atualizando oportunidades...' : 'Atualizar oportunidades'}
         </button>
       </div>
 
@@ -128,7 +129,7 @@ export default function IntegracoesPage() {
             </div>
             <h3 className="font-bold text-brand-blue">Análise LEX</h3>
           </div>
-          <p className="text-sm text-brand-blue/70 mb-4">Análise jurídica de editais, resumo automático e scoring de risco.</p>
+          <p className="text-sm text-brand-blue/70 mb-4">Resumo de editais e identificação de pontos de atenção.</p>
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold px-2.5 py-1 bg-white text-brand-blue rounded-lg">Motor Operante</span>
             <button className="text-brand-blue text-sm font-medium hover:underline">Ver Análises</button>
@@ -169,17 +170,17 @@ export default function IntegracoesPage() {
 
         {health.isLoading && <p className="text-sm text-brand-blue/70 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin"/> Testando rotas...</p>}
 
-        {health.data === null && !health.isLoading && (
+        {health.isError && (
           <div className="flex items-center gap-3 text-sm text-brand-blue bg-brand-orange/10 p-4 rounded-lg border border-brand-orange/50">
             <ServerCrash className="w-5 h-5" />
             <div>
-              <p className="font-bold">Backend Desconectado</p>
-              <p>O painel não conseguiu acessar a API. O servidor Node.js está rodando?</p>
+              <p className="font-bold">Não foi possível verificar as integrações</p>
+              <p>{health.error instanceof Error ? health.error.message : 'O serviço de saúde está indisponível.'}</p>
             </div>
           </div>
         )}
 
-        {health.data && health.data !== null && (
+        {health.data && (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {(health.data as HealthItem[]).map((h) => (
               <li key={h.id} className="flex items-center justify-between border border-gray-100 bg-white rounded-lg px-4 py-3">
@@ -208,7 +209,12 @@ export default function IntegracoesPage() {
 
         <div className="space-y-4">
           {catalog.isLoading && <p className="text-brand-blue/70 text-sm">Carregando catálogo...</p>}
-          {catalog.data && catalog.data !== null && (catalog.data as Fonte[]).map((f) => (
+          {catalog.isError && (
+            <p role="alert" className="text-sm text-brand-orange">
+              Não foi possível carregar o catálogo de integrações.
+            </p>
+          )}
+          {catalog.data && catalog.data.map((f) => (
             <div key={f.id} className="p-4 border border-gray-100 rounded-lg hover:border-brand-blue/20 transition-colors bg-white">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>

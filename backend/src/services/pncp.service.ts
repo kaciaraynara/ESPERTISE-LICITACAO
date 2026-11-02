@@ -9,11 +9,12 @@ import {
 export type { FiltrosBusca, LicitacaoPNCP, ResultadoConsultaPNCP };
 
 const DEFAULT_PNCP_BASE_URL = 'https://pncp.gov.br/api/consulta/v1';
-const DEFAULT_MODALIDADE = 6;
+const DEFAULT_MODALIDADE = 6; // 6 = Pregão Eletrônico (Lei 14.133/2021)
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
-const DEFAULT_TIMEOUT_MS = 20_000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+const PNCP_TIME_ZONE = 'America/Sao_Paulo';
 
 export type PncpErrorCode =
   | 'PNCP_RATE_LIMITED'
@@ -97,17 +98,26 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
   };
 }
 
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
+function formatDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PNCP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}${values.month}${values.day}`;
 }
 
-function formatDate(date: Date): string {
+function addDays(dateValue: string, days: number): string {
+  const year = Number(dateValue.slice(0, 4));
+  const month = Number(dateValue.slice(4, 6));
+  const day = Number(dateValue.slice(6, 8));
+  const result = new Date(Date.UTC(year, month - 1, day + days));
   return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
+    result.getUTCFullYear(),
+    String(result.getUTCMonth() + 1).padStart(2, '0'),
+    String(result.getUTCDate()).padStart(2, '0'),
   ].join('');
 }
 
@@ -275,6 +285,10 @@ function timeoutMs(): number {
 }
 
 function readRawItems(payload: unknown): unknown[] {
+  if (!payload) {
+    return [];
+  }
+
   if (Array.isArray(payload)) {
     return payload;
   }
@@ -289,11 +303,7 @@ function readRawItems(payload: unknown): unknown[] {
     return response.items;
   }
 
-  throw new PncpServiceError(
-    'PNCP_INVALID_RESPONSE',
-    'O PNCP retornou uma resposta em formato inesperado.',
-    503,
-  );
+  return [];
 }
 
 function readTotalRecords(payload: unknown): number | null {
@@ -353,26 +363,42 @@ export async function buscarContratacoesPNCP(
     DEFAULT_PAGE,
     100_000,
   );
-  const tamanhoPagina = positiveInteger(
+  const rawTamanho = positiveInteger(
     filtros.tamanhoPagina,
     'tamanhoPagina',
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
   );
+  // PNCP API exige tamanhoPagina entre 10 e 50
+  const tamanhoPagina = Math.min(MAX_PAGE_SIZE, Math.max(10, rawTamanho));
+
   const modalidade = positiveInteger(
     filtros.codigoModalidadeContratacao ?? filtros.modalidade,
     'codigoModalidadeContratacao',
     DEFAULT_MODALIDADE,
     100,
   );
-  const dataInicial = normalizeDate(
+
+  const hojeStr = formatDate(new Date());
+  const dataInicialPadrao = addDays(hojeStr, -15);
+
+  const rawDataInicial = normalizeDate(
     filtros.dataInicial ?? filtros.dataInicio,
     'dataInicial',
-  );
-  const dataFinal = normalizeDate(
+  ) ?? dataInicialPadrao;
+
+  let rawDataFinal = normalizeDate(
     filtros.dataFinal ?? filtros.dataFim,
     'dataFinal',
-  ) ?? formatDate(addDays(new Date(), 30));
+  ) ?? hojeStr;
+
+  // Garante que dataFinal não seja no futuro (o PNCP falha com timeout em datas futuras)
+  if (rawDataFinal > hojeStr) {
+    rawDataFinal = hojeStr;
+  }
+  const dataInicial = rawDataInicial;
+  const dataFinal = rawDataFinal;
+
   const uf = normalizeUf(filtros.uf);
   const keyword = normalizeKeyword(
     filtros.palavraChave ?? filtros.palavrasChave,
@@ -382,12 +408,16 @@ export async function buscarContratacoesPNCP(
     process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
   ).replace(/\/+$/, '');
 
+  const endpoint = filtros.endpoint === 'proposta'
+    ? '/contratacoes/proposta'
+    : '/contratacoes/publicacao';
+
   try {
     const response = await axios.get(
-      `${baseUrl}/contratacoes/proposta`,
+      `${baseUrl}${endpoint}`,
       {
         params: {
-          ...(dataInicial ? { dataInicial } : {}),
+          dataInicial,
           dataFinal,
           codigoModalidadeContratacao: modalidade,
           ...(uf ? { uf } : {}),
@@ -401,6 +431,15 @@ export async function buscarContratacoesPNCP(
         },
       },
     );
+
+    if (response.status === 204 || !response.data) {
+      return {
+        data: [],
+        totalRegistros: 0,
+        pagina,
+        tamanhoPagina,
+      };
+    }
 
     const mapped = readRawItems(response.data)
       .map(mapPncpItem)

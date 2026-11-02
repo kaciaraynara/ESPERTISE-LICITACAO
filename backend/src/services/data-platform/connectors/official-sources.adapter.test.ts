@@ -1,8 +1,35 @@
 import { DataNormalizationService } from '../normalization.service';
 import { ComprasGovDataConnector } from './comprasgov.adapter';
 import { PncpDataConnector } from './pncp.adapter';
+import type { FiltrosBusca, ResultadoConsultaPNCP } from '../../pncp.service';
 
 describe('official source adapters', () => {
+  test('percorre todas as páginas conhecidas do PNCP', async () => {
+    const fetchPncp = jest.fn(async (filters: FiltrosBusca = {}): Promise<ResultadoConsultaPNCP> => {
+      const pagina = Number(filters.pagina ?? 1);
+      return {
+        totalRegistros: 20,
+        pagina,
+        tamanhoPagina: 10,
+        data: [{
+          numeroControlePNCP: `PNCP-PAGE-${pagina}`,
+          objeto: 'Contratacao com objeto detalhado para teste de paginação',
+        }],
+      };
+    });
+    const connector = new PncpDataConnector(fetchPncp);
+
+    const records = await connector.fetch({ limit: 10 });
+
+    expect(fetchPncp).toHaveBeenCalledTimes(2);
+    expect(fetchPncp).toHaveBeenNthCalledWith(1, expect.objectContaining({ pagina: 1 }));
+    expect(fetchPncp).toHaveBeenNthCalledWith(2, expect.objectContaining({ pagina: 2 }));
+    expect(records.map((record) => record.externalId)).toEqual([
+      'PNCP-PAGE-1',
+      'PNCP-PAGE-2',
+    ]);
+  });
+
   test('normaliza PNCP para procurement_notice compatível com a data platform', async () => {
     const connector = new PncpDataConnector(async () => ({
       totalRegistros: 1,

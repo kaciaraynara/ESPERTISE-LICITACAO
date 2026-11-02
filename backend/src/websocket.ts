@@ -81,48 +81,13 @@ export default function setupSockets(httpServer: http.Server) {
     console.log(`[Socket.io] Cliente conectado ao Cockpit: ${socket.id} | role=${socketUser.role}`);
 
     const roboService = new RoboSocketService(socket);
-    let simulationInterval: NodeJS.Timeout | null = null;
-
-    const stopSimulation = () => {
-      if (simulationInterval) {
-        clearInterval(simulationInterval);
-        simulationInterval = null;
-      }
-    };
 
     socket.on('iniciar_robo', (data: SetupRoboPayload) => {
       roboService.iniciar(data);
-
-      // Simulação de mercado "Real-Time" autônoma no Backend
-      stopSimulation();
-      simulationInterval = setInterval(() => {
-        const isActive = (roboService as any).isActive;
-        if (!isActive) {
-          stopSimulation();
-          return;
-        }
-
-        const chance = Math.random();
-        // 40% de chance do concorrente dar um lance
-        if (chance > 0.6) {
-          const valorAtual = (roboService as any).valorAtualDisputa;
-          const valorMercado = valorAtual - (Math.floor(Math.random() * 30) + 1);
-          const tempoRestante = Math.floor(Math.random() * 30) + 5;
-          roboService.processarNovoLanceOponente(valorMercado, tempoRestante);
-        } else {
-          socket.emit('robo_log', {
-            id: Date.now() + Math.random(),
-            time: new Date().toLocaleTimeString('pt-BR', { hour12: false }),
-            text: '[SCAN] Monitorando mercado. Nossa oferta segue na liderança.',
-            type: 'info'
-          });
-        }
-      }, 6000);
     });
 
     socket.on('pausar_robo', () => {
       roboService.pausar();
-      stopSimulation();
     });
 
     socket.on('atualizar_estrategia', (data: { estrategia: EstrategiaType }) => {
@@ -140,7 +105,6 @@ export default function setupSockets(httpServer: http.Server) {
     socket.on('disconnect', () => {
       console.log(`[Socket.io] Cliente desconectado do Cockpit: ${socket.id}`);
       roboService.pausar();
-      stopSimulation();
     });
   });
 }
