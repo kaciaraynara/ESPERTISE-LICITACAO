@@ -26,14 +26,25 @@ export function getAllowedOrigins() {
   return [...new Set([...configuredOrigins, ...DEFAULT_LOCAL_ORIGINS])];
 }
 
-export function isOriginAllowed(origin?: string) {
+export function isOriginAllowed(origin?: string): boolean {
   if (!origin) {
     return true;
   }
 
   const normalizedOrigin = origin.trim().replace(/\/$/, '');
 
+  // Permitir conexões locais em desenvolvimento
   if (!isProduction() && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin)) {
+    return true;
+  }
+
+  // Sempre permitir o domínio oficial e todos os subdomínios (incluindo www)
+  if (/^https?:\/\/([a-z0-9-]+\.)*expertiselicitatoria\.com\.br$/i.test(normalizedOrigin)) {
+    return true;
+  }
+
+  // Permitir deploys e previews da Vercel
+  if (/^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(normalizedOrigin)) {
     return true;
   }
 

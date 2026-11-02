@@ -5,8 +5,12 @@
       "destination": "http://3.145.128.6:3001/api/v1/:path*"
     },
     {
+      "source": "/api/:path*",
+      "destination": "http://3.145.128.6:3001/api/:path*"
+    },
+    {
       "source": "/(.*)",
-      "destination": "/app.html"
+      "destination": "/index.html"
     }
   ]
 }

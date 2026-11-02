@@ -21,27 +21,18 @@ export function resolveBaseUrl(): string {
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  if (configured) {
+  // Ambiente local de desenvolvimento
+  if (isLocalHost) {
+    return configured || 'http://localhost:3001/api/v1';
+  }
+
+  // Se uma URL remota foi explicitamente configurada (e não aponta para localhost)
+  if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
     return configured;
   }
 
-  if (import.meta.env.DEV || isLocalHost) {
-    return 'http://localhost:3001/api/v1';
-  }
-
-  if (import.meta.env.PROD) {
-    return '/api/v1'; // Sempre usar o proxy da Vercel em produção
-  }
-
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL.trim().replace(/\/$/, '');
-  }
-
-  if (typeof window !== 'undefined' && window.location) {
-    return `${window.location.origin}/api/v1`;
-  }
-
-  return 'http://localhost:3001/api/v1';
+  // Em produção no domínio próprio ou Vercel, usar o proxy reverso /api/v1
+  return '/api/v1';
 }
 
 export const BASE_URL = resolveBaseUrl();
@@ -181,14 +172,18 @@ api.interceptors.response.use(
       }
     }
 
-    // Blindagem corporativa de erros de rede/CORS: preserva mensagens explícitas do backend quando existirem
-    const FRIENDLY_SERVER_ERROR_MSG = 'Nossos servidores estão processando um alto volume de dados do governo. Tente novamente em alguns instantes.';
+    // Tratamento de erros de conectividade, CORS e respostas do servidor
+    const FRIENDLY_GATEWAY_ERROR_MSG = 'Servidor temporariamente indisponível. Verifique se o backend está ativo ou tente novamente em instantes.';
     const isNetworkOrCors =
       !error.response ||
       error.code === 'ERR_NETWORK' ||
       (typeof error.message === 'string' &&
         (error.message.includes('Network Error') ||
           error.message.toLowerCase().includes('cors')));
+    const isGatewayError =
+      error.response?.status === 502 ||
+      error.response?.status === 504 ||
+      error.response?.status === 503;
     const isServerError = Boolean(error.response?.status && error.response.status >= 500);
     const backendExplicitMessage =
       error.response?.data && typeof error.response.data === 'object'
@@ -196,20 +191,25 @@ api.interceptors.response.use(
         : undefined;
 
     if (isNetworkOrCors) {
-      error.message = FRIENDLY_SERVER_ERROR_MSG;
+      error.message = FRIENDLY_GATEWAY_ERROR_MSG;
       if (!error.response) {
         (error as any).response = {
-          data: { message: FRIENDLY_SERVER_ERROR_MSG },
+          data: { message: FRIENDLY_GATEWAY_ERROR_MSG },
           status: 503,
           statusText: 'Service Unavailable',
           headers: {},
           config: original,
         };
       }
-    } else if (isServerError && !backendExplicitMessage) {
-      error.message = FRIENDLY_SERVER_ERROR_MSG;
+    } else if (isGatewayError && !backendExplicitMessage) {
+      error.message = FRIENDLY_GATEWAY_ERROR_MSG;
       if (error.response?.data && typeof error.response.data === 'object') {
-        (error.response.data as any).message = FRIENDLY_SERVER_ERROR_MSG;
+        (error.response.data as any).message = FRIENDLY_GATEWAY_ERROR_MSG;
+      }
+    } else if (isServerError && !backendExplicitMessage) {
+      error.message = FRIENDLY_GATEWAY_ERROR_MSG;
+      if (error.response?.data && typeof error.response.data === 'object') {
+        (error.response.data as any).message = FRIENDLY_GATEWAY_ERROR_MSG;
       }
     }
 

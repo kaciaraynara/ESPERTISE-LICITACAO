@@ -60,21 +60,26 @@ app.use(cors({
 }));
 
 // 2. Health Checks
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
+const healthHandler = (_req: express.Request, res: express.Response) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+};
 
-app.get('/health/readiness', async (_req, res) => {
+const readinessHandler = async (_req: express.Request, res: express.Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return res.status(200).json({ status: 'ready' });
+    return res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
   } catch {
     return res.status(503).json({
       status: 'not_ready',
       code: 'DATABASE_UNAVAILABLE',
     });
   }
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
+app.get('/health/readiness', readinessHandler);
+app.get('/api/v1/health/readiness', readinessHandler);
 
 // 3. Documentação Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
