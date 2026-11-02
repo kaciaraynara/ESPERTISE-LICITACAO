@@ -1,0 +1,11 @@
+{
+  "name": "expertise-licitacao-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root delegator for Expertise Licitatória Backend on Render / Hosting",
+  "scripts": {
+    "postinstall": "cd backend && npm install",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start"
+  }
+}
