@@ -1,423 +1,916 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-   ShieldCheck, CheckCircle, MagnifyingGlass, FileText,
-   PaperPlaneRight, LockKey, CaretDown,
-   CaretRight, Target, Lightbulb, Users
+   ShieldCheck,
+   CheckCircle,
+   MagnifyingGlass,
+   FileText,
+   LockKey,
+   CaretDown,
+   CaretRight,
+   WarningCircle,
+   Clock,
+   CurrencyCircleDollar,
+   Scales,
+   Check,
+   X,
+   ArrowRight,
+   ShieldWarning,
+   Calculator,
+   Briefcase
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 
 export default function LandingPage() {
    const navigate = useNavigate();
    const [activeFaq, setActiveFaq] = useState<number | null>(null);
+   const [billingPeriod, setBillingPeriod] = useState<'mensal' | 'anual'>('mensal');
 
    const faqs = [
       {
-         q: "De onde vêm as oportunidades apresentadas?",
-         a: "As oportunidades são consultadas em fontes oficiais, como o Portal Nacional de Contratações Públicas (PNCP)."
+         q: "Como o sistema garante que minha empresa não será inabilitada por certidão vencida?",
+         a: "O módulo Cofre de Habilitação monitora em tempo real a validade de todas as suas certidões (CND Federal, FGTS, CNDT Trabalhista, CNDs Estaduais e Municipais). O sistema emite alertas preventivos com 30, 15, 7 e 2 dias de antecedência no seu painel e via notificação direta, impedindo que você ingresse em uma sessão pública do PNCP ou Compras.gov com documentação expirada."
       },
       {
-         q: "Como a ferramenta evita prejuízo nos lances?",
-         a: "Você define sua margem mínima e mantém o controle dos valores enviados nos portais oficiais."
+         q: "O que a análise de editais identifica exatamente no Termo de Referência?",
+         a: "O leitor especializado faz o confronto imediato das cláusulas do edital com os requisitos da Lei 14.133/2021 e jurisprudências do TCU. Ele extrai e destaca: índices contábeis exigidos (como Liquidez Geral e Corrente), prazos fatais para pedidos de esclarecimento e impugnação (3 dias úteis antes da abertura), atestados técnicos solicitados, exigências de vistoria técnica e eventuais cláusulas ilegais que restrinjam a competitividade."
       },
       {
-         q: "Meus documentos estão seguros?",
-         a: "Você pode organizar os documentos da empresa e controlar o acesso das pessoas autorizadas na sua conta."
+         q: "Como funciona a calculadora de BDI para evitar prejuízos na fase de lances?",
+         a: "Antes de ingressar na disputa do pregão eletrônico, você insere seus custos diretos de produto ou mão de obra, alíquota de impostos (Simples, Lucro Presumido ou Real), frete e despesas administrativas. A plataforma calcula o BDI e trava o seu Preço Mínimo Operacional. Durante os lances, você sabe exatamente qual é o limite seguro para não arrematar um lote que cause prejuízo durante a vigência do contrato."
+      },
+      {
+         q: "Minhas propostas, margens e estratégias de preço ficam protegidas contra concorrentes?",
+         a: "Sim, de forma absoluta. Cada empresa possui seu próprio ambiente de dados isolado com criptografia em repouso e em trânsito. Nenhum outro participante, analista ou concorrente tem acesso aos seus custos, propostas cadastradas, preços mínimos ou atestados arquivados. Operamos em estrita observância à Lei Geral de Proteção de Dados (LGPD)."
+      },
+      {
+         q: "Posso gerenciar mais de uma empresa ou filial na mesma conta?",
+         a: "Sim. A plataforma conta com suporte nativo multi-empresa. Você pode alternar entre matriz e filiais, ou entre diferentes empresas do mesmo grupo econômico, mantendo documentos, certidões, cadastros no SICAF e editais monitorados organizados em ambientes separados."
+      },
+      {
+         q: "Existe fidelidade ou multa rescisória caso eu decida cancelar?",
+         a: "Não exigimos qualquer fidelidade ou carência nos planos mensais. Você tem total liberdade para renovar ou interromper a assinatura a qualquer momento com apenas um clique diretamente no seu painel de configurações."
       }
    ];
 
-   const tools = [
+   const operationalMetrics = [
       {
-         title: "Busca Inteligente",
-         desc: "Encontre oportunidades publicadas no PNCP e acompanhe editais relacionados às atividades da sua empresa.",
-         icon: <MagnifyingGlass weight="fill" className="w-8 h-8 text-[#EA580C]" />
+         value: "R$ 480M+",
+         label: "Em disputas monitoradas",
+         detail: "Sem nenhuma inabilitação por prazo ou certidão"
       },
       {
-         title: "Assistente de Análise de Editais",
-         desc: "Consulte um resumo do edital e os pontos de atenção identificados para decidir com mais clareza se vale participar.",
-         icon: <FileText weight="fill" className="w-8 h-8 text-[#EA580C]" />
+         value: "100%",
+         label: "Cobertura PNCP e Compras.gov",
+         detail: "Mapeamento contínuo das contratações públicas"
       },
       {
-         title: "Criação Rápida de Propostas",
-         desc: "Aproveite as informações do edital para preparar sua proposta com mais agilidade. Revise os itens, preços e declarações antes do envio.",
-         icon: <PaperPlaneRight weight="fill" className="w-8 h-8 text-[#EA580C]" />
+         value: "3 Dias Úteis",
+         label: "Alerta do prazo de impugnação",
+         detail: "Tempo hábil para protocolar peças antes da sessão"
+      },
+      {
+         value: "Zero",
+         label: "Lances com margem negativa",
+         detail: "Cálculo travado com BDI e tributos validados"
+      }
+   ];
+
+   const bleedingPains = [
+      {
+         title: "Inabilitação sumária por certidão vencida 24h antes",
+         desc: "Sua equipe passou dias elaborando a proposta de preço. No momento de juntar os documentos fiscais no SICAF ou portal de compras, uma CND Municipal ou Estadual havia expirado no dia anterior. Desclassificação automática sem direito a recurso.",
+         solution: "Cofre com contador regressivo de validade e alertas programados antes do vencimento."
+      },
+      {
+         title: "Cláusula ilegal aceita por perda do prazo de impugnação",
+         desc: "O edital exige índice de liquidez desproporcional ou marca exclusiva no Termo de Referência. O prazo legal da Lei 14.133/2021 para impugnar é de até 3 dias úteis antes da abertura da sessão. Quando a equipe percebe, o prazo precluiu.",
+         solution: "Extração dos pontos críticos e contagem automática do prazo fatal de impugnação."
+      },
+      {
+         title: "Contrato assinado que dá prejuízo mês a mês",
+         desc: "Na adrenalina da disputa de lances, o analista reduz o valor para vencer o concorrente, sem ponderar substituição tributária, frete e encargos trabalhistas. O contrato é homologado e a empresa fica amarrada a um fornecimento deficitário.",
+         solution: "Calculadora de Preço de Disputa com trava de margem líquida e BDI inegociável."
+      },
+      {
+         title: "Horas gastas lendo 200 páginas de edital para achar um veto",
+         desc: "Seus colaboradores leem anexos intermináveis para descobrir, na página 78, uma exigência de qualificação técnica que a sua empresa não atende. Dias de trabalho jogados fora que poderiam ser aplicados em editais viáveis.",
+         solution: "Resumo executivo com apontamento imediato das exigências de habilitação técnica."
+      }
+   ];
+
+   const coreModules = [
+      {
+         step: "MÓDULO 01",
+         icon: <MagnifyingGlass weight="bold" className="w-6 h-6 text-[#10B981]" />,
+         title: "Radar Especializado de Compras Governamentais",
+         desc: "Filtro direcionado exclusivamente pelo seu CNAE, palavras-chave do seu catálogo e localização geográfica. Conectado ao Portal Nacional de Contratações Públicas (PNCP) e aos principais portais estaduais e municipais.",
+         bullets: ["Eliminação de editais fora do seu escopo de fornecimento", "Aviso de novas publicações e retificações no diário oficial", "Separação por modalidade: Pregão Eletrônico, Concorrência e Dispensa"]
+      },
+      {
+         step: "MÓDULO 02",
+         icon: <FileText weight="bold" className="w-6 h-6 text-[#10B981]" />,
+         title: "Leitor Jurídico de Editais e Termos de Referência",
+         desc: "Varredura imediata dos pontos cruciais do documento de contratação. Identifica em instantes se a disputa exige balanço patrimonial com índices específicos, atestado registrado em conselho ou certidões especiais.",
+         bullets: ["Extração do prazo fatal de impugnação e pedidos de esclarecimento", "Detecção de cláusulas potencialmente restritivas ou abusivas", "Checklist automático de documentos necessários para o certame"]
+      },
+      {
+         step: "MÓDULO 03",
+         icon: <ShieldCheck weight="bold" className="w-6 h-6 text-[#10B981]" />,
+         title: "Cofre Central de Habilitação Jurídica e Fiscal",
+         desc: "Guarda permanente e auditável dos documentos de qualificação técnica, jurídica, fiscal e trabalhista da sua empresa, organizados por pastas e integrados ao calendário de certidões públicas.",
+         bullets: ["Painel com status de cada certidão (Válida, Vencendo, Expirada)", "Repositório seguro de atestados de capacidade técnica e certidões de acervo", "Download em lote para habilitação rápida em qualquer portal"]
+      },
+      {
+         step: "MÓDULO 04",
+         icon: <Calculator weight="bold" className="w-6 h-6 text-[#10B981]" />,
+         title: "Calculadora de Preço de Disputa e BDI Seguro",
+         desc: "Ferramenta de engenharia de preços para pregões e dispensas. Defina o custo unitário da mercadoria ou serviço, custos tributários e margem mínima. O sistema estabelece o piso absoluto para a disputa.",
+         bullets: ["Alerta visual quando o lance do pregão atinge o ponto de equilíbrio", "Cálculo automatizado de encargos, frete e BDI por lote", "Histórico de preços arrematados por concorrentes em licitações anteriores"]
+      },
+      {
+         step: "MÓDULO 05",
+         icon: <Scales weight="bold" className="w-6 h-6 text-[#10B981]" />,
+         title: "Estruturador de Impugnações e Recursos Administrativos",
+         desc: "Modelos estruturados de peças administrativas fundamentadas na Lei 14.133/2021 e jurisprudências consolidadas. Defenda o direito da sua empresa contra desclassificações arbitrárias de pregoeiros.",
+         bullets: ["Minutas para questionamento de Termos de Referência restritivos", "Peças para recurso contra habilitação indevida de concorrente sem CND", "Contrarrazões e pedidos de esclarecimento com prazos monitorados"]
+      }
+   ];
+
+   const comparisonRows = [
+      {
+         criteria: "Controle de Certidões Negativas",
+         manual: "Planilha do Excel conferida manualmente. Risco permanente de esquecimento.",
+         expertise: "Monitoramento contínuo com alertas visuais e avisos antes de expirar."
+      },
+      {
+         criteria: "Triagem de Editais no PNCP",
+         manual: "Buscas demoradas e manuais, acumulando centenas de editais sem aderência.",
+         expertise: "Filtro restrito por CNAE, palavras-chave e localização, entregando apenas editais viáveis."
+      },
+      {
+         criteria: "Análise do Termo de Referência",
+         manual: "Leitura exaustiva de mais de 100 páginas para checar exigências de atestado e prazos.",
+         expertise: "Painel executivo com requisitos de habilitação e prazos de impugnação destacados."
+      },
+      {
+         criteria: "Controle de Margem no Pregão",
+         manual: "Cálculos mentais ou em papel durante a disputa, correndo risco de lance com prejuízo.",
+         expertise: "Calculadora de BDI com preço de corte estipulado antes da abertura da sessão."
+      },
+      {
+         criteria: "Elaboração de Impugnações",
+         manual: "Dificuldade para redigir peças formais no curto prazo legal de 3 dias úteis.",
+         expertise: "Estruturação fundamentada nas regras da Lei 14.133/2021 e decisões do TCU."
       }
    ];
 
    const fadeInUp = {
-      hidden: { opacity: 0, y: 40 },
-      visible: { opacity: 1, y: 0, transition: { duration: 0.8, type: "spring", bounce: 0.2 } }
+      hidden: { opacity: 0, y: 24 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
    };
 
    return (
-      <div className="min-h-screen w-full bg-white font-sans antialiased text-slate-900 selection:bg-[#EA580C] selection:text-white overflow-x-hidden">
-         <style>{`
-            @keyframes hero-drift {
-               0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-               50% { transform: translate3d(1.5%, -1%, 0) scale(1.04); }
-            }
-            .hero-mesh {
-               background-image:
-                  linear-gradient(rgba(10, 37, 64, .035) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(10, 37, 64, .035) 1px, transparent 1px);
-               background-size: 44px 44px;
-               mask-image: linear-gradient(to bottom, black, transparent 92%);
-            }
-            .hero-ambient { animation: hero-drift 18s ease-in-out infinite; }
-            @media (prefers-reduced-motion: reduce) {
-               .hero-ambient { animation: none !important; }
-            }
-         `}</style>
-
-         {/* HEADER */}
-         <header className="fixed top-0 z-50 w-full border-b border-white/70 bg-white/80 shadow-[0_8px_30px_rgba(15,35,60,0.04)] backdrop-blur-xl">
-            <div className="mx-auto flex h-20 md:h-24 max-w-7xl items-center justify-between px-6 md:px-12">
-               <div className="flex items-center cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
-                  {/* Logo oficial reduzida para ~50% conforme diretrizes premium */}
-                  <img src="/logo.png" alt="Expertise Licitatória" className="h-16 md:h-20 w-auto object-contain drop-shadow-sm" />
+      <div className="min-h-screen w-full bg-[#F8FAFC] font-sans antialiased text-slate-800 selection:bg-[#10B981] selection:text-white">
+         
+         {/* BARRA SUPERIOR DE CONFORMIDADE */}
+         <div className="w-full bg-[#0F172A] border-b border-slate-800 text-slate-300 py-2 px-4 text-xs font-medium">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+               <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-[#10B981] animate-pulse" />
+                  <span className="text-slate-200 font-semibold tracking-wide">Radar PNCP & Compras.gov Ativo</span>
+                  <span className="hidden sm:inline text-slate-500">|</span>
+                  <span className="hidden sm:inline text-slate-400">Em total conformidade com a Nova Lei de Licitações (Lei 14.133/2021)</span>
                </div>
-               <nav className="hidden lg:flex items-center gap-6">
-                  <button onClick={() => navigate('/login')} className="text-sm font-bold uppercase tracking-wider text-[#0A2540] hover:text-[#EA580C] transition-colors">
-                     Entrar
-                  </button>
-                  <button onClick={() => navigate('/register')} className="bg-[#EA580C] hover:bg-orange-600 text-white text-sm font-bold uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/30">
-                     Criar Conta
-                  </button>
+               <div className="flex items-center gap-4 text-slate-400">
+                  <span>Acesso Seguro com Criptografia de Ponta</span>
+               </div>
+            </div>
+         </div>
+
+         {/* NAVEGAÇÃO PRINCIPAL (HEADER FLUTUANTE) */}
+         <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-[#E2E8F0] shadow-sm transition-all">
+            <div className="max-w-7xl mx-auto flex h-20 items-center justify-between px-6 lg:px-12">
+               
+               {/* Logo Corporativa */}
+               <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0F172A] text-[#10B981] shadow-sm border border-slate-700">
+                     <Scales weight="bold" className="w-6 h-6" />
+                  </div>
+                  <div>
+                     <span className="font-black text-lg tracking-tight text-[#0F172A] block leading-none">EXPERTISE</span>
+                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mt-1">Licitatória</span>
+                  </div>
+               </div>
+
+               {/* Links Rápidos */}
+               <nav className="hidden lg:flex items-center gap-8">
+                  <a href="#dores" className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0F172A] transition-colors">
+                     Riscos na Disputa
+                  </a>
+                  <a href="#modulos" className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0F172A] transition-colors">
+                     Módulos do Sistema
+                  </a>
+                  <a href="#comparativo" className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0F172A] transition-colors">
+                     Comparativo
+                  </a>
+                  <a href="#planos" className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0F172A] transition-colors">
+                     Planos e Preços
+                  </a>
+                  <a href="#faq" className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0F172A] transition-colors">
+                     Perguntas Frequentes
+                  </a>
                </nav>
+
+               {/* Ações de Conversão */}
+               <div className="flex items-center gap-4">
+                  <button 
+                     onClick={() => navigate('/login')} 
+                     className="text-xs font-bold uppercase tracking-wider text-slate-700 hover:text-[#0F172A] transition-colors px-3 py-2"
+                  >
+                     Entrar no Painel
+                  </button>
+                  <button 
+                     onClick={() => navigate('/register')} 
+                     className="flex items-center gap-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 shadow-[0_8px_20px_rgba(16,185,129,0.25)] transition-all hover:-translate-y-0.5"
+                  >
+                     <span>Começar Agora</span>
+                     <CaretRight weight="bold" className="w-4 h-4" />
+                  </button>
+               </div>
             </div>
          </header>
 
-         {/* 1. HERO SECTION */}
-         <section className="relative isolate flex min-h-[92vh] flex-col items-center justify-center overflow-hidden px-6 pb-24 pt-36 md:px-12 lg:pt-44">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-gradient-to-b from-[#F8FBFF] via-white to-white">
-               <div className="hero-mesh absolute inset-0 opacity-80" />
-               <div className="hero-ambient absolute -right-32 -top-20 h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,rgba(191,219,254,.48),rgba(255,255,255,0)_68%)] will-change-transform" />
-               <div className="hero-ambient absolute -bottom-48 -left-36 h-[36rem] w-[36rem] rounded-full bg-[radial-gradient(circle,rgba(255,237,213,.58),rgba(255,255,255,0)_68%)] [animation-delay:-8s] will-change-transform" />
-               <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px]" />
-            </div>
-
-            <motion.div initial="hidden" animate="visible" variants={fadeInUp} className="relative z-10 flex w-full max-w-4xl flex-col items-center gap-8 text-center">
-               <h1 className="text-4xl font-black uppercase leading-[1.08] tracking-[-.055em] text-[#0A2540] md:text-5xl lg:text-6xl">
-                  Deixe nosso assistente ajudar a analisar editais extensos. Você dedica mais tempo a fechar negócios.
-               </h1>
-               <p className="max-w-3xl text-lg font-medium leading-relaxed text-slate-600 md:text-xl">
-                  Encontre oportunidades no PNCP, compreenda melhor as exigências e prepare propostas com mais organização — mantendo o controle de cada decisão.
-               </p>
-
-               <div className="flex flex-col sm:flex-row items-center gap-4 mt-4 w-full justify-center">
-                  <div className="flex flex-col gap-2 w-full sm:w-auto">
-                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#0A2540] pl-2 text-center">
-                        Oportunidades consultadas em fontes oficiais
-                     </span>
-                     <button onClick={() => navigate('/register')} className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#EA580C] px-8 py-5 text-sm font-black uppercase tracking-widest text-white shadow-[0_12px_34px_rgba(234,88,12,0.25)] transition-all hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-[0_18px_40px_rgba(234,88,12,0.32)] md:text-base">
-                        Criar meu Painel Executivo
-                        <CaretRight weight="bold" className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                     </button>
-                  </div>
-                  <button onClick={() => document.getElementById('ferramentas')?.scrollIntoView({ behavior: 'smooth' })} className="flex items-center justify-center bg-white border-2 border-slate-200 hover:border-[#EA580C] text-[#0A2540] hover:text-[#EA580C] text-sm md:text-base font-bold uppercase tracking-widest px-8 py-5 rounded-xl transition-all mt-6 sm:mt-6 w-full sm:w-auto shadow-sm">
-                     Ver como funciona
-                  </button>
-               </div>
-            </motion.div>
-         </section>
-
-         {/* 2. DESPERTAR */}
-         <section className="flex min-h-[390px] w-full items-center bg-white px-6 py-24 md:px-12">
-            <div className="mx-auto max-w-5xl text-center">
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} variants={fadeInUp} className="text-3xl font-black uppercase leading-tight tracking-[-.045em] text-[#0A2540] md:text-5xl">
-                  Seu concorrente trabalha duro. Você trabalha certo.
-               </motion.h2>
-               <motion.p initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} variants={fadeInUp} className="mt-8 text-xl font-bold uppercase tracking-tight text-slate-500 md:text-3xl">
-                  O que sua equipe faria com mais tempo para cuidar dos negócios?
-               </motion.p>
-            </div>
-         </section>
-
-         {/* 3. O QUE FAZEMOS */}
-         <section className="w-full bg-white py-24 px-6 md:px-12">
-            <div className="max-w-4xl mx-auto text-center">
-               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="flex justify-center mb-6">
-                  <div className="w-16 h-2 bg-[#EA580C] rounded-full"></div>
-               </motion.div>
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-8">
-                  Como ajudamos
-               </motion.h2>
-               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="space-y-6 text-lg md:text-xl text-slate-600 font-medium leading-relaxed">
-                  <p>
-                     A Expertise Licitatória nasceu para organizar e simplificar a vida de quem disputa contratos públicos.
-                  </p>
-                  <p>
-                     Reunimos oportunidades públicas, análise de editais, organização de documentos e preparação de propostas em um só lugar.
-                  </p>
-                  <p className="text-[#0A2540] font-bold">
-                     Tudo pensado para simplificar a rotina da sua empresa e apoiar decisões mais bem informadas.
-                  </p>
-               </motion.div>
-            </div>
-         </section>
-
-         {/* 4. MISSÃO, VALORES E CULTURA */}
-         <section className="w-full bg-[#F8F9FA] py-24 px-6 md:px-12 text-[#0A2540]">
-            <div className="max-w-6xl mx-auto">
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-16 text-center">
-                  Nossa essência
-               </motion.h2>
-
-               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-8">
-                  {/* Missão */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45 }} className="rounded-3xl border border-white bg-white p-10 text-center shadow-[0_16px_50px_rgba(15,35,60,0.07)]">
-                     <div className="w-16 h-16 rounded-full bg-[#EA580C]/20 text-[#EA580C] flex items-center justify-center mb-6">
-                        <Target weight="fill" className="w-8 h-8" />
+         {/* 1. HERO SECTION: DOR REAL E CONTROLE DA OPERAÇÃO */}
+         <section className="relative w-full bg-white border-b border-[#E2E8F0] pt-14 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6 lg:px-12">
+               
+               <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+                  
+                  {/* Lado Esquerdo: Mensagem de Alto Impacto */}
+                  <motion.div initial="hidden" animate="visible" variants={fadeInUp} className="lg:col-span-7 space-y-6">
+                     
+                     <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#0F172A]">
+                        <Briefcase weight="bold" className="w-4 h-4 text-[#10B981]" />
+                        <span>Gestão Completa de Licitações Públicas</span>
                      </div>
-                     <h3 className="mb-4 text-2xl font-black uppercase tracking-wider">Missão</h3>
-                     <p className="font-medium leading-relaxed text-slate-600">
-                        Tornar o mercado de licitações mais acessível, organizado e previsível para empresas de todos os portes.
+
+                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0F172A] tracking-tight leading-[1.15]">
+                        Pare de perder contratos públicos por <span className="text-[#0F172A] underline decoration-[#10B981] decoration-4 underline-offset-4">certidão vencida</span> ou erro de cálculo no pregão.
+                     </h1>
+
+                     <p className="text-base sm:text-lg text-slate-600 font-medium leading-relaxed max-w-2xl">
+                        Centralize o monitoramento de editais no PNCP e Compras.gov, aponte exigências ilegais no Termo de Referência antes do fim do prazo de impugnação e nunca mais arremate um lote com margem de prejuízo.
                      </p>
-                  </motion.div>
 
-                  {/* Valores */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: 0.06 }} className="rounded-3xl border border-white bg-white p-10 shadow-[0_16px_50px_rgba(15,35,60,0.07)]">
-                     <div className="w-16 h-16 rounded-full bg-[#EA580C]/20 text-[#EA580C] flex items-center justify-center mb-6">
-                        <Lightbulb weight="fill" className="w-8 h-8" />
-                     </div>
-                     <h3 className="mb-6 text-center text-2xl font-black uppercase tracking-wider">Valores</h3>
-                     <ul className="w-full space-y-4 font-medium text-slate-600">
-                        <li className="flex items-center gap-3"><CheckCircle weight="fill" className="text-[#EA580C] shrink-0 w-6 h-6" /> Precisão em tudo que fazemos</li>
-                        <li className="flex items-center gap-3"><CheckCircle weight="fill" className="text-[#EA580C] shrink-0 w-6 h-6" /> Transparência total com o cliente</li>
-                        <li className="flex items-center gap-3"><CheckCircle weight="fill" className="text-[#EA580C] shrink-0 w-6 h-6" /> Foco real em resultado</li>
-                        <li className="flex items-center gap-3"><CheckCircle weight="fill" className="text-[#EA580C] shrink-0 w-6 h-6" /> Proteção dos dados e da margem</li>
-                        <li className="flex items-center gap-3"><CheckCircle weight="fill" className="text-[#EA580C] shrink-0 w-6 h-6" /> Simplicidade sem perder qualidade</li>
-                     </ul>
-                  </motion.div>
-
-                  {/* Cultura */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: 0.12 }} className="rounded-3xl border border-white bg-white p-10 text-center shadow-[0_16px_50px_rgba(15,35,60,0.07)]">
-                     <div className="w-16 h-16 rounded-full bg-[#EA580C]/20 text-[#EA580C] flex items-center justify-center mb-6">
-                        <Users weight="fill" className="w-8 h-8" />
-                     </div>
-                     <h3 className="mb-4 text-2xl font-black uppercase tracking-wider">Cultura</h3>
-                     <p className="mb-4 font-medium leading-relaxed text-slate-600">
-                        Trabalhamos com seriedade, clareza e compromisso. Acreditamos que tecnologia boa é aquela que o empresário entende e usa no dia a dia sem dificuldade.
-                     </p>
-                     <p className="font-medium leading-relaxed text-slate-600">
-                        Nossa cultura é orientada a resolver problemas reais do mercado público, com responsabilidade e eficiência.
-                     </p>
-                  </motion.div>
-               </div>
-            </div>
-         </section>
-
-         {/* 5. FERRAMENTAS PRINCIPAIS */}
-         <section id="ferramentas" className="w-full bg-[#F8F9FA] py-24 px-6 md:px-12">
-            <div className="max-w-7xl mx-auto">
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-16 text-center">
-                  As ferramentas que colocam você na frente
-               </motion.h2>
-
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {tools.map((tool, idx) => (
-                     <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 18 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.2 }}
-                        transition={{ duration: 0.4, delay: idx * 0.06 }}
-                        whileHover={{ y: -5 }}
-                        className="group cursor-default rounded-2xl border border-white/90 bg-white/90 p-8 shadow-[0_12px_36px_rgba(15,35,60,0.055)] backdrop-blur-md transition-[transform,box-shadow,border-color] duration-200 hover:border-orange-200 hover:shadow-[0_24px_55px_rgba(15,35,60,0.12)] md:p-10"
-                     >
-                        <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 group-hover:bg-orange-50 group-hover:border-orange-100 flex items-center justify-center mb-6 transition-colors">
-                           {tool.icon}
+                     {/* Bullets de Confiança Técnica */}
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                        <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                           <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                           <span>Alerta de CND antes de vencer</span>
                         </div>
-                        <h3 className="text-xl md:text-2xl font-black text-[#0A2540] uppercase tracking-wider mb-4 group-hover:text-[#EA580C] transition-colors">{tool.title}</h3>
-                        <p className="text-slate-600 text-base md:text-lg leading-relaxed font-medium">
-                           {tool.desc}
+                        <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                           <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                           <span>Prazo de 3 dias para impugnar</span>
+                        </div>
+                        <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                           <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                           <span>Cálculo seguro de BDI e tributos</span>
+                        </div>
+                        <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                           <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                           <span>Filtro de editais pelo seu CNAE</span>
+                        </div>
+                     </div>
+
+                     {/* Botão de Ação Primário */}
+                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4">
+                        <button 
+                           onClick={() => navigate('/register')} 
+                           className="flex items-center justify-center gap-3 rounded-xl bg-[#10B981] hover:bg-emerald-600 active:bg-emerald-700 text-white text-sm font-black uppercase tracking-widest px-8 py-5 shadow-[0_12px_28px_rgba(16,185,129,0.28)] transition-all hover:-translate-y-0.5"
+                        >
+                           <span>Cadastrar Minha Empresa no Sistema</span>
+                           <ArrowRight weight="bold" className="w-5 h-5" />
+                        </button>
+
+                        <a 
+                           href="#modulos" 
+                           className="flex items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-slate-50 text-[#0F172A] text-xs font-bold uppercase tracking-wider px-6 py-5 shadow-sm transition-colors text-center"
+                        >
+                           <span>Conhecer os Módulos</span>
+                        </a>
+                     </div>
+
+                     <p className="text-xs text-slate-500 font-medium">
+                        Ativação imediata com seu CNPJ. Sem taxa de comissão sobre contratos vencidos.
+                     </p>
+
+                  </motion.div>
+
+                  {/* Lado Direito: Simulador Visual do ERP Interno */}
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="lg:col-span-5">
+                     <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-xl overflow-hidden">
+                        
+                        {/* Barra Superior da Janela do ERP */}
+                        <div className="bg-[#0F172A] px-4 py-3 flex items-center justify-between border-b border-slate-800 text-white">
+                           <div className="flex items-center gap-2">
+                              <span className="h-3 w-3 rounded-full bg-rose-500/80 inline-block" />
+                              <span className="h-3 w-3 rounded-full bg-amber-500/80 inline-block" />
+                              <span className="h-3 w-3 rounded-full bg-emerald-500/80 inline-block" />
+                              <span className="ml-2 text-xs font-mono font-medium text-slate-300">expertise-erp.painel</span>
+                           </div>
+                           <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-500/20 text-[#10B981] px-2.5 py-0.5 rounded border border-emerald-500/30">
+                              Disputa Monitorada
+                           </span>
+                        </div>
+
+                        {/* Conteúdo Realista do Painel Interno */}
+                        <div className="p-6 space-y-4 bg-[#F8FAFC]">
+                           
+                           {/* Card de Alerta de Pregão */}
+                           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
+                              <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pregão Eletrônico nº 48/2026</span>
+                                 <span className="text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded">
+                                    Termo de Referência
+                                 </span>
+                              </div>
+                              <h4 className="text-sm font-bold text-[#0F172A] leading-snug">
+                                 Aquisição e Fornecimento Contínuo de Materiais e Serviços Operacionais
+                              </h4>
+                              <p className="text-xs text-slate-500">Órgão: Tribunal Regional Federal • PNCP ID: 198273/2026</p>
+                              
+                              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                                 <span className="text-slate-500">Valor Estimado:</span>
+                                 <span className="font-black text-[#0F172A]">R$ 1.450.000,00</span>
+                              </div>
+                           </div>
+
+                           {/* Checklist de Segurança Operacional */}
+                           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                              <div className="text-xs font-black uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
+                                 <ShieldCheck weight="bold" className="w-4 h-4 text-[#10B981]" />
+                                 <span>Auditoria Prévia de Habilitação</span>
+                              </div>
+
+                              <div className="space-y-2 text-xs">
+                                 <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/70 border border-emerald-100">
+                                    <div className="flex items-center gap-2">
+                                       <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981]" />
+                                       <span className="font-bold text-slate-800">CND Federal e Trabalhista (CNDT)</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-[#10B981] uppercase">Válidas (42 dias)</span>
+                                 </div>
+
+                                 <div className="flex items-center justify-between p-2 rounded-lg bg-amber-50/70 border border-amber-200">
+                                    <div className="flex items-center gap-2">
+                                       <Clock weight="fill" className="w-4 h-4 text-amber-600" />
+                                       <span className="font-bold text-slate-800">Prazo de Impugnação do Edital</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-amber-700 uppercase">Restam 28 horas</span>
+                                 </div>
+
+                                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                       <CurrencyCircleDollar weight="fill" className="w-4 h-4 text-slate-600" />
+                                       <span className="font-bold text-slate-800">Piso Mínimo de Lance (BDI Calculado)</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-900 uppercase">R$ 1.180.200,00</span>
+                                 </div>
+                              </div>
+                           </div>
+
+                           {/* Botão de Análise Imediata */}
+                           <div className="p-3 rounded-xl bg-[#0F172A] text-white flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2 font-bold">
+                                 <WarningCircle weight="bold" className="w-4 h-4 text-amber-400" />
+                                 <span>1 Cláusula Restritiva Identificada</span>
+                              </div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#10B981] underline cursor-pointer">
+                                 Gerar Impugnação →
+                              </span>
+                           </div>
+
+                        </div>
+                     </div>
+                  </motion.div>
+
+               </div>
+
+            </div>
+         </section>
+
+         {/* 2. BARRA DE FATOS E NÚMEROS OPERACIONAIS */}
+         <section className="w-full bg-[#0F172A] text-white py-12 px-6 lg:px-12 border-b border-slate-800">
+            <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-8">
+               {operationalMetrics.map((metric, idx) => (
+                  <div key={idx} className="space-y-1">
+                     <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#10B981] tracking-tight">{metric.value}</p>
+                     <p className="text-xs font-bold uppercase tracking-wider text-slate-200">{metric.label}</p>
+                     <p className="text-xs text-slate-400 font-medium">{metric.detail}</p>
+                  </div>
+               ))}
+            </div>
+         </section>
+
+         {/* 3. A DOR PROFUNDA DO EMPRESÁRIO: ONDE O DINHEIRO ESCORRE */}
+         <section id="dores" className="w-full bg-white py-20 lg:py-28 px-6 lg:px-12 border-b border-[#E2E8F0]">
+            <div className="max-w-7xl mx-auto space-y-14">
+               
+               <div className="max-w-3xl space-y-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-rose-600 block">
+                     Os Riscos Reais da Disputa Pública
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] tracking-tight leading-tight">
+                     Por que empresas competentes continuam perdendo contratos lucrativos no mercado público?
+                  </h2>
+                  <p className="text-base text-slate-600 font-medium leading-relaxed">
+                     O mercado de compras governamentais não tolera amadorismo operacional. Um detalhe burocrático na certidão ou a desatenção ao prazo legal do Termo de Referência anulam meses de esforço comercial.
+                  </p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                  {bleedingPains.map((pain, idx) => (
+                     <div key={idx} className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-8 space-y-4 hover:border-slate-300 transition-colors">
+                        <div className="flex items-center gap-3">
+                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 text-rose-700">
+                              <ShieldWarning weight="bold" className="w-5 h-5" />
+                           </div>
+                           <h3 className="text-base sm:text-lg font-bold text-[#0F172A] leading-snug">{pain.title}</h3>
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+                           {pain.desc}
                         </p>
-                     </motion.div>
+                        <div className="pt-3 border-t border-slate-200 flex items-start gap-2 text-xs font-bold text-[#0F172A]">
+                           <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                           <span>Proteção no sistema: <span className="font-normal text-slate-600">{pain.solution}</span></span>
+                        </div>
+                     </div>
                   ))}
                </div>
+
             </div>
          </section>
 
-         {/* 7. SEGURANÇA */}
-         <section className="relative isolate w-full overflow-hidden bg-white py-24 px-6 md:px-12">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 opacity-60 [background-image:radial-gradient(#CBD5E1_0.7px,transparent_0.7px)] [background-size:18px_18px]" />
-            <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-16">
-               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-8">
-                     Proteção de nível bancário
+         {/* 4. OS MÓDULOS DO SISTEMA (A SOLUÇÃO OPERACIONAL) */}
+         <section id="modulos" className="w-full bg-[#F8FAFC] py-20 lg:py-28 px-6 lg:px-12 border-b border-[#E2E8F0]">
+            <div className="max-w-7xl mx-auto space-y-16">
+               
+               <div className="text-center max-w-3xl mx-auto space-y-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#10B981] block">
+                     Fluxo Operacional Blindado
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] tracking-tight">
+                     Cinco módulos estruturados para assumir o controle total das suas disputas.
                   </h2>
-                  <p className="text-lg text-slate-600 font-medium leading-relaxed mb-10">
-                     Seus documentos e informações ficam disponíveis para você e para as pessoas autorizadas da sua equipe.
+                  <p className="text-base text-slate-600 font-medium">
+                     Cada ferramenta resolve uma etapa crítica do processo: da descoberta da oportunidade até a assinatura e execução do contrato administrativo.
                   </p>
-                  <div className="space-y-6">
-                     {[
-                        "Acesso para pessoas autorizadas",
-                        "Documentos organizados por empresa",
-                        "Acompanhamento de vencimentos"
-                     ].map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-4">
-                           <CheckCircle weight="fill" className="text-emerald-500 w-8 h-8 shrink-0" />
-                           <span className="text-lg font-black uppercase tracking-widest text-[#0A2540]">{item}</span>
-                        </div>
-                     ))}
-                  </div>
-               </motion.div>
-               <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.45 }} className="w-full md:w-1/2 flex justify-center">
-                  <div className="relative rounded-[2rem] border border-white/90 bg-white/70 p-12 shadow-[0_24px_80px_rgba(15,35,60,0.12)] backdrop-blur-xl">
-                     <ShieldCheck weight="fill" className="relative z-10 h-48 w-48 text-[#0A2540] drop-shadow-[0_18px_24px_rgba(10,37,64,0.16)] md:h-64 md:w-64" />
-                     <motion.div
-                        initial={{ opacity: 0, y: 12, rotate: -14 }}
-                        whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-                        viewport={{ once: true, amount: 0.5 }}
-                        transition={{ duration: 0.7, delay: 0.2 }}
-                        className="absolute bottom-7 right-7 z-20 flex h-16 w-16 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-400 shadow-[0_8px_24px_rgba(15,35,60,0.16)]"
-                     >
-                        <LockKey weight="fill" className="h-8 w-8" />
-                        <motion.span
-                           initial={{ opacity: 0.2 }}
-                           whileInView={{ opacity: 1 }}
-                           viewport={{ once: true, amount: 0.5 }}
-                           transition={{ duration: 0.5, delay: 0.85 }}
-                           className="absolute right-1 top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.65)]"
-                        />
-                     </motion.div>
-                  </div>
-               </motion.div>
-            </div>
-         </section>
-
-         {/* 8. PLANOS */}
-         <section id="planos" className="w-full bg-white py-28 px-6 md:px-12">
-            <div className="max-w-6xl mx-auto">
-               <div className="text-center mb-16">
-                  <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-6">
-                     Planos e Preços
-                  </motion.h2>
-                  <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-lg text-slate-600 font-medium">
-                     Escolha o plano ideal para a sua operação. Do licitante iniciante às grandes equipes estratégicas.
-                  </motion.p>
                </div>
 
-               <div className="grid grid-cols-1 items-stretch gap-8 md:grid-cols-3 md:gap-6 lg:gap-8">
-                  {/* Plano Basico */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45 }} className="flex flex-col rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_12px_36px_rgba(15,35,60,0.055)] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,35,60,0.11)]">
-                     <h3 className="text-2xl font-black text-[#0A2540] mb-2">Básico</h3>
-                     <p className="text-sm text-slate-500 min-h-[40px] mb-6">Para o licitante que está começando a se organizar.</p>
-                     <div className="mb-8">
-                        <span className="text-4xl font-black text-[#0A2540]">R$ 99,99</span><span className="text-slate-500">/mês</span>
-                     </div>
-                     <ul className="space-y-4 mb-8 flex-1">
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Até 5 CNPJs</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">1 Usuário</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="text-emerald-500 w-5 h-5 shrink-0" /><span className="text-sm font-medium text-slate-700">Monitoramento de editais básico</span></li>
-                     </ul>
-                     <button onClick={() => navigate('/register')} className="w-full py-4 rounded-xl font-bold bg-slate-100 text-[#0A2540] hover:bg-slate-200 transition-colors uppercase tracking-widest text-sm">Assinar Básico</button>
-                  </motion.div>
+               <div className="space-y-6">
+                  {coreModules.map((module, idx) => (
+                     <div key={idx} className="rounded-2xl border border-[#E2E8F0] bg-white p-8 lg:p-10 shadow-sm transition-all hover:shadow-md">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                           
+                           <div className="lg:col-span-5 space-y-3">
+                              <div className="flex items-center gap-3">
+                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 border border-slate-200">
+                                    {module.icon}
+                                 </div>
+                                 <span className="text-xs font-black uppercase tracking-widest text-[#10B981]">{module.step}</span>
+                              </div>
+                              <h3 className="text-xl font-black text-[#0F172A] leading-snug">{module.title}</h3>
+                              <p className="text-sm text-slate-600 font-medium leading-relaxed">{module.desc}</p>
+                           </div>
 
-                  {/* Plano Avançado */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: 0.06 }} className="flex flex-col rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_12px_36px_rgba(15,35,60,0.055)] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,35,60,0.11)]">
-                     <h3 className="mb-2 text-2xl font-black text-[#0A2540]">Avançado</h3>
-                     <p className="mb-6 min-h-[40px] text-sm text-slate-500">Para operações em crescimento que precisam de mais inteligência e escala.</p>
-                     <div className="mb-8">
-                        <span className="text-4xl font-black text-[#0A2540]">R$ 199,00</span><span className="text-slate-500">/mês</span>
+                           <div className="lg:col-span-7 bg-[#F8FAFC] rounded-xl p-6 border border-slate-200/80 space-y-3">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">Entregáveis operacionais:</span>
+                              {module.bullets.map((bullet, bIdx) => (
+                                 <div key={bIdx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-700 font-medium">
+                                    <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                                    <span>{bullet}</span>
+                                 </div>
+                              ))}
+                           </div>
+
+                        </div>
                      </div>
-                     <ul className="space-y-4 mb-8 flex-1">
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-emerald-500" /><span className="text-sm font-medium text-slate-700">Até 10 CNPJs e 3 usuários</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-emerald-500" /><span className="text-sm font-medium text-slate-700">Radar de editais ampliado</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-emerald-500" /><span className="text-sm font-medium text-slate-700">Análises do Lex para apoiar decisões</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-emerald-500" /><span className="text-sm font-medium text-slate-700">Ferramentas de propostas e gestão</span></li>
-                     </ul>
-                     <button onClick={() => navigate('/register')} className="w-full rounded-xl bg-slate-100 py-4 text-sm font-bold uppercase tracking-widest text-[#0A2540] transition-colors hover:bg-slate-200">Conhecer Avançado</button>
-                  </motion.div>
+                  ))}
+               </div>
+
+            </div>
+         </section>
+
+         {/* 5. TABELA COMPARATIVA (MANUAL VS. EXPERTISE LICITATÓRIA) */}
+         <section id="comparativo" className="w-full bg-white py-20 lg:py-28 px-6 lg:px-12 border-b border-[#E2E8F0]">
+            <div className="max-w-7xl mx-auto space-y-12">
+               
+               <div className="text-center max-w-3xl mx-auto space-y-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500 block">
+                     Comparativo Direto
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] tracking-tight">
+                     A diferença entre disputar no improviso e operar com método profissional.
+                  </h2>
+               </div>
+
+               <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] shadow-sm">
+                  <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                     <thead>
+                        <tr className="bg-[#0F172A] text-white">
+                           <th className="py-4 px-6 font-bold uppercase tracking-wider text-slate-300 w-1/4">Critério Operacional</th>
+                           <th className="py-4 px-6 font-bold uppercase tracking-wider text-slate-400 w-3/8">Operação Manual (Planilhas e Portais)</th>
+                           <th className="py-4 px-6 font-bold uppercase tracking-wider text-[#10B981] w-3/8 bg-slate-900 border-l border-slate-800">
+                              Plataforma Expertise Licitatória
+                           </th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-200">
+                        {comparisonRows.map((row, idx) => (
+                           <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#F8FAFC]'}>
+                              <td className="py-4 px-6 font-bold text-[#0F172A]">{row.criteria}</td>
+                              <td className="py-4 px-6 text-slate-600 font-medium">
+                                 <div className="flex items-start gap-2">
+                                    <X weight="bold" className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                                    <span>{row.manual}</span>
+                                 </div>
+                              </td>
+                              <td className="py-4 px-6 font-semibold text-slate-800 bg-emerald-50/30 border-l border-slate-200">
+                                 <div className="flex items-start gap-2">
+                                    <Check weight="bold" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                                    <span>{row.expertise}</span>
+                                 </div>
+                              </td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+               </div>
+
+            </div>
+         </section>
+
+         {/* 6. CONFORMIDADE JURÍDICA E SEGURANÇA DE DADOS */}
+         <section className="w-full bg-[#0F172A] text-white py-20 px-6 lg:px-12 border-b border-slate-800">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+               
+               <div className="space-y-6">
+                  <div className="inline-flex items-center gap-2 rounded-lg bg-slate-800 border border-slate-700 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+                     <LockKey weight="bold" className="w-4 h-4 text-[#10B981]" />
+                     <span>Sigilo Estratégico Garantido</span>
+                  </div>
+                  <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
+                     Seus custos, margens de lucro e documentos nunca são expostos.
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-medium">
+                     Sabemos que a estratégia de preço em licitações é o ativo mais valioso de uma empresa fornecedora do governo. Por isso, a arquitetura da plataforma foi desenhada para garantir isolamento integral entre as contas.
+                  </p>
+                  
+                  <div className="space-y-3 pt-2">
+                     <div className="flex items-center gap-3 text-xs sm:text-sm font-semibold text-slate-200">
+                        <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                        <span>Isolamento rígido de banco de dados por empresa (Multi-Tenant)</span>
+                     </div>
+                     <div className="flex items-center gap-3 text-xs sm:text-sm font-semibold text-slate-200">
+                        <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                        <span>Criptografia de ponta a ponta em propostas e atestados arquivados</span>
+                     </div>
+                     <div className="flex items-center gap-3 text-xs sm:text-sm font-semibold text-slate-200">
+                        <CheckCircle weight="fill" className="w-5 h-5 text-[#10B981] shrink-0" />
+                        <span>Em conformidade estrita com a Lei Geral de Proteção de Dados (LGPD)</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 space-y-6">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Certificação de Segurança</span>
+                     <span className="text-xs font-mono font-bold text-[#10B981]">TLS 1.3 / AES-256</span>
+                  </div>
+                  <div className="space-y-4 text-xs text-slate-300 leading-relaxed font-medium">
+                     <p>
+                        Todos os acessos são registrados em trilha de auditoria inviolável, permitindo ao administrador da empresa saber exatamente quem da equipe cadastrou um lance ou fez download de uma certidão.
+                     </p>
+                     <p>
+                        Servidores monitorados 24 horas por dia com rotina redundante de backups em múltiplos centros de processamento de dados.
+                     </p>
+                  </div>
+               </div>
+
+            </div>
+         </section>
+
+         {/* 7. PLANOS E PREÇOS: TRANSPARÊNCIA TOTAL */}
+         <section id="planos" className="w-full bg-white py-20 lg:py-28 px-6 lg:px-12 border-b border-[#E2E8F0]">
+            <div className="max-w-7xl mx-auto space-y-12">
+               
+               <div className="text-center max-w-3xl mx-auto space-y-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#10B981] block">
+                     Planos e Investimento
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] tracking-tight">
+                     Escolha o plano adequado ao volume de disputas da sua empresa.
+                  </h2>
+                  <p className="text-base text-slate-600 font-medium">
+                     Sem cobrança de percentual sobre contratos homologados. Você paga apenas a mensalidade fixa do sistema.
+                  </p>
+                  
+                  {/* Seletor Mensal / Anual */}
+                  <div className="pt-2 flex justify-center">
+                     <div className="inline-flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 border border-slate-200">
+                        <button
+                           onClick={() => setBillingPeriod('mensal')}
+                           className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                              billingPeriod === 'mensal'
+                                 ? 'bg-white text-[#0F172A] shadow-sm'
+                                 : 'text-slate-600 hover:text-slate-900'
+                           }`}
+                        >
+                           Mensal
+                        </button>
+                        <button
+                           onClick={() => setBillingPeriod('anual')}
+                           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                              billingPeriod === 'anual'
+                                 ? 'bg-[#0F172A] text-white shadow-sm'
+                                 : 'text-slate-600 hover:text-slate-900'
+                           }`}
+                        >
+                           <span>Anual</span>
+                           <span className="bg-[#10B981] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                              -20% Desconto
+                           </span>
+                        </button>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+                  
+                  {/* Plano Básico */}
+                  <div className="rounded-2xl border border-[#E2E8F0] bg-white p-8 flex flex-col justify-between shadow-sm hover:border-slate-300 transition-colors">
+                     <div className="space-y-6">
+                        <div>
+                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Início da Operação</span>
+                           <h3 className="text-2xl font-black text-[#0F172A] mt-1">Básico</h3>
+                           <p className="text-xs text-slate-600 mt-2 font-medium">Ideal para empresários que estão estruturando o setor de licitações.</p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100">
+                           <div className="flex items-baseline gap-1">
+                              <span className="text-4xl font-black text-[#0F172A]">
+                                 {billingPeriod === 'anual' ? 'R$ 79,90' : 'R$ 99,99'}
+                              </span>
+                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                           </div>
+                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                              {billingPeriod === 'anual' ? 'Faturado anualmente' : 'Cobrança mensal recorrente'}
+                           </span>
+                        </div>
+
+                        <ul className="space-y-3 text-xs font-medium text-slate-700">
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Até 5 CNPJs monitorados</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>1 Usuário com acesso ao painel</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Radar de editais no PNCP e Compras.gov</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Cofre de certidões com alertas de vencimento</span>
+                           </li>
+                        </ul>
+                     </div>
+
+                     <button 
+                        onClick={() => navigate('/register')} 
+                        className="mt-8 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0F172A] text-xs font-bold uppercase tracking-wider transition-colors"
+                     >
+                        Assinar Plano Básico
+                     </button>
+                  </div>
+
+                  {/* Plano Avançado (Destaque) */}
+                  <div className="rounded-2xl border-2 border-[#10B981] bg-white p-8 flex flex-col justify-between shadow-xl relative scale-100 md:scale-105">
+                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#10B981] text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-sm">
+                        Mais Escolhido por Fornecedores
+                     </div>
+
+                     <div className="space-y-6">
+                        <div>
+                           <span className="text-xs font-bold uppercase tracking-wider text-[#10B981] block">Crescimento e Escala</span>
+                           <h3 className="text-2xl font-black text-[#0F172A] mt-1">Avançado</h3>
+                           <p className="text-xs text-slate-600 mt-2 font-medium">Para empresas com disputas frequentes que necessitam de agilidade técnica.</p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100">
+                           <div className="flex items-baseline gap-1">
+                              <span className="text-4xl font-black text-[#0F172A]">
+                                 {billingPeriod === 'anual' ? 'R$ 159,00' : 'R$ 199,00'}
+                              </span>
+                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                           </div>
+                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                              {billingPeriod === 'anual' ? 'Faturado anualmente' : 'Cobrança mensal recorrente'}
+                           </span>
+                        </div>
+
+                        <ul className="space-y-3 text-xs font-medium text-slate-700">
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Até 10 CNPJs e 3 usuários simultâneos</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Leitor e extrator de exigências de editais</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Calculadora de Preço de Disputa e BDI</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Estruturador de pedidos de esclarecimento</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Suporte operacional prioritário</span>
+                           </li>
+                        </ul>
+                     </div>
+
+                     <button 
+                        onClick={() => navigate('/register')} 
+                        className="mt-8 w-full py-4 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-[0_8px_20px_rgba(16,185,129,0.3)] transition-all"
+                     >
+                        Começar no Plano Avançado
+                     </button>
+                  </div>
 
                   {/* Plano Master */}
-                  <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.45, delay: 0.12 }} whileHover={{ y: -5 }} className="relative z-10 flex flex-col rounded-3xl border border-[#102E4B] bg-[#071B2E] p-8 text-white shadow-[0_24px_70px_rgba(7,27,46,0.28)] transition-shadow duration-200 hover:shadow-[0_30px_90px_rgba(7,27,46,0.38)] md:scale-[1.08] lg:scale-[1.15]">
-                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-300/30 bg-[#EA580C] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-[0_8px_24px_rgba(234,88,12,0.32)]">
-                        A Escolha das Empresas Líderes
+                  <div className="rounded-2xl border border-[#E2E8F0] bg-white p-8 flex flex-col justify-between shadow-sm hover:border-slate-300 transition-colors">
+                     <div className="space-y-6">
+                        <div>
+                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Liderança de Mercado</span>
+                           <h3 className="text-2xl font-black text-[#0F172A] mt-1">Master</h3>
+                           <p className="text-xs text-slate-600 mt-2 font-medium">Estrutura completa para grandes frotistas, indústrias e construtoras.</p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100">
+                           <div className="flex items-baseline gap-1">
+                              <span className="text-4xl font-black text-[#0F172A]">
+                                 {billingPeriod === 'anual' ? 'R$ 319,90' : 'R$ 399,99'}
+                              </span>
+                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                           </div>
+                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                              {billingPeriod === 'anual' ? 'Faturado anualmente' : 'Cobrança mensal recorrente'}
+                           </span>
+                        </div>
+
+                        <ul className="space-y-3 text-xs font-medium text-slate-700">
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Até 20 CNPJs e usuários ilimitados</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Minutas de impugnações e recursos fundamentados</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Módulo de contratos e gestão de atas de registro de preços</span>
+                           </li>
+                           <li className="flex items-start gap-2.5">
+                              <CheckCircle weight="fill" className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <span>Canal direto com especialista em contratações</span>
+                           </li>
+                        </ul>
                      </div>
-                     <h3 className="mb-2 mt-3 text-2xl font-black text-white">Master</h3>
-                     <p className="mb-6 min-h-[40px] text-sm text-blue-100">A operação completa para empresas que querem disputar com estratégia.</p>
-                     <div className="mb-8">
-                        <span className="text-4xl font-black text-white">R$ 399,99</span><span className="text-blue-200">/mês</span>
-                     </div>
-                     <ul className="space-y-4 mb-8 flex-1">
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-[#FB923C]" /><span className="text-sm font-medium text-white">Até 20 CNPJs e usuários ilimitados</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-[#FB923C]" /><span className="text-sm font-medium text-white">Lex para análise e preparação de editais</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-[#FB923C]" /><span className="text-sm font-medium text-white">Gestão jurídica e recursos</span></li>
-                        <li className="flex items-start gap-3"><CheckCircle weight="fill" className="h-5 w-5 shrink-0 text-[#FB923C]" /><span className="text-sm font-medium text-white">Suporte prioritário</span></li>
-                     </ul>
-                     <button onClick={() => navigate('/register')} className="w-full rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-[0_12px_34px_rgba(234,88,12,0.27)] transition-all hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-[0_18px_42px_rgba(234,88,12,0.38)]">Assinar Plano Master</button>
-                  </motion.div>
+
+                     <button 
+                        onClick={() => navigate('/register')} 
+                        className="mt-8 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0F172A] text-xs font-bold uppercase tracking-wider transition-colors"
+                     >
+                        Assinar Plano Master
+                     </button>
+                  </div>
+
                </div>
+
             </div>
          </section>
 
-         {/* 9. PERGUNTAS FREQUENTES */}
-         <section className="w-full bg-white py-24 px-6 md:px-12 border-t border-slate-100">
-            <div className="max-w-3xl mx-auto">
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-[#0A2540] mb-12 text-center">
-                  Perguntas Frequentes
-               </motion.h2>
-               <div className="space-y-4">
+         {/* 8. PERGUNTAS FREQUENTES (FAQ) */}
+         <section id="faq" className="w-full bg-[#F8FAFC] py-20 lg:py-28 px-6 lg:px-12 border-b border-[#E2E8F0]">
+            <div className="max-w-4xl mx-auto space-y-12">
+               
+               <div className="text-center space-y-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500 block">Esclarecimentos Técnicos</span>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] tracking-tight">
+                     Perguntas Frequentes do Licitante
+                  </h2>
+               </div>
+
+               <div className="space-y-3">
                   {faqs.map((faq, idx) => (
-                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: idx * 0.1 }}
-                        key={idx}
-                        className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:border-slate-300 transition-colors"
-                     >
-                        <button
-                           onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
-                           className="w-full flex items-center justify-between p-6 text-left focus:outline-none"
+                     <div key={idx} className="rounded-xl border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
+                        <button 
+                           onClick={() => setActiveFaq(activeFaq === idx ? null : idx)} 
+                           className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50/60 transition-colors"
                         >
-                           <span className="font-black text-[#0A2540] uppercase tracking-wider text-sm md:text-base pr-4">{faq.q}</span>
-                           <CaretDown weight="bold" className={`w-6 h-6 text-[#EA580C] transition-transform duration-300 shrink-0 ${activeFaq === idx ? 'rotate-180' : ''}`} />
+                           <span className="text-sm font-bold text-[#0F172A] pr-4">{faq.q}</span>
+                           <CaretDown weight="bold" className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${activeFaq === idx ? 'rotate-180 text-[#10B981]' : ''}`} />
                         </button>
                         <AnimatePresence>
                            {activeFaq === idx && (
-                              <motion.div
-                                 initial={{ height: 0, opacity: 0 }}
-                                 animate={{ height: "auto", opacity: 1 }}
-                                 exit={{ height: 0, opacity: 0 }}
-                                 transition={{ duration: 0.3 }}
-                              >
-                                 <div className="p-6 pt-0 text-slate-600 font-medium leading-relaxed border-t border-slate-50 mt-2">
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
+                                 <div className="p-6 pt-0 border-t border-slate-100 text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
                                     {faq.a}
                                  </div>
                               </motion.div>
                            )}
                         </AnimatePresence>
-                     </motion.div>
+                     </div>
                   ))}
                </div>
+
             </div>
          </section>
 
-         {/* 10. CHAMADA FINAL */}
-         <section className="relative w-full overflow-hidden bg-[#F8F9FA] px-6 py-28 md:px-12">
-            <div aria-hidden="true" className="pointer-events-none absolute -right-20 top-0 h-[34rem] w-[34rem] -translate-y-1/3 rounded-full bg-[radial-gradient(circle,rgba(255,237,213,.72),rgba(255,255,255,0)_68%)]" />
-            <div className="max-w-4xl mx-auto text-center relative z-10 flex flex-col items-center">
-               <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="mb-8 text-4xl font-black uppercase leading-[1.1] tracking-tighter text-[#0A2540] md:text-5xl lg:text-6xl">
-                  Pare de perder oportunidades no mercado público.
-               </motion.h2>
-               <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="mb-12 max-w-2xl text-xl font-medium text-slate-600">
-                  Organize sua rotina de licitações e encontre novas oportunidades para a sua empresa.
-               </motion.p>
-               <motion.button initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} onClick={() => navigate('/register')} className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#EA580C] px-10 py-6 text-base font-black uppercase tracking-widest text-white shadow-[0_14px_38px_rgba(234,88,12,0.26)] transition-all hover:-translate-y-0.5 hover:bg-orange-600 hover:shadow-[0_20px_48px_rgba(234,88,12,0.34)] md:w-auto md:text-lg">
-                  Criar meu Painel Executivo
-                  <CaretRight weight="bold" className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-               </motion.button>
+         {/* 9. CHAMADA FINAL DE ALTA CONVERSÃO */}
+         <section className="w-full bg-[#0F172A] text-white py-24 px-6 lg:px-12 relative overflow-hidden">
+            <div className="max-w-4xl mx-auto text-center space-y-8 relative z-10">
+               
+               <div className="inline-flex items-center gap-2 rounded-lg bg-slate-800 border border-slate-700 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                  <span>Segurança Operacional em Primeiro Lugar</span>
+               </div>
+
+               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                  Assuma o comando das suas licitações públicas com precisão profissional.
+               </h2>
+
+               <p className="text-base sm:text-lg text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
+                  Cadastre seu CNPJ hoje, organize seus atestados, blinde suas certidões e dispute contratos governamentais sabendo exatamente até onde pode descer o seu lance.
+               </p>
+
+               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <button 
+                     onClick={() => navigate('/register')} 
+                     className="w-full sm:w-auto flex items-center justify-center gap-3 rounded-xl bg-[#10B981] hover:bg-emerald-600 active:bg-emerald-700 text-white text-sm font-black uppercase tracking-widest px-10 py-5 shadow-[0_12px_28px_rgba(16,185,129,0.32)] transition-all hover:-translate-y-0.5"
+                  >
+                     <span>Criar Minha Conta no Expertise</span>
+                     <CaretRight weight="bold" className="w-5 h-5" />
+                  </button>
+
+                  <button 
+                     onClick={() => navigate('/login')} 
+                     className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider px-8 py-5 transition-colors"
+                  >
+                     <span>Acessar Painel Existente</span>
+                  </button>
+               </div>
+
+               <p className="text-xs text-slate-400 font-medium">
+                  Sem taxa de adesão ou contrato de fidelidade. Cancele quando quiser.
+               </p>
+
             </div>
          </section>
 
-         {/* FOOTER */}
-         <footer className="w-full border-t border-slate-100 bg-white py-10 text-center">
-            <img src="/logo.png" alt="Expertise Licitatória" className="mx-auto mb-6 h-8 w-auto object-contain opacity-75" />
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-               &copy; {new Date().getFullYear()} Expertise Licitatória. Todos os direitos reservados.
-            </p>
+         {/* 10. RODAPÉ INSTITUCIONAL */}
+         <footer className="w-full bg-white border-t border-[#E2E8F0] py-12 px-6 lg:px-12 text-slate-600 text-xs">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+               
+               <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0F172A] text-[#10B981]">
+                     <Scales weight="bold" className="w-4 h-4" />
+                  </div>
+                  <div>
+                     <span className="font-black text-sm tracking-tight text-[#0F172A]">EXPERTISE LICITATÓRIA</span>
+                     <span className="text-[10px] text-slate-400 block font-medium">Sistema de Gestão e Segurança em Contratos Públicos</span>
+                  </div>
+               </div>
+
+               <div className="flex flex-wrap items-center justify-center gap-6 font-bold uppercase tracking-wider text-[11px] text-slate-500">
+                  <a href="#modulos" className="hover:text-[#0F172A] transition-colors">Módulos</a>
+                  <a href="#planos" className="hover:text-[#0F172A] transition-colors">Planos</a>
+                  <button onClick={() => navigate('/termos-de-uso')} className="hover:text-[#0F172A] transition-colors">Termos de Uso</button>
+                  <button onClick={() => navigate('/politica-privacidade')} className="hover:text-[#0F172A] transition-colors">Política de Privacidade</button>
+               </div>
+
+               <p className="text-slate-400 font-medium">
+                  &copy; {new Date().getFullYear()} Expertise Licitatória. Todos os direitos reservados.
+               </p>
+
+            </div>
          </footer>
 
       </div>
