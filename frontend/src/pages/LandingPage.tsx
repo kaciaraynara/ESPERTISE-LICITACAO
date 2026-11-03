@@ -490,23 +490,24 @@ export default function LandingPage() {
             </div>
          </section>
 
-         {/* 7. PLANOS E PREÇOS COM O LARANJA E AZUL DA LOGO */}
+         {/* 7. PLANOS E PREÇOS - EXATAMENTE COMO NO MODELO OFICIAL */}
          <section id="planos" className="w-full bg-white py-20 lg:py-28 px-6 lg:px-12 border-b border-slate-200">
             <div className="max-w-7xl mx-auto space-y-12">
                
-               <div className="text-center max-w-3xl mx-auto space-y-4">
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#EA580C] block">
-                     Valores Claros e Transparentes
-                  </span>
-                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0A2540] tracking-tight">
-                     Escolha o plano certo para a sua empresa.
-                  </h2>
-                  <p className="text-base text-slate-600 font-medium">
-                     Sem surpresas, sem porcentagem sobre seus contratos e sem fidelidade.
+               {/* Cabeçalho Oficial */}
+               <div className="max-w-4xl">
+                  <div className="inline-block">
+                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#0A2540] tracking-tight">
+                        Escolha a melhor solução para o seu negócio
+                     </h2>
+                     <div className="h-1 w-28 bg-[#EA580C] mt-2 rounded-full" />
+                  </div>
+                  <p className="text-base text-slate-600 font-medium leading-relaxed mt-4 max-w-3xl">
+                     Desenvolvemos planos com progressão clara. Do MEI que busca organização à grande empresa que exige inteligência competitiva e automação em larga escala.
                   </p>
-                  
+
                   {/* Alternador Mensal / Anual */}
-                  <div className="pt-2 flex justify-center">
+                  <div className="pt-6 flex flex-wrap items-center gap-3">
                      <div className="inline-flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 border border-slate-200">
                         <button
                            onClick={() => setBillingPeriod('mensal')}
@@ -532,165 +533,188 @@ export default function LandingPage() {
                            </span>
                         </button>
                      </div>
+                     <span className="text-xs text-slate-500 font-medium">
+                        Sem fidelidade ou carência. Cancele quando desejar.
+                     </span>
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+               {/* Grid dos 3 Cards Oficiais com Microinterações */}
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch pt-2">
                   
-                  {/* Plano Básico */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-8 flex flex-col justify-between shadow-sm hover:border-slate-300 transition-colors">
-                     <div className="space-y-6">
-                        <div>
-                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Começando agora</span>
-                           <h3 className="text-2xl font-black text-[#0A2540] mt-1">Básico</h3>
-                           <p className="text-xs text-slate-600 mt-2 font-medium">Para se organizar e começar a disputar com segurança.</p>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100">
-                           <div className="flex items-baseline gap-1">
+                  {/* CARD 1: Básico */}
+                  <motion.div 
+                     whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                     className="rounded-3xl border border-slate-200 bg-white p-7 sm:p-8 flex flex-col justify-between shadow-sm hover:shadow-lg hover:border-slate-300 transition-all"
+                  >
+                     <div>
+                        <div className="text-center pb-6 border-b border-slate-100">
+                           <h3 className="text-2xl font-black text-[#0A2540]">Básico</h3>
+                           <p className="text-xs text-slate-500 mt-1.5 font-medium max-w-[240px] mx-auto">
+                              Para quem está começando e precisa se organizar.
+                           </p>
+                           
+                           <div className="mt-5 flex items-baseline justify-center gap-1">
+                              <span className="text-sm font-bold text-slate-500">R$</span>
                               <span className="text-4xl font-black text-[#0A2540]">
-                                 {billingPeriod === 'anual' ? 'R$ 79,90' : 'R$ 99,99'}
+                                 {billingPeriod === 'anual' ? '79,90' : '99,99'}
                               </span>
-                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                              <span className="text-xs text-slate-500 font-bold">/mês</span>
                            </div>
-                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
-                              {billingPeriod === 'anual' ? 'Cobrança anual com desconto' : 'Cobrança mensal fixa'}
-                           </span>
                         </div>
 
-                        <ul className="space-y-3 text-xs font-medium text-slate-700">
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Até 5 CNPJs cadastrados</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>1 Usuário no painel</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Busca de editais no PNCP e Compras.gov</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Alertas de vencimento de certidões</span>
-                           </li>
+                        <ul className="space-y-3.5 text-xs text-slate-700 py-6">
+                           {[
+                              'Radar de Licitações (filtros básicos)',
+                              'Leitor Inteligente de Editais',
+                              'Checklist e Cofre Documental',
+                              'Controle de certidões e vencimentos',
+                              'Calendário de prazos e alertas',
+                              'Elaboração de propostas (modelos)',
+                              'Calculadora básica de custos',
+                              'Cadastro e gestão de até 5 empresas (CNPJs)',
+                              'Gestão Contratual (controle de prazos)',
+                              'Acesso à Academia do Licitante',
+                           ].map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
+                                 <span className="text-[#EA580C] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
+                                 <span className="font-medium text-slate-700">{item}</span>
+                              </li>
+                           ))}
                         </ul>
                      </div>
 
-                     <button 
-                        onClick={() => navigate('/register')} 
-                        className="mt-8 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0A2540] text-xs font-bold uppercase tracking-wider transition-colors"
+                     <motion.button 
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/register', { state: { plano: 'basico' } })} 
+                        className="mt-6 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0A2540] text-xs font-black uppercase tracking-wider transition-colors shadow-sm"
                      >
                         Começar no Básico
-                     </button>
-                  </div>
+                     </motion.button>
+                  </motion.div>
 
-                  {/* Plano Avançado (Destaque Laranja e Azul) */}
-                  <div className="rounded-2xl border-2 border-[#EA580C] bg-white p-8 flex flex-col justify-between shadow-xl relative scale-100 md:scale-105">
-                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#EA580C] text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-sm">
-                        Mais Escolhido
+                  {/* CARD 2: Avançado (MELHOR CUSTO-BENEFÍCIO) */}
+                  <motion.div 
+                     whileHover={{ y: -8, transition: { duration: 0.2 } }}
+                     className="rounded-3xl border-2 border-[#0062D2] bg-gradient-to-b from-[#F0F7FF]/60 via-white to-white p-7 sm:p-8 flex flex-col justify-between shadow-xl relative"
+                  >
+                     {/* Badge de Destaque Superior */}
+                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#0062D2] text-white text-[10px] font-black uppercase tracking-widest px-5 py-1 rounded-full shadow-md whitespace-nowrap">
+                        MELHOR CUSTO-BENEFÍCIO
                      </div>
 
-                     <div className="space-y-6">
-                        <div>
-                           <span className="text-xs font-bold uppercase tracking-wider text-[#EA580C] block">Para quem disputa sempre</span>
-                           <h3 className="text-2xl font-black text-[#0A2540] mt-1">Avançado</h3>
-                           <p className="text-xs text-slate-600 mt-2 font-medium">Mais recursos para analisar editais e calcular preços com segurança.</p>
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100">
-                           <div className="flex items-baseline gap-1">
-                              <span className="text-4xl font-black text-[#0A2540]">
-                                 {billingPeriod === 'anual' ? 'R$ 159,00' : 'R$ 199,00'}
+                     <div>
+                        <div className="text-center pb-6 border-b border-blue-100/80 pt-1">
+                           <h3 className="text-2xl font-black text-[#0A2540]">Avançado</h3>
+                           <p className="text-xs text-slate-500 mt-1.5 font-medium max-w-[240px] mx-auto">
+                              Para analisar e competir em alto nível.
+                           </p>
+                           
+                           <div className="mt-5 flex items-baseline justify-center gap-1">
+                              <span className="text-sm font-bold text-[#0062D2]">R$</span>
+                              <span className="text-4xl font-black text-[#0062D2]">
+                                 {billingPeriod === 'anual' ? '159,00' : '199,00'}
                               </span>
-                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                              <span className="text-xs text-slate-500 font-bold">/mês</span>
                            </div>
-                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
-                              {billingPeriod === 'anual' ? 'Cobrança anual com desconto' : 'Cobrança mensal fixa'}
-                           </span>
                         </div>
 
-                        <ul className="space-y-3 text-xs font-medium text-slate-700">
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Até 10 CNPJs e 3 usuários</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Resumo das exigências dos editais</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Calculadora de preço mínimo e lucro</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Modelos de pedidos de correção de edital</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Suporte rápido pelo WhatsApp e e-mail</span>
-                           </li>
+                        <ul className="space-y-3.5 text-xs text-slate-700 py-6">
+                           {[
+                              { text: 'Tudo do plano Básico, mais:', bold: true },
+                              { text: 'Gestão de até 10 empresas (CNPJs)', bold: false },
+                              { text: 'Radar de Nulidades nos editais', bold: false },
+                              { text: 'Score de Viabilidade e Concorrência', bold: false },
+                              { text: 'Histórico de Concorrentes', bold: false },
+                              { text: 'Impugnação Inteligente (Assistente IA)', bold: false },
+                              { text: 'Cálculos avançados (tributos e margens)', bold: false },
+                              { text: 'Análise de Dispensa Eletrônica', bold: false },
+                              { text: 'Gestão de SRP e acompanhamento de atas', bold: false },
+                              { text: 'Robôs de Lance (limites configurados)', bold: false },
+                              { text: 'Gestão Financeira Pós-Vitória', bold: false },
+                           ].map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
+                                 <span className="text-[#EA580C] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
+                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-medium text-slate-700'}>
+                                    {item.text}
+                                 </span>
+                              </li>
+                           ))}
                         </ul>
                      </div>
 
-                     <button 
-                        onClick={() => navigate('/register')} 
-                        className="mt-8 w-full py-4 rounded-xl bg-[#EA580C] hover:bg-[#d94e08] text-white text-xs font-black uppercase tracking-widest shadow-[0_8px_20px_rgba(234,88,12,0.3)] transition-all hover:-translate-y-0.5"
+                     <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/register', { state: { plano: 'avancado' } })} 
+                        className="mt-6 w-full py-4 rounded-xl bg-[#0062D2] hover:bg-[#0051b3] text-white text-xs font-black uppercase tracking-wider transition-all shadow-[0_8px_20px_rgba(0,98,210,0.35)]"
                      >
                         Quero o Plano Avançado
-                     </button>
-                  </div>
+                     </motion.button>
+                  </motion.div>
 
-                  {/* Plano Master */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-8 flex flex-col justify-between shadow-sm hover:border-slate-300 transition-colors">
-                     <div className="space-y-6">
-                        <div>
-                           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Grandes Operações</span>
-                           <h3 className="text-2xl font-black text-[#0A2540] mt-1">Master</h3>
-                           <p className="text-xs text-slate-600 mt-2 font-medium">Estrutura completa para empresas com alto volume de contratos.</p>
-                        </div>
+                  {/* CARD 3: Master (PREMIUM) */}
+                  <motion.div 
+                     whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                     className="rounded-3xl border border-slate-300 bg-white p-7 sm:p-8 flex flex-col justify-between shadow-sm hover:shadow-lg hover:border-slate-400 transition-all relative"
+                  >
+                     {/* Badge de Destaque Superior */}
+                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#0A2540] text-white text-[10px] font-black uppercase tracking-widest px-5 py-1 rounded-full shadow-md whitespace-nowrap">
+                        PREMIUM
+                     </div>
 
-                        <div className="pt-4 border-t border-slate-100">
-                           <div className="flex items-baseline gap-1">
+                     <div>
+                        <div className="text-center pb-6 border-b border-slate-100 pt-1">
+                           <h3 className="text-2xl font-black text-[#0A2540]">Master</h3>
+                           <p className="text-xs text-slate-500 mt-1.5 font-medium max-w-[240px] mx-auto">
+                              Inteligência, gestão completa e apoio jurídico.
+                           </p>
+                           
+                           <div className="mt-5 flex items-baseline justify-center gap-1">
+                              <span className="text-sm font-bold text-slate-500">R$</span>
                               <span className="text-4xl font-black text-[#0A2540]">
-                                 {billingPeriod === 'anual' ? 'R$ 319,90' : 'R$ 399,99'}
+                                 {billingPeriod === 'anual' ? '399,00' : '499,00'}
                               </span>
-                              <span className="text-xs text-slate-500 font-bold uppercase">/mês</span>
+                              <span className="text-xs text-slate-500 font-bold">/mês</span>
                            </div>
-                           <span className="text-[10px] text-slate-500 font-medium block mt-1">
-                              {billingPeriod === 'anual' ? 'Cobrança anual com desconto' : 'Cobrança mensal fixa'}
-                           </span>
                         </div>
 
-                        <ul className="space-y-3 text-xs font-medium text-slate-700">
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Até 20 CNPJs e usuários ilimitados</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Modelos de recursos e defesas jurídicas</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Acompanhamento dos contratos vigentes</span>
-                           </li>
-                           <li className="flex items-start gap-2.5">
-                              <CheckCircle weight="fill" className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" />
-                              <span>Atendimento prioritário</span>
-                           </li>
+                        <ul className="space-y-3.5 text-xs text-slate-700 py-6">
+                           {[
+                              { text: 'Tudo do plano Avançado, mais:', bold: true },
+                              { text: 'Gestão de até 20 empresas (CNPJs)', bold: false },
+                              { text: 'Radar e Inteligência Competitiva ampliados', bold: false },
+                              { text: 'Radar de Fraudes e Compliance', bold: false },
+                              { text: 'Automação total de propostas e fluxos', bold: false },
+                              { text: 'Painel Financeiro consolidado', bold: false },
+                              { text: 'Robô de Reajuste (índices/cláusulas)', bold: false },
+                              { text: 'Assistente de Repactuação', bold: false },
+                              { text: 'Assistente de Reequilíbrio (Cálculo)', bold: false },
+                              { text: 'Gestão de Caução e Garantias (Proposta e Contratual)', bold: false },
+                              { text: 'Revisão assistida e análise de riscos', bold: false },
+                              { text: 'Dossiês documentais e minutas', bold: false },
+                              { text: 'Apoio jurídico por advogado parceiro (escopo/franquia)', bold: false },
+                           ].map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
+                                 <span className="text-[#0A2540] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
+                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-medium text-slate-700'}>
+                                    {item.text}
+                                 </span>
+                              </li>
+                           ))}
                         </ul>
                      </div>
 
-                     <button 
-                        onClick={() => navigate('/register')} 
-                        className="mt-8 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0A2540] text-xs font-bold uppercase tracking-wider transition-colors"
+                     <motion.button 
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/register', { state: { plano: 'master' } })} 
+                        className="mt-6 w-full py-4 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-[#0A2540] text-xs font-black uppercase tracking-wider transition-colors shadow-sm"
                      >
-                        Começar no Master
-                     </button>
-                  </div>
+                        Escolher Plano Master
+                     </motion.button>
+                  </motion.div>
 
                </div>
 
