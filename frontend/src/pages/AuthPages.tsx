@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { 
    CircleNotch, CheckCircle, WarningCircle, InstagramLogo, 
-   ArrowRight, ShieldCheck, Eye, EyeSlash, LockKey
+   ArrowRight, Eye, EyeSlash, Check
 } from '@phosphor-icons/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -50,13 +50,70 @@ type ForgotFormValues = z.infer<typeof forgotSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+// Demonstrativos visuais da plataforma para a lateral
+const PLATFORM_DEMONSTRATORS = [
+   {
+      tag: 'Radar de Editais',
+      tagColor: 'bg-orange-50 text-[#EA580C] border-orange-200',
+      title: 'Pregão Eletrônico nº 048/2026',
+      orgao: 'Tribunal Regional Federal • Compras.gov',
+      objeto: 'Fornecimento continuado de equipamentos e serviços de suporte com entrega parcelada.',
+      highlightLabel: 'Valor Estimado',
+      highlightValue: 'R$ 1.840.000,00',
+      prazo: 'Abertura das propostas em 4 dias',
+      status: 'Edital em Análise',
+      statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+   },
+   {
+      tag: 'Controle de Certidões',
+      tagColor: 'bg-blue-50 text-[#0A2540] border-blue-200',
+      title: 'Painel de Validade de Habilitação',
+      orgao: 'Acompanhamento preventivo de documentos',
+      certidoes: [
+         { nome: 'CND Federal e Previdenciária', prazo: 'Vence em 52 dias' },
+         { nome: 'Regularidade FGTS (CRF)', prazo: 'Vence em 21 dias' },
+         { nome: 'CNDT Trabalhista', prazo: 'Vence em 88 dias' }
+      ],
+      highlightLabel: 'Situação Cadastral',
+      highlightValue: 'Empresa Regular e Habilitada',
+      prazo: 'Avisos emitidos antes de qualquer vencimento',
+      status: 'Documentação em Dia',
+      statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+   },
+   {
+      tag: 'Cálculo de Preço Seguro',
+      tagColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      title: 'Composição de Custos e Margem',
+      orgao: 'Pregão Eletrônico • Lote 02',
+      metricas: [
+         { label: 'Custos Diretos', valor: 'R$ 380.000,00' },
+         { label: 'Tributos e BDI', valor: '22,5%' },
+         { label: 'Margem Líquida', valor: '14,0%' }
+      ],
+      highlightLabel: 'Lance Mínimo Seguro (Piso)',
+      highlightValue: 'R$ 498.200,00',
+      prazo: 'Trava ativa para evitar propostas com prejuízo',
+      status: 'Margem Garantida',
+      statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+   }
+];
+
 export default function AuthPages() {
    const navigate = useNavigate();
    const location = useLocation();
    const setAuth = useAuthStore(state => state.setAuth);
 
    const [activeView, setActiveView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
+   const [activeDemo, setActiveDemo] = useState(0);
    
+   // Alterna automaticamente os demonstrativos da plataforma
+   useEffect(() => {
+      const interval = setInterval(() => {
+         setActiveDemo((prev) => (prev + 1) % PLATFORM_DEMONSTRATORS.length);
+      }, 5000);
+      return () => clearInterval(interval);
+   }, []);
+
    // Estados para visibilidade de senhas
    const [showLoginPassword, setShowLoginPassword] = useState(false);
    const [showRegPassword, setShowRegPassword] = useState(false);
@@ -88,7 +145,7 @@ export default function AuthPages() {
          localStorage.setItem('token', accessToken);
          setAuth(user, accessToken, refreshToken ?? undefined);
 
-         toast.success('Bem-vindo à sua área protegida.', { icon: '🛡️' });
+         toast.success('Login realizado com sucesso!');
          navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
       } catch (error: any) {
          toast.error(error.response?.data?.message || 'E-mail ou senha incorretos. Verifique suas credenciais.');
@@ -172,7 +229,7 @@ export default function AuthPages() {
          if (accessToken) {
             localStorage.setItem('token', accessToken);
             setAuth(user, accessToken, refreshToken ?? undefined);
-            toast.success('Ambiente corporativo criado e criptografado com sucesso!', { icon: '🔐' });
+            toast.success('Conta criada com sucesso!');
             navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
          } else {
             toast.success('Empresa validada! Faça o login para acessar o ambiente.');
@@ -197,7 +254,6 @@ export default function AuthPages() {
          const res = await authApi.forgotPassword({ email: data.email.trim().toLowerCase() });
          toast.success('Se o e-mail estiver cadastrado, você receberá as instruções em instantes.');
          
-         // Se o backend enviar um devToken (pois não temos envio de email real configurado ainda)
          if (res.data?.devToken) {
             const link = `/reset-password?token=${res.data.devToken}`;
             setDevResetLink(link);
@@ -213,12 +269,9 @@ export default function AuthPages() {
    // -----------------------------
    // RESET PASSWORD LOGIC
    // -----------------------------
-   const { register: resetForm, handleSubmit: handleResetSubmit, watch: resetWatch, formState: { errors: resetErrors, isSubmitting: resetSubmitting } } = useForm<ResetFormValues>({
+   const { register: resetForm, handleSubmit: handleResetSubmit, formState: { errors: resetErrors, isSubmitting: resetSubmitting } } = useForm<ResetFormValues>({
       resolver: zodResolver(resetSchema)
    });
-
-   const passResetWatch = resetWatch('password');
-   const passResetConfirmWatch = resetWatch('confirmPassword');
 
    const onReset = async (data: ResetFormValues) => {
       try {
@@ -237,419 +290,613 @@ export default function AuthPages() {
       }
    };
 
+   const currentDemo = PLATFORM_DEMONSTRATORS[activeDemo];
+
    return (
-      <main className="flex min-h-screen w-full bg-white font-sans text-slate-800 relative motion-reduce:animate-none">
-         {/* Botão de Escape */}
+      <main className="flex min-h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 relative">
+         {/* Botão de Retorno */}
          <button
             onClick={() => window.location.href = '/'}
             title="Voltar para a página inicial"
-            className="absolute left-6 top-6 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-[#0A2540] shadow-sm transition-all hover:scale-105 hover:bg-slate-50 active:scale-95"
+            className="absolute left-6 top-6 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#0A2540] shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
          >
             <svg xmlns="http://w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
          </button>
 
-         {/* LEFT PANEL: Institucional, Criptografia e Segurança */}
-         <div className="hidden lg:flex w-1/2 bg-[#F5F8FC] flex-col justify-between p-12 lg:p-16 relative overflow-hidden">
-            {/* Animacao de background */}
-            <motion.div 
-               className="absolute inset-0 z-0 opacity-[0.07]"
-               animate={{ backgroundPosition: ['0% 0%', '100% 100%'] }}
-               transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+         {/* LEFT PANEL: Logo Marcante e Demonstrativos da Plataforma */}
+         <div className="hidden lg:flex w-1/2 bg-[#0A2540] text-white flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+            {/* Efeito de fundo sutil */}
+            <div 
+               className="absolute inset-0 opacity-[0.05] pointer-events-none"
                style={{
-                  backgroundImage: 'radial-gradient(circle at 2px 2px, #0A2540 1px, transparent 0)',
-                  backgroundSize: '36px 36px'
+                  backgroundImage: 'radial-gradient(circle at 2px 2px, #FFFFFF 1px, transparent 0)',
+                  backgroundSize: '32px 32px'
                }}
             />
 
-            <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, type: "spring", bounce: 0.4 }} className="pt-8 relative z-10">
-               <img src="/logo.png" alt="Expertise Licitatória" className="h-14 md:h-16 w-auto object-contain opacity-95 mb-8" />
-            </motion.div>
+            {/* Cabeçalho com Logo em destaque real */}
+            <div className="relative z-10 flex items-center justify-between">
+               <div className="bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-white/20 shadow-lg inline-flex items-center">
+                  <img 
+                     src="/logo.png" 
+                     alt="Expertise Licitatória" 
+                     className="h-16 xl:h-20 w-auto object-contain" 
+                  />
+               </div>
+            </div>
 
-            <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.2, type: "spring" }} className="z-10 flex flex-col justify-center flex-1 pr-10 mt-12">
-               <AnimatePresence mode="wait">
-                  {activeView === 'login' ? (
-                     <motion.div key="text-login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           Sua vantagem estratégica em licitações públicas.
-                        </h2>
-                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
-                           Acompanhe prazos, oportunidades e informações da sua empresa em um só lugar.
-                        </p>
-                     </motion.div>
-                  ) : activeView === 'register' ? (
-                     <motion.div key="text-reg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           Sua empresa pronta para novas oportunidades.
-                        </h2>
-                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
-                           Cadastre seu CNPJ para organizar documentos, acompanhar oportunidades e preparar propostas para o mercado público.
-                        </p>
-                     </motion.div>
-                  ) : activeView === 'forgot' ? (
-                     <motion.div key="text-forgot" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           Recupere seu acesso com segurança.
-                        </h2>
-                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
-                           Para manter a segurança das informações de licitação da sua empresa, enviamos um token temporário diretamente para o seu e-mail institucional.
-                        </p>
-                     </motion.div>
-                  ) : (
-                     <motion.div key="text-reset" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }}>
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-4xl xl:text-5xl leading-[1.1] mb-6">
-                           Atualize suas credenciais.
-                        </h2>
-                        <p className="text-slate-600 text-lg font-medium leading-relaxed mb-10">
-                           Crie uma nova senha de alta complexidade. Proteja suas informações corporativas e estratégias de mercado.
-                        </p>
-                     </motion.div>
-                  )}
-               </AnimatePresence>
+            {/* Centro: Título e Demonstrativo Visual Animado */}
+            <div className="relative z-10 my-auto py-8">
+               <div className="mb-6">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#EA580C] bg-orange-500/10 px-3 py-1 rounded-full border border-orange-500/20">
+                     Visão Geral do Sistema
+                  </span>
+                  <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white mt-3 leading-snug">
+                     {activeView === 'login' && 'Acompanhe editais, certidões e preços em um só lugar.'}
+                     {activeView === 'register' && 'Cadastre sua empresa e dispute licitações com segurança.'}
+                     {activeView === 'forgot' && 'Recuperação de acesso simples e direta.'}
+                     {activeView === 'reset' && 'Defina sua nova senha com praticidade.'}
+                  </h2>
+               </div>
 
-               <div className="space-y-6">
-                  {[
-                     'Análise assistida de editais',
-                     'Acompanhamento de prazos importantes',
-                     'Inteligência Competitiva de Preços',
-                     'Documentos organizados por empresa'
-                  ].map((item, idx) => (
-                     <motion.div key={idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.4 + (idx * 0.1) }} className="flex items-center gap-4">
-                        <LockKey weight="bold" className="text-[#EA580C] w-6 h-6 shrink-0" />
-                        <span className="text-[#0A2540] font-bold tracking-wide text-sm">{item}</span>
+               {/* Cartão Demonstrativo com Transição Suave */}
+               <div className="relative min-h-[290px]">
+                  <AnimatePresence mode="wait">
+                     <motion.div
+                        key={activeDemo}
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -14 }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                        className="rounded-2xl border border-slate-700/60 bg-[#0E3154] p-6 shadow-xl"
+                     >
+                        {/* Header do Demonstrativo */}
+                        <div className="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-4">
+                           <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${currentDemo.tagColor}`}>
+                              {currentDemo.tag}
+                           </span>
+                           <span className="text-xs text-slate-300 font-medium">
+                              {currentDemo.status}
+                           </span>
+                        </div>
+
+                        {/* Conteúdo específico de cada demonstrativo */}
+                        <div>
+                           <h3 className="text-base font-bold text-white mb-1">
+                              {currentDemo.title}
+                           </h3>
+                           <p className="text-xs text-slate-300 mb-4">
+                              {currentDemo.orgao}
+                           </p>
+
+                           {/* Renderização do Edital */}
+                           {currentDemo.objeto && (
+                              <p className="text-xs text-slate-200 bg-slate-800/60 p-3 rounded-lg border border-slate-700/50 mb-4 leading-relaxed">
+                                 {currentDemo.objeto}
+                              </p>
+                           )}
+
+                           {/* Renderização das Certidões */}
+                           {currentDemo.certidoes && (
+                              <div className="space-y-2 mb-4">
+                                 {currentDemo.certidoes.map((c, i) => (
+                                    <div key={i} className="flex items-center justify-between bg-slate-800/60 px-3 py-2 rounded-lg border border-slate-700/50 text-xs">
+                                       <span className="text-white font-medium flex items-center gap-2">
+                                          <Check className="w-3.5 h-3.5 text-emerald-400" weight="bold" />
+                                          {c.nome}
+                                       </span>
+                                       <span className="text-emerald-400 font-semibold">{c.prazo}</span>
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+
+                           {/* Renderização das Métricas de Preço */}
+                           {currentDemo.metricas && (
+                              <div className="grid grid-cols-3 gap-2 mb-4">
+                                 {currentDemo.metricas.map((m, i) => (
+                                    <div key={i} className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/50 text-center">
+                                       <span className="block text-[10px] text-slate-400">{m.label}</span>
+                                       <span className="text-xs font-bold text-white mt-0.5 block">{m.valor}</span>
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+
+                           {/* Rodapé com Destaque Financeiro ou Prazo */}
+                           <div className="flex items-center justify-between pt-3 border-t border-slate-700/60 text-xs">
+                              <div>
+                                 <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                    {currentDemo.highlightLabel}
+                                 </span>
+                                 <span className="text-base font-extrabold text-[#EA580C]">
+                                    {currentDemo.highlightValue}
+                                 </span>
+                              </div>
+                              <div className="text-right text-[11px] text-slate-300">
+                                 {currentDemo.prazo}
+                              </div>
+                           </div>
+                        </div>
                      </motion.div>
+                  </AnimatePresence>
+               </div>
+
+               {/* Indicadores / Paginação do Demonstrativo */}
+               <div className="flex items-center gap-2 mt-4">
+                  {PLATFORM_DEMONSTRATORS.map((_, idx) => (
+                     <button
+                        key={idx}
+                        onClick={() => setActiveDemo(idx)}
+                        aria-label={`Ver demonstrativo ${idx + 1}`}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                           activeDemo === idx ? 'w-8 bg-[#EA580C]' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                        }`}
+                     />
                   ))}
                </div>
-            </motion.div>
+            </div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.8 }} className="text-slate-500 text-[11px] font-bold uppercase tracking-widest flex items-center gap-3 mt-12 z-10">
-               <ShieldCheck size={20} weight="fill" className="text-emerald-500" /> CONFORMIDADE JURÍDICA E PROTEÇÃO DE DADOS ATIVA
-            </motion.div>
+            {/* Rodapé Institucional Limpo */}
+            <div className="relative z-10 pt-4 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+               <span>Ambiente para gestão de licitações públicas</span>
+               <span className="font-semibold text-slate-300">Expertise Licitatória</span>
+            </div>
          </div>
 
          {/* RIGHT PANEL: Formulários */}
          <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-6 sm:p-12 min-h-screen lg:h-screen overflow-y-auto bg-white relative">
-            {/* Header Mobile */}
-            <div className="w-full flex lg:hidden items-center justify-center mb-8 mt-12">
-               <img src="/logo.png" alt="Expertise" className="w-[60%] max-w-[200px] h-auto object-contain" />
+            {/* Header Mobile com Logo em tamanho notável */}
+            <div className="w-full flex lg:hidden items-center justify-center mb-6 mt-8">
+               <img src="/logo.png" alt="Expertise Licitatória" className="h-14 sm:h-16 w-auto object-contain" />
             </div>
 
             <div className="w-full max-w-md flex-1 flex flex-col justify-center relative">
                <AnimatePresence mode="wait">
                   {/* --- LOGIN VIEW --- */}
                   {activeView === 'login' && (
-                     <motion.div key="login" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-3xl mb-3 flex items-center gap-3">
-                           Bem-vindo de volta <ShieldCheck weight="duotone" className="w-8 h-8 text-emerald-500" />
-                        </h2>
-                        <p className="mb-8 text-sm text-slate-500">Acesse sua central de oportunidades.</p>
+                     <motion.div key="login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }}>
+                        <div className="mb-8">
+                           <h1 className="font-sans font-extrabold tracking-tight text-[#0A2540] text-3xl mb-2">
+                              Acesse sua conta
+                           </h1>
+                           <p className="text-sm text-slate-500">
+                              Insira suas credenciais para gerenciar suas licitações.
+                           </p>
+                        </div>
 
                         <form onSubmit={handleLoginSubmit(onLogin)} className="space-y-5">
-                           <div className="relative group">
+                           <div className="space-y-1.5">
+                              <label htmlFor="login_email" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 E-mail corporativo
+                              </label>
                               <input
                                  {...loginForm('email')}
                                  id="login_email"
-                                 placeholder=" "
+                                 placeholder="exemplo@empresa.com.br"
                                  type="email"
                                  autoCapitalize="none"
                                  autoCorrect="off"
                                  spellCheck={false}
-                                 className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-medium lowercase tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                               />
-                              <label htmlFor="login_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL CORPORATIVO</label>
-                              {loginErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.email.message}</p>}
+                              {loginErrors.email && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.email.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <div className="relative group">
-                              <input
-                                 {...loginForm('password')}
-                                 id="login_password"
-                                 placeholder=" "
-                                 type={showLoginPassword ? 'text' : 'password'}
-                                 autoCapitalize="none"
-                                 autoCorrect="off"
-                                 spellCheck={false}
-                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-12 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
-                              />
-                              <label htmlFor="login_password" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">SENHA INSTITUCIONAL</label>
-                              <button type="button" aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-3.5 text-slate-500 hover:text-[#0A2540] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] rounded">
-                                 {showLoginPassword ? <EyeSlash className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
-                              </button>
-                              {loginErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.password.message}</p>}
+                           <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                 <label htmlFor="login_password" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Senha
+                                 </label>
+                                 <button
+                                    type="button"
+                                    onClick={() => setActiveView('forgot')}
+                                    className="text-xs font-semibold text-[#EA580C] hover:underline"
+                                 >
+                                    Esqueceu a senha?
+                                 </button>
+                              </div>
+                              <div className="relative">
+                                 <input
+                                    {...loginForm('password')}
+                                    id="login_password"
+                                    placeholder="Digite sua senha"
+                                    type={showLoginPassword ? 'text' : 'password'}
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <button 
+                                    type="button" 
+                                    aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'} 
+                                    onClick={() => setShowLoginPassword(!showLoginPassword)} 
+                                    className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
+                                 >
+                                    {showLoginPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                 </button>
+                              </div>
+                              {loginErrors.password && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {loginErrors.password.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <motion.button disabled={loginSubmitting} type="submit" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-[0_10px_26px_rgba(234,88,12,0.22)] hover:bg-orange-600 transition-colors group mt-2 disabled:opacity-70 disabled:cursor-not-allowed">
-                              <span className="relative z-10 flex items-center gap-2">
-                                 {loginSubmitting ? (
-                                    <>
-                                       <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
-                                       AUTENTICANDO CRIPTOGRAFIA...
-                                    </>
-                                 ) : (
-                                    <>
-                                       ACEDER À PLATAFORMA
-                                       <ArrowRight weight="bold" className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                    </>
-                                 )}
-                              </span>
+                           <motion.button 
+                              disabled={loginSubmitting} 
+                              type="submit" 
+                              whileHover={{ scale: 1.01 }} 
+                              whileTap={{ scale: 0.98 }} 
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                           >
+                              {loginSubmitting ? (
+                                 <>
+                                    <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
+                                    <span>Acessando...</span>
+                                 </>
+                              ) : (
+                                 <>
+                                    <span>Acessar Painel</span>
+                                    <ArrowRight weight="bold" className="h-4 w-4" />
+                                 </>
+                              )}
                            </motion.button>
                         </form>
 
-
-                        <div className="mt-8 flex flex-col items-center gap-4">
-                           <button onClick={() => setActiveView('forgot')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Esqueceu seus dados?</button>
-                           <button onClick={() => setActiveView('register')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Nova empresa? <span className="text-[#EA580C] underline decoration-[#EA580C] decoration-2 underline-offset-4">Cadastrar CNPJ</span></button>
+                        <div className="mt-8 text-center border-t border-slate-100 pt-6">
+                           <p className="text-sm text-slate-600">
+                              Sua empresa ainda não tem cadastro?{' '}
+                              <button 
+                                 onClick={() => setActiveView('register')} 
+                                 className="font-bold text-[#EA580C] hover:underline"
+                              >
+                                 Cadastrar CNPJ
+                              </button>
+                           </p>
                         </div>
                      </motion.div>
                   )}
 
                   {/* --- REGISTER VIEW --- */}
                   {activeView === 'register' && (
-                     <motion.div key="register" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="my-auto py-8">
-                        <h2 className="font-sans font-black tracking-tight text-[#0A2540] text-3xl mb-3 flex items-center gap-3">
-                           Crie sua conta <LockKey weight="duotone" className="w-8 h-8 text-[#EA580C]" />
-                        </h2>
-                        <p className="mb-7 text-sm text-slate-500">Comece com três informações. Validaremos a empresa pelo CNPJ.</p>
+                     <motion.div key="register" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="my-auto py-4">
+                        <div className="mb-6">
+                           <h1 className="font-sans font-extrabold tracking-tight text-[#0A2540] text-3xl mb-2">
+                              Criar conta da empresa
+                           </h1>
+                           <p className="text-sm text-slate-500">
+                              Cadastre o CNPJ para acessar o radar e organizar seus editais.
+                           </p>
+                        </div>
 
-                        <form onSubmit={handleRegSubmit(onRegister)} className="space-y-5">
-                           <div>
-                              <div className="relative group">
-                                 <input
-                                    {...regForm('email')}
-                                    id="reg_email"
-                                    placeholder=" "
-                                    type="email"
-                                    autoCapitalize="none"
-                                    autoCorrect="off"
-                                    spellCheck={false}
-                                    autoComplete="email"
-                                    required
-                                    className="peer w-full rounded-xl border border-slate-200 bg-white px-4 pb-2 pt-6 text-sm font-medium lowercase tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
-                                 />
-                                 <label htmlFor="reg_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">E-MAIL INSTITUCIONAL</label>
-                                 {regErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.email.message}</p>}
-                              </div>
-                           </div>
-
-                           <div className="relative group">
+                        <form onSubmit={handleRegSubmit(onRegister)} className="space-y-4">
+                           <div className="space-y-1.5">
+                              <label htmlFor="reg_email" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 E-mail corporativo
+                              </label>
                               <input
-                                 {...regForm('cnpj')}
-                                 id="reg_cnpj"
-                                 placeholder=" "
-                                 type="text"
-                                 inputMode="numeric"
-                                 autoComplete="off"
-                                 maxLength={18}
+                                 {...regForm('email')}
+                                 id="reg_email"
+                                 placeholder="exemplo@empresa.com.br"
+                                 type="email"
+                                 autoCapitalize="none"
+                                 autoCorrect="off"
+                                 spellCheck={false}
+                                 autoComplete="email"
                                  required
-                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-10 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                               />
-                              <label htmlFor="reg_cnpj" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CNPJ MATRIZ/FILIAL</label>
-                              {isLoadingCnpj && <CircleNotch className="absolute right-4 top-4 h-5 w-5 text-[#EA580C] animate-spin" />}
-                              {regErrors.cnpj && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.cnpj.message}</p>}
+                              {regErrors.email && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.email.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <div className="relative">
-                              <input
-                                 {...regForm('razoesocial')}
-                                 id="reg_razao"
-                                 placeholder=" "
-                                 type="text"
-                                 disabled={isLoadingCnpj}
-                                 aria-live="polite"
-                                 className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-10 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100 disabled:bg-slate-50 disabled:text-slate-500"
-                              />
-                              <label htmlFor="reg_razao" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">RAZÃO SOCIAL DA EMPRESA</label>
-                              {regWatch('razoesocial') && <CheckCircle className="absolute right-4 top-4 h-5 w-5 text-emerald-500" weight="fill" />}
-                              {isLoadingCnpj && <span className="absolute right-4 top-4 text-xs text-slate-500">Consultando...</span>}
-                              {cnpjLookupError && <p role="status" className="mt-2 text-xs font-medium text-amber-700">{cnpjLookupError}</p>}
+                           <div className="space-y-1.5">
+                              <label htmlFor="reg_cnpj" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 CNPJ da empresa
+                              </label>
+                              <div className="relative">
+                                 <input
+                                    {...regForm('cnpj')}
+                                    id="reg_cnpj"
+                                    placeholder="00.000.000/0000-00"
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    maxLength={18}
+                                    required
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 {isLoadingCnpj && <CircleNotch className="absolute right-3.5 top-3.5 h-5 w-5 text-[#EA580C] animate-spin" />}
+                              </div>
+                              {regErrors.cnpj && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.cnpj.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <div>
-                              <div className="relative group">
+                           <div className="space-y-1.5">
+                              <label htmlFor="reg_razao" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 Razão Social
+                              </label>
+                              <div className="relative">
+                                 <input
+                                    {...regForm('razoesocial')}
+                                    id="reg_razao"
+                                    placeholder="Razão social da empresa"
+                                    type="text"
+                                    disabled={isLoadingCnpj}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100 disabled:bg-slate-100"
+                                 />
+                                 {regWatch('razoesocial') && <CheckCircle className="absolute right-3.5 top-3.5 h-5 w-5 text-emerald-500" weight="fill" />}
+                              </div>
+                              {cnpjLookupError && <p className="mt-1 text-xs text-amber-700">{cnpjLookupError}</p>}
+                           </div>
+
+                           <div className="space-y-1.5">
+                              <label htmlFor="reg_pass" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 Senha de acesso
+                              </label>
+                              <div className="relative">
                                  <input
                                     {...regForm('password')}
                                     id="reg_pass"
-                                    placeholder=" "
+                                    placeholder="Mínimo de 8 caracteres"
                                     type={showRegPassword ? 'text' : 'password'}
                                     autoCapitalize="none"
                                     autoCorrect="off"
                                     spellCheck={false}
                                     required
                                     autoComplete="new-password"
-                                    className="peer w-full rounded-xl border border-slate-200 bg-white pl-4 pr-12 pb-2 pt-6 text-sm font-medium tracking-wide text-slate-900 shadow-[0_8px_24px_rgba(15,35,60,0.04)] outline-none transition-all focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <label htmlFor="reg_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">CRIAR SENHA SECRETA</label>
-                                 <button type="button" aria-label={showRegPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showRegPassword} onClick={() => setShowRegPassword(!showRegPassword)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] rounded">
+                                 <button 
+                                    type="button" 
+                                    aria-label={showRegPassword ? 'Ocultar senha' : 'Mostrar senha'} 
+                                    onClick={() => setShowRegPassword(!showRegPassword)} 
+                                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700 transition-colors"
+                                 >
                                     {showRegPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                  </button>
-                                 {regErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {regErrors.password.message}</p>}
                               </div>
+                              {regErrors.password && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.password.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <label className="flex items-start gap-3 text-xs leading-relaxed text-slate-600">
+                           <label className="flex items-start gap-2.5 text-xs text-slate-600 pt-1">
                               <input
                                  {...regForm('aceite_lgpd')}
                                  type="checkbox"
                                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#EA580C]"
                               />
                               <span>
-                                 Li e aceito os <a href="/termos" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Política de Privacidade</a>.
+                                 Li e concordo com os <a href="/termos" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noreferrer" className="font-semibold text-[#0A2540] underline">Política de Privacidade</a>.
                                  {regErrors.aceite_lgpd && <span className="mt-1 block text-red-600">{regErrors.aceite_lgpd.message}</span>}
                               </span>
                            </label>
 
-                           <p className="flex items-center gap-2 text-xs leading-relaxed text-slate-500">
-                              <LockKey className="h-4 w-4 shrink-0 text-emerald-600" weight="bold" />
-                              Conexão protegida e dados tratados com segurança.
-                           </p>
-
-                           <motion.button disabled={regSubmitting} type="submit" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-black uppercase tracking-widest text-white shadow-[0_10px_26px_rgba(234,88,12,0.22)] hover:bg-orange-600 transition-colors group mt-6 disabled:opacity-70 disabled:cursor-not-allowed">
-                              <span className="relative z-10 flex items-center gap-2">
-                                 {regSubmitting ? (
-                                    <>
-                                       <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
-                                       CRIANDO CONTA...
-                                    </>
-                                 ) : (
-                                    <>
-                                       CRIAR CONTA
-                                       <ArrowRight weight="bold" className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                    </>
-                                 )}
-                              </span>
+                           <motion.button 
+                              disabled={regSubmitting} 
+                              type="submit" 
+                              whileHover={{ scale: 1.01 }} 
+                              whileTap={{ scale: 0.98 }} 
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                           >
+                              {regSubmitting ? (
+                                 <>
+                                    <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
+                                    <span>Criando conta...</span>
+                                 </>
+                              ) : (
+                                 <>
+                                    <span>Criar Conta da Empresa</span>
+                                    <ArrowRight weight="bold" className="h-4 w-4" />
+                                 </>
+                              )}
                            </motion.button>
                         </form>
 
-                        <div className="mt-6 text-center">
-                           <button onClick={() => setActiveView('login')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#EA580C] transition-colors">Já cadastrou a empresa? <span className="text-[#0A2540] underline decoration-[#EA580C] decoration-2 underline-offset-4">Acesso Seguro</span></button>
+                        <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                           <p className="text-sm text-slate-600">
+                              Já possui cadastro?{' '}
+                              <button 
+                                 onClick={() => setActiveView('login')} 
+                                 className="font-bold text-[#EA580C] hover:underline"
+                              >
+                                 Entrar na Conta
+                              </button>
+                           </p>
                         </div>
                      </motion.div>
                   )}
 
                   {/* --- FORGOT PASSWORD VIEW --- */}
                   {activeView === 'forgot' && (
-                     <motion.div key="forgot" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-4">RECUPERAR ACESSO</h2>
-                        <p className="text-sm font-bold text-slate-500 mb-8 leading-relaxed">Insira seu e-mail corporativo cadastrado para receber as instruções seguras de redefinição de credenciais.</p>
+                     <motion.div key="forgot" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }}>
+                        <div className="mb-6">
+                           <h1 className="font-sans font-extrabold tracking-tight text-[#0A2540] text-3xl mb-2">
+                              Recuperar senha
+                           </h1>
+                           <p className="text-sm text-slate-500">
+                              Informe o e-mail cadastrado para receber o link de redefinição.
+                           </p>
+                        </div>
 
-                        <form onSubmit={handleForgotSubmit(onForgot)} className="space-y-6">
-                           <div className="relative group">
+                        <form onSubmit={handleForgotSubmit(onForgot)} className="space-y-5">
+                           <div className="space-y-1.5">
+                              <label htmlFor="forgot_email" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 E-mail corporativo
+                              </label>
                               <input
                                  {...forgotForm('email')}
                                  id="forgot_email"
-                                 placeholder=" "
+                                 placeholder="exemplo@empresa.com.br"
                                  type="email"
                                  autoCapitalize="none"
                                  autoCorrect="off"
                                  spellCheck={false}
-                                 className="peer w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pb-2 pt-6 text-sm font-bold lowercase tracking-wider text-slate-900 focus:border-[#0A2540] focus:bg-white outline-none transition-all"
+                                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                               />
-                              <label htmlFor="forgot_email" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#0A2540] pointer-events-none">E-MAIL INSTITUCIONAL</label>
-                              {forgotErrors.email && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {forgotErrors.email.message}</p>}
+                              {forgotErrors.email && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {forgotErrors.email.message}
+                                 </p>
+                              )}
                            </div>
 
-                           <motion.button disabled={forgotSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-slate-800 transition-colors group disabled:opacity-70 disabled:cursor-not-allowed">
-                              <span className="relative z-10 flex items-center gap-2">
-                                 {forgotSubmitting ? (
-                                    <>
-                                       <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
-                                       ENVIANDO TOKEN SEGURO...
-                                    </>
-                                 ) : (
-                                    <>
-                                       SOLICITAR NOVA SENHA
-                                    </>
-                                 )}
-                              </span>
+                           <motion.button 
+                              disabled={forgotSubmitting} 
+                              type="submit" 
+                              whileHover={{ scale: 1.01 }} 
+                              whileTap={{ scale: 0.98 }} 
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-slate-800 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                           >
+                              {forgotSubmitting ? (
+                                 <>
+                                    <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
+                                    <span>Enviando link...</span>
+                                 </>
+                              ) : (
+                                 <span>Enviar Instruções</span>
+                              )}
                            </motion.button>
                         </form>
 
-                        <div className="mt-8 text-center">
-                           <button onClick={() => setActiveView('login')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Voltar para Login Seguro</button>
+                        <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                           <button 
+                              onClick={() => setActiveView('login')} 
+                              className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0A2540] transition-colors"
+                           >
+                              Voltar para o Login
+                           </button>
                         </div>
 
                         {devResetLink && (
-                           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-4 rounded-xl border border-orange-200 bg-orange-50 text-center">
-                              <p className="text-[10px] font-black uppercase text-orange-600 mb-2 tracking-widest">Simulação de E-mail (Modo Teste)</p>
-                              <a href={devResetLink} onClick={(e) => { e.preventDefault(); navigate(devResetLink); }} className="text-sm font-bold text-[#0A2540] underline underline-offset-4 decoration-orange-400 hover:text-orange-600 transition-colors">
-                                 Clique aqui para atualizar a senha
+                           <div className="mt-6 p-4 rounded-xl border border-orange-200 bg-orange-50 text-center">
+                              <p className="text-xs font-bold text-orange-700 mb-1">Modo de Teste:</p>
+                              <a 
+                                 href={devResetLink} 
+                                 onClick={(e) => { e.preventDefault(); navigate(devResetLink); }} 
+                                 className="text-xs font-semibold text-[#0A2540] underline hover:text-[#EA580C]"
+                              >
+                                 Clique aqui para redefinir sua senha agora
                               </a>
-                           </motion.div>
+                           </div>
                         )}
                      </motion.div>
                   )}
 
                   {/* --- RESET PASSWORD VIEW --- */}
                   {activeView === 'reset' && (
-                     <motion.div key="reset" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="my-auto">
-                        <h2 className="font-sans font-black uppercase tracking-tighter text-[#0A2540] text-3xl mb-8 flex items-center gap-3">
-                           Nova Senha <LockKey weight="duotone" className="w-8 h-8 text-[#EA580C]" />
-                        </h2>
+                     <motion.div key="reset" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.25 }} className="my-auto">
+                        <div className="mb-6">
+                           <h1 className="font-sans font-extrabold tracking-tight text-[#0A2540] text-3xl mb-2">
+                              Criar nova senha
+                           </h1>
+                           <p className="text-sm text-slate-500">
+                              Digite sua nova senha de acesso à plataforma.
+                           </p>
+                        </div>
 
-                        <form onSubmit={handleResetSubmit(onReset)} className="space-y-6">
-                           <div className="relative group">
-                              <input
-                                 {...resetForm('password')}
-                                 id="reset_pass"
-                                 placeholder=" "
-                                 type={showResetPassword ? 'text' : 'password'}
-                                 autoCapitalize="none"
-                                 autoCorrect="off"
-                                 spellCheck={false}
-                                 className="peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all"
-                              />
-                              <label htmlFor="reset_pass" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">NOVA SENHA (MÍN 8 CARACT.)</label>
-                              <button type="button" onClick={() => setShowResetPassword(!showResetPassword)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none">
-                                 {showResetPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                              </button>
-                              {resetErrors.password && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.password.message}</p>}
-                           </div>
-
-                           <div className="relative group">
-                              <input
-                                 {...resetForm('confirmPassword')}
-                                 id="reset_confirm"
-                                 placeholder=" "
-                                 type={showResetConfirm ? 'text' : 'password'}
-                                 autoCapitalize="none"
-                                 autoCorrect="off"
-                                 spellCheck={false}
-                                 className={`peer w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-12 pb-2 pt-6 text-sm font-bold tracking-wider text-slate-900 focus:border-[#EA580C] focus:bg-white outline-none transition-all ${passResetWatch && passResetConfirmWatch && passResetWatch === passResetConfirmWatch ? 'border-emerald-300 ring-1 ring-emerald-300' : ''}`}
-                              />
-                              <label htmlFor="reset_confirm" className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-[#EA580C] pointer-events-none">REPETIR NOVA SENHA</label>
-                              <button type="button" onClick={() => setShowResetConfirm(!showResetConfirm)} className="absolute right-3 top-3.5 text-slate-500 hover:text-[#EA580C] transition-colors focus:outline-none">
-                                 {showResetConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                              </button>
-                              {resetErrors.confirmPassword && <p className="text-red-500 text-[10px] font-bold uppercase mt-1 flex items-start gap-1 leading-tight"><WarningCircle weight="bold" className="w-4 h-4 shrink-0 mt-0.5" /> {resetErrors.confirmPassword.message}</p>}
-                           </div>
-
-                           <AnimatePresence>
-                              {passResetWatch && passResetWatch.length > 0 && passResetWatch === passResetConfirmWatch && (
-                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-widest bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
-                                    <ShieldCheck weight="fill" className="w-4 h-4" /> Senhas coincidem
-                                 </motion.div>
+                        <form onSubmit={handleResetSubmit(onReset)} className="space-y-5">
+                           <div className="space-y-1.5">
+                              <label htmlFor="reset_pass" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 Nova senha (mínimo 8 caracteres)
+                              </label>
+                              <div className="relative">
+                                 <input
+                                    {...resetForm('password')}
+                                    id="reset_pass"
+                                    placeholder="Digite a nova senha"
+                                    type={showResetPassword ? 'text' : 'password'}
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <button 
+                                    type="button" 
+                                    onClick={() => setShowResetPassword(!showResetPassword)} 
+                                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
+                                 >
+                                    {showResetPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                 </button>
+                              </div>
+                              {resetErrors.password && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {resetErrors.password.message}
+                                 </p>
                               )}
-                           </AnimatePresence>
+                           </div>
 
-                           <motion.button disabled={resetSubmitting} type="submit" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative overflow-hidden w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:bg-slate-800 transition-colors group disabled:opacity-70 disabled:cursor-not-allowed mt-4">
-                              <span className="relative z-10 flex items-center gap-2">
-                                 {resetSubmitting ? (
-                                    <>
-                                       <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
-                                       ATUALIZANDO...
-                                    </>
-                                 ) : (
-                                    <>
-                                       REDEFINIR SENHA
-                                    </>
-                                 )}
-                              </span>
+                           <div className="space-y-1.5">
+                              <label htmlFor="reset_confirm" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 Confirmar nova senha
+                              </label>
+                              <div className="relative">
+                                 <input
+                                    {...resetForm('confirmPassword')}
+                                    id="reset_confirm"
+                                    placeholder="Repita a nova senha"
+                                    type={showResetConfirm ? 'text' : 'password'}
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <button 
+                                    type="button" 
+                                    onClick={() => setShowResetConfirm(!showResetConfirm)} 
+                                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
+                                 >
+                                    {showResetConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                 </button>
+                              </div>
+                              {resetErrors.confirmPassword && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {resetErrors.confirmPassword.message}
+                                 </p>
+                              )}
+                           </div>
+
+                           <motion.button 
+                              disabled={resetSubmitting} 
+                              type="submit" 
+                              whileHover={{ scale: 1.01 }} 
+                              whileTap={{ scale: 0.98 }} 
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-slate-800 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                           >
+                              {resetSubmitting ? (
+                                 <>
+                                    <CircleNotch className="h-5 w-5 animate-spin" weight="bold" />
+                                    <span>Salvando senha...</span>
+                                 </>
+                              ) : (
+                                 <span>Atualizar Senha</span>
+                              )}
                            </motion.button>
                         </form>
 
-                        <div className="mt-8 text-center">
-                           <button onClick={() => navigate('/login')} className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-[#0A2540] transition-colors">Voltar para Login Seguro</button>
+                        <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                           <button 
+                              onClick={() => navigate('/login')} 
+                              className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0A2540] transition-colors"
+                           >
+                              Voltar para o Login
+                           </button>
                         </div>
                      </motion.div>
                   )}
@@ -657,10 +904,17 @@ export default function AuthPages() {
             </div>
 
             {/* Footer Digital Day Software */}
-            <div className="w-full text-center mt-8 pt-6 border-t border-slate-100">
-               <a href="https://instagram.com/digitalday_software" target="_blank" rel="noreferrer" className="inline-flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-full px-5 py-2 transition-all group">
-                  <span className="text-[10px] text-slate-500 group-hover:text-slate-600 transition-colors uppercase font-bold tracking-widest">Desenvolvido por <strong className="text-[#0A2540]">Digital Day Software</strong></span>
-                  <InstagramLogo weight="fill" className="h-4 w-4 text-slate-500 group-hover:text-[#EA580C] transition-colors" />
+            <div className="w-full text-center mt-8 pt-4 border-t border-slate-100">
+               <a 
+                  href="https://instagram.com/digitalday_software" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="inline-flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-full px-4 py-1.5 transition-all group"
+               >
+                  <span className="text-[11px] text-slate-500 group-hover:text-slate-700 transition-colors">
+                     Desenvolvido por <strong className="text-[#0A2540] font-semibold">Digital Day Software</strong>
+                  </span>
+                  <InstagramLogo weight="fill" className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#EA580C] transition-colors" />
                </a>
             </div>
          </div>
