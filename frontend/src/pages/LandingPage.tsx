@@ -303,14 +303,7 @@ export default function LandingPage() {
                      {/* Iluminação Ambiente Suave */}
                      <div className="absolute -inset-4 sm:-inset-10 bg-gradient-to-tr from-[#EA580C]/20 via-[#0A2540]/10 to-blue-600/20 rounded-full blur-3xl opacity-70 pointer-events-none" />
 
-                     {/* Badge de Módulo Ativo */}
-                     <div className="mb-3 z-20 flex items-center gap-2 bg-[#0A2540] text-white border border-slate-700/60 px-4 py-1.5 rounded-full shadow-md text-xs font-bold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                        <span className="text-slate-300">Módulo Ativo:</span>
-                        <span className="text-[#EA580C]">{LAPTOP_SLIDES[activeSlide].tag}</span>
-                     </div>
-
-                     {/* Mockup do Laptop Calmo (sem oscilação brusca) */}
+                     {/* Mockup do Laptop Calmo com Encaixe Perfeito de Tela */}
                      <motion.div
                         animate={{ y: [0, -4, 0] }}
                         transition={{ 
@@ -342,25 +335,22 @@ export default function LandingPage() {
                      </motion.div>
 
                      {/* Navegação Interativa entre os Módulos do Sistema */}
-                     <div className="w-full flex flex-col items-center mt-3 z-20 space-y-2">
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                     <div className="w-full flex items-center justify-center mt-3 z-20">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200 shadow-sm">
                            {LAPTOP_SLIDES.map((slide, idx) => (
                               <button
                                  key={slide.id}
                                  onClick={() => setActiveSlide(idx)}
-                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                 className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
                                     activeSlide === idx
                                        ? 'bg-[#0A2540] text-white shadow-sm ring-2 ring-[#EA580C]'
-                                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                                  }`}
                               >
                                  {slide.tag}
                               </button>
                            ))}
                         </div>
-                        <p className="text-[11px] text-slate-500 font-medium text-center italic">
-                           {LAPTOP_SLIDES[activeSlide].subtitle}
-                        </p>
                      </div>
                   </div>
 
