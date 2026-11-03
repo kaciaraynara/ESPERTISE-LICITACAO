@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { CookieOptions, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { loginSchema, registerSchema } from '../shared/validations';
@@ -7,6 +8,7 @@ import { logAuthEvent, normalizeAuthEmail } from '../services/auth.service';
 import { prisma } from '../database/prisma';
 import { authOperationsService, TokenClaims } from '../services/auth-operations.service';
 import { ApiError } from '../shared/errors/ApiError';
+import { enviarRecuperacaoSenha } from '../services/resend.service';
 
 export const ACCESS_COOKIE_NAME = 'expertise_access_token';
 export const REFRESH_COOKIE_NAME = 'expertise_refresh_token';
@@ -304,87 +306,190 @@ export class AuthController {
 
   async forgotPassword(req: Request, res: Response) {
     try {
-      const { email } = req.body;
-      if (!email || typeof email !== 'string') {
-        return res.status(400).json({ success: false, message: 'Email inválido' });
+      const emailRaw = req.body?.email;
+      if (!emailRaw || typeof emailRaw !== 'string') {
+        return res.status(400).json({
+          success: false,
+          code: 'EMAIL_REQUIRED',
+          message: 'Informe um endereço de e-mail válido.',
+        });
       }
 
-      const emailNormalized = email.toLowerCase().trim();
-      const user = await prisma.user.findUnique({ where: { emailNormalized } });
-      
+      const emailNormalized = normalizeAuthEmail(emailRaw);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailNormalized)) {
+        return res.status(400).json({
+          success: false,
+          code: 'EMAIL_INVALID',
+          message: 'Formato de e-mail inválido.',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { emailNormalized },
+            { email: { equals: emailNormalized, mode: 'insensitive' } },
+          ],
+          deletedAt: null,
+        },
+      });
+
+      // Se o usuário não existir, não quebrar (500) e não vazar se o e-mail existe (retornar 200 padrão)
       if (!user) {
-        // Return success anyway for security reasons (don't leak registered emails)
-        return res.json({ success: true, message: 'Instruções enviadas' });
+        console.log(`[AUTH-FORGOT] Solicitação de recuperação para e-mail não cadastrado ou inativo: ${emailNormalized}`);
+        return res.status(200).json({
+          success: true,
+          message: 'Se o e-mail estiver cadastrado, as instruções para redefinição foram enviadas com sucesso.',
+        });
       }
 
-      const resetToken = crypto.randomUUID();
-      const resetTokenExp = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+      // Gera token seguro e criptograficamente forte (64 caracteres hex)
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExp = new Date(Date.now() + 60 * 60 * 1000); // Exatamente 1 hora
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { resetToken, resetTokenExp },
+        data: {
+          resetToken,
+          resetTokenExp,
+        },
       });
 
-      // Enviar email via Resend
-      const { enviarRecuperacaoSenha } = require('../services/resend.service');
-      await enviarRecuperacaoSenha({
+      // Dispara envio de e-mail via SMTP/Resend sem travar a requisição em caso de falha externa
+      try {
+        await enviarRecuperacaoSenha({
+          email: user.email,
+          nome: user.nome || 'Usuário',
+          token: resetToken,
+        });
+      } catch (emailErr: any) {
+        console.error('[AUTH-FORGOT] Erro na tentativa de envio de e-mail:', emailErr?.message || emailErr);
+      }
+
+      await logAuthEvent('PASSWORD_RESET_REQUESTED', {
         email: user.email,
-        nome: user.nome || 'Usuário',
-        token: resetToken,
-      }).catch((e: any) => console.error('[AUTH] Falha ao enviar e-mail de recuperação:', e));
+        userId: user.id,
+        ...getAuditContext(req),
+      });
 
-      console.log(`[AUTH] Password reset token generated for ${user.email}: ${resetToken}`);
+      console.log(`[AUTH-FORGOT] Token de recuperação gerado para ${user.email}. Expira em: ${resetTokenExp.toISOString()}`);
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        message: 'Instruções enviadas',
-        // devToken omitido em produção por segurança
+        message: 'Se o e-mail estiver cadastrado, as instruções para redefinição foram enviadas com sucesso.',
         ...(process.env.NODE_ENV !== 'production' ? { devToken: resetToken } : {}),
       });
-    } catch (err) {
-      console.error('[AUTH] forgotPassword error:', err);
-      return res.status(500).json({ success: false, message: 'Erro interno' });
+    } catch (err: any) {
+      console.error('[AUTH-FORGOT] Erro inesperado em forgotPassword:', err);
+      return res.status(500).json({
+        success: false,
+        code: 'FORGOT_PASSWORD_ERROR',
+        message: 'Ocorreu um erro interno ao processar a recuperação de senha. Tente novamente mais tarde.',
+      });
     }
   }
 
   async resetPassword(req: Request, res: Response) {
     try {
-      const { token, senha } = req.body;
-      if (!token || typeof token !== 'string' || !senha || typeof senha !== 'string') {
-        return res.status(400).json({ success: false, message: 'Dados inválidos' });
+      const token = (req.body?.token ?? '').toString().trim();
+      const novaSenha = (req.body?.senha ?? req.body?.password ?? '').toString();
+
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          code: 'TOKEN_REQUIRED',
+          message: 'O link ou token de recuperação é obrigatório.',
+        });
       }
 
-      if (senha.length < 8) {
-        return res.status(400).json({ success: false, message: 'Senha muito curta' });
+      if (!novaSenha || novaSenha.length < 8) {
+        return res.status(400).json({
+          success: false,
+          code: 'PASSWORD_TOO_SHORT',
+          message: 'A nova senha deve ter no mínimo 8 caracteres.',
+        });
       }
 
+      if (!/[A-Za-z]/.test(novaSenha) || !/\d/.test(novaSenha)) {
+        return res.status(400).json({
+          success: false,
+          code: 'PASSWORD_COMPLEXITY_FAILED',
+          message: 'A nova senha deve conter pelo menos uma letra e um número.',
+        });
+      }
+
+      // Busca usuário com token correspondente e estritamente dentro da validade
       const user = await prisma.user.findFirst({
         where: {
           resetToken: token,
           resetTokenExp: { gt: new Date() },
+          deletedAt: null,
         },
       });
 
       if (!user) {
-        return res.status(400).json({ success: false, message: 'Token inválido ou expirado' });
+        // Verifica se o token existe no banco mas já expirou
+        const expiredUser = await prisma.user.findFirst({
+          where: { resetToken: token },
+          select: { id: true, resetTokenExp: true },
+        });
+
+        if (expiredUser) {
+          return res.status(400).json({
+            success: false,
+            code: 'TOKEN_EXPIRED',
+            message: 'Este link de recuperação expirou (validade de 1 hora). Solicite um novo link.',
+          });
+        }
+
+        return res.status(400).json({
+          success: false,
+          code: 'TOKEN_INVALID',
+          message: 'Link de recuperação inválido ou já utilizado.',
+        });
       }
 
-      const bcrypt = require('bcryptjs');
-      const passwordHash = await bcrypt.hash(senha, 12);
+      // Hash seguro da nova senha com salt round 12
+      const passwordHash = await bcrypt.hash(novaSenha, 12);
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordHash,
-          resetToken: null,
-          resetTokenExp: null,
-        },
+      // Atualiza senha, limpa o token de recuperação e anula sessões antigas
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            passwordHash,
+            resetToken: null,
+            resetTokenExp: null,
+            ultimoAcesso: new Date(),
+          },
+        });
+
+        await tx.refreshToken.deleteMany({
+          where: { userId: user.id },
+        });
       });
 
-      return res.json({ success: true, message: 'Senha alterada com sucesso' });
-    } catch (err) {
-      console.error('[AUTH] resetPassword error:', err);
-      return res.status(500).json({ success: false, message: 'Erro interno' });
+      await logAuthEvent('PASSWORD_RESET_SUCCESS', {
+        email: user.email,
+        userId: user.id,
+        ...getAuditContext(req),
+      });
+
+      console.log(`[AUTH-RESET] Senha redefinida com sucesso para o usuário ${user.email}`);
+
+      return res.status(200).json({
+        success: true,
+        code: 'PASSWORD_RESET_SUCCESS',
+        message: 'Senha redefinida com sucesso! Você já pode fazer login com sua nova credencial.',
+      });
+    } catch (err: any) {
+      console.error('[AUTH-RESET] Erro inesperado em resetPassword:', err);
+      return res.status(500).json({
+        success: false,
+        code: 'RESET_PASSWORD_ERROR',
+        message: 'Não foi possível redefinir a senha. Tente novamente mais tarde.',
+      });
     }
   }
 

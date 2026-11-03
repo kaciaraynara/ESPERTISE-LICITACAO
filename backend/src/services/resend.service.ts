@@ -1,12 +1,12 @@
 import axios from 'axios';
+import nodemailer from 'nodemailer';
 
 /**
- * Resend — Serviço de e-mail transacional
- * Documentação: https://resend.com/docs
- * Gratuito até 3.000 e-mails/mês
+ * Serviço de e-mail transacional (SMTP / Resend)
+ * Suporta provedores SMTP padrão (Hostinger, Gmail, SendGrid, Amazon SES) e Resend API.
  */
 
-const FROM_NAME = 'Expertise Platform';
+const FROM_NAME = 'Expertise Licitatória';
 
 interface EmailPayload {
   to: string | string[];
@@ -16,40 +16,92 @@ interface EmailPayload {
 }
 
 /**
- * Envia um e-mail via Resend
+ * Envia um e-mail via SMTP ou Resend
  */
 async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?: string; error?: string }> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const fromEmail = process.env.EMAIL_FROM?.trim();
+  const fromEmail = process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || 'contato@expertise-licitatoria.com.br';
+  const fromHeader = `${FROM_NAME} <${fromEmail}>`;
 
-  if (!apiKey || !fromEmail) {
-    throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
-  }
+  // 1. Provedor SMTP (se SMTP_HOST estiver definido)
+  const smtpHost = process.env.SMTP_HOST?.trim();
+  if (smtpHost) {
+    const smtpPort = Number(process.env.SMTP_PORT) || 587;
+    const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+    const smtpUser = process.env.SMTP_USER?.trim();
+    const smtpPass = process.env.SMTP_PASS?.trim();
 
-  try {
-    const response = await axios.post(
-      'https://api.resend.com/emails',
-      {
-        from: `${FROM_NAME} <${fromEmail}>`,
-        to: Array.isArray(payload.to) ? payload.to : [payload.to],
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: smtpUser && smtpPass ? { user: smtpUser, pass: smtpPass } : undefined,
+        tls: {
+          rejectUnauthorized: process.env.NODE_ENV === 'production' && process.env.SMTP_IGNORE_TLS !== 'true',
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: fromHeader,
+        to: Array.isArray(payload.to) ? payload.to.join(', ') : payload.to,
         subject: payload.subject,
         html: payload.html,
-        reply_to: payload.replyTo,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      }
-    );
-    return { success: true, id: response.data.id };
-  } catch (err) {
-    const msg = (err as any)?.response?.data?.message || (err as Error).message;
-    console.error('[Email] Erro ao enviar:', msg);
-    throw new Error('EMAIL_DELIVERY_FAILED');
+        replyTo: payload.replyTo,
+      });
+
+      console.log(`[Email-SMTP] E-mail enviado com sucesso para ${payload.to}. MessageId: ${info.messageId}`);
+      return { success: true, id: info.messageId };
+    } catch (err: any) {
+      console.error('[Email-SMTP] Erro detalhado no envio via SMTP:', {
+        host: smtpHost,
+        port: smtpPort,
+        user: smtpUser,
+        code: err?.code,
+        command: err?.command,
+        response: err?.response,
+        message: err?.message,
+      });
+      throw new Error(`SMTP_DELIVERY_FAILED: ${err?.message || 'Falha na conexão SMTP'}`);
+    }
   }
+
+  // 2. Provedor Resend API (se RESEND_API_KEY estiver configurada)
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  if (resendApiKey) {
+    try {
+      const response = await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from: fromHeader,
+          to: Array.isArray(payload.to) ? payload.to : [payload.to],
+          subject: payload.subject,
+          html: payload.html,
+          reply_to: payload.replyTo,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+      console.log(`[Email-Resend] E-mail enviado com sucesso para ${payload.to}. ID: ${response.data?.id}`);
+      return { success: true, id: response.data?.id };
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message;
+      console.error('[Email-Resend] Erro detalhado no envio via Resend:', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+        message: msg,
+      });
+      throw new Error(`RESEND_DELIVERY_FAILED: ${msg}`);
+    }
+  }
+
+  // 3. Fallback informativo caso nenhuma chave de e-mail esteja configurada no Render
+  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina SMTP_HOST ou RESEND_API_KEY no painel de ambiente).');
+  return { success: false, error: 'EMAIL_PROVIDER_NOT_CONFIGURED' };
 }
 
 // ─── Templates HTML ──────────────────────────────────────────────────────────
@@ -255,8 +307,11 @@ export async function enviarRecuperacaoSenha(params: {
   nome: string;
   token: string;
 }) {
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const rawUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'https://espertise-licitacao-53xf.vercel.app';
+  const frontendUrl = rawUrl.split(',')[0].trim().replace(/\/+$/, '');
   const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
+
+  console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação gerado para ${params.email}: ${resetLink}`);
 
   const html = templateBase(`
     <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">Recuperação de Senha Segura</h2>
@@ -266,16 +321,21 @@ export async function enviarRecuperacaoSenha(params: {
       Clique no botão abaixo para criar uma nova credencial. Este link é válido por apenas <strong>1 hora</strong>.
     </p>
 
-    <a href="${resetLink}" class="btn">Redefinir Minha Senha →</a>
+    <a href="${resetLink}" class="btn" style="background:#0066CC;color:white;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;display:inline-block;">Redefinir Minha Senha →</a>
+
+    <p style="color:#64748B;font-size:13px;margin-top:20px;">
+      Ou copie e cole o link direto no seu navegador:<br>
+      <a href="${resetLink}" style="color:#0066CC;word-break:break-all;">${resetLink}</a>
+    </p>
 
     <p style="color:#94A3B8;font-size:12px;margin-top:24px;">
-      Se você não solicitou esta alteração, por favor, ignore este e-mail. Sua senha permanece a mesma.
+      Se você não solicitou esta alteração, ignore este e-mail. Sua senha permanece a mesma e sua conta está protegida.
     </p>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `🔐 Instruções para redefinição de senha`,
+    subject: `🔐 Instruções para redefinição de senha - Expertise Licitatória`,
     html,
   });
 }

@@ -10,7 +10,9 @@ export type AuthLogEvent =
   | 'TOKEN_INVALID'
   | 'LOGOUT'
   | 'LGPD_TERMS_ACCEPTED'
-  | 'LGPD_ACCOUNT_DELETED';
+  | 'LGPD_ACCOUNT_DELETED'
+  | 'PASSWORD_RESET_REQUESTED'
+  | 'PASSWORD_RESET_SUCCESS';
 
 type AuthLogContext = {
   email?: string | null;
