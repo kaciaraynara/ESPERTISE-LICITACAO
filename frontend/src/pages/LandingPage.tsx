@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
    CheckCircle,
@@ -15,10 +15,52 @@ import {
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 
+const LAPTOP_SLIDES = [
+   {
+      id: 1,
+      image: '/painel-laptop-1.png',
+      tag: 'Elaboração de Propostas',
+      subtitle: 'Controle de envio, modelos padronizados e calendário de sessões'
+   },
+   {
+      id: 2,
+      image: '/painel-laptop-2.png',
+      tag: 'Matriz de Habilitação',
+      subtitle: 'Auditor dos 4 pilares da Lei 14.133/21 com conferência de conformidade'
+   },
+   {
+      id: 3,
+      image: '/painel-laptop-3.png',
+      tag: 'Central de Certidões',
+      subtitle: 'Acompanhamento preventivo de CNDs, CRF FGTS e débitos trabalhistas'
+   },
+   {
+      id: 4,
+      image: '/painel-laptop-4.png',
+      tag: 'Academia do Licitante',
+      subtitle: 'Capacitação prática em Nova Lei, teses do TCU e táticas de disputa'
+   },
+   {
+      id: 5,
+      image: '/painel-laptop-5.png',
+      tag: 'Formação de Preço Real',
+      subtitle: 'Composição de BDI, margem de lucro e as 6 declarações obrigatórias'
+   }
+];
+
 export default function LandingPage() {
    const navigate = useNavigate();
    const [activeFaq, setActiveFaq] = useState<number | null>(null);
    const [billingPeriod, setBillingPeriod] = useState<'mensal' | 'anual'>('mensal');
+   const [activeSlide, setActiveSlide] = useState(0);
+
+   // Rotação suave e automática das telas internas do notebook
+   useEffect(() => {
+      const timer = setInterval(() => {
+         setActiveSlide((prev) => (prev + 1) % LAPTOP_SLIDES.length);
+      }, 4500);
+      return () => clearInterval(timer);
+   }, []);
 
    const faqs = [
       {
@@ -256,51 +298,71 @@ export default function LandingPage() {
 
                   </motion.div>
 
-                  {/* Computador com o Painel Interno da Expertise Flutuando */}
-                  <motion.div 
-                     initial={{ opacity: 0, scale: 0.95 }} 
-                     animate={{ opacity: 1, scale: 1 }} 
-                     transition={{ duration: 0.8, delay: 0.2 }} 
-                     className="lg:col-span-5 relative flex flex-col items-center justify-center pt-8 lg:pt-0"
-                  >
-                     {/* Iluminação e Sombreamento Animado Grande em Destaque */}
-                     <div className="absolute -inset-4 sm:-inset-10 bg-gradient-to-tr from-[#EA580C]/25 via-[#0A2540]/15 to-blue-600/25 rounded-full blur-3xl opacity-80 pointer-events-none" />
+                  {/* Computador com Telas Interativas Passando em Rotação Suave */}
+                  <div className="lg:col-span-5 relative flex flex-col items-center justify-center pt-8 lg:pt-0">
+                     {/* Iluminação Ambiente Suave */}
+                     <div className="absolute -inset-4 sm:-inset-10 bg-gradient-to-tr from-[#EA580C]/20 via-[#0A2540]/10 to-blue-600/20 rounded-full blur-3xl opacity-70 pointer-events-none" />
 
-                     {/* Mockup do Laptop Flutuando com Movimento Suave */}
+                     {/* Badge de Módulo Ativo */}
+                     <div className="mb-3 z-20 flex items-center gap-2 bg-[#0A2540] text-white border border-slate-700/60 px-4 py-1.5 rounded-full shadow-md text-xs font-bold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <span className="text-slate-300">Módulo Ativo:</span>
+                        <span className="text-[#EA580C]">{LAPTOP_SLIDES[activeSlide].tag}</span>
+                     </div>
+
+                     {/* Mockup do Laptop Calmo (sem oscilação brusca) */}
                      <motion.div
-                        animate={{ 
-                           y: [0, -14, 0],
-                           rotateZ: [0, 0.4, 0]
-                        }}
+                        animate={{ y: [0, -4, 0] }}
                         transition={{ 
-                           duration: 5, 
+                           duration: 6, 
                            repeat: Infinity, 
                            ease: "easeInOut" 
                         }}
                         className="relative z-10 w-full flex flex-col items-center"
                      >
-                        <img 
-                           src="/painel-laptop.png" 
-                           alt="Painel Operacional Expertise Licitatória" 
-                           className="w-full max-w-[560px] lg:max-w-none h-auto object-contain filter drop-shadow-[0_24px_36px_rgba(10,37,64,0.35)] transition-transform duration-500 hover:scale-[1.03]"
-                           loading="eager"
-                        />
+                        {/* Imagem do Laptop com Crossfade Suave entre as Telas */}
+                        <div className="relative w-full max-w-[560px] lg:max-w-none aspect-[522/478]">
+                           <AnimatePresence mode="wait">
+                              <motion.img 
+                                 key={LAPTOP_SLIDES[activeSlide].id}
+                                 src={LAPTOP_SLIDES[activeSlide].image} 
+                                 alt={LAPTOP_SLIDES[activeSlide].tag}
+                                 initial={{ opacity: 0 }}
+                                 animate={{ opacity: 1 }}
+                                 exit={{ opacity: 0 }}
+                                 transition={{ duration: 0.45, ease: "easeInOut" }}
+                                 className="absolute inset-0 w-full h-full object-contain filter drop-shadow-[0_20px_30px_rgba(10,37,64,0.30)]"
+                                 loading="eager"
+                              />
+                           </AnimatePresence>
+                        </div>
 
-                        {/* Sombra Animada no Piso */}
-                        <motion.div
-                           animate={{
-                              scale: [1, 0.88, 1],
-                              opacity: [0.5, 0.25, 0.5]
-                           }}
-                           transition={{
-                              duration: 5,
-                              repeat: Infinity,
-                              ease: "easeInOut"
-                           }}
-                           className="w-[82%] max-w-[460px] h-7 bg-[#0A2540]/45 rounded-full blur-xl -mt-5 pointer-events-none"
-                        />
+                        {/* Sombra de Apoio Estável */}
+                        <div className="w-[82%] max-w-[460px] h-6 bg-[#0A2540]/35 rounded-full blur-xl -mt-4 pointer-events-none" />
                      </motion.div>
-                  </motion.div>
+
+                     {/* Navegação Interativa entre os Módulos do Sistema */}
+                     <div className="w-full flex flex-col items-center mt-3 z-20 space-y-2">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                           {LAPTOP_SLIDES.map((slide, idx) => (
+                              <button
+                                 key={slide.id}
+                                 onClick={() => setActiveSlide(idx)}
+                                 className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                    activeSlide === idx
+                                       ? 'bg-[#0A2540] text-white shadow-sm ring-2 ring-[#EA580C]'
+                                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                 }`}
+                              >
+                                 {slide.tag}
+                              </button>
+                           ))}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium text-center italic">
+                           {LAPTOP_SLIDES[activeSlide].subtitle}
+                        </p>
+                     </div>
+                  </div>
 
                </div>
 
