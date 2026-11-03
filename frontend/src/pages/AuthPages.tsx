@@ -178,14 +178,12 @@ export default function AuthPages() {
       if (sanitized.length !== 14) {
          setIsLoadingCnpj(false);
          setCnpjLookupError(null);
-         regSetValue('razoesocial', '', { shouldValidate: true });
          return;
       }
 
       let isCurrentLookup = true;
       setIsLoadingCnpj(true);
       setCnpjLookupError(null);
-      regSetValue('razoesocial', '', { shouldValidate: true });
       const timeout = window.setTimeout(() => {
          integracoesApi.cnpjPublico(sanitized)
             .then((response) => {
@@ -214,12 +212,15 @@ export default function AuthPages() {
 
    const onRegister = async (data: RegisterFormValues) => {
       try {
+         const cleanCnpj = data.cnpj.replace(/\D/g, '');
+         const razaoSocialInformada = (data.razoesocial || '').trim();
+
          const response = await authApi.register({
             nome: 'Administrador da conta',
             email: data.email.trim().toLowerCase(),
             senha: data.password,
-            cnpj: data.cnpj,
-            razao_social: data.razoesocial || '',
+            cnpj: cleanCnpj,
+            razao_social: razaoSocialInformada,
             aceite_lgpd: data.aceite_lgpd,
             role: 'fornecedor'
          });
@@ -236,7 +237,8 @@ export default function AuthPages() {
             setActiveView('login');
          }
       } catch (error: any) {
-         toast.error(error.response?.data?.message || 'Falha ao registrar empresa. Verifique os dados.');
+         const serverMessage = error.response?.data?.message || error.response?.data?.error;
+         toast.error(serverMessage || 'Falha ao registrar empresa. Verifique os dados.');
       }
    };
 

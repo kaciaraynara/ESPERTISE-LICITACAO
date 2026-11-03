@@ -139,59 +139,63 @@ export class AuthOperationsService {
     }
 
     const cleanCnpj = String(cnpj).replace(/\D/g, '');
-    let empresaOficial: any;
-    try {
-      empresaOficial = await consultarCnpjOficial(cnpj);
-    } catch (companyError: any) {
-      if (axios.isAxiosError(companyError) && companyError.response?.status === 404) {
-        throw new ApiError(
-          'CNPJ não encontrado na fonte oficial.',
-          422,
-          'CNPJ_NOT_FOUND',
-        );
-      }
-
-      if (
-        companyError?.message === 'CNPJ_INVALIDO'
-        || (axios.isAxiosError(companyError) && companyError.response?.status === 400)
-      ) {
-        throw new ApiError(
-          'O CNPJ informado é inválido.',
-          400,
-          'CNPJ_INVALID',
-        );
-      }
-
-      // Se todas as fontes públicas falharem temporariamente, mas o usuário preencheu a Razão Social:
-      const fallbackRazao = (validatedData.razao_social || '').trim();
-      if (cleanCnpj.length === 14 && fallbackRazao.length >= 2) {
-        empresaOficial = {
-          cnpj: cleanCnpj,
-          razao_social: fallbackRazao,
-          nome_fantasia: validatedData.nome_fantasia?.trim() || fallbackRazao,
-          municipio: validatedData.municipio || null,
-          uf: validatedData.uf || null,
-          cnae_principal: validatedData.cnae_principal || null,
-          status: 'ATIVO',
-        };
-      } else {
-        throw new ApiError(
-          'Não foi possível validar o CNPJ nas fontes oficiais no momento. Informe a Razão Social da empresa para prosseguir.',
-          400,
-          'CNPJ_REQUIRE_MANUAL_RAZAO',
-        );
-      }
+    if (cleanCnpj.length !== 14) {
+      throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
     }
-    if (
-      cleanCnpj.length !== 14
-      || cleanCnpj !== String(cnpj).replace(/\D/g, '')
-      || !empresaOficial.razao_social?.trim()
-    ) {
-      throw new ApiError(
-        'A fonte oficial retornou dados incompletos para o CNPJ informado.',
-        503,
-        'CNPJ_INVALID_RESPONSE',
-      );
+
+    const manualRazao = (
+      validatedData.razao_social ||
+      validatedData.razoesocial ||
+      validatedData.razaoSocial ||
+      ''
+    ).trim();
+
+    const manualFantasia = (
+      validatedData.nome_fantasia ||
+      validatedData.nomeFantasia ||
+      manualRazao ||
+      ''
+    ).trim();
+
+    let empresaOficial: {
+      cnpj: string;
+      razao_social: string;
+      nome_fantasia: string | null;
+      municipio: string | null;
+      uf: string | null;
+      cnae_principal: string | null;
+      status: string | null;
+    };
+
+    try {
+      const oficial = await consultarCnpjOficial(cleanCnpj);
+      empresaOficial = {
+        cnpj: cleanCnpj,
+        razao_social: oficial.razao_social?.trim() || manualRazao || `Empresa ${cleanCnpj}`,
+        nome_fantasia: oficial.nome_fantasia?.trim() || manualFantasia || null,
+        municipio: oficial.municipio || validatedData.municipio || null,
+        uf: (oficial.uf || validatedData.uf || null)?.slice(0, 2).toUpperCase() || null,
+        cnae_principal: oficial.cnae_principal || validatedData.cnae_principal || null,
+        status: oficial.status || 'ATIVO',
+      };
+    } catch (companyError: any) {
+      console.warn(`[AUTH_REGISTER_CNPJ_FALLBACK] Consulta externa falhou para CNPJ ${cleanCnpj}. Utilizando dados manuais/fallback:`, companyError?.message || companyError);
+
+      const fallbackRazao = manualRazao || manualFantasia || (validatedData.nome ? `${validatedData.nome} Ltda` : '') || `Empresa ${cleanCnpj}`;
+
+      empresaOficial = {
+        cnpj: cleanCnpj,
+        razao_social: fallbackRazao,
+        nome_fantasia: manualFantasia || fallbackRazao,
+        municipio: validatedData.municipio?.trim() || null,
+        uf: validatedData.uf ? String(validatedData.uf).trim().slice(0, 2).toUpperCase() : null,
+        cnae_principal: validatedData.cnae_principal?.trim() || null,
+        status: 'ATIVO',
+      };
+    }
+
+    if (!empresaOficial.razao_social?.trim()) {
+      empresaOficial.razao_social = `Empresa ${cleanCnpj}`;
     }
 
     const hashedPassword = await bcrypt.hash(senha, BCRYPT_ROUNDS);

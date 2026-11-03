@@ -6,18 +6,21 @@ export const loginSchema = z.object({
 });
 
 export const registerSchema = z.object({
-  nome: z.string().min(2, 'Nome muito curto'),
+  nome: z.string().trim().optional().transform((v) => (v && v.length >= 2 ? v : 'Administrador da conta')),
   cnpj: z.string()
     .transform((value) => value.replace(/\D/g, ''))
-    .refine((value) => value.length === 14, 'CNPJ invalido'),
-  razao_social: z.string().optional(),
-  nome_fantasia: z.string().optional(),
-  cnae_principal: z.string().optional(),
-  municipio: z.string().optional(),
-  uf: z.string().min(2).max(2).optional(),
-  status: z.string().optional(),
+    .refine((value) => value.length === 14, 'CNPJ inválido (deve conter 14 dígitos)'),
+  razao_social: z.string().trim().optional(),
+  razoesocial: z.string().trim().optional(),
+  razaoSocial: z.string().trim().optional(),
+  nome_fantasia: z.string().trim().optional(),
+  nomeFantasia: z.string().trim().optional(),
+  cnae_principal: z.string().trim().optional(),
+  municipio: z.string().trim().optional(),
+  uf: z.string().trim().optional().transform((v) => (v && v.length >= 2 ? v.slice(0, 2).toUpperCase() : undefined)),
+  status: z.string().trim().optional(),
   email: z.string().trim().toLowerCase().email('E-mail invalido'),
-  telefone: z.string().min(10, 'Telefone invalido').optional(),
+  telefone: z.string().trim().optional().transform((v) => (v && v.length >= 10 ? v : undefined)),
   senha: z.string()
     .min(8, 'A senha deve ter pelo menos 8 caracteres')
     .regex(/[A-Za-z]/, 'A senha deve conter pelo menos uma letra')

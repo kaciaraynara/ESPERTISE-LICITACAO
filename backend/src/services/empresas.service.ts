@@ -77,8 +77,28 @@ export class EmpresasService {
 
   public async criar(userId: string, body: Record<string, unknown>) {
     const tenantId = await this.getTenantId(userId);
-    const official = await this.consultarEmpresaOficial(String(body.cnpj ?? ''));
-    const cnpj = official.cnpj;
+    const rawCnpj = String(body.cnpj ?? '');
+    const cleanCnpj = rawCnpj.replace(/\D/g, '');
+
+    if (cleanCnpj.length !== 14) {
+      throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
+    }
+
+    const manualRazao = String(
+      body.razao_social ?? body.razoesocial ?? body.razaoSocial ?? ''
+    ).trim();
+    const manualFantasia = String(
+      body.nome_fantasia ?? body.nomeFantasia ?? manualRazao ?? ''
+    ).trim();
+
+    const official = await this.consultarEmpresaOficial(cleanCnpj, {
+      razao_social: manualRazao,
+      nome_fantasia: manualFantasia,
+      cnae_principal: body.cnae_principal ? String(body.cnae_principal) : undefined,
+      municipio: body.municipio ? String(body.municipio) : undefined,
+      uf: body.uf ? String(body.uf).trim().slice(0, 2).toUpperCase() : undefined,
+    });
+    const cnpj = cleanCnpj;
 
     const existingCompany = await prisma.company.findFirst({
       where: { tenantId, cnpj },
@@ -108,8 +128,8 @@ export class EmpresasService {
           nomeFantasia: official.nome_fantasia,
           cnaePrincipal: official.cnae_principal,
           municipio: official.municipio,
-          uf: official.uf,
-          status: official.status,
+          uf: official.uf ? official.uf.slice(0, 2).toUpperCase() : null,
+          status: official.status || 'ATIVO',
           nicho: this.stringArray(body.nicho),
           palavrasChave: this.stringArray(body.palavras_chave),
           valorMin: this.numberOrNull(body.valor_min),
@@ -215,61 +235,52 @@ export class EmpresasService {
     return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : [];
   }
 
-  private async consultarEmpresaOficial(input: string) {
+  private async consultarEmpresaOficial(
+    input: string,
+    fallbackData?: {
+      razao_social?: string;
+      nome_fantasia?: string;
+      municipio?: string;
+      uf?: string;
+      cnae_principal?: string;
+    }
+  ) {
     const cnpj = input.replace(/\D/g, '');
     if (cnpj.length !== 14) {
       throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
     }
 
+    const fallbackRazao = (fallbackData?.razao_social || '').trim()
+      || (fallbackData?.nome_fantasia || '').trim()
+      || `Empresa ${cnpj}`;
+    const fallbackFantasia = (fallbackData?.nome_fantasia || '').trim() || fallbackRazao;
+
     try {
       const official = await consultarCnpjOficial(cnpj);
       const officialCnpj = official.cnpj.replace(/\D/g, '');
-      if (
-        officialCnpj !== cnpj
-        || !official.razao_social?.trim()
-      ) {
-        throw new ApiError(
-          'A fonte oficial retornou dados incompletos para o CNPJ informado.',
-          503,
-          'CNPJ_INVALID_RESPONSE',
-        );
-      }
 
       return {
         ...official,
-        cnpj: officialCnpj,
-        razao_social: official.razao_social.trim(),
-        nome_fantasia: official.nome_fantasia?.trim() || null,
+        cnpj: officialCnpj || cnpj,
+        razao_social: official.razao_social?.trim() || fallbackRazao,
+        nome_fantasia: official.nome_fantasia?.trim() || fallbackFantasia,
+        cnae_principal: official.cnae_principal || fallbackData?.cnae_principal || null,
+        municipio: official.municipio || fallbackData?.municipio || null,
+        uf: (official.uf || fallbackData?.uf || null)?.slice(0, 2).toUpperCase() || null,
+        status: official.status || 'ATIVO',
       };
     } catch (error) {
-      if (error instanceof ApiError) throw error;
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 404) {
-          throw new ApiError(
-            'CNPJ não encontrado na fonte oficial.',
-            422,
-            'CNPJ_NOT_FOUND',
-          );
-        }
+      console.warn(`[EMPRESAS_CNPJ_FALLBACK] Consulta oficial externa falhou para CNPJ ${cnpj}. Aplicando fallback local:`, error instanceof Error ? error.message : error);
 
-        const timedOut = error.response?.status === 408
-          || error.response?.status === 504
-          || error.code === 'ECONNABORTED'
-          || error.code === 'ETIMEDOUT';
-        throw new ApiError(
-          timedOut
-            ? 'A fonte oficial de CNPJ demorou para responder.'
-            : 'A fonte oficial de CNPJ está temporariamente indisponível.',
-          timedOut ? 504 : 503,
-          timedOut ? 'CNPJ_SERVICE_TIMEOUT' : 'CNPJ_SERVICE_UNAVAILABLE',
-        );
-      }
-
-      throw new ApiError(
-        'Não foi possível validar o CNPJ na fonte oficial.',
-        503,
-        'CNPJ_SERVICE_UNAVAILABLE',
-      );
+      return {
+        cnpj,
+        razao_social: fallbackRazao,
+        nome_fantasia: fallbackFantasia,
+        cnae_principal: fallbackData?.cnae_principal || null,
+        municipio: fallbackData?.municipio || null,
+        uf: fallbackData?.uf ? fallbackData.uf.slice(0, 2).toUpperCase() : null,
+        status: 'ATIVO',
+      };
     }
   }
 
