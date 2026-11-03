@@ -7,8 +7,6 @@ import {
    CaretDown,
    CaretRight,
    WarningCircle,
-   Clock,
-   CurrencyCircleDollar,
    Check,
    X,
    ArrowRight,
@@ -264,84 +262,50 @@ export default function LandingPage() {
 
                   </motion.div>
 
-                  {/* Demonstração Visual com as Cores da Logo */}
-                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="lg:col-span-5">
-                     <div className="rounded-2xl border-2 border-slate-200 bg-white shadow-xl overflow-hidden">
-                        
-                        {/* Topo Azul da Logo */}
-                        <div className="bg-[#0A2540] px-5 py-4 flex items-center justify-between text-white">
-                           <div className="flex items-center gap-2">
-                              <span className="h-3 w-3 rounded-full bg-orange-500 inline-block" />
-                              <span className="h-3 w-3 rounded-full bg-blue-400 inline-block" />
-                              <span className="h-3 w-3 rounded-full bg-emerald-400 inline-block" />
-                              <span className="ml-2 text-xs font-bold uppercase tracking-wider text-slate-200">Painel da Sua Empresa</span>
-                           </div>
-                           <span className="text-[10px] font-black uppercase bg-[#EA580C] text-white px-2.5 py-1 rounded">
-                              Disputa Segura
-                           </span>
-                        </div>
+                  {/* Computador com o Painel Interno da Expertise Flutuando */}
+                  <motion.div 
+                     initial={{ opacity: 0, scale: 0.95 }} 
+                     animate={{ opacity: 1, scale: 1 }} 
+                     transition={{ duration: 0.8, delay: 0.2 }} 
+                     className="lg:col-span-5 relative flex flex-col items-center justify-center pt-8 lg:pt-0"
+                  >
+                     {/* Iluminação e Sombreamento Animado Grande em Destaque */}
+                     <div className="absolute -inset-4 sm:-inset-10 bg-gradient-to-tr from-[#EA580C]/25 via-[#0A2540]/15 to-blue-600/25 rounded-full blur-3xl opacity-80 pointer-events-none" />
 
-                        {/* Conteúdo com Azul e Laranja da Logo */}
-                        <div className="p-6 space-y-4 bg-[#F8FAFC]">
-                           
-                           {/* Exemplo de Licitação Encontrada */}
-                           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
-                              <div className="flex items-center justify-between">
-                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pregão Eletrônico</span>
-                                 <span className="text-[10px] font-bold uppercase bg-blue-50 text-[#0A2540] border border-blue-200 px-2 py-0.5 rounded">
-                                    Edital Compatível
-                                 </span>
-                              </div>
-                              <h4 className="text-sm font-bold text-[#0A2540]">
-                                 Fornecimento de Materiais e Prestação de Serviços
-                              </h4>
-                              <p className="text-xs text-slate-500">Valor Estimado do Órgão: <strong className="text-[#0A2540]">R$ 850.000,00</strong></p>
-                           </div>
+                     {/* Mockup do Laptop Flutuando com Movimento Suave */}
+                     <motion.div
+                        animate={{ 
+                           y: [0, -14, 0],
+                           rotateZ: [0, 0.4, 0]
+                        }}
+                        transition={{ 
+                           duration: 5, 
+                           repeat: Infinity, 
+                           ease: "easeInOut" 
+                        }}
+                        className="relative z-10 w-full flex flex-col items-center"
+                     >
+                        <img 
+                           src="/painel-laptop.png" 
+                           alt="Painel Operacional Expertise Licitatória" 
+                           className="w-full max-w-[560px] lg:max-w-none h-auto object-contain filter drop-shadow-[0_24px_36px_rgba(10,37,64,0.35)] transition-transform duration-500 hover:scale-[1.03]"
+                           loading="eager"
+                        />
 
-                           {/* Status dos Documentos */}
-                           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-                              <div className="text-xs font-black uppercase tracking-wider text-[#0A2540] flex items-center gap-2">
-                                 <ShieldCheck weight="bold" className="w-4 h-4 text-[#EA580C]" />
-                                 <span>Situação das Suas Certidões</span>
-                              </div>
-
-                              <div className="space-y-2 text-xs">
-                                 <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 border border-emerald-200">
-                                    <div className="flex items-center gap-2">
-                                       <CheckCircle weight="fill" className="w-4 h-4 text-emerald-600" />
-                                       <span className="font-bold text-slate-800">CND Federal e FGTS</span>
-                                    </div>
-                                    <span className="text-[10px] font-bold text-emerald-700 uppercase">Em dia</span>
-                                 </div>
-
-                                 <div className="flex items-center justify-between p-2 rounded-lg bg-orange-50 border border-orange-200">
-                                    <div className="flex items-center gap-2">
-                                       <Clock weight="fill" className="w-4 h-4 text-[#EA580C]" />
-                                       <span className="font-bold text-slate-800">Certidão Municipal</span>
-                                    </div>
-                                    <span className="text-[10px] font-black text-[#EA580C] uppercase">Vence em 12 dias</span>
-                                 </div>
-
-                                 <div className="flex items-center justify-between p-2 rounded-lg bg-blue-50 border border-blue-200">
-                                    <div className="flex items-center gap-2">
-                                       <CurrencyCircleDollar weight="fill" className="w-4 h-4 text-[#0A2540]" />
-                                       <span className="font-bold text-slate-800">Seu Lance Mínimo Seguro</span>
-                                    </div>
-                                    <span className="text-[10px] font-black text-[#0A2540] uppercase">R$ 620.000,00</span>
-                                 </div>
-                              </div>
-                           </div>
-
-                           {/* Botão de Destaque Laranja */}
-                           <div className="p-3.5 rounded-xl bg-[#0A2540] text-white flex items-center justify-between text-xs font-bold">
-                              <span className="text-slate-200">Tudo pronto para participar</span>
-                              <span className="text-[#EA580C] uppercase tracking-wider font-black">
-                                 Ver Detalhes →
-                              </span>
-                           </div>
-
-                        </div>
-                     </div>
+                        {/* Sombra Animada no Piso */}
+                        <motion.div
+                           animate={{
+                              scale: [1, 0.88, 1],
+                              opacity: [0.5, 0.25, 0.5]
+                           }}
+                           transition={{
+                              duration: 5,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                           }}
+                           className="w-[82%] max-w-[460px] h-7 bg-[#0A2540]/45 rounded-full blur-xl -mt-5 pointer-events-none"
+                        />
+                     </motion.div>
                   </motion.div>
 
                </div>
@@ -565,20 +529,20 @@ export default function LandingPage() {
 
                         <ul className="space-y-3.5 text-xs text-slate-700 py-6">
                            {[
-                              'Radar de Licitações (filtros básicos)',
-                              'Leitor Inteligente de Editais',
-                              'Checklist e Cofre Documental',
-                              'Controle de certidões e vencimentos',
-                              'Calendário de prazos e alertas',
-                              'Elaboração de propostas (modelos)',
-                              'Calculadora básica de custos',
-                              'Cadastro e gestão de até 5 empresas (CNPJs)',
-                              'Gestão Contratual (controle de prazos)',
-                              'Acesso à Academia do Licitante',
+                              { label: 'Radar de Licitações (filtros básicos)' },
+                              { label: 'Leitor Inteligente de Editais' },
+                              { label: 'Checklist e Cofre Documental' },
+                              { label: 'Controle de certidões e vencimentos' },
+                              { label: 'Calendário de prazos e alertas' },
+                              { label: 'Elaboração de propostas (modelos)' },
+                              { label: 'Calculadora básica de custos' },
+                              { label: 'Cadastro e gestão de até 5 empresas (CNPJs)' },
+                              { label: 'Gestão Contratual (controle de prazos)' },
+                              { label: 'Acesso à Academia do Licitante' },
                            ].map((item, idx) => (
                               <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
                                  <span className="text-[#EA580C] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
-                                 <span className="font-medium text-slate-700">{item}</span>
+                                 <span className="font-normal text-slate-700">{item.label}</span>
                               </li>
                            ))}
                         </ul>
@@ -622,22 +586,22 @@ export default function LandingPage() {
 
                         <ul className="space-y-3.5 text-xs text-slate-700 py-6">
                            {[
-                              { text: 'Tudo do plano Básico, mais:', bold: true },
-                              { text: 'Gestão de até 10 empresas (CNPJs)', bold: false },
-                              { text: 'Radar de Nulidades nos editais', bold: false },
-                              { text: 'Score de Viabilidade e Concorrência', bold: false },
-                              { text: 'Histórico de Concorrentes', bold: false },
-                              { text: 'Impugnação Inteligente (Assistente IA)', bold: false },
-                              { text: 'Cálculos avançados (tributos e margens)', bold: false },
-                              { text: 'Análise de Dispensa Eletrônica', bold: false },
-                              { text: 'Gestão de SRP e acompanhamento de atas', bold: false },
-                              { text: 'Robôs de Lance (limites configurados)', bold: false },
-                              { text: 'Gestão Financeira Pós-Vitória', bold: false },
+                              { label: 'Tudo do plano Básico, mais:', bold: true },
+                              { label: 'Gestão de até 10 empresas (CNPJs)', bold: false },
+                              { label: 'Radar de Nulidades nos editais', bold: false },
+                              { label: 'Score de Viabilidade e Concorrência', bold: false },
+                              { label: 'Histórico de Concorrentes', bold: false },
+                              { label: 'Impugnação Inteligente (Assistente IA)', bold: false },
+                              { label: 'Cálculos avançados (tributos e margens)', bold: false },
+                              { label: 'Análise de Dispensa Eletrônica', bold: false },
+                              { label: 'Gestão de SRP e acompanhamento de atas', bold: false },
+                              { label: 'Robôs de Lance (limites configurados)', bold: false },
+                              { label: 'Gestão Financeira Pós-Vitória', bold: false },
                            ].map((item, idx) => (
                               <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
                                  <span className="text-[#EA580C] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
-                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-medium text-slate-700'}>
-                                    {item.text}
+                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-normal text-slate-700'}>
+                                    {item.label}
                                  </span>
                               </li>
                            ))}
@@ -682,24 +646,24 @@ export default function LandingPage() {
 
                         <ul className="space-y-3.5 text-xs text-slate-700 py-6">
                            {[
-                              { text: 'Tudo do plano Avançado, mais:', bold: true },
-                              { text: 'Gestão de até 20 empresas (CNPJs)', bold: false },
-                              { text: 'Radar e Inteligência Competitiva ampliados', bold: false },
-                              { text: 'Radar de Fraudes e Compliance', bold: false },
-                              { text: 'Automação total de propostas e fluxos', bold: false },
-                              { text: 'Painel Financeiro consolidado', bold: false },
-                              { text: 'Robô de Reajuste (índices/cláusulas)', bold: false },
-                              { text: 'Assistente de Repactuação', bold: false },
-                              { text: 'Assistente de Reequilíbrio (Cálculo)', bold: false },
-                              { text: 'Gestão de Caução e Garantias (Proposta e Contratual)', bold: false },
-                              { text: 'Revisão assistida e análise de riscos', bold: false },
-                              { text: 'Dossiês documentais e minutas', bold: false },
-                              { text: 'Apoio jurídico por advogado parceiro (escopo/franquia)', bold: false },
+                              { label: 'Tudo do plano Avançado, mais:', bold: true },
+                              { label: 'Gestão de até 20 empresas (CNPJs)', bold: true },
+                              { label: 'Radar e Inteligência Competitiva ampliados', bold: false },
+                              { label: 'Radar de Fraudes e Compliance', bold: true },
+                              { label: 'Automação total de propostas e fluxos', bold: false },
+                              { label: 'Painel Financeiro consolidado', bold: false },
+                              { label: 'Robô de Reajuste (índices/cláusulas)', bold: true },
+                              { label: 'Assistente de Repactuação', bold: true },
+                              { label: 'Assistente de Reequilíbrio (Cálculo)', bold: true },
+                              { label: 'Gestão de Caução e Garantias (Proposta e Contratual)', bold: true },
+                              { label: 'Revisão assistida e análise de riscos', bold: false },
+                              { label: 'Dossiês documentais e minutas', bold: false },
+                              { label: 'Apoio jurídico por advogado parceiro (escopo/franquia)', bold: false },
                            ].map((item, idx) => (
                               <li key={idx} className="flex items-start gap-2.5 transition-transform hover:translate-x-1 duration-150">
                                  <span className="text-[#0A2540] font-black text-sm shrink-0 leading-none mt-0.5">✓</span>
-                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-medium text-slate-700'}>
-                                    {item.text}
+                                 <span className={item.bold ? 'font-bold text-[#0A2540]' : 'font-normal text-slate-700'}>
+                                    {item.label}
                                  </span>
                               </li>
                            ))}
