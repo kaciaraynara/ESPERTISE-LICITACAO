@@ -11,8 +11,7 @@ import {
    X,
    ArrowRight,
    ShieldCheck,
-   Calculator,
-   Briefcase
+   Calculator
 } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 
@@ -205,11 +204,6 @@ export default function LandingPage() {
                   {/* Texto Principal */}
                   <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="lg:col-span-7 space-y-6">
                      
-                     <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[#EA580C]">
-                        <Briefcase weight="bold" className="w-4 h-4" />
-                        <span>Para quem vende ou quer vender para o governo</span>
-                     </div>
-
                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0A2540] tracking-tight leading-[1.15]">
                         Pare de perder licitações por <span className="text-[#EA580C]">certidão vencida</span> ou por vender barato demais.
                      </h1>
@@ -357,9 +351,6 @@ export default function LandingPage() {
             <div className="max-w-7xl mx-auto space-y-14">
                
                <div className="text-center max-w-3xl mx-auto space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#EA580C] block">
-                     Simples e Direto ao Ponto
-                  </span>
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0A2540] tracking-tight">
                      Tudo o que você precisa em quatro etapas práticas.
                   </h2>
@@ -410,9 +401,6 @@ export default function LandingPage() {
             <div className="max-w-7xl mx-auto space-y-12">
                
                <div className="text-center max-w-3xl mx-auto space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500 block">
-                     Comparação Direta
-                  </span>
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0A2540] tracking-tight">
                      Disputar licitações no improviso vs. Com a Expertise
                   </h2>
