@@ -13,6 +13,7 @@ import { errorHandler } from './shared/middlewares/error-handler.middleware';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
 import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
+import { iniciarRadarDiarioCron } from './jobs/radar.cron';
 
 const app = express();
 
@@ -130,6 +131,7 @@ server.listen(port, () => {
     environment: process.env.NODE_ENV || 'development',
     bidRobotEnabled,
   }));
+  iniciarRadarDiarioCron();
 });
 
 server.on('error', (error: NodeJS.ErrnoException) => {

@@ -1,3 +1,4 @@
+import { analisarAderenciaEditalCnae } from '../services/agente-editais-cnae.service';
 import cron from 'node-cron';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
@@ -8,6 +9,8 @@ import { setupPlanResetCron } from './plan-reset.cron';
 import { setupDataPlatformWorkers } from '../services/data-platform';
 import { CertificatesWorker } from '../workers/certificates.worker';
 import { NotificationsWorker } from '../workers/notifications.worker';
+import { enviarAlertaEditaisCnae } from '../services/resend.service';
+
 
 const DEFAULT_CRON_SCHEDULE = '0 2,14 * * *'; // 2h e 14h todos os dias
 const DEFAULT_DEADLINE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
@@ -449,4 +452,106 @@ export function setupCronJobs(): void {
   setupPrivacyJob();
   setupPlanResetCron();
   setupDataPlatformWorkers();
+}
+/**
+ * Cron de Alerta Diário de Editais por CNAE
+ * Agendado para rodar todo dia às 07:00 da manhã (horário padrão de envio)
+ */
+export function iniciarRadarDiarioCron() {
+  cron.schedule('0 7 * * *', async () => {
+    console.log('[Radar-Cron] ⏰ Iniciando rotina diária de alertas por CNAE...');
+
+    try {
+      // 1. Busca todas as empresas ativas que tenham CNAE cadastrado
+      const empresas = await prisma.company.findMany({
+        where: {
+          cnaePrincipal: { not: null },
+        },
+        include: {
+          user: {
+            select: { email: true, nome: true },
+          },
+        },
+      });
+
+      console.log(`[Radar-Cron] Analisando oportunidades para ${empresas.length} empresa(s).`);
+
+      for (const empresa of empresas) {
+        const emailDestino = empresa.user?.email;
+        if (!emailDestino || !empresa.cnaePrincipal) continue;
+
+        // 2. Busca editais cadastrados recentemente (últimas 24h)
+        const dataLimite = new Date();
+        dataLimite.setHours(dataLimite.getHours() - 24);
+
+        const editaisCandidatos = await prisma.procurementNotice.findMany({
+          where: {
+            createdAt: { gte: dataLimite },
+          },
+          take: 10,
+          select: {
+            id: true,
+            noticeNumber: true,
+            object: true,
+            buyerName: true,
+            estimatedValue: true,
+          },
+        });
+
+        if (editaisCandidatos.length === 0) continue;
+
+        const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+        const editaisAderentes = [];
+
+        // 3. Avalia cada edital com o Agente Especialista (Zero Alucinação / Lei 14.133)
+        for (const edital of editaisCandidatos) {
+          if (!edital.object) continue;
+
+          try {
+            const analise = await analisarAderenciaEditalCnae({
+              cnae: empresa.cnaePrincipal,
+              ramoAtividade: empresa.nomeFantasia || empresa.razaoSocial,
+              objetoEdital: edital.object,
+              orgao: edital.buyerName,
+              valorEstimado: edital.estimatedValue ? Number(edital.estimatedValue) : null,
+              numeroEdital: edital.noticeNumber,
+            });
+
+            if (analise.aderente) {
+              editaisAderentes.push({
+                titulo: edital.noticeNumber ? `${edital.noticeNumber} - ${edital.object.slice(0, 80)}...` : edital.object.slice(0, 100),
+                orgao: edital.buyerName || 'Órgão Licitante',
+                valorEstimado: edital.estimatedValue
+                  ? `R$ ${Number(edital.estimatedValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                  : 'Valor não informado pelo órgão',
+                link: `${appUrl}/licitacoes/${edital.id}`,
+                resumoExecutivo: analise.resumoExecutivo,
+                pontosDeAtencao: analise.pontosDeAtencao,
+              });
+            }
+          } catch (agentErr) {
+            console.warn(`[Radar-Cron] Erro ao analisar edital ${edital.id}:`, agentErr);
+          }
+        }
+
+        // 4. Se houver editais aderentes confirmados pelo Agente, dispara o e-mail
+        if (editaisAderentes.length > 0) {
+          console.log(`[Radar-Cron] Enviando ${editaisAderentes.length} editais aderentes para ${emailDestino} (${empresa.razaoSocial}).`);
+
+          await enviarAlertaEditaisCnae({
+            email: emailDestino,
+            empresaNome: empresa.razaoSocial || empresa.nomeFantasia || 'Licitante',
+            cnae: empresa.cnaePrincipal,
+            editais: editaisAderentes.slice(0, 5),
+          });
+        }
+      }
+
+      console.log('[Radar-Cron] ✅ Rotina de envio diário finalizada com sucesso.');
+    } catch (error) {
+      console.error('[Radar-Cron] ❌ Erro durante o disparo diário de editais:', error);
+    }
+  }, {
+    timezone: 'America/Sao_Paulo',
+  });
 }

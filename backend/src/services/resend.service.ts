@@ -2,11 +2,12 @@ import axios from 'axios';
 import nodemailer from 'nodemailer';
 
 /**
- * Serviço de e-mail transacional (SMTP / Resend)
- * Suporta provedores SMTP padrão (Hostinger, Gmail, SendGrid, Amazon SES) e Resend API.
+ * Resend — Serviço de e-mail transacional
+ * Documentação: https://resend.com/docs
+ * Gratuito até 3.000 e-mails/mês
  */
 
-const FROM_NAME = 'Expertise Licitatória';
+const FROM_NAME = 'Expertise Platform';
 
 interface EmailPayload {
   to: string | string[];
@@ -16,13 +17,13 @@ interface EmailPayload {
 }
 
 /**
- * Envia um e-mail via SMTP ou Resend
+ * Envia um e-mail via Resend
  */
 async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?: string; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || 'contato@expertise-licitatoria.com.br';
+  const fromEmail = process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || 'contato@expertiselicitatoria.com.br';
   const fromHeader = `${FROM_NAME} <${fromEmail}>`;
 
-  // 1. Provedor SMTP (se SMTP_HOST estiver definido)
+  // 1. Provedor SMTP (se SMTP_HOST estiver configurado)
   const smtpHost = process.env.SMTP_HOST?.trim();
   if (smtpHost) {
     const smtpPort = Number(process.env.SMTP_PORT) || 587;
@@ -99,8 +100,8 @@ async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?
     }
   }
 
-  // 3. Fallback informativo caso nenhuma chave de e-mail esteja configurada no Render
-  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina SMTP_HOST ou RESEND_API_KEY no painel de ambiente).');
+  // 3. Fallback
+  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina SMTP_HOST ou RESEND_API_KEY).');
   return { success: false, error: 'EMAIL_PROVIDER_NOT_CONFIGURED' };
 }
 
@@ -307,11 +308,9 @@ export async function enviarRecuperacaoSenha(params: {
   nome: string;
   token: string;
 }) {
-  const rawUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'https://espertise-licitacao-53xf.vercel.app';
-  const frontendUrl = rawUrl.split(',')[0].trim().replace(/\/+$/, '');
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
   const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
-
-  console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação gerado para ${params.email}: ${resetLink}`);
+  console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação para ${params.email}: ${resetLink}`);
 
   const html = templateBase(`
     <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">Recuperação de Senha Segura</h2>
@@ -321,21 +320,16 @@ export async function enviarRecuperacaoSenha(params: {
       Clique no botão abaixo para criar uma nova credencial. Este link é válido por apenas <strong>1 hora</strong>.
     </p>
 
-    <a href="${resetLink}" class="btn" style="background:#0066CC;color:white;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;display:inline-block;">Redefinir Minha Senha →</a>
-
-    <p style="color:#64748B;font-size:13px;margin-top:20px;">
-      Ou copie e cole o link direto no seu navegador:<br>
-      <a href="${resetLink}" style="color:#0066CC;word-break:break-all;">${resetLink}</a>
-    </p>
+    <a href="${resetLink}" class="btn">Redefinir Minha Senha →</a>
 
     <p style="color:#94A3B8;font-size:12px;margin-top:24px;">
-      Se você não solicitou esta alteração, ignore este e-mail. Sua senha permanece a mesma e sua conta está protegida.
+      Se você não solicitou esta alteração, por favor, ignore este e-mail. Sua senha permanece a mesma.
     </p>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `🔐 Instruções para redefinição de senha - Expertise Licitatória`,
+    subject: `🔐 Instruções para redefinição de senha`,
     html,
   });
 }
@@ -397,6 +391,62 @@ export async function enviarAlertaPrazo(params: {
   return sendEmail({
     to: params.email,
     subject: `${emoji} [ALERTA ${horasRestantes}H] ${params.prazoTitulo} vence ${is24h ? 'amanhã' : 'em breve'}`,
+    html,
+  });
+}
+
+/**
+ * Alerta Diário de Editais por CNAE
+ */
+export async function enviarAlertaEditaisCnae(params: {
+  email: string;
+  empresaNome: string;
+  cnae: string;
+  editais: Array<{
+    titulo: string;
+    orgao: string;
+    valorEstimado?: string | number;
+    link: string;
+    resumoExecutivo?: string;
+    pontosDeAtencao?: string[];
+  }>;
+}) {
+  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+
+  const editaisHtml = params.editais.map(item => `
+    <li style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #E2EAF4;">
+      <strong style="color:#0F172A;font-size:15px;display:block;margin-bottom:4px;">${item.titulo}</strong>
+      <span style="color:#475569;font-size:13px;display:block;margin-bottom:4px;">Órgão: <strong>${item.orgao}</strong></span>
+      ${item.valorEstimado ? `<span style="color:#10B981;font-size:13px;font-weight:700;display:block;margin-bottom:4px;">Valor Estimado: ${item.valorEstimado}</span>` : ''}
+      ${item.resumoExecutivo ? `<p style="color:#334155;font-size:13px;line-height:1.4;margin:6px 0;background:#F1F5F9;padding:8px 12px;border-radius:6px;"><strong>Resumo Executivo:</strong> ${item.resumoExecutivo}</p>` : ''}
+      ${item.pontosDeAtencao && item.pontosDeAtencao.length > 0 ? `
+        <div style="margin:6px 0;font-size:12px;color:#D97706;">
+          <strong>Pontos de Atenção:</strong> ${item.pontosDeAtencao.join('; ')}
+        </div>
+      ` : ''}
+      <a href="${item.link}" style="color:#0066CC;font-size:13px;font-weight:600;text-decoration:underline;display:inline-block;margin-top:6px;">Ver Detalhes do Edital →</a>
+    </li>
+  `).join('');
+
+  const html = templateBase(`
+    <span class="tag" style="background:#EBF5FF;color:#0066CC;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #BFE0FF;">Radar CNAE: ${params.cnae}</span>
+    <h2 style="font-size:22px;font-weight:900;margin:12px 0 8px;color:#0F172A;">Novas Oportunidades de Editais</h2>
+    <p style="color:#475569;line-height:1.6;margin-bottom:20px;">
+      Olá, equipe da <strong>${params.empresaNome}</strong>! O Agente Especialista da Expertise Licitatória identificou <strong>${params.editais.length}</strong> oportunidade(s) aderente(s) ao seu CNAE:
+    </p>
+
+    <ul style="list-style:none;padding-left:0;margin:16px 0;">
+      ${editaisHtml}
+    </ul>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="${appUrl}/dashboard" class="btn" style="background:#10B981;color:white;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;display:inline-block;">Acessar Radar Completo →</a>
+    </div>
+  `);
+
+  return sendEmail({
+    to: params.email,
+    subject: `🎯 Novas oportunidades para seu CNAE (${params.cnae}) - Expertise Licitatória`,
     html,
   });
 }
