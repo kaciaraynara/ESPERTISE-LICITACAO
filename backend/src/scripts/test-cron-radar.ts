@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import {
     SYSTEM_PROMPT_AGENTE_EDITAIS_CNAE,
     analisarAderenciaEditalCnae,
+    analisarEditalParaCnae,
 } from '../services/agente-editais-cnae.service';
 
 async function main() {
@@ -66,6 +67,21 @@ async function main() {
         console.log(JSON.stringify(resultado2, null, 2));
     } catch (err) {
         console.error('Erro na análise 2:', err);
+    }
+
+    // Cenário 3: Testando a função direta analisarEditalParaCnae
+    console.log('\n--------------------------------------------------------');
+    console.log('[CENÁRIO 3] Testando analisarEditalParaCnae (Input Direto):');
+    try {
+        const resultado3 = await analisarEditalParaCnae({
+            objetoEdital: 'Aquisição de licenças de software para gestão pública e serviços de suporte técnico.',
+            cnaeCodigo: '62.01-5-01',
+            cnaeDescricao: 'Desenvolvimento de programas de computador sob encomenda',
+        });
+        console.log('\n[RESULTADO 3 - JSON RETORNADO]:');
+        console.log(JSON.stringify(resultado3, null, 2));
+    } catch (err) {
+        console.error('Erro na análise 3:', err);
     }
 
     console.log('\n========================================================');
