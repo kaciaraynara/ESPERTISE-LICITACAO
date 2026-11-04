@@ -106,3 +106,12 @@ export async function getTenantRadarProfile(tenantId: string): Promise<TenantRad
 
   return { cnaes, keywords, uf };
 }
+
+
+// Re-export do Agente Especialista de Editais e CNAE (Lei 14.133/2021)
+export {
+  analisarEditalParaCnae,
+  AnalisarAderenciaInput,
+  AnaliseResultado,
+  SYSTEM_PROMPT_AGENTE_EDITAIS_CNAE,
+} from './agente-editais-cnae.service';
