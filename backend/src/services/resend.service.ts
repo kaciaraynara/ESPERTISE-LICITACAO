@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 
 /**
@@ -8,6 +8,18 @@ import nodemailer from 'nodemailer';
  */
 
 const FROM_NAME = 'Expertise Licitações';
+const DEFAULT_FROM_EMAIL = 'contato@expertiselicitatoria.com.br';
+
+function getFromHeader(): string {
+  const envFrom = process.env.EMAIL_FROM?.trim();
+  if (envFrom) {
+    if (envFrom.includes('<') && envFrom.includes('>')) {
+      return envFrom;
+    }
+    return `${FROM_NAME} <${envFrom}>`;
+  }
+  return `${FROM_NAME} <${DEFAULT_FROM_EMAIL}>`;
+}
 
 interface EmailPayload {
   to: string | string[];
@@ -20,8 +32,8 @@ interface EmailPayload {
  * Envia um e-mail via Resend
  */
 async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?: string; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM?.trim() || 'contato@expertiselicitatoria.com.br';
-  const fromHeader = `${FROM_NAME} <${fromEmail}>`;
+
+  const fromHeader = getFromHeader();
 
   // 1. Provedor SMTP (se SMTP_HOST estiver configurado)
   const smtpHost = process.env.SMTP_HOST?.trim();
@@ -66,42 +78,41 @@ async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?
     }
   }
 
-  // 2. Provedor Resend API (se RESEND_API_KEY estiver configurada)
+  // 2. Provedor Resend SDK oficial (se RESEND_API_KEY estiver configurada)
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
   if (resendApiKey) {
     try {
-      const response = await axios.post(
-        'https://api.resend.com/emails',
-        {
-          from: fromHeader,
-          to: Array.isArray(payload.to) ? payload.to : [payload.to],
-          subject: payload.subject,
-          html: payload.html,
-          reply_to: payload.replyTo,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
-      console.log(`[Email-Resend] E-mail enviado com sucesso para ${payload.to}. ID: ${response.data?.id}`);
-      return { success: true, id: response.data?.id };
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message;
-      console.error('[Email-Resend] Erro detalhado no envio via Resend:', {
-        status: err?.response?.status,
-        data: err?.response?.data,
-        message: msg,
+      const resend = new Resend(resendApiKey);
+      const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
+      const { data, error } = await resend.emails.send({
+        from: fromHeader,
+        to: toAddresses,
+        subject: payload.subject,
+        html: payload.html,
+        ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
       });
-      throw new Error(`RESEND_DELIVERY_FAILED: ${msg}`);
+
+      if (error) {
+        console.error('[Email-Resend] Erro retornado pela API Resend:', error);
+        throw new Error(`RESEND_DELIVERY_FAILED: ${error.message}`);
+      }
+
+      console.log(`[Email-Resend] E-mail enviado com sucesso para ${toAddresses.join(', ')}. ID: ${data?.id}`);
+      return { success: true, id: data?.id };
+    } catch (err: any) {
+      console.error('[Email-Resend] Erro detalhado no envio via Resend:', {
+        message: err?.message,
+        stack: err?.stack,
+      });
+      throw new Error(`RESEND_DELIVERY_FAILED: ${err?.message || 'Falha no envio via Resend'}`);
     }
   }
 
   // 3. Fallback
-  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina SMTP_HOST ou RESEND_API_KEY).');
+  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina RESEND_API_KEY ou SMTP_HOST).');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
+  }
   return { success: false, error: 'EMAIL_PROVIDER_NOT_CONFIGURED' };
 }
 
@@ -309,7 +320,7 @@ export async function enviarRecuperacaoSenha(params: {
   token: string;
 }) {
   const frontendUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
-  const resetLink = `${frontendUrl}/auth/redefinir-senha?token=${params.token}`;
+  const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
   console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação para ${params.email}: ${resetLink}`);
 
   const html = templateBase(`
@@ -327,11 +338,17 @@ export async function enviarRecuperacaoSenha(params: {
     </p>
   `);
 
-  return sendEmail({
+  const result = await sendEmail({
     to: params.email,
     subject: `🔐 Instruções para redefinição de senha - Expertise Licitações`,
     html,
   });
+
+  if (!result.success && process.env.NODE_ENV === 'production') {
+    throw new Error(result.error || 'EMAIL_DELIVERY_FAILED');
+  }
+
+  return result;
 }
 
 /**

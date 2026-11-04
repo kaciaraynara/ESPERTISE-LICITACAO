@@ -368,7 +368,12 @@ export class AuthController {
         });
         console.info(`[AUTH-FORGOT] E-mail de recuperação despachado para ${user.email}`);
       } catch (emailErr: any) {
-        console.error('[AUTH-FORGOT] Falha ao enviar e-mail transacional:', emailErr?.message || emailErr);
+        console.error('[AUTH-FORGOT] Falha ao enviar e-mail transacional via Resend:', emailErr?.message || emailErr);
+        return res.status(500).json({
+          success: false,
+          code: 'EMAIL_SEND_FAILED',
+          message: 'Não foi possível enviar o e-mail de recuperação de senha no momento. Tente novamente mais tarde.',
+        });
       }
 
       await logAuthEvent('PASSWORD_RESET_REQUESTED', {
