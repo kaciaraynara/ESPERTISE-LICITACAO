@@ -27,7 +27,9 @@ router.post('/login', handle(controller.login.bind(controller) as RequestHandler
 router.post('/refresh', handle(controller.refresh.bind(controller) as RequestHandler));
 router.post('/logout', handle(controller.logout.bind(controller) as RequestHandler));
 router.post('/forgot-password', handle(controller.forgotPassword.bind(controller) as RequestHandler));
+router.post('/esqueci-senha', handle(controller.forgotPassword.bind(controller) as RequestHandler));
 router.post('/reset-password', handle(controller.resetPassword.bind(controller) as RequestHandler));
+router.post('/redefinir-senha', handle(controller.resetPassword.bind(controller) as RequestHandler));
 router.get('/me', authMiddleware as RequestHandler, handle(controller.me.bind(controller) as RequestHandler));
 router.put('/update-profile', authMiddleware as RequestHandler, handle(controller.updateProfile.bind(controller) as RequestHandler));
 router.get('/export-data', authMiddleware as RequestHandler, handle(controller.exportData.bind(controller) as RequestHandler));

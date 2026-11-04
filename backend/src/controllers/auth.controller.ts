@@ -304,8 +304,9 @@ export class AuthController {
     return res.json({ success: true });
   }
 
-  async forgotPassword(req: Request, res: Response) {
+    async forgotPassword(req: Request, res: Response) {
     try {
+      // PASSO 1: [RECEBIMENTO E SANITIZAÇÃO]
       const emailRaw = req.body?.email;
       if (!emailRaw || typeof emailRaw !== 'string') {
         return res.status(400).json({
@@ -325,6 +326,7 @@ export class AuthController {
         });
       }
 
+      // PASSO 2: [PROTEÇÃO CONTRA ENUMERAÇÃO (TIMING ATTACK)]
       const user = await prisma.user.findFirst({
         where: {
           OR: [
@@ -335,36 +337,38 @@ export class AuthController {
         },
       });
 
-      // Se o usuário não existir, não quebrar (500) e não vazar se o e-mail existe (retornar 200 padrão)
+      // Se o usuário NÃO existir, retornar HTTP 200 genérico (não revelar existência)
       if (!user) {
-        console.log(`[AUTH-FORGOT] Solicitação de recuperação para e-mail não cadastrado ou inativo: ${emailNormalized}`);
+        console.info(`[AUTH-FORGOT] Solicitação de recuperação para e-mail não existente: ${emailNormalized}`);
         return res.status(200).json({
           success: true,
-          message: 'Se o e-mail estiver cadastrado, as instruções para redefinição foram enviadas com sucesso.',
+          message: 'Se o e-mail estiver cadastrado, as instruções foram enviadas.',
         });
       }
 
-      // Gera token seguro e criptograficamente forte (64 caracteres hex)
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      const resetTokenExp = new Date(Date.now() + 60 * 60 * 1000); // Exatamente 1 hora
+      // PASSO 3: [CRIAÇÃO DE TOKEN CRIPTOGRAFICAMENTE SEGURO]
+      const tokenOriginal = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(tokenOriginal).digest('hex');
+      const resetTokenExp = new Date(Date.now() + 1000 * 60 * 60); // Estritamente 1 hora
 
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          resetToken,
+          resetToken: tokenHash,
           resetTokenExp,
         },
       });
 
-      // Dispara envio de e-mail via SMTP/Resend sem travar a requisição em caso de falha externa
+      // PASSO 4: [DISPARO TRANSACIONAL RESEND]
       try {
         await enviarRecuperacaoSenha({
           email: user.email,
           nome: user.nome || 'Usuário',
-          token: resetToken,
+          token: tokenOriginal,
         });
+        console.info(`[AUTH-FORGOT] E-mail de recuperação despachado para ${user.email}`);
       } catch (emailErr: any) {
-        console.error('[AUTH-FORGOT] Erro na tentativa de envio de e-mail:', emailErr?.message || emailErr);
+        console.error('[AUTH-FORGOT] Falha ao enviar e-mail transacional:', emailErr?.message || emailErr);
       }
 
       await logAuthEvent('PASSWORD_RESET_REQUESTED', {
@@ -373,12 +377,11 @@ export class AuthController {
         ...getAuditContext(req),
       });
 
-      console.log(`[AUTH-FORGOT] Token de recuperação gerado para ${user.email}. Expira em: ${resetTokenExp.toISOString()}`);
-
+      // PASSO 5: [RESPOSTA DA API]
       return res.status(200).json({
         success: true,
-        message: 'Se o e-mail estiver cadastrado, as instruções para redefinição foram enviadas com sucesso.',
-        ...(process.env.NODE_ENV !== 'production' ? { devToken: resetToken } : {}),
+        message: 'Instruções enviadas com sucesso.',
+        ...(process.env.NODE_ENV !== 'production' ? { devToken: tokenOriginal } : {}),
       });
     } catch (err: any) {
       console.error('[AUTH-FORGOT] Erro inesperado em forgotPassword:', err);
@@ -419,10 +422,16 @@ export class AuthController {
         });
       }
 
-      // Busca usuário com token correspondente e estritamente dentro da validade
+      // Hash do token recebido para verificação segura
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+      // Busca usuário com token correspondente (hash sha256 ou raw) e estritamente dentro da validade
       const user = await prisma.user.findFirst({
         where: {
-          resetToken: token,
+          OR: [
+            { resetToken: tokenHash },
+            { resetToken: token },
+          ],
           resetTokenExp: { gt: new Date() },
           deletedAt: null,
         },
@@ -431,7 +440,12 @@ export class AuthController {
       if (!user) {
         // Verifica se o token existe no banco mas já expirou
         const expiredUser = await prisma.user.findFirst({
-          where: { resetToken: token },
+          where: {
+            OR: [
+              { resetToken: tokenHash },
+              { resetToken: token },
+            ],
+          },
           select: { id: true, resetTokenExp: true },
         });
 
@@ -476,7 +490,7 @@ export class AuthController {
         ...getAuditContext(req),
       });
 
-      console.log(`[AUTH-RESET] Senha redefinida com sucesso para o usuário ${user.email}`);
+      console.info(`[AUTH-RESET] Senha redefinida com sucesso para o usuário ${user.email}`);
 
       return res.status(200).json({
         success: true,
@@ -493,7 +507,6 @@ export class AuthController {
     }
   }
 
-  // --- LGPD Endpoints ---
   async exportData(req: any, res: Response) {
     try {
       const data = await authOperationsService.exportUserData(req.user.id);

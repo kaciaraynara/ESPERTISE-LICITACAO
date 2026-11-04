@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
  * Gratuito até 3.000 e-mails/mês
  */
 
-const FROM_NAME = 'Expertise Platform';
+const FROM_NAME = 'Expertise Licitações';
 
 interface EmailPayload {
   to: string | string[];
@@ -20,7 +20,7 @@ interface EmailPayload {
  * Envia um e-mail via Resend
  */
 async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?: string; error?: string }> {
-  const fromEmail = process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || 'contato@expertiselicitatoria.com.br';
+  const fromEmail = process.env.EMAIL_FROM?.trim() || 'contato@expertiselicitatoria.com.br';
   const fromHeader = `${FROM_NAME} <${fromEmail}>`;
 
   // 1. Provedor SMTP (se SMTP_HOST estiver configurado)
@@ -309,7 +309,7 @@ export async function enviarRecuperacaoSenha(params: {
   token: string;
 }) {
   const frontendUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
-  const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
+  const resetLink = `${frontendUrl}/auth/redefinir-senha?token=${params.token}`;
   console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação para ${params.email}: ${resetLink}`);
 
   const html = templateBase(`
@@ -329,7 +329,7 @@ export async function enviarRecuperacaoSenha(params: {
 
   return sendEmail({
     to: params.email,
-    subject: `🔐 Instruções para redefinição de senha`,
+    subject: `🔐 Instruções para redefinição de senha - Expertise Licitações`,
     html,
   });
 }
