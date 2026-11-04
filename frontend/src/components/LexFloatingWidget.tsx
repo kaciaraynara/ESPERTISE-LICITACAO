@@ -187,6 +187,7 @@ export const LexFloatingWidget: React.FC = () => {
     <div className="fixed bottom-6 right-6 z-[9999] font-sans">
       {!isOpen && (
         <button
+          data-tour="lex-assistant"
           onClick={() => setIsOpen(true)}
           className="group flex items-center gap-3 bg-[#0A2540] hover:bg-slate-800 text-white px-5 py-3.5 rounded-full shadow-2xl border-2 border-[#EA580C] transition-all transform hover:scale-105"
         >

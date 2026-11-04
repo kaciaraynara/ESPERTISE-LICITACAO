@@ -340,6 +340,7 @@ export default function Sidebar() {
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       className="hidden h-screen shrink-0 flex-col border-r border-white/10 bg-[#0A2540] text-white md:flex relative z-50 select-none"
       aria-label="Menu principal"
+      data-tour="sidebar-menu"
     >
       {/* Botão de Toggle */}
       <button

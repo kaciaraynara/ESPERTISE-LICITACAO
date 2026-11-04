@@ -155,7 +155,7 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-slate-50 min-h-screen">
       {/* Header Executivo — Sala de Comando */}
-      <header className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-8">
+      <header data-tour="executive-header" className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200">
@@ -174,6 +174,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <Link
             to={FORNECEDOR_ROUTES.radar}
+            data-tour="radar-opportunities"
             className="h-10 px-4 rounded-md font-bold text-xs uppercase tracking-wider bg-brand-orange hover:bg-orange-600 text-white flex items-center justify-center gap-2 transition shadow-sm"
           >
             <Crosshair className="w-4 h-4 shrink-0" />

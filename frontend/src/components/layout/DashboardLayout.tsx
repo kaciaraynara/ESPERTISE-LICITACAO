@@ -9,6 +9,7 @@ import Sidebar from './Sidebar';
 import CompanySelector from './CompanySelector';
 import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
+import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
 
 const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/dashboard': 'Página Inicial',
@@ -85,7 +86,9 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex min-w-0 items-center gap-3">
-            <CompanySelector />
+            <div data-tour="company-selector">
+              <CompanySelector />
+            </div>
             <p className="hidden items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 md:flex">
               <CalendarBlank className="h-4 w-4" weight="bold" aria-hidden="true" />
               <span className="first-letter:uppercase">{dateLabel}</span>
@@ -124,11 +127,10 @@ export default function DashboardLayout() {
                           key={item.path}
                           to={item.path}
                           aria-current={active ? 'page' : undefined}
-                          className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold ${
-                            active
+                          className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold ${active
                               ? 'bg-white/10 text-white'
                               : 'text-blue-100/70 hover:bg-white/5 hover:text-white'
-                          }`}
+                            }`}
                         >
                           <Icon
                             className={`h-5 w-5 ${active ? 'text-brand-orange' : ''}`}
@@ -169,6 +171,7 @@ export default function DashboardLayout() {
           ) : null}
         </main>
       </div>
+      <LexOnboardingBot />
     </div>
   );
 }

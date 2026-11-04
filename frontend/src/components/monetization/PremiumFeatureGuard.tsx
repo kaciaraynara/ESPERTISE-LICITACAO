@@ -40,8 +40,8 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
   const hasAccess = isTrialActive
     ? true
     : requiredFeature
-    ? activePlanFeatures.includes(requiredFeature)
-    : activePlanId !== 'free';
+      ? activePlanFeatures.includes(requiredFeature)
+      : activePlanId !== 'free';
   const showModal = !hasAccess || (forcePaywall && !isTrialActive);
 
   if (!planAccessLoaded && !isTrialActive) {
