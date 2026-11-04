@@ -74,9 +74,11 @@ export function getPlanDisplayLabel(tier: CommercialPlanTier): string {
   return 'Plano Básico';
 }
 
-export function hasUserPlanFeature(_user: User | null | undefined, requiredFeature?: string): boolean {
+export function hasUserPlanFeature(user: User | null | undefined, requiredFeature?: string): boolean {
   if (!requiredFeature) return true;
+  if (user?.isTrialActive) return true;
   const access = useAuthStore.getState();
+  if (access.user?.isTrialActive) return true;
   return access.planAccessLoaded && access.activePlanFeatures.includes(requiredFeature);
 }
 
@@ -301,14 +303,16 @@ function filterNavigationItems(items: NavigationItem[], user: User | null | unde
 export default function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
+  const isTrialActive = Boolean(user?.isTrialActive);
   const logout = useLogout();
   const displayName = getUserDisplayName(user, 'Usuário');
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
-  // Filtra as ferramentas e itens de gestão de acordo com o plano atual do usuário logado.
-  // Ferramentas que exigem permissão superior são ocultadas completamente do menu.
-  const visibleFerramentasSections = planAccessLoaded
+  // Se isTrialActive === true, todas as seções e ferramentas são liberadas sem restrição.
+  const visibleFerramentasSections = isTrialActive
+    ? ferramentasSections
+    : planAccessLoaded
     ? ferramentasSections
         .map((section) => ({
           ...section,
@@ -317,12 +321,14 @@ export default function Sidebar() {
         .filter((section) => section.items.length > 0)
     : [];
 
-  const visibleGestaoSections = gestaoSections
-    .map((section) => ({
-      ...section,
-      items: filterNavigationItems(section.items, user),
-    }))
-    .filter((section) => section.items.length > 0);
+  const visibleGestaoSections = isTrialActive
+    ? gestaoSections
+    : gestaoSections
+        .map((section) => ({
+          ...section,
+          items: filterNavigationItems(section.items, user),
+        }))
+        .filter((section) => section.items.length > 0);
 
   // Estado da Sidebar retrátil
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -395,7 +401,9 @@ export default function Sidebar() {
               >
                 <p className="truncate text-xs font-black text-white">{displayName}</p>
                 <p className="truncate text-[10px] font-bold text-[#EA580C]">
-                  {planAccessLoaded
+                  {isTrialActive
+                    ? `Trial Master (${user?.daysLeftTrial ?? 15}d)`
+                    : planAccessLoaded
                     ? currentPlanTier === 'BASICO' && useAuthStore.getState().activePlanId === 'free'
                       ? 'Sem assinatura'
                       : currentPlanLabel

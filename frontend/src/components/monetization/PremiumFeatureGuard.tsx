@@ -18,6 +18,7 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
   moduleName = 'Módulo Avançado',
   requiredFeature,
 }) => {
+  const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
   const activePlanId = useAuthStore((state) => state.activePlanId);
   const activePlanFeatures = useAuthStore((state) => state.activePlanFeatures);
@@ -35,12 +36,15 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
     };
   }, []);
 
-  const hasAccess = requiredFeature
+  const isTrialActive = Boolean(user?.isTrialActive);
+  const hasAccess = isTrialActive
+    ? true
+    : requiredFeature
     ? activePlanFeatures.includes(requiredFeature)
     : activePlanId !== 'free';
-  const showModal = !hasAccess || forcePaywall;
+  const showModal = !hasAccess || (forcePaywall && !isTrialActive);
 
-  if (!planAccessLoaded) {
+  if (!planAccessLoaded && !isTrialActive) {
     return (
       <div className="flex min-h-[calc(100vh-100px)] items-center justify-center">
         <span className="text-sm font-semibold text-slate-500">Verificando assinatura e permissões…</span>
