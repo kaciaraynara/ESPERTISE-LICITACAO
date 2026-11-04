@@ -23,6 +23,7 @@ export const FORNECEDOR_ROUTES = {
   sicaf_credenciamento: `${FORNECEDOR_PREFIX}/sicaf-credenciamento`,
   lex: `${FORNECEDOR_PREFIX}/lex`,
   sala_de_guerra: `${FORNECEDOR_PREFIX}/sala-de-guerra`,
+  contencioso: `${FORNECEDOR_PREFIX}/contencioso`,
 
   // Sub-rotas e Aliases Operacionais
   proposta_detalhe: `${FORNECEDOR_PREFIX}/propostas/:id`,

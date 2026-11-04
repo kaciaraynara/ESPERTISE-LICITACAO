@@ -141,6 +141,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Scales,
     badge: 'Lex IA',
     items: [
+      { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos', badge: 'RAG' },
       { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ai', badge: 'GPT-4o' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Preparar Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },

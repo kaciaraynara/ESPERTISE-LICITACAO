@@ -83,6 +83,7 @@ const CertidoesPage = React.lazy(() => import('./pages/CertidoesPage'));
 const ImpugnacaoPage = React.lazy(() => import('./pages/ImpugnacaoPage'));
 const RoboPage = React.lazy(() => import('./pages/RoboPage'));
 const SalaDeGuerraPage = React.lazy(() => import('./pages/SalaDeGuerraPage'));
+const ContenciosoHubPage = React.lazy(() => import('./pages/Contencioso/ContenciosoHubPage'));
 const SrpPage = React.lazy(() =>
   import('./pages/Srp/SrpPage').then((module) => ({ default: module.SrpPage })),
 );
@@ -359,6 +360,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.sicaf_credenciamento} element={protectFeature('credenciamento', 'SICAF e Certificação', <CredenciamentoPage />)} />
             <Route path={FORNECEDOR_ROUTES.dispensa_eletronica} element={protectFeature('dispensa_eletronica', 'Dispensa Eletrônica', <DispensaEletronicaPage />)} />
             <Route path={FORNECEDOR_ROUTES.recursos} element={protectFeature('recursos_administrativos', 'Recursos Administrativos', <RecursosPage />)} />
+            <Route path={FORNECEDOR_ROUTES.contencioso} element={protectFeature('recursos_administrativos', 'Contencioso Jurídico Lex', <ContenciosoHubPage />)} />
             <Route path={FORNECEDOR_ROUTES.habilitacao} element={protectFeature('habilitacao', 'Habilitação', <HabilitacaoPage />)} />
             <Route path={FORNECEDOR_ROUTES.cofre} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
             <Route path={FORNECEDOR_ROUTES.certidoes} element={protectFeature('certidoes', 'Certidões', <CertidoesPage />)} />

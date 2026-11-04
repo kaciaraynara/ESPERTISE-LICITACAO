@@ -1,5 +1,6 @@
 import { Router, RequestHandler } from 'express';
 import { LexController } from '../controllers/lex.controller';
+import { lexRivalController, uploadRecursoPdfMiddleware } from '../controllers/lex-rival.controller';
 import { authMiddleware } from '../shared/middlewares/auth.middleware';
 import { lexAIRateLimit } from '../shared/middlewares/lex-ai-rate-limit.middleware';
 import { requirePlanFeature } from '../shared/middlewares/plan-feature.middleware';
@@ -28,5 +29,6 @@ router.post('/analise', requirePlanLimit('analyses'), handle(controller.analise.
 router.post('/impugnacao', requirePlanFeature('impugnation.simple'), handle(controller.impugnacao.bind(controller) as RequestHandler));
 router.post('/recurso', requirePlanFeature('impugnation.simple'), handle(controller.gerarRecurso.bind(controller) as RequestHandler));
 router.post('/parecer-pdf', handle(controller.exportarParecerPdf.bind(controller) as RequestHandler));
+router.post('/analyze-rival', uploadRecursoPdfMiddleware, handle(lexRivalController.analyzeRival as RequestHandler));
 
 export default router;
