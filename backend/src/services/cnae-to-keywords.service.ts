@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../database/prisma';
 
 const CNAE_DIVISION_KEYWORDS: Array<{
@@ -115,3 +116,149 @@ export {
   AnaliseResultado,
   SYSTEM_PROMPT_AGENTE_EDITAIS_CNAE,
 } from './agente-editais-cnae.service';
+
+
+// ============================================================================
+// INTELIGÊNCIA SEMÂNTICA: AVALIAÇÃO DE COMPATIBILIDADE DE EDITAIS COM CNAE
+// (Diretriz Zero Alucinação / Lei 14.133/2021)
+// ============================================================================
+
+export const SYSTEM_PROMPT_COMPATIBILIDADE_CNAE = `
+Você é o Analisador de Compatibilidade de Licitações da Expertise Licitatória.
+Compare o objeto do edital fornecido com as atividades permitidas pelo código de CNAE informado.
+PROIBIÇÕES:
+- Não invente itens não descritos no edital.
+- Se o edital não tiver valor estimado, declare 'Não informado'.
+- Responda EXCLUSIVAMENTE em formato JSON:
+{
+  "aderente": boolean,
+  "resumoObjeto": string (máximo 120 caracteres),
+  "justificativa": string
+}
+`.trim();
+
+export interface CompatibilidadeEditalCnaeInput {
+  objetoEdital: string;
+  cnaeCodigo: string;
+  razaoSocial?: string;
+  valorEstimado?: number | string | null;
+}
+
+export interface CompatibilidadeEditalCnaeOutput {
+  aderente: boolean;
+  resumoObjeto: string;
+  justificativa: string;
+}
+
+const FALLBACK_GEMINI_MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+];
+
+function sanitizarSaidaJson(raw: string): string {
+  let limpo = raw.trim();
+  if (limpo.startsWith('```')) {
+    limpo = limpo.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+  }
+  return limpo;
+}
+
+/**
+ * Avalia se o edital capturado é aderente ao CNAE de uma empresa (Zero Alucinação).
+ * Executa a LLM com temperature: 0.1 e formatação JSON estrita.
+ */
+export async function avaliarCompatibilidadeCnae(
+  params: CompatibilidadeEditalCnaeInput
+): Promise<CompatibilidadeEditalCnaeOutput> {
+  // 1 & 2. Validação rigorosa dos parâmetros de entrada
+  const objeto = (params.objetoEdital || '').trim();
+  const cnae = (params.cnaeCodigo || '').trim();
+
+  if (!objeto || !cnae) {
+    console.warn('[Compatibilidade-CNAE] Parâmetros obrigatórios ausentes (objeto ou CNAE).');
+    return {
+      aderente: false,
+      resumoObjeto: objeto.slice(0, 120) || 'Objeto não informado',
+      justificativa: 'Objeto do edital ou código de CNAE não foram fornecidos.',
+    };
+  }
+
+  const rawKey = process.env.GEMINI_API_KEY || '';
+  const apiKey = rawKey.trim().replace(/^["']|["']$/g, '').trim();
+
+  // Caso chave da API não esteja presente, aplica fallback seguro sem derrubar o fluxo
+  if (!apiKey || apiKey === 'unconfigured') {
+    console.warn('[Compatibilidade-CNAE] GEMINI_API_KEY não configurada. Aplicando fallback determinístico.');
+    return {
+      aderente: false,
+      resumoObjeto: objeto.slice(0, 120),
+      justificativa: 'Validação automática de inteligência temporariamente indisponível.',
+    };
+  }
+
+  const valorFormatado = params.valorEstimado
+    ? (typeof params.valorEstimado === 'number'
+        ? `R$ ${params.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : String(params.valorEstimado))
+    : 'Não informado';
+
+  const userPrompt = `
+DADOS PARA ANÁLISE:
+- CNAE da Empresa: ${cnae} ${params.razaoSocial ? `(${params.razaoSocial})` : ''}
+- Valor Estimado: ${valorFormatado}
+- Objeto do Edital:
+"""${objeto}"""
+`.trim();
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const configuredModel = process.env.GEMINI_MODEL?.trim();
+  const modelsToTry = Array.from(new Set([configuredModel, ...FALLBACK_GEMINI_MODELS].filter(Boolean))) as string[];
+
+  let ultimoErro: unknown = null;
+
+  // 3. Chamada da LLM com failover multi-modelo e temperatura 0.1
+  for (const modelName of modelsToTry) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: SYSTEM_PROMPT_COMPATIBILIDADE_CNAE,
+        generationConfig: {
+          temperature: 0.1, // Determinismo máximo
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const response = await model.generateContent(userPrompt);
+      const textOutput = response.response.text();
+
+      if (!textOutput || !textOutput.trim()) {
+        throw new Error('Resposta vazia da IA.');
+      }
+
+      // 4. Parse seguro do JSON retornado
+      const jsonStr = sanitizarSaidaJson(textOutput);
+      const parsed = JSON.parse(jsonStr) as Partial<CompatibilidadeEditalCnaeOutput>;
+
+      return {
+        aderente: Boolean(parsed.aderente),
+        resumoObjeto: String(parsed.resumoObjeto || objeto.slice(0, 120)).slice(0, 120),
+        justificativa: String(parsed.justificativa || 'Análise de compatibilidade de CNAE concluída.'),
+      };
+    } catch (err) {
+      ultimoErro = err;
+      console.warn(`[Compatibilidade-CNAE] Tentativa com modelo ${modelName} falhou:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 5. Fallback determinístico seguro em caso de indisponibilidade ou erro de parse
+  console.error('[Compatibilidade-CNAE] Falha em todos os modelos de IA:', ultimoErro);
+  return {
+    aderente: false,
+    resumoObjeto: objeto.slice(0, 120),
+    justificativa: 'Validação automática indisponível no momento.',
+  };
+}
+
+export const avaliarCompatibilidadeEditalCnae = avaliarCompatibilidadeCnae;
