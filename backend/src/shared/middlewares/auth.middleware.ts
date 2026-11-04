@@ -20,6 +20,8 @@ export interface AuthRequest extends Request {
     isAdmin?: boolean;
     permissions?: string[];
     companyId?: string | null;
+    isTrialActive?: boolean;
+    trialEndsAt?: string | null;
   };
 }
 
@@ -203,13 +205,20 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       req.companyId = headerCompanyId.trim();
     }
 
+    const rawTrialEndsAt = decoded.trialEndsAt || decoded.trial_ends_at;
+    const isTrialActive = Boolean(
+      decoded.isTrialActive === true ||
+      (rawTrialEndsAt && new Date(rawTrialEndsAt) > new Date())
+    );
+    const effectivePlan = isTrialActive ? 'master' : decoded.plano;
+
     req.user = {
       id: decoded.id,
       tenantId: decoded.tenant_id,
       email: normalizeAuthEmail(decoded.email),
       nome: decoded.nome ?? null,
       telefone: decoded.telefone ?? null,
-      plano: decoded.plano,
+      plano: effectivePlan,
       email_verificado: decoded.email_verificado ?? true,
       ultimo_acesso: decoded.ultimo_acesso ?? null,
       created_at: decoded.created_at ?? undefined,
@@ -222,6 +231,8 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
         role === 'super_admin' ||
         permissions.includes('data_platform:admin'),
       permissions,
+      isTrialActive,
+      trialEndsAt: rawTrialEndsAt ? new Date(rawTrialEndsAt).toISOString() : null,
     };
     return next();
   } catch {

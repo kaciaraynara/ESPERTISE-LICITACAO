@@ -717,6 +717,9 @@ export interface MinhaAssinaturaResponse {
   features: string[];
   status: string;
   ativa: boolean;
+  isTrialActive?: boolean;
+  trialEndsAt?: string | null;
+  diasRestantes?: number;
   gateway: 'mercado_pago' | null;
   periodo_fim?: string;
   pendingPlanId?: string | null;

@@ -29,6 +29,7 @@ model User {
   telefone             String?
   plano                String                  @default("free")
   planType             PlanType                @default(BASIC) @map("plan_type")
+  trialEndsAt          DateTime?               @map("trial_ends_at") @db.Timestamptz(6)
   cnpjsRegistered      Int                     @default(0) @map("cnpjs_registered")
   monthlyAnalysesUsed  Int                     @default(0) @map("monthly_analyses_used")
   monthlyProposalsUsed Int                     @default(0) @map("monthly_proposals_used")
@@ -97,6 +98,7 @@ model Company {
   municipio            String?
   uf                   String?
   status               String?
+  trialEndsAt          DateTime?            @map("trial_ends_at") @db.Timestamptz(6)
   nicho                String[]             @default([])
   palavrasChave        String[]             @default([]) @map("palavras_chave")
   valorMin             Decimal?             @map("valor_min") @db.Decimal(14, 2)

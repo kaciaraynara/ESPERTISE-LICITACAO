@@ -40,6 +40,9 @@ export type AuthUser = {
     uf: string | null;
     municipio: string | null;
   } | null;
+  isTrialActive?: boolean;
+  trialEndsAt?: string | null;
+  daysLeftTrial?: number | null;
 };
 
 export type TokenClaims = AuthUser & {
@@ -63,7 +66,16 @@ export class AuthOperationsService {
         }
       : null;
 
-    const planConfig = getCommercialPlanConfig(user.planType || user.plano);
+    const rawTrialEndsAt = user.trialEndsAt || primaryCompany?.trialEndsAt;
+    const isTrialActive = Boolean(rawTrialEndsAt && new Date(rawTrialEndsAt) > new Date());
+    const trialEndsAtIso = rawTrialEndsAt ? new Date(rawTrialEndsAt).toISOString() : null;
+    const daysLeftTrial = isTrialActive
+      ? Math.max(0, Math.ceil((new Date(rawTrialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    // Se o trial estiver ativo (15 dias de teste), o usuário possui plano Master completo com todas as ferramentas
+    const effectivePlan = isTrialActive ? 'master' : (user.planType || user.plano);
+    const planConfig = getCommercialPlanConfig(effectivePlan);
 
     return {
       id: user.id,
@@ -71,8 +83,8 @@ export class AuthOperationsService {
       email: normalizeAuthEmail(user.emailNormalized || user.email),
       nome: user.nome,
       telefone: user.telefone,
-      plano: user.plano,
-      planType: user.planType ?? planConfig.prismaPlanType,
+      plano: isTrialActive ? 'master' : user.plano,
+      planType: isTrialActive ? 'MASTER' : (user.planType ?? planConfig.prismaPlanType),
       permissoes: [...planConfig.features],
       email_verificado: user.emailVerificado,
       ultimo_acesso: user.ultimoAcesso ? user.ultimoAcesso.toISOString() : null,
@@ -84,6 +96,9 @@ export class AuthOperationsService {
       crc_uf: user.crcUf ?? null,
       company_id: resolvedCompany?.id ?? null,
       company: resolvedCompany,
+      isTrialActive,
+      trialEndsAt: trialEndsAtIso,
+      daysLeftTrial,
     };
   }
 
@@ -207,6 +222,9 @@ export class AuthOperationsService {
           slug: `workspace-${randomUUID()}`,
         },
       });
+      // Janela de Free Trial oficial de 15 dias (plano Master / Full)
+      const trialEndsAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+
       const user = await tx.user.create({
         data: {
           tenantId: tenant.id,
@@ -214,7 +232,9 @@ export class AuthOperationsService {
           emailNormalized,
           nome: nome.trim(),
           telefone: telefone?.trim() || null,
-          plano: 'free',
+          plano: 'master',
+          planType: 'MASTER',
+          trialEndsAt,
           passwordHash: hashedPassword,
           aceiteLgpd: aceite_lgpd,
           ultimoAcesso: new Date(),
@@ -252,6 +272,21 @@ export class AuthOperationsService {
           municipio: empresaOficial.municipio,
           uf: empresaOficial.uf,
           status: empresaOficial.status,
+          trialEndsAt,
+        },
+      });
+
+      // Registrar assinatura inicial em status trialing
+      await tx.subscription.create({
+        data: {
+          userId: user.id,
+          email: emailNormalized,
+          plano: 'master',
+          planType: 'MASTER',
+          categoria: 'plataforma',
+          status: 'trialing',
+          periodoInicio: new Date(),
+          periodoFim: trialEndsAt,
         },
       });
 

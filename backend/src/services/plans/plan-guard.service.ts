@@ -63,6 +63,15 @@ export class PlanGuardService {
       return normalizePlanId(subscriptionPlan);
     }
 
+    // Se o usuário possui trialEndsAt ativo no cadastro, concede plano 'master'
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { trialEndsAt: true },
+    });
+    if (dbUser?.trialEndsAt && new Date(dbUser.trialEndsAt) > now) {
+      return 'master';
+    }
+
     // Se não há assinatura ativa válida (ou se expirou/cancelou), o plano é estritamente 'free'.
     // Nunca confia em valor herdado ou manipulado diretamente em User.plano para conceder planos pagos.
     return 'free';

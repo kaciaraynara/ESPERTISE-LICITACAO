@@ -145,17 +145,48 @@ export class MercadoPagoController {
       return res.status(401).json({ success: false, message: 'Não autenticado' });
     }
 
-    const sub = await prisma.subscription.findFirst({
-      where: {
-        userId: req.user.id,
-        categoria: 'plataforma',
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
+    const now = new Date();
+
+    const [sub, dbUser] = await Promise.all([
+      prisma.subscription.findFirst({
+        where: {
+          userId: req.user.id,
+          categoria: 'plataforma',
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { trialEndsAt: true },
+      }),
+    ]);
+
+    const isUserTrialActive = Boolean(dbUser?.trialEndsAt && new Date(dbUser.trialEndsAt) > now);
 
     if (!sub) {
+      if (isUserTrialActive) {
+        const trialEndsAt = dbUser!.trialEndsAt!;
+        const masterDef = getPlanDefinition('master');
+        return res.json({
+          success: true,
+          data: {
+            plano: 'master',
+            nome: 'Master (Trial 15 Dias)',
+            features: masterDef.features,
+            status: 'trialing',
+            ativa: true,
+            isTrialActive: true,
+            trialEndsAt: trialEndsAt.toISOString(),
+            diasRestantes: Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
+            gateway: null,
+            pendingPlanId: null,
+            pendingPlanAt: null,
+          },
+        });
+      }
+
       return res.json({
         success: true,
         data: {
@@ -163,6 +194,7 @@ export class MercadoPagoController {
           features: [],
           status: 'none',
           ativa: false,
+          isTrialActive: false,
           gateway: null,
           pendingPlanId: null,
           pendingPlanAt: null,
@@ -170,9 +202,10 @@ export class MercadoPagoController {
       });
     }
 
-    const isExpired = sub.periodoFim ? new Date(sub.periodoFim) < new Date() : false;
+    const isExpired = sub.periodoFim ? new Date(sub.periodoFim) < now : false;
     const isAtiva = ['active', 'trialing'].includes(sub.status) && !isExpired;
-    const plano = isAtiva ? normalizePlanId(sub.plano) : 'free';
+    const isTrialActive = isAtiva && (sub.status === 'trialing' || isUserTrialActive);
+    const plano = isAtiva ? normalizePlanId(sub.plano) : (isUserTrialActive ? 'master' : 'free');
 
     return res.json({
       success: true,
@@ -181,10 +214,12 @@ export class MercadoPagoController {
         nome: getPlanDefinition(plano).nome,
         features: getPlanDefinition(plano).features,
         status: isExpired ? (sub.status === 'trialing' ? 'expired_trial' : 'expired') : sub.status,
-        ativa: isAtiva,
+        ativa: isAtiva || isUserTrialActive,
+        isTrialActive,
+        trialEndsAt: isTrialActive ? (sub.periodoFim?.toISOString() ?? dbUser?.trialEndsAt?.toISOString() ?? null) : null,
         gateway: isAtiva && sub.mpPreapprovalId ? 'mercado_pago' : null,
         mp_preapproval_id: sub.mpPreapprovalId,
-        periodo_fim: sub.periodoFim?.toISOString(),
+        periodo_fim: sub.periodoFim?.toISOString() ?? dbUser?.trialEndsAt?.toISOString() ?? null,
         pendingPlanId: sub.pendingPlanId,
         pendingPlanAt: sub.pendingPlanAt?.toISOString() ?? null,
       },

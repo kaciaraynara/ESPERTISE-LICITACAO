@@ -30,6 +30,9 @@ export interface User {
     uf?: string | null;
     municipio?: string | null;
   } | null;
+  isTrialActive?: boolean;
+  trialEndsAt?: string | null;
+  daysLeftTrial?: number | null;
 }
 
 export type NivelScore = 'alto' | 'medio' | 'baixo';
