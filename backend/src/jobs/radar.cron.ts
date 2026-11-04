@@ -1,4 +1,4 @@
-import { analisarEditalParaCnae } from '../services/cnae-to-keywords.service';
+import { avaliarCompatibilidadeCnae, analisarEditalParaCnae } from '../services/cnae-to-keywords.service';
 import cron from 'node-cron';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
@@ -455,87 +455,128 @@ export function setupCronJobs(): void {
   setupCnaeAlertCron();
 }
 /**
- * Cron de Alerta Diário de Editais por CNAE
- * Agendado para rodar todo dia às 08:00 da manhã (horário de Brasília)
- * No cron diário, o Agente de IA valida a relevância real antes de montar o e-mail
+ * Cron de Alerta Diário de Editais por CNAE (Resend + Agente Semântico de IA)
+ * Horário: 08:00 AM (America/Sao_Paulo)
+ * Regra: Validação rigorosa de relevância (Zero Alucinação), sem spam se não houver editais.
  */
 export function setupCnaeAlertCron() {
   cron.schedule('0 8 * * *', async () => {
-    console.info('[Radar Cron] 🤖 Executando agente de inteligência para alertas de CNAE...');
+    const timestampInicio = new Date().toISOString();
+
+    // 1 & 2. Trava de Execução por Variável de Ambiente
+    if (process.env.CRON_CNAE_ALERTS_ENABLED === 'false') {
+      console.info(`[Radar Cron][${timestampInicio}] ⏸️ Cron de editais por CNAE desabilitado (CRON_CNAE_ALERTS_ENABLED=false).`);
+      return;
+    }
+
+    console.info(`[Radar Cron][${timestampInicio}] 🤖 Iniciando varredura diária de oportunidades por CNAE...`);
 
     try {
+      // 3. Coleta de Empresas ativas com CNAE cadastrado
       const empresas = await prisma.company.findMany({
-        where: { cnaePrincipal: { not: null } },
-        include: { user: { select: { email: true, nome: true } } },
+        where: {
+          cnaePrincipal: { not: null },
+          OR: [
+            { status: null },
+            { status: { in: ['ATIVO', 'ativo', 'ATIVA', 'ativa'] } },
+          ],
+          user: { deletedAt: null },
+        },
+        include: {
+          user: {
+            select: { email: true, nome: true },
+          },
+        },
       });
 
+      console.info(`[Radar Cron][${new Date().toISOString()}] 🏢 ${empresas.length} empresa(s) ativa(s) carregada(s) para análise.`);
+
+      // 4. Coleta de Editais (Janela Temporal de 24 horas)
       const dataOntem = new Date();
       dataOntem.setDate(dataOntem.getDate() - 1);
 
-      const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+      const editaisCandidatos = await prisma.procurementNotice.findMany({
+        where: { createdAt: { gte: dataOntem } },
+        take: 30,
+        select: {
+          id: true,
+          noticeNumber: true,
+          buyerName: true,
+          object: true,
+          estimatedValue: true,
+        },
+      });
 
+      console.info(`[Radar Cron][${new Date().toISOString()}] 📋 ${editaisCandidatos.length} edital(is) recente(s) encontrado(s) na janela de 24h.`);
+
+      if (editaisCandidatos.length === 0) {
+        console.info(`[Radar Cron][${new Date().toISOString()}] ℹ️ Nenhum novo edital nas últimas 24h. Envio de e-mails suspenso hoje.`);
+        return;
+      }
+
+      const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+      let totalDisparos = 0;
+
+      // 5. Loop de Validação por Empresa
       for (const empresa of empresas) {
         const email = (empresa as any).email || empresa.user?.email;
         if (!email || !empresa.cnaePrincipal) continue;
 
-        // 1. Busca editais recentes no banco de dados
-        const editaisCandidatos = await prisma.procurementNotice.findMany({
-          where: { createdAt: { gte: dataOntem } },
-          take: 15,
-          select: {
-            id: true,
-            noticeNumber: true,
-            buyerName: true,
-            object: true,
-            estimatedValue: true,
-          },
-        });
-
         const editaisValidados = [];
 
-        // 2. O Agente filtra e valida edital por edital sem alucinar
         for (const edital of editaisCandidatos) {
           if (!edital.object) continue;
 
           try {
-            const analise = await analisarEditalParaCnae({
+            const analise = await avaliarCompatibilidadeCnae({
               objetoEdital: edital.object,
               cnaeCodigo: empresa.cnaePrincipal,
-              cnaeDescricao: empresa.razaoSocial,
+              razaoSocial: empresa.razaoSocial,
+              valorEstimado: edital.estimatedValue ? Number(edital.estimatedValue) : null,
             });
 
             if (analise.aderente) {
               editaisValidados.push({
-                titulo: `${edital.noticeNumber || 'Edital'} - ${analise.resumoExecutivo}`,
+                titulo: `${edital.noticeNumber || 'Edital'} - ${analise.resumoObjeto}`,
                 orgao: edital.buyerName || 'Órgão Convocador',
                 valorEstimado: edital.estimatedValue
                   ? `R$ ${Number(edital.estimatedValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                   : undefined,
                 link: `${appUrl}/licitacoes/${edital.id}`,
-                resumoExecutivo: analise.resumoExecutivo,
-                pontosDeAtencao: analise.pontosDeAtencao,
+                resumoExecutivo: analise.resumoObjeto,
+                pontosDeAtencao: [analise.justificativa],
               });
             }
           } catch (agentErr) {
-            console.warn(`[Radar Cron] Erro ao analisar edital ${edital.id}:`, agentErr);
+            console.warn(`[Radar Cron] Falha ao analisar edital ${edital.id} para CNAE ${empresa.cnaePrincipal}:`, agentErr);
           }
 
-          if (editaisValidados.length >= 5) break; // Máximo 5 por e-mail para não sobrecarregar
+          // Limite de 5 editais mais relevantes por e-mail para evitar sobrecarga
+          if (editaisValidados.length >= 5) break;
         }
 
-        // 3. Dispara o e-mail oficial apenas se houver oportunidades validadas
+        // 6. Disparo via Resend (Apenas se houver editais validados)
         if (editaisValidados.length > 0) {
-          await enviarAlertaEditaisCnae({
-            email,
-            empresaNome: empresa.razaoSocial || 'Licitante',
-            cnae: empresa.cnaePrincipal,
-            editais: editaisValidados,
-          });
-          console.info(`[Radar Cron] 📧 ${editaisValidados.length} editais qualificados enviados para ${email}`);
+          try {
+            const emailResult = await enviarAlertaEditaisCnae({
+              email,
+              empresaNome: empresa.razaoSocial || 'Licitante',
+              cnae: empresa.cnaePrincipal,
+              editais: editaisValidados,
+            });
+
+            totalDisparos++;
+            console.info(`[Radar Cron][${new Date().toISOString()}] 📧 ${editaisValidados.length} oportunidade(s) enviada(s) para ${email} (${empresa.razaoSocial}) - Email ID: ${emailResult?.id || 'N/A'}`);
+          } catch (sendErr) {
+            console.error(`[Radar Cron] Erro ao disparar e-mail para ${email}:`, sendErr);
+          }
         }
       }
+
+      // 7. Observabilidade e Fechamento
+      console.info(`[Radar Cron][${new Date().toISOString()}] ✅ Rotina diária concluída: ${empresas.length} empresas processadas, ${totalDisparos} e-mail(s) oficial(is) disparado(s).`);
     } catch (error) {
-      console.error('[Radar Cron] ❌ Erro durante o disparo diário de editais:', error);
+      console.error(`[Radar Cron][${new Date().toISOString()}] ❌ Erro não tratado durante a rotina do radar:`, error);
     }
   }, { timezone: 'America/Sao_Paulo' });
 }
