@@ -82,6 +82,7 @@ const HabilitacaoPage = React.lazy(() => import('./pages/HabilitacaoPage'));
 const CertidoesPage = React.lazy(() => import('./pages/CertidoesPage'));
 const ImpugnacaoPage = React.lazy(() => import('./pages/ImpugnacaoPage'));
 const RoboPage = React.lazy(() => import('./pages/RoboPage'));
+const SalaDeGuerraPage = React.lazy(() => import('./pages/SalaDeGuerraPage'));
 const SrpPage = React.lazy(() =>
   import('./pages/Srp/SrpPage').then((module) => ({ default: module.SrpPage })),
 );
@@ -342,6 +343,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />
             <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Robôs de Lances', <RoboPage />)} />
+            <Route path={FORNECEDOR_ROUTES.sala_de_guerra} element={protectFeature('robo_lances', 'Sala de Guerra', <SalaDeGuerraPage />)} />
             <Route
               path={FORNECEDOR_ROUTES.pregao_eletronico}
               element={protectFeature('radar_editais', 'Pregão Eletrônico', <LicitacoesPage key="pregao-eletronico" modalidadeInicial="Pregão Eletrônico" />)}
