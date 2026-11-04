@@ -52,9 +52,9 @@ export const LexOnboardingBot: React.FC = () => {
   const steps: Step[] = [
     {
       target: '[data-tour="sidebar-menu"]',
-      title: 'Menu de Ferramentas Liberadas',
+      title: 'Command Center: 4 Centrais Estratégicas',
       content:
-        'Durante o seu período de teste, todas as 16 ferramentas estão 100% liberadas: Radar de Editais, Captação, Gestor de Propostas, CRM de Disputas, Contratos e muito mais.',
+        'A plataforma foi consolidada em 4 Centrais Estratégicas: Radar & Oportunidades, Sala de Guerra & Disputas, Contencioso & Defesas (Lex), e Gestão Pós-Vitória & Garantias. Todas liberadas no seu plano.',
       skipBeacon: true,
       placement: 'right',
     },

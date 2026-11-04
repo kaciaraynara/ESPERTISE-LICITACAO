@@ -10,6 +10,7 @@ import CompanySelector from './CompanySelector';
 import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
 import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/dashboard': 'Página Inicial',
@@ -161,7 +162,12 @@ export default function DashboardLayout() {
           aria-busy={switchingCompany}
           className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50"
         >
-          <Outlet key={selectedCompany?.id ?? 'no-active-company'} />
+          <ErrorBoundary
+            fallbackTitle="Erro ao carregar módulo da plataforma"
+            fallbackMessage="O módulo solicitado encontrou uma instabilidade. Os dados das demais áreas continuam preservados."
+          >
+            <Outlet key={selectedCompany?.id ?? 'no-active-company'} />
+          </ErrorBoundary>
           {switchingCompany ? (
             <div className="pointer-events-none fixed inset-x-0 top-20 z-20 flex justify-center px-4" role="status" aria-live="polite">
               <span className="rounded-full border border-blue-100 bg-white/95 px-4 py-2 text-xs font-bold text-brand-blue shadow-md">

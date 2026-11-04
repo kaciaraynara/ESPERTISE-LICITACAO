@@ -126,6 +126,7 @@ model Company {
   guarantees       Guarantee[]
   contractGuarantees ContractGuarantee[]
   contractEquilibria ContractEquilibrium[]
+  garantiasLicitacao GarantiaLicitacao[]
 
   @@unique([userId, cnpj])
   @@unique([tenantId, cnpj])
@@ -2018,4 +2019,64 @@ model BaseJuridica {
   @@index([artigoReferencia])
   @@index([ativo])
   @@map("base_juridica")
+}
+
+// -----------------------------------------------------------------------------
+// BASE JURÍDICA KNOWLEDGE (PGVECTOR / 1536 DIMENSÕES)
+// Suporte a embeddings de alta densidade (ex: OpenAI text-embedding-3-small)
+// -----------------------------------------------------------------------------
+
+model BaseJuridicaKnowledge {
+  id                  String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  titulo              String
+  ementa              String?                     @db.Text
+  conteudo            String                      @db.Text
+  autoridade          String                      @default("TCU") // TCU, STJ, STF, AGU, CNJ, LEI_14133
+  esfera              String?                     @default("FEDERAL") // FEDERAL, ESTADUAL, MUNICIPAL
+  numeroAcordao       String?                     @map("numero_acordao")
+  ano                 Int?
+  artigosRelacionados String[]                    @default([]) @map("artigos_relacionados")
+  tags                String[]                    @default([])
+  embeddingModel      String?                     @default("text-embedding-3-small") @map("embedding_model")
+  embedding           Unsupported("vector(1536)")?
+  metadata            Json?
+  ativo               Boolean                     @default(true)
+  createdAt           DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([autoridade])
+  @@index([ativo])
+  @@map("base_juridica_knowledge")
+}
+
+// -----------------------------------------------------------------------------
+// GESTÃO DE GARANTIAS LICITATÓRIAS (LEI 14.133/2021 - ARTS. 58 E 96 A 102)
+// Garantia de Proposta (Bid Bond) e Execução Contratual (Performance Bond)
+// -----------------------------------------------------------------------------
+
+model GarantiaLicitacao {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  licitacaoId         String?   @map("licitacao_id") @db.Uuid
+  contractId          String?   @map("contract_id") @db.Uuid
+  tipo                String    @default("PROPOSTA") // PROPOSTA, EXECUCAO_CONTRATUAL
+  modalidade          String    @default("SEGURO_GARANTIA") // SEGURO_GARANTIA, FIANCA_BANCARIA, TITULO_PUBLICO, CAUCAO_DINHEIRO
+  instituicaoEmissora String?   @map("instituicao_emissora")
+  numeroApolice       String?   @map("numero_apolice")
+  valor               Decimal   @db.Decimal(18, 2)
+  percentual          Decimal?  @db.Decimal(5, 2)
+  dataEmissao         DateTime? @map("data_emissao") @db.Timestamptz(6)
+  dataVencimento      DateTime  @map("data_vencimento") @db.Timestamptz(6)
+  status              String    @default("ATIVA") // COTACAO, SOLICITADA, ATIVA, RENOVADA, EXECUTADA, BAIXADA, VENCIDA
+  documentoUrl        String?   @map("documento_url")
+  observacoes         String?   @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([companyId])
+  @@index([status])
+  @@index([dataVencimento])
+  @@map("garantias_licitacao")
 }
