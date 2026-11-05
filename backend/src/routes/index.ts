@@ -31,6 +31,7 @@ import catalogoRoutes from './catalogo.routes';
 import prazosRoutes from './prazos.routes';
 import empresasRoutes from './empresas.routes';
 import authRoutes from './auth.routes';
+import adminRoutes, { resolveAdminSecretPath } from './admin.routes';
 import mercadoPagoRoutes from './mercadopago.routes';
 import cofreRoutes from './cofre.routes';
 import crmRoutes from './crm.routes';
@@ -119,6 +120,7 @@ const handle =
 // ==========================================
 
 router.use('/auth', authRoutes);
+router.use(adminRoutes);
 router.use('/pagamentos', mercadoPagoRoutes);
 
 router.get(
@@ -574,11 +576,13 @@ router.get(
 );
 
 // ==========================================
-// ADMIN / AUDITORIA
+// ROTAS ADMINISTRATIVAS OFUSCADAS (process.env.ADMIN_SECRET_PATH)
+// O prefixo estático '/admin' foi substituído pelo caminho secreto dinâmico.
 // ==========================================
+const dynamicAdminPrefix = `/${resolveAdminSecretPath().trim()}`;
 
 router.get(
-  '/admin/audit/events',
+  `${dynamicAdminPrefix}/audit/events`,
   auditReadOnly,
   handle(
     auditAdmin.listEvents.bind(
@@ -588,7 +592,7 @@ router.get(
 );
 
 router.get(
-  '/admin/audit/metrics',
+  `${dynamicAdminPrefix}/audit/metrics`,
   auditReadOnly,
   handle(
     auditAdmin.metrics.bind(
@@ -598,11 +602,11 @@ router.get(
 );
 
 // ==========================================
-// SUPER ADMIN
+// SUPER ADMIN (OFUSCADO)
 // ==========================================
 
 router.get(
-  '/admin/super/metrics',
+  `${dynamicAdminPrefix}/super/metrics`,
   rbacAdminOnly,
   handle(
     superAdminController.getMetrics.bind(
@@ -612,7 +616,7 @@ router.get(
 );
 
 router.get(
-  '/admin/super/users',
+  `${dynamicAdminPrefix}/super/users`,
   rbacAdminOnly,
   handle(
     superAdminController.listUsers.bind(
@@ -622,7 +626,7 @@ router.get(
 );
 
 router.post(
-  '/admin/super/email',
+  `${dynamicAdminPrefix}/super/email`,
   rbacAdminOnly,
   handle(
     superAdminController.sendEmail.bind(
@@ -632,11 +636,11 @@ router.post(
 );
 
 // ==========================================
-// DATA PLATFORM ADMIN
+// DATA PLATFORM ADMIN (OFUSCADO)
 // ==========================================
 
 router.get(
-  '/admin/data-platform/jobs',
+  `${dynamicAdminPrefix}/data-platform/jobs`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.listJobs.bind(
@@ -646,7 +650,7 @@ router.get(
 );
 
 router.get(
-  '/admin/data-platform/events',
+  `${dynamicAdminPrefix}/data-platform/events`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.listEvents.bind(
@@ -656,7 +660,7 @@ router.get(
 );
 
 router.get(
-  '/admin/data-platform/tasks',
+  `${dynamicAdminPrefix}/data-platform/tasks`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.listTasks.bind(
@@ -666,7 +670,7 @@ router.get(
 );
 
 router.get(
-  '/admin/data-platform/cursors',
+  `${dynamicAdminPrefix}/data-platform/cursors`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.listCursors.bind(
@@ -676,7 +680,7 @@ router.get(
 );
 
 router.get(
-  '/admin/data-platform/metrics',
+  `${dynamicAdminPrefix}/data-platform/metrics`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.metrics.bind(
@@ -686,7 +690,7 @@ router.get(
 );
 
 router.post(
-  '/admin/data-platform/ingest/pncp',
+  `${dynamicAdminPrefix}/data-platform/ingest/pncp`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.runPncpIngestion.bind(
@@ -696,7 +700,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/ingest/comprasgov',
+  `${dynamicAdminPrefix}/data-platform/ingest/comprasgov`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.runComprasGovIngestion.bind(
@@ -706,7 +710,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/ingest/tcu',
+  `${dynamicAdminPrefix}/data-platform/ingest/tcu`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.runTcuIngestion.bind(
@@ -716,7 +720,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/index/consume',
+  `${dynamicAdminPrefix}/data-platform/index/consume`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.consumeIndexTasks.bind(
@@ -726,7 +730,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/requeue/skipped',
+  `${dynamicAdminPrefix}/data-platform/requeue/skipped`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.requeueSkipped.bind(
@@ -736,7 +740,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/requeue/failed',
+  `${dynamicAdminPrefix}/data-platform/requeue/failed`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.requeueFailed.bind(
@@ -746,7 +750,7 @@ router.post(
 );
 
 router.post(
-  '/admin/data-platform/tasks/cleanup',
+  `${dynamicAdminPrefix}/data-platform/tasks/cleanup`,
   dataPlatformAdminOnly,
   handle(
     dataPlatformAdmin.cleanupOldTasks.bind(
@@ -756,11 +760,11 @@ router.post(
 );
 
 // ==========================================
-// RBAC ADMIN
+// RBAC ADMIN (OFUSCADO)
 // ==========================================
 
 router.get(
-  '/admin/rbac/roles',
+  `${dynamicAdminPrefix}/rbac/roles`,
   rbacAdminOnly,
   handle(
     rbacAdmin.listRoles.bind(
@@ -770,7 +774,7 @@ router.get(
 );
 
 router.post(
-  '/admin/rbac/roles',
+  `${dynamicAdminPrefix}/rbac/roles`,
   rbacAdminOnly,
   handle(
     rbacAdmin.createRole.bind(
@@ -780,7 +784,7 @@ router.post(
 );
 
 router.get(
-  '/admin/rbac/permissions',
+  `${dynamicAdminPrefix}/rbac/permissions`,
   rbacAdminOnly,
   handle(
     rbacAdmin.listPermissions.bind(
@@ -790,7 +794,7 @@ router.get(
 );
 
 router.get(
-  '/admin/rbac/users/:userId/permissions',
+  `${dynamicAdminPrefix}/rbac/users/:userId/permissions`,
   rbacAdminOnly,
   handle(
     rbacAdmin.listUserPermissions.bind(
@@ -800,7 +804,7 @@ router.get(
 );
 
 router.post(
-  '/admin/rbac/user-roles',
+  `${dynamicAdminPrefix}/rbac/user-roles`,
   rbacAdminOnly,
   handle(
     rbacAdmin.assignRole.bind(
@@ -810,7 +814,7 @@ router.post(
 );
 
 router.delete(
-  '/admin/rbac/user-roles',
+  `${dynamicAdminPrefix}/rbac/user-roles`,
   rbacAdminOnly,
   handle(
     rbacAdmin.revokeRole.bind(
@@ -820,7 +824,7 @@ router.delete(
 );
 
 router.post(
-  '/admin/rbac/user-roles/revoke',
+  `${dynamicAdminPrefix}/rbac/user-roles/revoke`,
   rbacAdminOnly,
   handle(
     rbacAdmin.revokeRole.bind(
@@ -830,11 +834,11 @@ router.post(
 );
 
 // ==========================================
-// LEGAL RULES ADMIN
+// LEGAL RULES ADMIN (OFUSCADO)
 // ==========================================
 
 router.get(
-  '/admin/legal-rules',
+  `${dynamicAdminPrefix}/legal-rules`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.listRules.bind(
@@ -844,7 +848,7 @@ router.get(
 );
 
 router.get(
-  '/admin/legal-rules/:id',
+  `${dynamicAdminPrefix}/legal-rules/:id`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.getRule.bind(
@@ -854,7 +858,7 @@ router.get(
 );
 
 router.post(
-  '/admin/legal-rules',
+  `${dynamicAdminPrefix}/legal-rules`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.createRule.bind(
@@ -864,7 +868,7 @@ router.post(
 );
 
 router.patch(
-  '/admin/legal-rules/:id',
+  `${dynamicAdminPrefix}/legal-rules/:id`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.updateRule.bind(
@@ -874,7 +878,7 @@ router.patch(
 );
 
 router.post(
-  '/admin/legal-rules/:id/submit-review',
+  `${dynamicAdminPrefix}/legal-rules/:id/submit-review`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.submitReview.bind(
@@ -884,7 +888,7 @@ router.post(
 );
 
 router.post(
-  '/admin/legal-rules/:id/approve',
+  `${dynamicAdminPrefix}/legal-rules/:id/approve`,
   legalReviewOnly,
   handle(
     legalRulesAdmin.approveRule.bind(
@@ -894,7 +898,7 @@ router.post(
 );
 
 router.post(
-  '/admin/legal-rules/:id/reject',
+  `${dynamicAdminPrefix}/legal-rules/:id/reject`,
   legalReviewOnly,
   handle(
     legalRulesAdmin.rejectRule.bind(
@@ -904,7 +908,7 @@ router.post(
 );
 
 router.post(
-  '/admin/legal-rules/:id/activate-approved',
+  `${dynamicAdminPrefix}/legal-rules/:id/activate-approved`,
   legalPublishOnly,
   handle(
     legalRulesAdmin.activateApproved.bind(
@@ -914,7 +918,7 @@ router.post(
 );
 
 router.get(
-  '/admin/legal-rules/:id/history',
+  `${dynamicAdminPrefix}/legal-rules/:id/history`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.history.bind(
@@ -924,7 +928,7 @@ router.get(
 );
 
 router.get(
-  '/admin/legal-rules/:id/diff/:compareId',
+  `${dynamicAdminPrefix}/legal-rules/:id/diff/:compareId`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.diff.bind(
@@ -934,7 +938,7 @@ router.get(
 );
 
 router.post(
-  '/admin/legal-rules/:id/activate',
+  `${dynamicAdminPrefix}/legal-rules/:id/activate`,
   legalPublishOnly,
   handle(
     legalRulesAdmin.activateRule.bind(
@@ -944,7 +948,7 @@ router.post(
 );
 
 router.post(
-  '/admin/legal-rules/:id/deactivate',
+  `${dynamicAdminPrefix}/legal-rules/:id/deactivate`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.deactivateRule.bind(
@@ -954,7 +958,7 @@ router.post(
 );
 
 router.post(
-  '/admin/legal-rules/:id/new-version',
+  `${dynamicAdminPrefix}/legal-rules/:id/new-version`,
   legalAdminOnly,
   handle(
     legalRulesAdmin.createNewVersion.bind(

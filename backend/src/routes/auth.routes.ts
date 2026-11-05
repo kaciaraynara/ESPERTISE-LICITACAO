@@ -2,7 +2,6 @@ import { Router, RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { AuthController } from '../controllers/auth.controller';
 import { authMiddleware } from '../shared/middlewares/auth.middleware';
-import { adminLoginLimiter } from '../middlewares/security';
 
 const router = Router();
 const controller = new AuthController();
@@ -24,8 +23,7 @@ const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => 
 
 router.use(authRateLimit);
 router.post('/register', handle(controller.register.bind(controller) as RequestHandler));
-router.post('/login', adminLoginLimiter, handle(controller.login.bind(controller) as RequestHandler));
-router.post('/admin/login', adminLoginLimiter, handle(controller.login.bind(controller) as RequestHandler));
+router.post('/login', handle(controller.login.bind(controller) as RequestHandler));
 router.post('/refresh', handle(controller.refresh.bind(controller) as RequestHandler));
 router.post('/logout', handle(controller.logout.bind(controller) as RequestHandler));
 router.post('/forgot-password', handle(controller.forgotPassword.bind(controller) as RequestHandler));

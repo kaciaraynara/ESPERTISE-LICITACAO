@@ -150,7 +150,11 @@ function readCookie(req: Request, name: string) {
 function getAccessToken(req: Request) {
   const [scheme, credential] = req.headers.authorization?.trim().split(/\s+/, 2) ?? [];
   const bearerToken = scheme?.toLowerCase() === 'bearer' ? credential : undefined;
-  return bearerToken || readCookie(req, 'expertise_access_token');
+  return (
+    readCookie(req, 'admin_session_jwt') ||
+    bearerToken ||
+    readCookie(req, 'expertise_access_token')
+  );
 }
 
 function getClientIp(req: Request) {

@@ -9,6 +9,7 @@ import { assertProductionConfig, getBooleanEnv } from './config/env';
 import { prisma } from './database/prisma';
 import routes from './routes/index';
 import authRoutes from './routes/auth.routes';
+import adminRoutes from './routes/admin.routes';
 import { errorHandler } from './shared/middlewares/error-handler.middleware';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
@@ -110,7 +111,8 @@ app.use(express.json({
   },
 }));
 
-// 6. Roteador Principal da API e Aliases de Compatibilidade
+// 6. Roteador Principal da API, Rotas Administrativas Ofuscadas e Aliases de Compatibilidade
+app.use(adminRoutes);
 app.use('/api/v1', routes);
 app.use('/api', routes);
 app.use('/auth', authRoutes);
