@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import {
   Search, Filter, RefreshCw, Building2, Calendar,
-  DollarSign, MapPin, AlertTriangle,
-  ChevronDown, Clock, ExternalLink,
+  MapPin, AlertTriangle,
+  ChevronDown, Clock, ExternalLink, Download, FileText,
   Plus, CheckCircle2,
 } from '@components/icons/phosphor-compat';
 import { lexApi, licitacoesApi, crmApi, propostasApi, noticesApi } from '../services/api';
@@ -16,6 +16,7 @@ type Licitacao = {
   id: string;
   objeto: string;
   orgao: string;
+  cnpjOrgao?: string | null;
   uf?: string;
   municipio?: string;
   valor_estimado?: number | null;
@@ -30,8 +31,10 @@ type Licitacao = {
   situacao?: string;
   link?: string;
   linkSistemaOrigem?: string;
-  documento_url?: string;
+  documento_url?: string | null;
+  linkDownloadEdital?: string | null;
   numeroControlePNCP?: string;
+  numeroEdital?: string | null;
   fonte?: string;
   score?: { pontuacao: number; nivel: string };
   processo?: string;
@@ -55,6 +58,8 @@ type Meta = {
 
 type SearchFilters = {
   busca: string;
+  cnpj: string;
+  cnae: string;
   uf: string;
   modalidade: string;
 };
@@ -67,16 +72,41 @@ const UFS = [
   'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO',
 ];
 
+function resolveEditalDownloadUrl(item: Licitacao): string | null {
+  const explicit =
+    item.linkDownloadEdital ||
+    item.documento_url ||
+    item.linkSistemaOrigem ||
+    item.link;
+
+  const numPncp = (item.numeroControlePNCP || (item as any).numero_controle_pncp || '').trim();
+  const match = numPncp.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
+  if (match) {
+    const [, cnpj, sequencial, ano] = match;
+    return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
+  }
+
+  if (explicit && explicit.trim()) {
+    return explicit.trim();
+  }
+
+  if (numPncp) {
+    return `https://pncp.gov.br/app/editais/${encodeURIComponent(numPncp)}`;
+  }
+
+  return null;
+}
+
 function StatusBadge({ situacao }: { situacao?: string }) {
   const s = (situacao || '').toLowerCase();
-  const isActive = s.includes('publicad') || s.includes('ativ') || s.includes('aberta');
+  const isActive = s.includes('publicad') || s.includes('ativ') || s.includes('aberta') || s.includes('divulgad');
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
       isActive
-        ? 'bg-white text-brand-blue border border-brand-blue/20'
-        : 'bg-white text-brand-blue/70 border border-gray-100'
+        ? 'bg-blue-50/70 text-brand-blue border border-brand-blue/20'
+        : 'bg-slate-50 text-slate-600 border border-slate-200'
     }`}>
-      <span className={`w-1.5 h-1.5 rounded-lg ${isActive ? 'bg-brand-blue animate-pulse' : 'bg-white'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-brand-blue animate-pulse' : 'bg-slate-400'}`} />
       {situacao || 'Publicada'}
     </span>
   );
@@ -95,11 +125,17 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
   const [erroDetalhesEdital, setErroDetalhesEdital] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [busca, setBusca] = useState('');
+  const [cnpjFiltro, setCnpjFiltro] = useState('');
+  const [cnaeFiltro, setCnaeFiltro] = useState('');
   const [ufSel, setUfSel] = useState('Todos');
   const [modalidadeSel, setModalidadeSel] = useState(modalidadeInicial);
+
   const [filtrosAplicados, setFiltrosAplicados] = useState<SearchFilters>({
     busca: '',
+    cnpj: '',
+    cnae: '',
     uf: 'Todos',
     modalidade: modalidadeInicial,
   });
@@ -111,7 +147,8 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
       modalidade: modalidadeInicial,
     }));
   }, [modalidadeInicial]);
-  const [showFiltros, setShowFiltros] = useState(false);
+
+  const [showFiltros, setShowFiltros] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
@@ -260,6 +297,8 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
             pagina: 1,
             tamanhoPagina: 50,
             palavraChave: filtrosAplicados.busca || undefined,
+            cnpj: filtrosAplicados.cnpj || undefined,
+            cnae: filtrosAplicados.cnae || undefined,
             uf: filtrosAplicados.uf !== 'Todos' ? filtrosAplicados.uf : undefined,
             modalidade: filtrosAplicados.modalidade !== 'Todos'
               ? pncpModMap[filtrosAplicados.modalidade]
@@ -271,12 +310,23 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         }
       }
 
-      const params: any = {
+      const params: Record<string, any> = {
         pagina: pg,
         tamanhoPagina: 20,
       };
-      if (filtrosAplicados.busca.trim()) params.busca = filtrosAplicados.busca.trim();
-      if (filtrosAplicados.uf !== 'Todos') params.uf = filtrosAplicados.uf;
+      if (filtrosAplicados.busca.trim()) {
+        params.busca = filtrosAplicados.busca.trim();
+        params.palavraChave = filtrosAplicados.busca.trim();
+      }
+      if (filtrosAplicados.cnpj.trim()) {
+        params.cnpj = filtrosAplicados.cnpj.trim();
+      }
+      if (filtrosAplicados.cnae.trim()) {
+        params.cnae = filtrosAplicados.cnae.trim();
+      }
+      if (filtrosAplicados.uf !== 'Todos') {
+        params.uf = filtrosAplicados.uf;
+      }
       if (filtrosAplicados.modalidade !== 'Todos') {
         params.modalidade = pncpModMap[filtrosAplicados.modalidade] || filtrosAplicados.modalidade;
       }
@@ -332,9 +382,17 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
 
   const handleBuscar = (e: React.FormEvent) => {
     e.preventDefault();
-    const nextFilters = { busca: busca.trim(), uf: ufSel, modalidade: modalidadeSel };
+    const nextFilters: SearchFilters = {
+      busca: busca.trim(),
+      cnpj: cnpjFiltro.trim(),
+      cnae: cnaeFiltro.trim(),
+      uf: ufSel,
+      modalidade: modalidadeSel,
+    };
     if (
       nextFilters.busca === filtrosAplicados.busca
+      && nextFilters.cnpj === filtrosAplicados.cnpj
+      && nextFilters.cnae === filtrosAplicados.cnae
       && nextFilters.uf === filtrosAplicados.uf
       && nextFilters.modalidade === filtrosAplicados.modalidade
     ) {
@@ -342,16 +400,50 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
       return;
     }
     setFiltrosAplicados(nextFilters);
+  };
+
+  const aplicarPerfilEmpresaAtiva = () => {
+    if (!selectedCompany) {
+      toast.error('Nenhuma empresa ativa selecionada.');
+      return;
+    }
+    const nextCnpj = selectedCompany.cnpj || '';
+    const nextCnae = selectedCompany.cnaePrincipal || selectedCompany.cnae_principal || (meta?.perfilRadar?.cnaes?.[0] ?? '');
+    const nextUf = selectedCompany.uf && UFS.includes(selectedCompany.uf.toUpperCase())
+      ? selectedCompany.uf.toUpperCase()
+      : ufSel;
+
+    setCnpjFiltro(nextCnpj);
+    setCnaeFiltro(nextCnae);
+    setUfSel(nextUf);
+    setFiltrosAplicados({
+      busca: busca.trim(),
+      cnpj: nextCnpj.trim(),
+      cnae: nextCnae.trim(),
+      uf: nextUf,
+      modalidade: modalidadeSel,
+    });
+    toast.success('Filtros preenchidos com os dados reais da empresa ativa.');
   };
 
   const limparFiltros = () => {
     const defaultMod = modalidadeInicial || 'Todos';
-    const nextFilters = { busca: '', uf: 'Todos', modalidade: defaultMod };
+    const nextFilters: SearchFilters = {
+      busca: '',
+      cnpj: '',
+      cnae: '',
+      uf: 'Todos',
+      modalidade: defaultMod,
+    };
     setBusca('');
+    setCnpjFiltro('');
+    setCnaeFiltro('');
     setUfSel('Todos');
     setModalidadeSel(defaultMod);
     if (
       nextFilters.busca === filtrosAplicados.busca
+      && nextFilters.cnpj === filtrosAplicados.cnpj
+      && nextFilters.cnae === filtrosAplicados.cnae
       && nextFilters.uf === filtrosAplicados.uf
       && nextFilters.modalidade === filtrosAplicados.modalidade
     ) {
@@ -361,49 +453,51 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
     setFiltrosAplicados(nextFilters);
   };
 
-  const formatVal = (v?: number) =>
-    v ? `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
+  const formatVal = (v?: number | null) =>
+    v != null && Number.isFinite(Number(v))
+      ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : 'Sigiloso / Não informado';
 
-  const formatDate = (d?: string) =>
-    d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const formatDate = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
-  const diasRestantes = (d?: string) => {
+  const diasRestantes = (d?: string | null) => {
     if (!d) return null;
     return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
   };
 
   const tituloPagina = modalidadeInicial && modalidadeInicial !== 'Todos'
     ? `${modalidadeInicial} (Lei 14.133/21)`
-    : 'Radar de Editais';
+    : 'Central de Radar e Oportunidades';
 
   return (
     <div className="flex flex-col h-full bg-white">
 
-      {/* HEADER */}
+      {/* HEADER E BUSCA DINÂMICA REAL */}
       <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
             <div>
-              <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{tituloPagina}</h1>
-              <div className="flex items-center gap-3 mt-1.5">
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{tituloPagina}</h1>
+              <div className="flex flex-wrap items-center gap-3 mt-1">
                 {meta?.total != null ? (
                   <p className="text-sm font-semibold text-slate-500 flex items-center gap-2">
-                    <span className="font-bold text-brand-blue">{meta.total.toLocaleString()}</span> oportunidades capturadas
+                    <span className="font-bold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais oficiais no PNCP
                     {ultimaAtualizacao && (
-                      <span className="text-xs text-slate-400">· Atualizado às {ultimaAtualizacao.toLocaleTimeString('pt-BR')}</span>
+                      <span className="text-xs text-slate-400">· Sincronizado às {ultimaAtualizacao.toLocaleTimeString('pt-BR')}</span>
                     )}
                   </p>
                 ) : (
-                  <p className="text-sm font-semibold text-slate-500">Oportunidades consultadas em fontes oficiais</p>
+                  <p className="text-sm font-semibold text-slate-500">Alimentação oficial e diária via Portal Nacional de Contratações Públicas (PNCP)</p>
                 )}
               </div>
-              {meta?.perfilRadar && !busca.trim() && (
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  <span className="rounded-lg border border-brand-blue/20 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-blue">
-                    Busca alinhada às atividades da empresa
+              {meta?.perfilRadar && !busca.trim() && !cnaeFiltro.trim() && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-lg border border-brand-blue/20 bg-blue-50/40 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue">
+                    Radar alinhado ao CNAE da empresa
                   </span>
                   {(meta.perfilRadar.palavras_chave || []).slice(0, 5).map((tag) => (
-                    <span key={tag} className="rounded-lg border border-gray-100 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-blue/70">
+                    <span key={tag} className="rounded-lg border border-gray-100 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue/70">
                       {tag}
                     </span>
                   ))}
@@ -411,101 +505,160 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {selectedCompany && (
+                <button
+                  type="button"
+                  onClick={aplicarPerfilEmpresaAtiva}
+                  className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-brand-blue text-xs font-bold uppercase tracking-wider rounded-xl transition-all border border-brand-blue/20 shrink-0"
+                  title="Preencher filtros com CNPJ, CNAE e UF da empresa ativa"
+                >
+                  <Building2 className="w-3.5 h-3.5" weight="bold" />
+                  Usar Meu CNPJ/CNAE
+                </button>
+              )}
               <button
+                type="button"
                 onClick={() => void buscarLicitacoes(1, true)}
                 disabled={loading}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} weight="bold" />
-                Atualizar Lista
+                Sincronizar PNCP
               </button>
             </div>
           </div>
 
-          {/* BUSCA */}
-          <form onSubmit={handleBuscar} className="flex gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[300px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" weight="bold" />
-              <input
-                type="text"
-                value={busca}
-                onChange={e => setBusca(e.target.value)}
-                placeholder="Buscar por objeto, órgão, termo ou palavra-chave..."
-                className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-200 rounded-xl text-base font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none transition-all shadow-sm hover:border-slate-300"
-              />
+          {/* FORMULÁRIO DE FILTROS DINÂMICOS REAIS (Palavras-chave, CNPJ, CNAE, UF, Modalidade) */}
+          <form onSubmit={handleBuscar} className="space-y-3">
+            <div className="flex gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[260px]">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" weight="bold" />
+                <input
+                  type="text"
+                  value={busca}
+                  onChange={e => setBusca(e.target.value)}
+                  placeholder="Palavras-chave (ex: informática, engenharia, limpeza, medicamentos)..."
+                  className="w-full pl-11 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none transition-all shadow-xs"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-7 py-3 bg-brand-blue hover:bg-blue-900 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-md"
+              >
+                Consultar PNCP
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFiltros(!showFiltros)}
+                className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-xl hover:border-slate-300 transition-all"
+              >
+                <Filter className="w-4 h-4" />
+                Filtros Avançados
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFiltros ? 'rotate-180' : ''}`} />
+              </button>
             </div>
-            <button type="submit" className="px-8 py-4 bg-brand-blue hover:bg-blue-900 text-white text-sm font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-lg">
-              Buscar Editais
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFiltros(!showFiltros)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-100 text-brand-blue/70 text-sm font-bold rounded-lg hover:bg-white transition-all"
-            >
-              <Filter className="w-4 h-4" />
-              Filtros
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFiltros ? 'rotate-180' : ''}`} />
-            </button>
-          </form>
 
-          {/* FILTROS */}
-          {showFiltros && (
-            <div className="mt-3 flex flex-wrap gap-3 pt-3 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div>
-                <label htmlFor="licitacoes-uf-filter" className="text-xs font-bold text-brand-blue/70 uppercase tracking-wider block mb-1">UF</label>
-                <select
-                  id="licitacoes-uf-filter"
-                  aria-label="Filtrar licitações por UF"
-                  value={ufSel}
-                  onChange={e => setUfSel(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm font-medium text-brand-blue focus:outline-none focus:border-brand-blue/20"
-                >
-                  {UFS.map(u => <option key={u}>{u}</option>)}
-                </select>
+            {showFiltros && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-100 animate-in fade-in duration-150">
+                <div>
+                  <label htmlFor="licitacoes-cnpj-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    CNPJ (Empresa ou Órgão)
+                  </label>
+                  <input
+                    id="licitacoes-cnpj-filter"
+                    type="text"
+                    value={cnpjFiltro}
+                    onChange={e => setCnpjFiltro(e.target.value)}
+                    placeholder={selectedCompany?.cnpj || '00.000.000/0001-00'}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="licitacoes-cnae-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    CNAE / Ramo de Atividade
+                  </label>
+                  <input
+                    id="licitacoes-cnae-filter"
+                    type="text"
+                    value={cnaeFiltro}
+                    onChange={e => setCnaeFiltro(e.target.value)}
+                    placeholder={selectedCompany?.cnaePrincipal || meta?.perfilRadar?.cnaes?.[0] || 'Ex: 6201-5/01 ou Engenharia'}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="licitacoes-uf-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    UF (Estado)
+                  </label>
+                  <select
+                    id="licitacoes-uf-filter"
+                    aria-label="Filtrar licitações por UF"
+                    value={ufSel}
+                    onChange={e => setUfSel(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand-blue"
+                  >
+                    {UFS.map(u => <option key={u} value={u}>{u === 'Todos' ? 'Todas as UFs (Brasil)' : u}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="licitacoes-modalidade-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                    Modalidade
+                  </label>
+                  <select
+                    id="licitacoes-modalidade-filter"
+                    aria-label="Filtrar licitações por modalidade"
+                    value={modalidadeSel}
+                    onChange={e => setModalidadeSel(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand-blue"
+                  >
+                    {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
+                  >
+                    Aplicar Filtros
+                  </button>
+                  <button
+                    type="button"
+                    onClick={limparFiltros}
+                    className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
+                  >
+                    Limpar
+                  </button>
+                </div>
               </div>
-              <div>
-                <label htmlFor="licitacoes-modalidade-filter" className="text-xs font-bold text-brand-blue/70 uppercase tracking-wider block mb-1">Modalidade</label>
-                <select
-                  id="licitacoes-modalidade-filter"
-                  aria-label="Filtrar licitações por modalidade"
-                  value={modalidadeSel}
-                  onChange={e => setModalidadeSel(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-100 rounded-lg text-sm font-medium text-brand-blue focus:outline-none focus:border-brand-blue/20"
-                >
-                  {MODALIDADES.map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={limparFiltros}
-                  className="px-4 py-2 text-xs font-bold text-brand-blue/70 hover:text-brand-blue bg-white hover:bg-white rounded-lg transition-all"
-                >
-                  Limpar
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </form>
         </div>
       </div>
 
-      {/* ── CONTEÚDO ── */}
+      {/* ── CONTEÚDO PRINCIPAL ── */}
       <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
         <div className="max-w-7xl mx-auto">
 
           {/* AVISO DE SINCRONIZAÇÃO */}
           {meta?.aviso && !loading && (
-            <div className={`mb-5 rounded-lg p-4 flex items-start gap-3 animate-in fade-in duration-200 ${
+            <div className={`mb-5 rounded-xl p-4 flex items-start gap-3 animate-in fade-in duration-200 ${
               meta.fonte === 'cache'
-                ? 'bg-white border border-brand-blue/20'
+                ? 'bg-blue-50/40 border border-brand-blue/20'
                 : 'bg-brand-orange/10 border border-brand-orange/50'
             }`}>
-              <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${meta.fonte === 'cache' ? 'text-brand-blue' : 'text-brand-blue'}`} />
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-brand-blue" />
               <div>
-                <p className={`text-sm font-bold ${meta.fonte === 'cache' ? 'text-brand-blue' : 'text-brand-blue'}`}>
-                  {meta.fonte === 'cache' ? 'Dados em cache' : 'Aviso de conectividade'}
+                <p className="text-sm font-bold text-brand-blue">
+                  {meta.fonte === 'cache' ? 'Sincronização PNCP' : 'Aviso de conectividade'}
                 </p>
-                <p className={`text-sm mt-0.5 ${meta.fonte === 'cache' ? 'text-brand-blue' : 'text-brand-blue'}`}>
+                <p className="text-xs mt-0.5 text-slate-600">
                   {meta.aviso}
                 </p>
               </div>
@@ -520,194 +673,239 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 <div className="w-12 h-12 border-4 border-[#0A2540] border-t-transparent rounded-lg animate-spin absolute inset-0" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold text-slate-800">Localizando oportunidades estratégicas...</p>
-                <p className="text-xs text-slate-500 mt-1">Carregando dados consolidados do mercado governamental</p>
+                <p className="text-sm font-bold text-slate-800">Consultando Portal Nacional de Contratações Públicas (PNCP)...</p>
+                <p className="text-xs text-slate-500 mt-1">Aplicando filtros reais de CNPJ, CNAE, Palavras-chave e UF</p>
               </div>
             </div>
           )}
 
-          {/* VAZIO / EMPTY STATE ENGAJADOR */}
+          {/* EMPTY STATE HONESTO E CORPORATIVO */}
           {!loading && licitacoes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 px-6 gap-5 text-center max-w-lg mx-auto bg-slate-50/80 rounded-3xl border-2 border-dashed border-slate-200">
               <div className="relative p-4 rounded-3xl bg-white shadow-md border border-slate-100">
-                <svg className="w-20 h-20 text-[#0A2540]" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="48" cy="48" r="44" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" className="opacity-20" />
-                  <circle cx="48" cy="48" r="32" stroke="currentColor" strokeWidth="2" className="opacity-30" />
-                  <circle cx="48" cy="48" r="18" stroke="currentColor" strokeWidth="2" className="opacity-50" />
-                  <circle cx="48" cy="48" r="5" fill="#EA580C" />
-                  <line x1="48" y1="8" x2="48" y2="88" stroke="currentColor" strokeWidth="1.5" className="opacity-20" />
-                  <line x1="8" y1="48" x2="88" y2="48" stroke="currentColor" strokeWidth="1.5" className="opacity-20" />
-                  <path d="M48 48 L72 24" stroke="#EA580C" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="72" cy="24" r="3.5" fill="#EA580C" />
-                </svg>
+                <FileText className="w-14 h-14 text-[#0A2540]" weight="duotone" />
               </div>
 
               <div className="space-y-1.5">
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                  Nenhuma oportunidade encontrada nesta busca.
+                  Nenhum edital encontrado para os filtros informados.
                 </h3>
                 <p className="text-xs text-slate-500 leading-relaxed max-w-md">
-                  A consulta ao PNCP é atualizada ao abrir o Radar e ao executar uma busca. Ajuste os filtros ou tente novamente para consultar a fonte oficial.
+                  A consulta é realizada diretamente na API oficial do PNCP. Ajuste os parâmetros de CNPJ, CNAE, Palavras-chave ou UF e clique em Sincronizar PNCP.
                 </p>
               </div>
 
               <div className="flex items-center gap-3 pt-2 w-full justify-center">
                 <button
                   type="button"
-                  onClick={() => void buscarLicitacoes(1, true)}
-                  className="w-full sm:w-auto px-5 py-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                  onClick={limparFiltros}
+                  className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
                 >
-                  Atualizar oportunidades
+                  Limpar Filtros
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void buscarLicitacoes(1, true)}
+                  className="px-5 py-2.5 bg-brand-blue hover:bg-blue-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                >
+                  Sincronizar PNCP Agora
                 </button>
               </div>
             </div>
           )}
 
-          {/* LISTA */}
+          {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP */}
           {!loading && licitacoes.length > 0 && (
-            <div className="space-y-3">
-              {licitacoes.map((item, i) => {
-                const dataRef = item.data_encerramento || item.dataEncerramento || item.data_abertura || item.dataAbertura;
-                const dias = diasRestantes(dataRef || undefined);
-                const urgente = dias !== null && dias >= 0 && dias <= 3;
-                const pct = item.score?.pontuacao;
-                const valorExibido = item.valor_estimado ?? item.valorEstimado;
-                const dataAberturaExibida = item.data_abertura || item.dataAbertura;
-                return (
-                  <div
-                    key={item.id || i}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Abrir detalhes do edital: ${item.objeto}`}
-                    className="group bg-white border-2 border-slate-100 rounded-2xl p-6 md:p-8 hover:border-brand-blue/30 hover:shadow-xl transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-bottom-2"
-                    onClick={() => { setEditalSelecionado(item); setResumoRapido(null); }}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
-                      event.preventDefault();
-                      setEditalSelecionado(item);
-                      setResumoRapido(null);
-                    }}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start gap-6 md:gap-8">
-                      {/* SCORE CIRCLE */}
-                      {pct !== undefined && (
-                        <div className={`hidden lg:flex flex-col items-center justify-center w-20 h-20 rounded-2xl shrink-0 font-black text-2xl border-4 ${
-                          pct >= 80 ? 'bg-blue-50/50 text-brand-blue border-brand-blue/20' :
-                          pct >= 60 ? 'bg-slate-50 text-brand-blue border-slate-200' :
-                          'bg-slate-50 text-slate-400 border-slate-100'
-                        }`}>
-                          {pct}
-                          <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mt-0.5">match</span>
-                        </div>
-                      )}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                      <th className="py-3.5 px-4 whitespace-nowrap">Número do Edital</th>
+                      <th className="py-3.5 px-4">Órgão</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap">Data de Abertura</th>
+                      <th className="py-3.5 px-4 min-w-[280px]">Objeto</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap text-right">Valor Estimado</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {licitacoes.map((item, i) => {
+                      const numeroEdital =
+                        item.numeroEdital ||
+                        item.numeroCompra ||
+                        item.processo ||
+                        item.numeroControlePNCP ||
+                        item.id;
+                      const dataAberturaExibida =
+                        item.dataAbertura ||
+                        item.data_abertura ||
+                        item.dataPublicacao ||
+                        item.data_publicacao;
+                      const dataRef =
+                        item.dataEncerramento ||
+                        item.data_encerramento ||
+                        dataAberturaExibida;
+                      const dias = diasRestantes(dataRef);
+                      const urgente = dias !== null && dias >= 0 && dias <= 3;
+                      const valorExibido = item.valorEstimado ?? item.valor_estimado;
+                      const downloadUrl = resolveEditalDownloadUrl(item);
+                      const pct = item.score?.pontuacao;
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-3 mb-4">
-                          <StatusBadge situacao={item.situacao} />
-                          {item.modalidade && (
-                            <span className="px-3 py-1.5 rounded-lg text-[10px] font-black text-slate-500 bg-slate-50 border-2 border-slate-100 uppercase tracking-widest">
-                              {item.modalidade}
-                            </span>
-                          )}
-                          {item.fonte && (
-                            <span className="px-3 py-1.5 rounded-lg text-[10px] font-black text-brand-blue bg-blue-50/50 border-2 border-brand-blue/20 uppercase tracking-widest">
-                              {item.fonte}
-                            </span>
-                          )}
-                          {urgente && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black text-brand-orange bg-orange-50/50 border-2 border-brand-orange/30 uppercase tracking-widest animate-pulse">
-                              <Clock className="w-3.5 h-3.5" weight="bold" />
-                              {dias === 0 ? 'Hoje' : `${dias}d`}
-                            </span>
-                          )}
-                        </div>
-
-                        <h2 className="text-xl md:text-2xl font-black text-slate-900 leading-snug mb-5 group-hover:text-brand-blue transition-colors line-clamp-2">
-                          {item.objeto}
-                        </h2>
-                        <p className="mb-3 text-xs font-semibold text-slate-500">
-                          Clique para ver detalhes técnicos e itens do certame sem sair do Radar.
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-500 font-semibold">
-                          <span className="flex items-center gap-2">
-                            <Building2 className="w-5 h-5 text-slate-400 shrink-0" weight="bold" />
-                            <span className="truncate max-w-[250px]">{item.orgao}</span>
-                          </span>
-                          {(item.municipio || item.uf) && (
-                            <span className="flex items-center gap-2">
-                              <MapPin className="w-5 h-5 text-slate-400 shrink-0" weight="bold" />
-                              {[item.municipio, item.uf].filter(Boolean).join(' · ')}
-                            </span>
-                          )}
-                          {dataAberturaExibida && (
-                            <span className="flex items-center gap-2">
-                              <Calendar className="w-5 h-5 text-slate-400 shrink-0" weight="bold" />
-                              {formatDate(dataAberturaExibida)}
-                            </span>
-                          )}
-                          {valorExibido != null && (
-                            <span className="flex items-center gap-2">
-                              <DollarSign className="w-5 h-5 text-slate-400 shrink-0" weight="bold" />
-                              <span className="font-black text-brand-blue text-base">{formatVal(valorExibido)}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex sm:flex-col items-center gap-3 shrink-0 sm:w-44">
-                        <button
-                          onClick={e => handleSalvarNoCrm(e, item)}
-                          disabled={salvandoId === item.id}
-                          className={`flex items-center justify-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all w-full border-2 ${
-                            salvosCrmIds.has(item.id)
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                              : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 active:scale-95'
-                          }`}
-                          title={salvosCrmIds.has(item.id) ? 'Disputa já adicionada à esteira' : 'Adicionar à Gestão de Disputas'}
+                      return (
+                        <tr
+                          key={item.id || i}
+                          onClick={() => {
+                            setEditalSelecionado(item);
+                            setResumoRapido(null);
+                          }}
+                          className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
                         >
-                          {salvandoId === item.id ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                          ) : salvosCrmIds.has(item.id) ? (
-                            <>
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" weight="bold" />
-                              <span>Na Esteira</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-4 h-4" weight="bold" />
-                              <span>Disputar</span>
-                            </>
-                          )}
-                        </button>
-                        {(() => {
-                          const numPncp = item.numeroControlePNCP || (item as any).numero_controle_pncp;
-                          const portalUrl = (item as any).linkSistemaOrigem
-                            || (item as any).documento_url
-                            || item.link
-                            || (numPncp ? `https://pncp.gov.br/app/editais/${encodeURIComponent(numPncp)}` : null);
+                          {/* 1. NÚMERO DO EDITAL */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md inline-block w-fit">
+                                {numeroEdital}
+                              </span>
+                              {item.numeroControlePNCP && item.numeroControlePNCP !== numeroEdital && (
+                                <span className="font-mono text-[10px] text-slate-400">
+                                  PNCP: {item.numeroControlePNCP}
+                                </span>
+                              )}
+                              <div className="mt-1">
+                                <StatusBadge situacao={item.situacao} />
+                              </div>
+                            </div>
+                          </td>
 
-                          if (!portalUrl) return null;
+                          {/* 2. ÓRGÃO */}
+                          <td className="py-4 px-4 align-top max-w-[240px]">
+                            <div className="font-bold text-slate-900 text-xs leading-snug line-clamp-2">
+                              {item.orgao || 'Órgão Público'}
+                            </div>
+                            {item.cnpjOrgao && (
+                              <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                                CNPJ: {item.cnpjOrgao}
+                              </div>
+                            )}
+                            {(item.municipio || item.uf) && (
+                              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-1">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" weight="bold" />
+                                <span>{[item.municipio, item.uf].filter(Boolean).join(' / ')}</span>
+                              </div>
+                            )}
+                          </td>
 
-                          return (
-                            <a
-                              href={portalUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-slate-200 hover:border-brand-blue text-slate-600 hover:text-brand-blue text-[11px] font-black uppercase tracking-widest rounded-xl transition-all w-full"
-                              title="Abrir no portal oficial externo (PNCP / Compras.gov)"
-                            >
-                              Portal
-                              <ExternalLink className="w-3.5 h-3.5" weight="bold" />
-                            </a>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                          {/* 3. DATA DE ABERTURA */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                              <Calendar className="w-4 h-4 text-brand-blue shrink-0" weight="bold" />
+                              <span>{formatDate(dataAberturaExibida)}</span>
+                            </div>
+                            {urgente && (
+                              <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">
+                                <Clock className="w-3 h-3" weight="bold" />
+                                {dias === 0 ? 'Abre Hoje' : `${dias}d restantes`}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 4. OBJETO */}
+                          <td className="py-4 px-4 align-top max-w-md">
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                              {item.modalidade && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black text-slate-600 bg-slate-100 uppercase tracking-wider">
+                                  {item.modalidade}
+                                </span>
+                              )}
+                              {pct !== undefined && (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                  pct >= 75
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-blue-50 text-brand-blue border border-brand-blue/20'
+                                }`}>
+                                  {pct}% Match
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-semibold text-slate-800 leading-relaxed line-clamp-3 group-hover:text-brand-blue transition-colors">
+                              {item.objeto}
+                            </p>
+                          </td>
+
+                          {/* 5. VALOR ESTIMADO */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap text-right">
+                            <span className="text-sm font-black text-brand-blue">
+                              {formatVal(valorExibido)}
+                            </span>
+                          </td>
+
+                          {/* 6. AÇÕES (BAIXAR EDITAL + DISPUTAR) */}
+                          <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                            <div className="flex flex-col gap-2 items-stretch min-w-[145px]">
+                              {downloadUrl ? (
+                                <a
+                                  href={downloadUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-brand-blue hover:bg-blue-900 text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-xs"
+                                  title="Baixar Edital diretamente da fonte oficial governamental (PNCP)"
+                                >
+                                  <Download className="w-3.5 h-3.5" weight="bold" />
+                                  Baixar Edital
+                                </a>
+                              ) : (
+                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-400 text-[11px] font-bold uppercase tracking-wider rounded-lg cursor-not-allowed">
+                                  Sem Anexo
+                                </span>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={e => void handleSalvarNoCrm(e, item)}
+                                disabled={salvandoId === item.id}
+                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all border ${
+                                  salvosCrmIds.has(item.id)
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-brand-blue hover:text-brand-blue'
+                                }`}
+                              >
+                                {salvandoId === item.id ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : salvosCrmIds.has(item.id) ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" weight="bold" />
+                                    <span>Na Esteira</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="w-3.5 h-3.5" weight="bold" />
+                                    <span>Disputar</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {item.numeroControlePNCP && (
+                                <a
+                                  href={`https://pncp.gov.br/app/editais/${encodeURIComponent(item.numeroControlePNCP)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="inline-flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-brand-blue transition-colors"
+                                >
+                                  <span>Ver no Portal</span>
+                                  <ExternalLink className="w-3 h-3" weight="bold" />
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -715,28 +913,29 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
           {!loading && licitacoes.length > 0 && (
             <div className="mt-6 flex items-center justify-between">
               <p className="text-xs text-brand-blue/70 font-medium">
-                Página {pagina} · {licitacoes.length} resultados · {meta?.total?.toLocaleString() || '?'} total
+                Página {pagina} · {licitacoes.length} resultados exibidos · {meta?.total?.toLocaleString('pt-BR') || '?'} total
               </p>
               <div className="flex gap-2">
                 <button
                   disabled={pagina <= 1 || loading}
-                  onClick={() => buscarLicitacoes(pagina - 1)}
-                  className="px-4 py-2 bg-white border border-gray-100 text-sm font-bold text-brand-blue/70 rounded-lg hover:bg-white disabled:opacity-40 transition-all"
+                  onClick={() => void buscarLicitacoes(pagina - 1)}
+                  className="px-4 py-2 bg-white border border-gray-200 text-xs font-bold text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-all"
                 >
                   Anterior
                 </button>
                 <button
                   disabled={(meta?.totalPaginas || 1) <= pagina || loading}
-                  onClick={() => buscarLicitacoes(pagina + 1)}
-                  className="px-4 py-2 bg-white border border-gray-100 text-sm font-bold text-brand-blue/70 rounded-lg hover:bg-white disabled:opacity-40 transition-all"
+                  onClick={() => void buscarLicitacoes(pagina + 1)}
+                  className="px-4 py-2 bg-white border border-gray-200 text-xs font-bold text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-all"
                 >
-                  Proxima
+                  Próxima
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
       <AnimatePresence>
         {editalSelecionado && (
           <EditalQuickViewModal

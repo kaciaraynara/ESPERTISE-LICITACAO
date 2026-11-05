@@ -10,6 +10,8 @@ export interface Company {
   nomeFantasia?: string | null;
   nome_fantasia?: string | null;
   cnpj: string;
+  cnaePrincipal?: string | null;
+  cnae_principal?: string | null;
   uf?: string | null;
   municipio?: string | null;
 }
@@ -28,6 +30,7 @@ const CompanyContext = createContext<CompanyContextData>({} as CompanyContextDat
 
 function normalizeCompany(raw: any): Company {
   const razao = raw?.razaoSocial || raw?.razao_social || raw?.nomeFantasia || raw?.nome_fantasia || 'Empresa';
+  const cnae = raw?.cnaePrincipal || raw?.cnae_principal || null;
   return {
     id: String(raw?.id || ''),
     razaoSocial: razao,
@@ -35,6 +38,8 @@ function normalizeCompany(raw: any): Company {
     nomeFantasia: raw?.nomeFantasia || raw?.nome_fantasia || null,
     nome_fantasia: raw?.nome_fantasia || raw?.nomeFantasia || null,
     cnpj: String(raw?.cnpj || ''),
+    cnaePrincipal: cnae,
+    cnae_principal: cnae,
     uf: raw?.uf || null,
     municipio: raw?.municipio || null,
   };

@@ -5,6 +5,8 @@ export interface FiltrosBusca {
   search?: string;
   q?: string;
   termo?: string;
+  cnpj?: string;
+  cnae?: string;
   uf?: string;
   municipio?: string;
   dataInicial?: string;
@@ -75,6 +77,10 @@ export interface LicitacaoRadarPNCP {
   dataEncerramento: string | null;
   data_encerramento?: string | null;
   link: string | null;
+  linkSistemaOrigem?: string | null;
+  documento_url?: string | null;
+  linkDownloadEdital?: string | null;
+  numeroEdital?: string | null;
   srp?: boolean;
   fonte: 'PNCP';
 }

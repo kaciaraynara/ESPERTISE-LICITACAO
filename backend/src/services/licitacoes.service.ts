@@ -7,11 +7,58 @@ import {
 import {
   buscarContratacaoPNCP,
   buscarContratacoesPNCP,
+  buildPncpDownloadUrl,
 } from './pncp.service';
-import { getTenantRadarProfile, type TenantRadarProfile } from './cnae-to-keywords.service';
+import {
+  getTenantRadarProfile,
+  keywordsForCnae,
+  type TenantRadarProfile,
+} from './cnae-to-keywords.service';
 
 const AUTOMATIC_RADAR_KEYWORD_LIMIT = 20;
 const PNCP_MODALITIES = [4, 6, 8, 12] as const;
+
+function resolvePncpDownloadUrl(
+  numeroControlePNCP: string | null | undefined,
+  linkSistemaOrigem?: string | null,
+  linkEditalPNCP?: string | null,
+): string | null {
+  if (typeof buildPncpDownloadUrl === 'function') {
+    return buildPncpDownloadUrl(numeroControlePNCP, linkSistemaOrigem, linkEditalPNCP);
+  }
+  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim()) {
+    return linkEditalPNCP.trim();
+  }
+  const cleanControl = typeof numeroControlePNCP === 'string' ? numeroControlePNCP.trim() : '';
+  const match = cleanControl.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
+  if (match) {
+    const [, cnpj, sequencial, ano] = match;
+    return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
+  }
+  if (typeof linkSistemaOrigem === 'string' && linkSistemaOrigem.trim()) {
+    return linkSistemaOrigem.trim();
+  }
+  if (cleanControl) {
+    return `https://pncp.gov.br/app/editais/${encodeURIComponent(cleanControl)}`;
+  }
+  return null;
+}
+
+function expandCnaeFilterTerms(cnaeRaw?: string | null): string[] {
+  const cnae = (cnaeRaw || '').trim();
+  if (!cnae) return [];
+  if (typeof keywordsForCnae === 'function') {
+    const mapped = keywordsForCnae(cnae);
+    if (mapped.length > 0) return mapped;
+  }
+  return cnae
+    .replace(/^\s*\d[\d./\-\s]*/, '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter((term) => term.length > 3);
+}
 
 function nullableString(value: unknown): string | null {
   return typeof value === 'string' && value.trim()
@@ -55,8 +102,13 @@ function getAutomaticSearchTerms(
     || ''
   ).trim();
 
-  if (requested) {
-    return [requested];
+  const cnaeTerms = expandCnaeFilterTerms(filters.cnae);
+
+  if (requested || cnaeTerms.length > 0) {
+    return Array.from(new Set([
+      ...(requested ? [requested] : []),
+      ...cnaeTerms,
+    ]));
   }
 
   return profile?.keywords.slice(0, AUTOMATIC_RADAR_KEYWORD_LIMIT) ?? [];
@@ -98,6 +150,11 @@ export function normalizarLicitacaoPNCP(
   item: LicitacaoPNCP,
 ): LicitacaoRadarPNCP {
   const numeroControlePNCP = item.numeroControlePNCP.trim();
+  const downloadUrl = resolvePncpDownloadUrl(
+    numeroControlePNCP,
+    item.linkSistemaOrigem,
+    item.linkEditalPNCP,
+  );
 
   return {
     id: numeroControlePNCP,
@@ -111,6 +168,7 @@ export function normalizarLicitacaoPNCP(
     objeto: nullableString(item.objeto) ?? '',
     processo: nullableString(item.processo),
     numeroCompra: nullableString(item.numeroCompra),
+    numeroEdital: nullableString(item.numeroCompra) || nullableString(item.processo) || numeroControlePNCP,
     modalidade: nullableString(item.modalidadeNome),
     modalidadeId: nullableNumber(item.modalidadeId),
     modoDisputa: nullableString(item.modoDisputaNome),
@@ -124,6 +182,9 @@ export function normalizarLicitacaoPNCP(
     dataEncerramento: nullableString(item.dataEncerramentoProposta),
     data_encerramento: nullableString(item.dataEncerramentoProposta),
     link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP),
+    linkSistemaOrigem: nullableString(item.linkSistemaOrigem),
+    documento_url: downloadUrl,
+    linkDownloadEdital: downloadUrl,
     srp: item.srp,
     fonte: 'PNCP',
   };
@@ -146,10 +207,54 @@ export async function listarLicitacoes(
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
   const size = filtros.tamanhoPagina ? Math.max(1, Number(filtros.tamanhoPagina)) : 20;
   const tenantRadarProfile = tenantId ? await getTenantRadarProfile(tenantId) : null;
-  const searchTerms = getAutomaticSearchTerms(filtros, tenantRadarProfile);
+
+  let effectiveFilters: FiltrosBusca = { ...filtros };
+  let buyerCnpjFilter: string | undefined;
+
+  if (filtros.cnpj && filtros.cnpj.trim()) {
+    const rawCnpj = filtros.cnpj.trim();
+    const cnpjDigits = rawCnpj.replace(/\D/g, '');
+    const companyMatch = typeof prisma?.company?.findFirst === 'function'
+      ? await prisma.company
+          .findFirst({
+            where: {
+              OR: [
+                { cnpj: rawCnpj },
+                ...(cnpjDigits ? [{ cnpj: cnpjDigits }] : []),
+              ],
+            },
+            select: {
+              cnaePrincipal: true,
+              palavrasChave: true,
+              nicho: true,
+              uf: true,
+            },
+          })
+          .catch(() => null)
+      : null;
+
+    if (companyMatch) {
+      if (!effectiveFilters.cnae && companyMatch.cnaePrincipal) {
+        effectiveFilters.cnae = companyMatch.cnaePrincipal;
+      }
+    } else if (cnpjDigits.length >= 8) {
+      buyerCnpjFilter = cnpjDigits;
+    }
+  }
+
+  const searchTerms = getAutomaticSearchTerms(effectiveFilters, tenantRadarProfile);
   let avisoRadar: string | undefined;
 
   const and: any[] = [];
+
+  if (buyerCnpjFilter) {
+    and.push({
+      OR: [
+        { buyerDocument: { contains: buyerCnpjFilter, mode: 'insensitive' } },
+        { externalId: { contains: buyerCnpjFilter, mode: 'insensitive' } },
+      ],
+    });
+  }
 
   if (filtros.uf && filtros.uf.trim().toUpperCase() !== 'TODOS') {
     const ufVal = filtros.uf.trim().toUpperCase();
@@ -301,6 +406,7 @@ export async function listarLicitacoes(
       const numControle = r.externalId || r.numeroControlePncp || r.noticeNumber || '';
       const fallbackUrl = numControle ? `https://pncp.gov.br/app/editais/${encodeURIComponent(numControle)}` : '';
       const portalUrl = r.url || fallbackUrl;
+      const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || portalUrl;
 
       return {
         id: r.id,
@@ -314,6 +420,7 @@ export async function listarLicitacoes(
         objeto: r.object || '',
         processo: r.noticeNumber || '',
         numeroCompra: r.noticeNumber || '',
+        numeroEdital: r.noticeNumber || numControle || r.id,
         modalidade: r.modality || '',
         modalidadeId: null,
         modoDisputa: r.modoDisputa || '',
@@ -328,7 +435,8 @@ export async function listarLicitacoes(
         data_encerramento: safeFormatDate(r.closingAt),
         link: portalUrl,
         linkSistemaOrigem: portalUrl,
-        documento_url: portalUrl,
+        documento_url: downloadUrl,
+        linkDownloadEdital: downloadUrl,
         srp: Boolean(r.srp),
         fonte: r.source || 'PNCP',
         score: calcularScoreItem(r, companyProfile),
@@ -355,7 +463,7 @@ export async function sincronizarLicitacoesPNCP(
 
   const modalidadeSelecionada = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
   const modalidades = getPncpModalities(modalidadeSelecionada);
-  const palavraChave = (
+  const explicitKeyword = (
     filtros.palavraChave
     || filtros.palavrasChave
     || filtros.busca
@@ -363,12 +471,38 @@ export async function sincronizarLicitacoesPNCP(
     || filtros.q
     || filtros.termo
   )?.trim();
+  const cnaeTerms = expandCnaeFilterTerms(filtros.cnae);
+  const palavraChave = explicitKeyword || (cnaeTerms.length > 0 ? cnaeTerms[0] : undefined);
+
+  let buyerCnpjForPncp: string | undefined;
+  if (filtros.cnpj && filtros.cnpj.trim()) {
+    const rawCnpj = filtros.cnpj.trim();
+    const digits = rawCnpj.replace(/\D/g, '');
+    const companyMatch = typeof prisma?.company?.findFirst === 'function'
+      ? await prisma.company
+          .findFirst({
+            where: {
+              OR: [
+                { cnpj: rawCnpj },
+                ...(digits ? [{ cnpj: digits }] : []),
+              ],
+            },
+            select: { id: true },
+          })
+          .catch(() => null)
+      : null;
+    if (!companyMatch && digits.length === 14) {
+      buyerCnpjForPncp = digits;
+    }
+  }
+
   const resultados = await Promise.all(modalidades.map((modalidade) =>
     buscarContratacoesPNCP({
       codigoModalidadeContratacao: modalidade,
       dataInicial: filtros.dataInicial,
       dataFinal: filtros.dataFinal,
       uf: filtros.uf,
+      ...(buyerCnpjForPncp ? { cnpj: buyerCnpjForPncp } : {}),
       palavraChave,
       pagina: filtros.pagina ?? 1,
       tamanhoPagina: filtros.tamanhoPagina ?? 50,

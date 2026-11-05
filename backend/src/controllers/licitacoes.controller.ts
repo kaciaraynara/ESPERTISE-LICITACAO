@@ -28,6 +28,14 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.search)
       ?? stringParam(source.q)
       ?? stringParam(source.termo),
+    cnpj:
+      stringParam(source.cnpj)
+      ?? stringParam(source.cnpjOrgao)
+      ?? stringParam(source.cnpj_orgao),
+    cnae:
+      stringParam(source.cnae)
+      ?? stringParam(source.cnaePrincipal)
+      ?? stringParam(source.cnae_principal),
     uf: stringParam(source.uf),
     dataInicial:
       stringParam(source.dataInicial)

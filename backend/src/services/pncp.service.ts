@@ -235,6 +235,44 @@ function normalizeKeyword(value: unknown): string | undefined {
   return value.trim() || undefined;
 }
 
+function normalizeCnpj(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length === 14) {
+    return digits;
+  }
+  return undefined;
+}
+
+export function buildPncpDownloadUrl(
+  numeroControlePNCP: string | null | undefined,
+  linkSistemaOrigem?: string | null,
+  linkEditalPNCP?: string | null,
+): string | null {
+  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim()) {
+    return linkEditalPNCP.trim();
+  }
+
+  const cleanControl = typeof numeroControlePNCP === 'string' ? numeroControlePNCP.trim() : '';
+  const match = cleanControl.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
+  if (match) {
+    const [, cnpj, sequencial, ano] = match;
+    return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
+  }
+
+  if (typeof linkSistemaOrigem === 'string' && linkSistemaOrigem.trim()) {
+    return linkSistemaOrigem.trim();
+  }
+
+  if (cleanControl) {
+    return `https://pncp.gov.br/app/editais/${encodeURIComponent(cleanControl)}`;
+  }
+
+  return null;
+}
+
 function normalizeSearchText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFD')
@@ -400,8 +438,14 @@ export async function buscarContratacoesPNCP(
   const dataFinal = rawDataFinal;
 
   const uf = normalizeUf(filtros.uf);
+  const cnpj = normalizeCnpj(filtros.cnpj);
   const keyword = normalizeKeyword(
-    filtros.palavraChave ?? filtros.palavrasChave,
+    filtros.palavraChave
+    ?? filtros.palavrasChave
+    ?? filtros.busca
+    ?? filtros.search
+    ?? filtros.q
+    ?? filtros.termo,
   );
 
   const baseUrl = (
@@ -421,6 +465,7 @@ export async function buscarContratacoesPNCP(
           dataFinal,
           codigoModalidadeContratacao: modalidade,
           ...(uf ? { uf } : {}),
+          ...(cnpj ? { cnpj } : {}),
           pagina,
           tamanhoPagina,
         },
@@ -444,11 +489,17 @@ export async function buscarContratacoesPNCP(
     const mapped = readRawItems(response.data)
       .map(mapPncpItem)
       .filter((item) => item.numeroControlePNCP.length > 0);
-    const filtered = filterByKeyword(mapped, keyword);
+    const filteredByKeyword = filterByKeyword(mapped, keyword);
+    const filtered = cnpj
+      ? filteredByKeyword.filter((item) => {
+          const itemCnpj = String(item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
+          return !itemCnpj || itemCnpj === cnpj;
+        })
+      : filteredByKeyword;
 
     return {
       data: filtered,
-      totalRegistros: keyword ? null : readTotalRecords(response.data),
+      totalRegistros: (keyword || cnpj) ? null : readTotalRecords(response.data),
       pagina,
       tamanhoPagina,
     };

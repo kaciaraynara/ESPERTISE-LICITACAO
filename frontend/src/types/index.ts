@@ -259,6 +259,7 @@ export interface RadarLicitacao {
   objeto: string;
   processo: string | null;
   numeroCompra: string | null;
+  numeroEdital?: string | null;
   modalidade: string | null;
   modalidadeId: number | null;
   modoDisputa: string | null;
@@ -268,6 +269,8 @@ export interface RadarLicitacao {
   dataAbertura: string | null;
   dataEncerramento: string | null;
   link: string | null;
+  documento_url?: string | null;
+  linkDownloadEdital?: string | null;
   srp?: boolean;
   fonte: 'PNCP';
 }
@@ -277,6 +280,9 @@ export interface RadarLicitacoesFiltros {
   dataFinal?: string;
   codigoModalidadeContratacao?: number;
   uf?: string;
+  cnpj?: string;
+  cnae?: string;
+  busca?: string;
   srp?: boolean;
   palavraChave?: string;
   termo?: string;
