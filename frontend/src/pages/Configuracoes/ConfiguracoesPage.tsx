@@ -10,6 +10,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { PaywallModal } from '@/components/monetization/PaywallModal';
 import toast from 'react-hot-toast';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
+import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
 
 export default function ConfiguracoesPage() {
   const [abaAtiva, setAbaAtiva] = useState<'EMPRESA' | 'CERTIFICADO' | 'INTEGRACOES' | 'NOTIFICACOES'>('EMPRESA');
@@ -57,7 +58,13 @@ export default function ConfiguracoesPage() {
 
   const [formData, setFormData] = useState({
     razaoSocial: '',
+    nomeFantasia: '',
     cnpj: '',
+    cep: '',
+    logradouro: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
     cnaePrincipal: '',
     status: '',
     whatsapp: authUser?.telefone || '',
@@ -65,15 +72,65 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     if (empresa) {
-      setFormData({
-        razaoSocial: empresa.razaoSocial || '',
-        cnpj: formatCnpjMask(empresa.cnpj || ''),
-        cnaePrincipal: empresa.cnaePrincipal || '',
-        status: empresa.status || '',
-        whatsapp: authUser?.telefone || '',
-      });
+      setFormData((prev) => ({
+        ...prev,
+        razaoSocial: empresa.razaoSocial || empresa.razao_social || prev.razaoSocial || '',
+        nomeFantasia: empresa.nomeFantasia || empresa.nome_fantasia || prev.nomeFantasia || '',
+        cnpj: formatCnpjMask(empresa.cnpj || prev.cnpj || ''),
+        cep: empresa.cep || prev.cep || '',
+        logradouro: empresa.logradouro || prev.logradouro || '',
+        bairro: empresa.bairro || prev.bairro || '',
+        cidade: empresa.municipio || empresa.cidade || prev.cidade || '',
+        uf: empresa.uf || prev.uf || '',
+        cnaePrincipal: empresa.cnaePrincipal || empresa.cnae_principal || prev.cnaePrincipal || '',
+        status: empresa.status || prev.status || '',
+        whatsapp: authUser?.telefone || prev.whatsapp || '',
+      }));
     }
-  }, [empresa]);
+  }, [empresa, authUser?.telefone]);
+
+  const {
+    isLoading: isBuscandoCnpj,
+    error: erroBuscaCnpj,
+  } = useBrasilApiCnpj(formData.cnpj, {
+    onSuccess: (dados) => {
+      setFormData((prev) => ({
+        ...prev,
+        razaoSocial: dados.razaoSocial || prev.razaoSocial,
+        nomeFantasia: dados.nomeFantasia || prev.nomeFantasia,
+        cep: dados.cep || prev.cep,
+        logradouro: dados.logradouro || prev.logradouro,
+        bairro: dados.bairro || prev.bairro,
+        cidade: dados.cidade || prev.cidade,
+        uf: dados.uf || prev.uf,
+        cnaePrincipal: dados.cnaePrincipal || prev.cnaePrincipal,
+        status: dados.status || prev.status,
+      }));
+    },
+  });
+
+  const {
+    isLoading: isBuscandoNovoCnpj,
+    error: erroBuscaNovoCnpj,
+    data: dadosNovoCnpj,
+  } = useBrasilApiCnpj(novoCnpj, {
+    enabled: mostrarFormularioEmpresa,
+    onSuccess: (dados) => {
+      setFormData((prev) => ({
+        ...prev,
+        cnpj: formatCnpjMask(dados.cnpj),
+        razaoSocial: dados.razaoSocial || prev.razaoSocial,
+        nomeFantasia: dados.nomeFantasia || prev.nomeFantasia,
+        cep: dados.cep || prev.cep,
+        logradouro: dados.logradouro || prev.logradouro,
+        bairro: dados.bairro || prev.bairro,
+        cidade: dados.cidade || prev.cidade,
+        uf: dados.uf || prev.uf,
+        cnaePrincipal: dados.cnaePrincipal || prev.cnaePrincipal,
+        status: dados.status || prev.status,
+      }));
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: async (data: { empresa: Record<string, unknown>; whatsapp: string }) => {
@@ -97,7 +154,15 @@ export default function ConfiguracoesPage() {
   });
 
   const addCompanyMutation = useMutation({
-    mutationFn: async (cnpj: string) => empresasApi.criar({ cnpj: sanitizeCnpj(cnpj) }),
+    mutationFn: async (cnpj: string) =>
+      empresasApi.criar({
+        cnpj: sanitizeCnpj(cnpj),
+        razao_social: dadosNovoCnpj?.razaoSocial || formData.razaoSocial || undefined,
+        nome_fantasia: dadosNovoCnpj?.nomeFantasia || formData.nomeFantasia || undefined,
+        municipio: dadosNovoCnpj?.cidade || formData.cidade || undefined,
+        uf: dadosNovoCnpj?.uf || formData.uf || undefined,
+        cnae_principal: dadosNovoCnpj?.cnaePrincipal || formData.cnaePrincipal || undefined,
+      }),
     onSuccess: async () => {
       toast.success('Empresa adicionada com sucesso.');
       setNovoCnpj('');
@@ -170,8 +235,17 @@ export default function ConfiguracoesPage() {
     mutation.mutate({
       empresa: {
         razaoSocial: formData.razaoSocial,
+        razao_social: formData.razaoSocial,
+        nomeFantasia: formData.nomeFantasia,
+        nome_fantasia: formData.nomeFantasia,
         cnpj: cleanFormCnpj,
+        cep: formData.cep,
+        logradouro: formData.logradouro,
+        bairro: formData.bairro,
+        municipio: formData.cidade,
+        uf: formData.uf,
         cnaePrincipal: formData.cnaePrincipal,
+        cnae_principal: formData.cnaePrincipal,
         status: formData.status,
       },
       whatsapp: formData.whatsapp.trim(),
@@ -326,36 +400,52 @@ export default function ConfiguracoesPage() {
               )}
 
               {mostrarFormularioEmpresa && !limitReached ? (
-                <form onSubmit={handleSubmitNovaEmpresa} className="flex flex-col gap-2 rounded-xl border border-blue-100 bg-white p-3 sm:flex-row">
-                  <label htmlFor="novo-cnpj" className="sr-only">CNPJ da nova empresa</label>
-                  <input
-                    id="novo-cnpj"
-                    type="text"
-                    autoComplete="off"
-                    value={novoCnpj}
-                    onChange={(event) => setNovoCnpj(formatCnpjMask(event.target.value))}
-                    placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
-                    maxLength={18}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-400"
-                  />
-                  <button
-                    type="submit"
-                    disabled={addCompanyMutation.isPending}
-                    className="rounded-lg bg-[#0A2540] px-4 py-2 text-xs font-bold text-white disabled:cursor-wait disabled:opacity-60"
-                  >
-                    {addCompanyMutation.isPending ? 'Validando...' : 'Cadastrar CNPJ'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMostrarFormularioEmpresa(false);
-                      setNovoCnpj('');
-                    }}
-                    className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100"
-                  >
-                    Cancelar
-                  </button>
-                </form>
+                <div className="space-y-2 rounded-xl border border-blue-100 bg-white p-3">
+                  <form onSubmit={handleSubmitNovaEmpresa} className="flex flex-col gap-2 sm:flex-row">
+                    <label htmlFor="novo-cnpj" className="sr-only">CNPJ da nova empresa</label>
+                    <div className="relative min-w-0 flex-1">
+                      <input
+                        id="novo-cnpj"
+                        type="text"
+                        autoComplete="off"
+                        value={novoCnpj}
+                        onChange={(event) => setNovoCnpj(formatCnpjMask(event.target.value))}
+                        placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
+                        maxLength={18}
+                        className="w-full rounded-lg border border-slate-200 pl-3 pr-9 py-2 text-xs font-semibold outline-none focus:border-blue-400"
+                      />
+                      {isBuscandoNovoCnpj && (
+                        <Loader2
+                          size={14}
+                          aria-label="Consultando CNPJ na BrasilAPI"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-slate-400"
+                        />
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={addCompanyMutation.isPending}
+                      className="rounded-lg bg-[#0A2540] px-4 py-2 text-xs font-bold text-white disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {addCompanyMutation.isPending ? 'Validando...' : 'Cadastrar CNPJ'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarFormularioEmpresa(false);
+                        setNovoCnpj('');
+                      }}
+                      className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100"
+                    >
+                      Cancelar
+                    </button>
+                  </form>
+                  {erroBuscaNovoCnpj && (
+                    <p role="status" className="text-[11px] font-medium text-amber-700">
+                      {erroBuscaNovoCnpj}
+                    </p>
+                  )}
+                </div>
               ) : null}
             </section>
 
@@ -365,33 +455,144 @@ export default function ConfiguracoesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Razão Social</label>
+                <label htmlFor="cfg-cnpj" className="block text-xs font-bold text-slate-600 mb-1">
+                  CNPJ (Alfanumérico — busca automática ao completar 14 caracteres)
+                </label>
+                <div className="relative">
+                  <input
+                    id="cfg-cnpj"
+                    type="text"
+                    maxLength={18}
+                    placeholder="XX.XXX.XXX/XXXX-XX"
+                    value={formData.cnpj}
+                    onChange={(e) => setFormData((p) => ({ ...p, cnpj: formatCnpjMask(e.target.value) }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-9 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                  />
+                  {isBuscandoCnpj && (
+                    <Loader2
+                      size={15}
+                      aria-label="Buscando dados da empresa na BrasilAPI"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#EA580C]"
+                    />
+                  )}
+                </div>
+                {erroBuscaCnpj && (
+                  <p role="status" className="mt-1 text-[11px] font-medium text-amber-700">
+                    {erroBuscaCnpj}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="cfg-razao-social" className="block text-xs font-bold text-slate-600 mb-1">
+                  Razão Social
+                </label>
                 <input
+                  id="cfg-razao-social"
                   type="text"
+                  placeholder="Razão Social da empresa"
                   value={formData.razaoSocial}
-                  disabled
-                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
+                  onChange={(e) => setFormData((p) => ({ ...p, razaoSocial: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ (Alfanumérico — opcional)</label>
-                <input 
+                <label htmlFor="cfg-nome-fantasia" className="block text-xs font-bold text-slate-600 mb-1">
+                  Nome Fantasia
+                </label>
+                <input
+                  id="cfg-nome-fantasia"
                   type="text"
-                  maxLength={18}
-                  placeholder="XX.XXX.XXX/XXXX-XX"
-                  value={formData.cnpj}
-                  onChange={(e) => setFormData(p => ({ ...p, cnpj: formatCnpjMask(e.target.value) }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  placeholder="Nome Fantasia"
+                  value={formData.nomeFantasia}
+                  onChange={(e) => setFormData((p) => ({ ...p, nomeFantasia: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Porte da Empresa / Status</label>
-                <select 
+                <label htmlFor="cfg-cep" className="block text-xs font-bold text-slate-600 mb-1">
+                  CEP
+                </label>
+                <input
+                  id="cfg-cep"
+                  type="text"
+                  maxLength={9}
+                  placeholder="00000-000"
+                  value={formData.cep}
+                  onChange={(e) => setFormData((p) => ({ ...p, cep: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label htmlFor="cfg-logradouro" className="block text-xs font-bold text-slate-600 mb-1">
+                  Logradouro
+                </label>
+                <input
+                  id="cfg-logradouro"
+                  type="text"
+                  placeholder="Rua, Avenida, número e complemento"
+                  value={formData.logradouro}
+                  onChange={(e) => setFormData((p) => ({ ...p, logradouro: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="cfg-bairro" className="block text-xs font-bold text-slate-600 mb-1">
+                  Bairro
+                </label>
+                <input
+                  id="cfg-bairro"
+                  type="text"
+                  placeholder="Bairro"
+                  value={formData.bairro}
+                  onChange={(e) => setFormData((p) => ({ ...p, bairro: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label htmlFor="cfg-cidade" className="block text-xs font-bold text-slate-600 mb-1">
+                    Cidade
+                  </label>
+                  <input
+                    id="cfg-cidade"
+                    type="text"
+                    placeholder="Município / Cidade"
+                    value={formData.cidade}
+                    onChange={(e) => setFormData((p) => ({ ...p, cidade: e.target.value }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cfg-uf" className="block text-xs font-bold text-slate-600 mb-1">
+                    UF
+                  </label>
+                  <input
+                    id="cfg-uf"
+                    type="text"
+                    maxLength={2}
+                    placeholder="UF"
+                    value={formData.uf}
+                    onChange={(e) => setFormData((p) => ({ ...p, uf: e.target.value.toUpperCase() }))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 uppercase focus:outline-none focus:border-[#0A2540]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="cfg-status" className="block text-xs font-bold text-slate-600 mb-1">
+                  Porte da Empresa / Status
+                </label>
+                <select
+                  id="cfg-status"
                   value={formData.status}
-                  disabled
-                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
+                  onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 >
                   <option value="">Selecione...</option>
                   <option value="EPP">Empresa de Pequeno Porte (EPP)</option>
@@ -402,12 +603,16 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">CNAE Principal</label>
-                <input 
-                  type="text" 
+                <label htmlFor="cfg-cnae" className="block text-xs font-bold text-slate-600 mb-1">
+                  CNAE Principal
+                </label>
+                <input
+                  id="cfg-cnae"
+                  type="text"
+                  placeholder="Código e descrição do CNAE"
                   value={formData.cnaePrincipal}
-                  disabled
-                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 cursor-not-allowed"
+                  onChange={(e) => setFormData((p) => ({ ...p, cnaePrincipal: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 />
               </div>
             </div>

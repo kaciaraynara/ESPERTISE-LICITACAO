@@ -7,6 +7,7 @@ import { GovBrConfiabilidade } from '@components/ui/GovBrConfiabilidade';
 import api from '@services/api';
 import toast from 'react-hot-toast';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
+import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
 
 function deriveRadarPreview(empresa: any) {
   const raw = [
@@ -30,10 +31,21 @@ export default function EmpresaPage() {
   const [cnpj, setCnpj] = useState('');
   const [cpfSocio, setCpfSocio] = useState('');
   const [empresa, setEmpresa] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
   const [mostrarGovBr, setMostrarGovBr] = useState(false);
+
+  const [formFields, setFormFields] = useState({
+    razao_social: '',
+    nome_fantasia: '',
+    cep: '',
+    logradouro: '',
+    bairro: '',
+    municipio: '',
+    uf: '',
+    cnae_principal: '',
+    status: 'ATIVA',
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +56,17 @@ export default function EmpresaPage() {
         if (!cancelled && primeiraEmpresa) {
           setEmpresa(primeiraEmpresa);
           setCnpj(formatCnpjMask(primeiraEmpresa.cnpj));
+          setFormFields({
+            razao_social: primeiraEmpresa.razao_social || primeiraEmpresa.razaoSocial || '',
+            nome_fantasia: primeiraEmpresa.nome_fantasia || primeiraEmpresa.nomeFantasia || '',
+            cep: primeiraEmpresa.cep || '',
+            logradouro: primeiraEmpresa.logradouro || '',
+            bairro: primeiraEmpresa.bairro || '',
+            municipio: primeiraEmpresa.municipio || '',
+            uf: primeiraEmpresa.uf || '',
+            cnae_principal: primeiraEmpresa.cnae_principal || primeiraEmpresa.cnaePrincipal || '',
+            status: primeiraEmpresa.status || 'ATIVA',
+          });
         }
       })
       .catch(() => {
@@ -55,37 +78,40 @@ export default function EmpresaPage() {
     };
   }, []);
 
-  const buscarCnpj = async (valorCnpj: string) => {
-    const limpo = sanitizeCnpj(valorCnpj);
-    if (limpo.length === 0) {
+  const {
+    isLoading: loading,
+    error: brasilApiError,
+  } = useBrasilApiCnpj(cnpj, {
+    onSuccess: (dados) => {
       setErro('');
-      return;
-    }
-    if (!isValidCnpj(limpo, { optional: false })) {
-      setErro('Informe um CNPJ válido no padrão XX.XXX.XXX/XXXX-XX (14 caracteres alfanuméricos).');
-      return;
-    }
-
-    setLoading(true);
-    setErro('');
-
-    try {
-      const result = await api.get(`/integracoes/cnpj/${limpo}`);
-      if (result.data.success) {
-        setEmpresa(result.data.data);
-      } else {
-        setErro('CNPJ não encontrado na base do Governo.');
-      }
-    } catch {
-      setErro('Nao foi possivel consultar os dados agora. Tente novamente em instantes.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const updated = {
+        cnpj: dados.cnpj,
+        razao_social: dados.razaoSocial,
+        nome_fantasia: dados.nomeFantasia,
+        cep: dados.cep,
+        logradouro: dados.logradouro,
+        bairro: dados.bairro,
+        municipio: dados.cidade,
+        uf: dados.uf,
+        cnae_principal: dados.cnaePrincipal,
+        status: dados.status || 'ATIVA',
+      };
+      setFormFields(updated);
+      setEmpresa((prev: any) => ({ ...(prev || {}), ...updated }));
+    },
+    onError: (msg) => {
+      setErro(msg);
+    },
+  });
 
   const salvarEmpresa = async () => {
-    if (!empresa) {
-      toast.error('Consulte um CNPJ válido antes de ativar a análise.');
+    const cnpjLimpo = sanitizeCnpj(cnpj);
+    if (cnpjLimpo.length > 0 && !isValidCnpj(cnpjLimpo, { optional: false })) {
+      toast.error('Consulte ou preencha um CNPJ válido antes de ativar a análise.');
+      return;
+    }
+    if (!formFields.razao_social.trim()) {
+      toast.error('Preencha a Razão Social da empresa antes de salvar.');
       return;
     }
 
@@ -93,22 +119,25 @@ export default function EmpresaPage() {
 
     try {
       const payload = {
-        cnpj: empresa.cnpj,
-        razao_social: empresa.razao_social,
-        nome_fantasia: empresa.nome_fantasia,
-        cnae_principal: empresa.cnae_principal,
-        municipio: empresa.municipio,
-        uf: empresa.uf,
-        status: empresa.status,
-        palavras_chave: String(empresa.cnae_principal || '')
+        cnpj: cnpjLimpo,
+        razao_social: formFields.razao_social.trim(),
+        nome_fantasia: formFields.nome_fantasia.trim() || formFields.razao_social.trim(),
+        cep: formFields.cep.trim(),
+        logradouro: formFields.logradouro.trim(),
+        bairro: formFields.bairro.trim(),
+        cnae_principal: formFields.cnae_principal.trim(),
+        municipio: formFields.municipio.trim(),
+        uf: formFields.uf.trim().toUpperCase().slice(0, 2),
+        status: formFields.status || 'ATIVA',
+        palavras_chave: String(formFields.cnae_principal || formFields.razao_social || '')
           .split(/[-,\s/]+/)
           .map((item) => item.trim().toLowerCase())
           .filter((item) => item.length >= 4),
-        regioes: empresa.uf ? [empresa.uf] : [],
+        regioes: formFields.uf ? [formFields.uf.trim().toUpperCase().slice(0, 2)] : [],
       };
 
       const response = await api.post('/empresas', payload);
-      setEmpresa(response.data?.data ?? empresa);
+      setEmpresa(response.data?.data ?? payload);
       toast.success('Empresa vinculada ao radar com sucesso.');
     } catch {
       toast.error('Não foi possível salvar a empresa agora.');
@@ -118,7 +147,7 @@ export default function EmpresaPage() {
   };
 
   const cpfLimpo = cpfSocio.replace(/\D/g, '');
-  const radarPreview = deriveRadarPreview(empresa);
+  const radarPreview = deriveRadarPreview({ ...empresa, ...formFields });
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
@@ -159,29 +188,98 @@ export default function EmpresaPage() {
                   onChange={(e) => {
                     const masked = formatCnpjMask(e.target.value);
                     setCnpj(masked);
-                    const limpo = sanitizeCnpj(masked);
-                    if (limpo.length === 0) {
+                    if (sanitizeCnpj(masked).length === 0) {
                       setErro('');
-                    } else if (limpo.length === 14) {
-                      buscarCnpj(masked);
-                    }
-                  }}
-                  onBlur={() => {
-                    const limpo = sanitizeCnpj(cnpj);
-                    if (limpo.length > 0 && !isValidCnpj(limpo, { optional: false })) {
-                      setErro('CNPJ incompleto ou inválido. Use o formato XX.XXX.XXX/XXXX-XX (14 caracteres alfanuméricos).');
                     }
                   }}
                 />
                 {loading && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin h-5 w-5 border-4 border-brand-blue/20 border-t-transparent rounded-lg" />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin h-5 w-5 border-4 border-brand-blue/20 border-t-transparent rounded-full" />
                 )}
               </div>
-              {erro && (
-                <p className="text-brand-blue text-sm font-semibold flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {erro}
+              {(erro || brasilApiError) && (
+                <p role="status" className="text-amber-700 text-xs font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {erro || brasilApiError}
                 </p>
               )}
+            </div>
+
+            {/* Campos da Empresa (Preenchimento automático via BrasilAPI ou manual) */}
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-gray-100 pt-5">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Razão Social</label>
+                <input
+                  type="text"
+                  placeholder="Razão Social"
+                  value={formFields.razao_social}
+                  onChange={(e) => setFormFields((p) => ({ ...p, razao_social: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Nome Fantasia</label>
+                <input
+                  type="text"
+                  placeholder="Nome Fantasia"
+                  value={formFields.nome_fantasia}
+                  onChange={(e) => setFormFields((p) => ({ ...p, nome_fantasia: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">CEP</label>
+                <input
+                  type="text"
+                  maxLength={9}
+                  placeholder="00000-000"
+                  value={formFields.cep}
+                  onChange={(e) => setFormFields((p) => ({ ...p, cep: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Logradouro</label>
+                <input
+                  type="text"
+                  placeholder="Rua, Avenida, número"
+                  value={formFields.logradouro}
+                  onChange={(e) => setFormFields((p) => ({ ...p, logradouro: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Bairro</label>
+                <input
+                  type="text"
+                  placeholder="Bairro"
+                  value={formFields.bairro}
+                  onChange={(e) => setFormFields((p) => ({ ...p, bairro: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Cidade"
+                    value={formFields.municipio}
+                    onChange={(e) => setFormFields((p) => ({ ...p, municipio: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">UF</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    placeholder="UF"
+                    value={formFields.uf}
+                    onChange={(e) => setFormFields((p) => ({ ...p, uf: e.target.value.toUpperCase() }))}
+                    className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue uppercase outline-none focus:border-brand-blue/40"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Resultado do CNPJ */}

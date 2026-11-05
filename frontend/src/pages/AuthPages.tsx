@@ -9,10 +9,11 @@ import {
 } from '@phosphor-icons/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { authApi, integracoesApi } from '@services/api';
+import { authApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
+import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
 
 // Zod Schemas sincronizados com o Backend
 const loginSchema = z.object({
@@ -43,6 +44,12 @@ const registerSchema = z.object({
          message: 'CNPJ inválido. Se preenchido, use 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).'
       }),
    razoesocial: z.string().optional(),
+   nome_fantasia: z.string().optional(),
+   cep: z.string().optional(),
+   logradouro: z.string().optional(),
+   bairro: z.string().optional(),
+   cidade: z.string().optional(),
+   uf: z.string().optional(),
    aceite_lgpd: z.boolean().refine((accepted) => accepted, 'Aceite os termos para continuar.'),
    password: z.string()
       .min(8, 'A senha deve ter pelo menos 8 caracteres')
@@ -166,14 +173,18 @@ export default function AuthPages() {
          email: location.state?.email || '',
          cnpj: location.state?.cnpj || '',
          razoesocial: location.state?.razaoSocial || '',
+         nome_fantasia: '',
+         cep: '',
+         logradouro: '',
+         bairro: '',
+         cidade: '',
+         uf: '',
          aceite_lgpd: false,
          password: '',
       }
    });
 
-   const cnpjValue = regWatch('cnpj');
-   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
-   const [cnpjLookupError, setCnpjLookupError] = useState<string | null>(null);
+   const cnpjValue = regWatch('cnpj') || '';
 
    useEffect(() => {
       const currentRaw = cnpjValue || '';
@@ -182,40 +193,22 @@ export default function AuthPages() {
       if (masked !== currentRaw) {
          regSetValue('cnpj', masked, { shouldValidate: sanitized.length > 0 });
       }
-      if (sanitized.length !== 14) {
-         setIsLoadingCnpj(false);
-         setCnpjLookupError(null);
-         return;
-      }
-
-      let isCurrentLookup = true;
-      setIsLoadingCnpj(true);
-      setCnpjLookupError(null);
-      const timeout = window.setTimeout(() => {
-         integracoesApi.cnpjPublico(sanitized)
-            .then((response) => {
-               if (!isCurrentLookup) return;
-               const razaoSocial = response.data?.data?.razao_social;
-               if (typeof razaoSocial !== 'string' || !razaoSocial.trim()) {
-                  throw new Error('A consulta não retornou a razão social.');
-               }
-               regSetValue('razoesocial', razaoSocial.trim(), { shouldValidate: true });
-            })
-            .catch(() => {
-               if (isCurrentLookup) {
-                  setCnpjLookupError('Não foi possível consultar este CNPJ automaticamente. Digite a Razão Social no campo abaixo.');
-               }
-            })
-            .finally(() => {
-               if (isCurrentLookup) setIsLoadingCnpj(false);
-            });
-      }, 400);
-
-      return () => {
-         isCurrentLookup = false;
-         window.clearTimeout(timeout);
-      };
    }, [cnpjValue, regSetValue]);
+
+   const {
+      isLoading: isLoadingCnpj,
+      error: cnpjLookupError,
+   } = useBrasilApiCnpj(cnpjValue, {
+      onSuccess: (dados) => {
+         regSetValue('razoesocial', dados.razaoSocial, { shouldValidate: true });
+         regSetValue('nome_fantasia', dados.nomeFantasia);
+         regSetValue('cep', dados.cep);
+         regSetValue('logradouro', dados.logradouro);
+         regSetValue('bairro', dados.bairro);
+         regSetValue('cidade', dados.cidade);
+         regSetValue('uf', dados.uf);
+      },
+   });
 
    const onRegister = async (data: RegisterFormValues) => {
       try {
@@ -228,6 +221,9 @@ export default function AuthPages() {
             senha: data.password,
             cnpj: cleanCnpj,
             razao_social: razaoSocialInformada,
+            nome_fantasia: (data.nome_fantasia || '').trim() || undefined,
+            municipio: (data.cidade || '').trim() || undefined,
+            uf: (data.uf || '').trim().toUpperCase().slice(0, 2) || undefined,
             aceite_lgpd: data.aceite_lgpd,
             role: 'fornecedor'
          });
@@ -630,24 +626,113 @@ export default function AuthPages() {
                                     <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.cnpj.message}
                                  </p>
                               )}
+                              {cnpjLookupError && (
+                                 <p role="status" className="mt-1 text-xs font-medium text-amber-700">
+                                    {cnpjLookupError}
+                                 </p>
+                              )}
                            </div>
 
-                           <div className="space-y-1.5">
-                              <label htmlFor="reg_razao" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                                 Razão Social
-                              </label>
-                              <div className="relative">
-                                 <input
-                                    {...regForm('razoesocial')}
-                                    id="reg_razao"
-                                    placeholder="Razão social da empresa"
-                                    type="text"
-                                    disabled={isLoadingCnpj}
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100 disabled:bg-slate-100"
-                                 />
-                                 {regWatch('razoesocial') && <CheckCircle className="absolute right-3.5 top-3.5 h-5 w-5 text-emerald-500" weight="fill" />}
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_razao" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Razão Social
+                                 </label>
+                                 <div className="relative">
+                                    <input
+                                       {...regForm('razoesocial')}
+                                       id="reg_razao"
+                                       placeholder="Razão social da empresa"
+                                       type="text"
+                                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-9 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                    />
+                                    {regWatch('razoesocial') && <CheckCircle className="absolute right-3 top-3 h-4 w-4 text-emerald-500" weight="fill" />}
+                                 </div>
                               </div>
-                              {cnpjLookupError && <p className="mt-1 text-xs text-amber-700">{cnpjLookupError}</p>}
+
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_fantasia" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Nome Fantasia
+                                 </label>
+                                 <input
+                                    {...regForm('nome_fantasia')}
+                                    id="reg_fantasia"
+                                    placeholder="Nome fantasia"
+                                    type="text"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_cep" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    CEP
+                                 </label>
+                                 <input
+                                    {...regForm('cep')}
+                                    id="reg_cep"
+                                    placeholder="00000-000"
+                                    type="text"
+                                    maxLength={9}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+
+                              <div className="space-y-1.5 sm:col-span-2">
+                                 <label htmlFor="reg_logradouro" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Logradouro
+                                 </label>
+                                 <input
+                                    {...regForm('logradouro')}
+                                    id="reg_logradouro"
+                                    placeholder="Rua, Avenida, número"
+                                    type="text"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                              <div className="space-y-1.5 sm:col-span-2">
+                                 <label htmlFor="reg_bairro" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Bairro
+                                 </label>
+                                 <input
+                                    {...regForm('bairro')}
+                                    id="reg_bairro"
+                                    placeholder="Bairro"
+                                    type="text"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+
+                              <div className="space-y-1.5 sm:col-span-2">
+                                 <label htmlFor="reg_cidade" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Cidade
+                                 </label>
+                                 <input
+                                    {...regForm('cidade')}
+                                    id="reg_cidade"
+                                    placeholder="Cidade"
+                                    type="text"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_uf" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    UF
+                                 </label>
+                                 <input
+                                    {...regForm('uf')}
+                                    id="reg_uf"
+                                    placeholder="UF"
+                                    type="text"
+                                    maxLength={2}
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm font-medium text-slate-900 uppercase shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
                            </div>
 
                            <div className="space-y-1.5">
