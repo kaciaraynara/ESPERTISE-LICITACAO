@@ -2,7 +2,6 @@ import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
 import { rateLimit } from 'express-rate-limit';
-import helmet from 'helmet';
 import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './config/openapi';
@@ -16,6 +15,7 @@ import setupSockets from './websocket';
 import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
 import { iniciarRadarDiarioCron } from './jobs/radar.cron';
 import { setupCndRenewalCron } from './jobs/cnd-renewal.cron';
+import { securityHeadersMiddleware } from './middlewares/security';
 
 const app = express();
 
@@ -26,10 +26,8 @@ assertProductionConfig();
 
 const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', false);
 
-// 1. Segurança e CORS
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+// 1. Segurança e CORS (Remoção de Fingerprinting + MIME NoSniff + Filtros XSS Globais)
+app.use(securityHeadersMiddleware);
 
 app.use(cors({
   origin: (origin, callback) => {
