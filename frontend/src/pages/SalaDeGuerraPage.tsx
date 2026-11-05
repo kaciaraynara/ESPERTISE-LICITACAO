@@ -11,9 +11,13 @@ import {
   XCircle,
   ArrowsDownUp,
   Broadcast,
+  FileDoc,
+  FileXls,
+  DownloadSimple,
 } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth.store';
+import { useCompany } from '@/contexts/CompanyContext';
 import { taxService } from '@/services/tax.service';
 import {
   SimulateBdiInput,
@@ -25,11 +29,13 @@ import {
 
 export default function SalaDeGuerraPage() {
   const { accessToken, user } = useAuthStore();
+  const { selectedCompany } = useCompany();
   const socketRef = useRef<Socket | null>(null);
 
   // Estado da Conexão Socket
   const [isConnected, setIsConnected] = useState(false);
   const [pregaoId, setPregaoId] = useState('PREGAO-2026-0842');
+  const [generatingFormat, setGeneratingFormat] = useState<'docx' | 'xlsx' | null>(null);
 
   // Estado dos Inputs Financeiros (Calculadora BDI)
   const [custoInsumos, setCustoInsumos] = useState<number>(0);
@@ -180,6 +186,49 @@ export default function SalaDeGuerraPage() {
   };
 
   // =========================================================================
+  // 4.1 GERAÇÃO DE PROPOSTA COMERCIAL (.DOCX) E PLANILHA BDI (.XLSX) HIDRATADAS
+  // =========================================================================
+  const handleGenerateProposal = async (format: 'docx' | 'xlsx') => {
+    if (!custoInsumos || custoInsumos <= 0) {
+      toast.error('Informe o Custo Direto de Insumos na calculadora antes de gerar a proposta.');
+      return;
+    }
+
+    setGeneratingFormat(format);
+    try {
+      const valorFinalLance =
+        Number(bidAmountInput) > 0
+          ? Number(bidAmountInput)
+          : simulation?.bidSimulado || simulation?.precoSugeridoVenda;
+
+      const { filename } = await taxService.generateHydratedProposal({
+        format,
+        companyId: selectedCompany?.id,
+        pregaoId: pregaoId.trim() || 'PREGAO-2026',
+        custoInsumos,
+        despesasOperacionais,
+        margemLucroDesejada: margemDesejada,
+        margemMinimaStopLoss,
+        bidAmount: valorFinalLance,
+      });
+
+      toast.success(
+        format === 'docx'
+          ? `Proposta Comercial (.docx) hidratada com sucesso: ${filename}`
+          : `Planilha de Custos e BDI (.xlsx) gerada com sucesso: ${filename}`,
+      );
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Erro ao gerar o documento hidratado da proposta.',
+      );
+    } finally {
+      setGeneratingFormat(null);
+    }
+  };
+
+  // =========================================================================
   // 5. CASCATA DE LANCES OTIMIZADA COM USEMEMO (60 FPS)
   // =========================================================================
   const lancesOrdenados = useMemo(() => {
@@ -224,7 +273,7 @@ export default function SalaDeGuerraPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
               ID da Disputa
@@ -236,6 +285,28 @@ export default function SalaDeGuerraPage() {
               className="text-xs font-black text-[#0A2540] outline-none bg-transparent"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => void handleGenerateProposal('docx')}
+            disabled={generatingFormat !== null}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2540] hover:bg-slate-800 disabled:opacity-60 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition active:scale-95 cursor-pointer"
+            title="Gerar Proposta Comercial em Word (.docx) hidratada com os dados reais da empresa e cálculos de BDI/IVA Dual"
+          >
+            <FileDoc className="h-4 w-4 text-orange-400" weight="duotone" />
+            {generatingFormat === 'docx' ? 'Gerando .DOCX...' : 'Gerar Proposta (.DOCX)'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void handleGenerateProposal('xlsx')}
+            disabled={generatingFormat !== null}
+            className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-600 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-emerald-800 shadow-xs transition active:scale-95 cursor-pointer"
+            title="Exportar Planilha de Custos, BDI e Split Payment em Excel (.xlsx)"
+          >
+            <FileXls className="h-4 w-4 text-emerald-700" weight="duotone" />
+            {generatingFormat === 'xlsx' ? 'Gerando .XLSX...' : 'Planilha BDI (.XLSX)'}
+          </button>
         </div>
       </header>
 
@@ -404,6 +475,41 @@ export default function SalaDeGuerraPage() {
                       <TrendUp className="h-4 w-4" />
                       {simulation.margemLiquidaPercentual}% (R$ {simulation.lucroLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
                     </span>
+                  </div>
+                </div>
+
+                {/* Exportação Hidratada em Tempo Real (.DOCX e .XLSX) */}
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>
+                      Empresa Hidratada:{' '}
+                      <strong className="text-[#0A2540]">
+                        {selectedCompany?.razaoSocial || user?.company?.razaoSocial || 'Empresa Ativa'}
+                      </strong>
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-400">
+                      {selectedCompany?.cnpj || user?.company?.cnpj || ''}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateProposal('docx')}
+                      disabled={generatingFormat !== null}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] hover:bg-slate-800 disabled:opacity-60 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs transition active:scale-95 cursor-pointer"
+                    >
+                      <DownloadSimple className="h-4 w-4 text-orange-400" weight="bold" />
+                      {generatingFormat === 'docx' ? 'Hidratando...' : 'Gerar Proposta (.DOCX)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateProposal('xlsx')}
+                      disabled={generatingFormat !== null}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs transition active:scale-95 cursor-pointer"
+                    >
+                      <DownloadSimple className="h-4 w-4 text-white" weight="bold" />
+                      {generatingFormat === 'xlsx' ? 'Gerando...' : 'Baixar Planilha (.XLSX)'}
+                    </button>
                   </div>
                 </div>
               </div>

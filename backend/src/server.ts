@@ -57,7 +57,7 @@ app.use(cors({
     'Accept',
     'Origin',
   ],
-  exposedHeaders: ['x-request-id', 'x-correlation-id'],
+  exposedHeaders: ['x-request-id', 'x-correlation-id', 'Content-Disposition'],
   credentials: true,
   optionsSuccessStatus: 204,
 }));

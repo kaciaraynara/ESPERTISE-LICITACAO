@@ -76,3 +76,18 @@ export interface SocketBidError {
   timestamp: string;
 }
 
+export interface GenerateProposalPayload {
+  format: 'docx' | 'xlsx';
+  companyId?: string;
+  pregaoId?: string;
+  noticeId?: string;
+  orgao?: string;
+  objeto?: string;
+  custoInsumos: number;
+  despesasOperacionais?: number;
+  margemLucroDesejada?: number;
+  margemMinimaStopLoss?: number;
+  bidAmount?: number;
+  validadeDias?: number;
+}
+

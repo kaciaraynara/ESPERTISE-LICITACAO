@@ -42,6 +42,8 @@ import notificacoesRoutes from './notificacoes.routes';
 import contratosRoutes from './contratos.routes';
 import taxRoutes from './tax.routes';
 import guaranteesRoutes from './guarantees.routes';
+import proposalsRoutes from './proposals.routes';
+import { proposalAutomationController } from '../controllers/proposal-automation.controller';
 import { MercadoPagoController } from '../controllers/mercadopago.controller';
 
 // Middlewares
@@ -315,6 +317,13 @@ router.use('/notificacoes', notificacoesRoutes);
 router.use('/contratos', contratosRoutes);
 router.use('/tax', taxRoutes);
 router.use('/guarantees', guaranteesRoutes);
+router.use('/proposals', proposalsRoutes);
+
+router.post(
+  '/propostas/generate',
+  fornecedor,
+  handle(proposalAutomationController.generate as unknown as RequestHandler),
+);
 
 router.use('/cofre', requirePlanFeature('cofre_documentos'), cofreRoutes);
 
