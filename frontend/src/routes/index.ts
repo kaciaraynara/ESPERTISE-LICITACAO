@@ -31,6 +31,7 @@ export const FORNECEDOR_ROUTES = {
   documentos: `${FORNECEDOR_PREFIX}/documentos`,
   prazos_alertas: `${FORNECEDOR_PREFIX}/prazos`,
   gestao_contratual: `${FORNECEDOR_PREFIX}/contratos`,
+  gestao_pos_vitoria: `${FORNECEDOR_PREFIX}/gestao-pos-vitoria`,
   score_oportunidades: `${FORNECEDOR_PREFIX}/score-oportunidades`,
   srp_carona: `${FORNECEDOR_PREFIX}/srp-carona`,
   editais_monitorados: `${FORNECEDOR_PREFIX}/editais-monitorados`,

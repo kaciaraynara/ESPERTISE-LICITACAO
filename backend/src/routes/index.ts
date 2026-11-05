@@ -41,6 +41,7 @@ import concorrentesRoutes from './concorrentes.routes';
 import notificacoesRoutes from './notificacoes.routes';
 import contratosRoutes from './contratos.routes';
 import taxRoutes from './tax.routes';
+import guaranteesRoutes from './guarantees.routes';
 import { MercadoPagoController } from '../controllers/mercadopago.controller';
 
 // Middlewares
@@ -313,6 +314,7 @@ router.use('/concorrentes', concorrentesRoutes);
 router.use('/notificacoes', notificacoesRoutes);
 router.use('/contratos', contratosRoutes);
 router.use('/tax', taxRoutes);
+router.use('/guarantees', guaranteesRoutes);
 
 router.use('/cofre', requirePlanFeature('cofre_documentos'), cofreRoutes);
 

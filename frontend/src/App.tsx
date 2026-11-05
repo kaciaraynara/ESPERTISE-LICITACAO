@@ -84,6 +84,7 @@ const ImpugnacaoPage = React.lazy(() => import('./pages/ImpugnacaoPage'));
 const RoboPage = React.lazy(() => import('./pages/RoboPage'));
 const SalaDeGuerraPage = React.lazy(() => import('./pages/SalaDeGuerraPage'));
 const ContenciosoHubPage = React.lazy(() => import('./pages/Contencioso/ContenciosoHubPage'));
+const GestaoPosVitoriaPage = React.lazy(() => import('./pages/GestaoPosVitoriaPage'));
 const SrpPage = React.lazy(() =>
   import('./pages/Srp/SrpPage').then((module) => ({ default: module.SrpPage })),
 );
@@ -385,6 +386,10 @@ export default function App() {
             <Route
               path={FORNECEDOR_ROUTES.gestao_contratual}
               element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)}
+            />
+            <Route
+              path={FORNECEDOR_ROUTES.gestao_pos_vitoria}
+              element={protectFeature('gestao_contratual', 'Garantias e Gestão Pós-Vitória', <GestaoPosVitoriaPage />)}
             />
             <Route path={FORNECEDOR_ROUTES.documentos} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
             <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />

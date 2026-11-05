@@ -14,6 +14,7 @@ import {
   Gavel,
   CheckSquare,
   Vault,
+  ShieldCheck,
   Certificate,
   Receipt,
   GraduationCap,
@@ -157,6 +158,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Trophy,
     badge: 'Art. 96',
     items: [
+      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual', badge: 'Art. 96' },
       { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre de Documentos', icon: Vault, requiredFeature: 'cofre_documentos' },
       { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'monitoramento_certidoes' },

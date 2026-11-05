@@ -15,6 +15,7 @@ import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
 import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
 import { iniciarRadarDiarioCron } from './jobs/radar.cron';
+import { setupCndRenewalCron } from './jobs/cnd-renewal.cron';
 
 const app = express();
 
@@ -135,6 +136,7 @@ server.listen(port, () => {
     bidRobotEnabled,
   }));
   iniciarRadarDiarioCron();
+  setupCndRenewalCron();
 });
 
 server.on('error', (error: NodeJS.ErrnoException) => {

@@ -1,137 +1,197 @@
 import cron from 'node-cron';
 import { prisma } from '../database/prisma';
 import { isDatabaseConfigured } from '../config/env';
+import { enviarAlertaCertidaoVencendo } from '../services/resend.service';
 
-export interface CndRenewalCandidate {
-  userId: string;
-  documentId: string;
-  companyId: string | null;
-  nome: string;
+export interface CndAlertItem {
+  id: string;
+  companyId: string;
+  empresaNome: string;
+  userEmail: string;
   tipo: string;
-  validade: string;
+  dataValidade: string;
+  diasRestantes: number;
+  status: string;
 }
 
-const DEFAULT_CRON = '0 0 * * *';
+const DEFAULT_CRON = '0 7 * * *'; // Todos os dias às 07:00 da manhã
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 const RENEWAL_WINDOW_DAYS = 15;
 
+/**
+ * Inicializa o Cron Job de Varredura de CNDs e Certidões
+ */
 export function setupCndRenewalCron(): void {
   const cronExpression = process.env.CND_RENEWAL_CRON || DEFAULT_CRON;
   const timezone = process.env.CRON_TZ || DEFAULT_TIMEZONE;
 
   if (!cron.validate(cronExpression)) {
-    throw new Error(`CND_RENEWAL_CRON invalido: ${cronExpression}`);
+    console.error(`[CND Cron] Expressão cron inválida: ${cronExpression}`);
+    return;
   }
 
   cron.schedule(
     cronExpression,
     async () => {
-      await runCndRenewalScan();
+      console.info('[CND Cron] ⏰ Executando varredura diária de validade das certidões (CNDs)...');
+      try {
+        await runCndRenewalScan();
+      } catch (err) {
+        console.error('[CND Cron] Erro durante a varredura de CNDs:', err);
+      }
     },
-    { timezone },
+    { timezone }
   );
 
-  console.log(JSON.stringify({
-    event: 'CND_RENEWAL_CRON_CONFIGURED',
-    cron: cronExpression,
-    timezone,
-    renewalWindowDays: RENEWAL_WINDOW_DAYS,
-    timestamp: new Date().toISOString(),
-  }));
+  console.info(`[CND Cron] Worker agendado com sucesso: ${cronExpression} (${timezone})`);
 }
 
-export async function runCndRenewalScan(): Promise<CndRenewalCandidate[]> {
+/**
+ * Executa a varredura de CNDs que expiram em menos de 15 dias, atualiza flags no banco e dispara e-mail Resend
+ */
+export async function runCndRenewalScan(): Promise<CndAlertItem[]> {
   const startedAt = new Date();
-  const currentDate = startOfDay(startedAt);
-  const thresholdDate = endOfDay(addDays(currentDate, RENEWAL_WINDOW_DAYS));
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+
+  const thresholdDate = new Date(currentDate);
+  thresholdDate.setDate(thresholdDate.getDate() + RENEWAL_WINDOW_DAYS);
+  thresholdDate.setHours(23, 59, 59, 999);
 
   if (!isDatabaseConfigured()) {
-    const error = new Error('DATABASE_URL_NOT_CONFIGURED');
-    console.error(JSON.stringify({
-      event: 'CND_RENEWAL_SCAN_FAILED',
-      reason: 'DATABASE_URL_NOT_CONFIGURED',
-      thresholdDate: thresholdDate.toISOString(),
-      timestamp: startedAt.toISOString(),
-    }));
-    throw error;
+    console.warn('[CND Cron] DATABASE_URL não configurada. Varredura ignorada.');
+    return [];
   }
+
+  const alertsFound: CndAlertItem[] = [];
 
   try {
-    const documents = await prisma.document.findMany({
+    // 1. Busca certificados na tabela `CompanyCertificate`
+    const certs = await prisma.companyCertificate.findMany({
       where: {
-        tipo: { equals: 'CND', mode: 'insensitive' },
-        validade: { lte: thresholdDate },
+        expirationDate: { lte: thresholdDate },
       },
-      select: {
-        id: true,
-        userId: true,
-        companyId: true,
-        nome: true,
-        tipo: true,
-        validade: true,
+      include: {
+        company: {
+          include: {
+            user: { select: { email: true, nome: true } },
+          },
+        },
       },
-      orderBy: [
-        { validade: 'asc' },
-        { criadoEm: 'asc' },
-      ],
+      orderBy: { expirationDate: 'asc' },
     });
 
-    const candidates = documents.reduce<CndRenewalCandidate[]>((result, documento) => {
-      if (!documento.validade) return result;
+    for (const cert of certs) {
+      const expDate = new Date(cert.expirationDate);
+      const diffMs = expDate.getTime() - currentDate.getTime();
+      const diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const isExpired = diasRestantes <= 0;
+      const novoStatus = isExpired ? 'EXPIRED' : 'WARNING';
 
-      result.push({
-        userId: documento.userId,
-        documentId: documento.id,
-        companyId: documento.companyId,
-        nome: documento.nome,
-        tipo: documento.tipo,
-        validade: documento.validade.toISOString(),
+      // Atualiza a flag de alerta no banco de dados se houver alteração
+      if (cert.status !== novoStatus) {
+        await prisma.companyCertificate.update({
+          where: { id: cert.id },
+          data: { status: novoStatus },
+        });
+      }
+
+      const emailDestinatario = cert.company.user?.email;
+      const empresaNome = cert.company.razaoSocial || cert.company.nomeFantasia || 'Sua Empresa';
+      const dataFormatada = new Intl.DateTimeFormat('pt-BR').format(expDate);
+
+      // Dispara e-mail transacional via Resend
+      if (emailDestinatario) {
+        try {
+          await enviarAlertaCertidaoVencendo({
+            email: emailDestinatario,
+            empresaNome,
+            certidaoTipo: cert.type || 'Certidão Negativa de Débitos (CND)',
+            diasRestantes,
+            dataValidade: dataFormatada,
+          });
+          console.info(`[CND Cron] ✉️ E-mail de alerta enviado para ${emailDestinatario} (CND ${cert.type} - ${diasRestantes} dias)`);
+        } catch (mailErr) {
+          console.error(`[CND Cron] Falha no envio de e-mail para ${emailDestinatario}:`, mailErr);
+        }
+      }
+
+      alertsFound.push({
+        id: cert.id,
+        companyId: cert.companyId,
+        empresaNome,
+        userEmail: emailDestinatario || '',
+        tipo: cert.type,
+        dataValidade: dataFormatada,
+        diasRestantes,
+        status: novoStatus,
       });
+    }
 
-      return result;
-    }, []);
+    // 2. Busca também documentos de tipo CND na tabela `Document`
+    const docs = await prisma.document.findMany({
+      where: {
+        tipo: { in: ['CND', 'CERTIDAO', 'certidao', 'cnd'] },
+        validade: { lte: thresholdDate },
+      },
+      include: {
+        company: {
+          select: { razaoSocial: true, nomeFantasia: true },
+        },
+        user: { select: { email: true, nome: true } },
+      },
+    });
 
-    console.log(JSON.stringify({
-      event: 'CND_RENEWAL_SCAN_COMPLETED',
-      currentDate: currentDate.toISOString(),
-      thresholdDate: thresholdDate.toISOString(),
-      total: candidates.length,
-      candidates,
-      documentsToRenew: candidates.map((candidate) => ({
-        userId: candidate.userId,
-        documentId: candidate.documentId,
-        nome: candidate.nome,
-      })),
-      durationMs: Date.now() - startedAt.getTime(),
-      timestamp: new Date().toISOString(),
-    }));
+    for (const doc of docs) {
+      if (!doc.validade) continue;
 
-    return candidates;
+      const expDate = new Date(doc.validade);
+      const diffMs = expDate.getTime() - currentDate.getTime();
+      const diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const isExpired = diasRestantes <= 0;
+      const novoStatus = isExpired ? 'vencido' : 'vencendo';
+
+      if (doc.status !== novoStatus) {
+        await prisma.document.update({
+          where: { id: doc.id },
+          data: { status: novoStatus as any },
+        });
+      }
+
+      const emailDestinatario = doc.user?.email;
+      const empresaNome = doc.company?.razaoSocial || doc.company?.nomeFantasia || 'Sua Empresa';
+      const dataFormatada = new Intl.DateTimeFormat('pt-BR').format(expDate);
+
+      if (emailDestinatario) {
+        try {
+          await enviarAlertaCertidaoVencendo({
+            email: emailDestinatario,
+            empresaNome,
+            certidaoTipo: doc.nome || 'Certidão de Regularidade Fiscal',
+            diasRestantes,
+            dataValidade: dataFormatada,
+          });
+        } catch (mailErr) {
+          console.error(`[CND Cron] Falha no envio para ${emailDestinatario}:`, mailErr);
+        }
+      }
+
+      alertsFound.push({
+        id: doc.id,
+        companyId: doc.companyId || '',
+        empresaNome,
+        userEmail: emailDestinatario || '',
+        tipo: doc.nome,
+        dataValidade: dataFormatada,
+        diasRestantes,
+        status: novoStatus,
+      });
+    }
+
+    console.info(`[CND Cron] ✅ Varredura finalizada. Total de alertas processados: ${alertsFound.length} em ${Date.now() - startedAt.getTime()}ms`);
+    return alertsFound;
   } catch (error) {
-    console.error(JSON.stringify({
-      event: 'CND_RENEWAL_SCAN_FAILED',
-      thresholdDate: thresholdDate.toISOString(),
-      error: error instanceof Error ? error.message : 'UNKNOWN_ERROR',
-      timestamp: new Date().toISOString(),
-    }));
+    console.error('[CND Cron] Falha na execução da varredura:', error);
     throw error;
   }
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function endOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
 }

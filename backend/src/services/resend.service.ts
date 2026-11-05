@@ -467,3 +467,62 @@ export async function enviarAlertaEditaisCnae(params: {
     html,
   });
 }
+
+
+/**
+ * Alerta de Vencimento Crítico de Certidão (CND)
+ */
+export async function enviarAlertaCertidaoVencendo(params: {
+  email: string;
+  empresaNome: string;
+  certidaoTipo: string;
+  diasRestantes: number;
+  dataValidade: string;
+  link?: string;
+}) {
+  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const isVencida = params.diasRestantes <= 0;
+  const corAlerta = isVencida ? '#DC2626' : params.diasRestantes <= 5 ? '#EA580C' : '#D97706';
+
+  const html = templateBase(`
+    <span class="tag" style="background:#FEE2E2;color:${corAlerta};font-weight:800;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #FECACA;">
+      ${isVencida ? 'CERTIDÃO VENCIDA' : `EXPIRA EM ${params.diasRestantes} DIAS`}
+    </span>
+
+    <h2 style="font-size:20px;font-weight:900;margin:12px 0 8px;color:#0F172A;">
+      Alerta Crítico de Habilitação: ${params.certidaoTipo}
+    </h2>
+
+    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">
+      Prezada equipe da <strong>${params.empresaNome}</strong>,
+    </p>
+
+    <div style="background:#F8FAFC;border-left:4px solid ${corAlerta};padding:12px 16px;border-radius:6px;margin:16px 0;">
+      <p style="margin:0 0 6px;font-size:13px;color:#1E293B;">
+        <strong>Certidão:</strong> ${params.certidaoTipo}
+      </p>
+      <p style="margin:0 0 6px;font-size:13px;color:#1E293B;">
+        <strong>Data de Vencimento:</strong> ${params.dataValidade}
+      </p>
+      <p style="margin:0;font-size:13px;color:${corAlerta};font-weight:700;">
+        <strong>Status:</strong> ${isVencida ? 'Documento Expirado' : `Resta(m) apenas ${params.diasRestantes} dia(s) de validade`}
+      </p>
+    </div>
+
+    <p style="color:#64748B;font-size:12px;line-height:1.5;">
+      Sob a Lei 14.133/2021, certidões com validade expirada ensejam a <strong>inabilitação sumária</strong> do licitante ou retenção de pagamentos contratuais pós-vitória.
+    </p>
+
+    <div style="text-align:center;margin-top:24px;">
+      <a href="${params.link || `${appUrl}/fornecedor/certidoes`}" class="btn" style="background:${corAlerta};color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">
+        Renovar Certidão Agora →
+      </a>
+    </div>
+  `);
+
+  return sendEmail({
+    to: params.email,
+    subject: `⚠️ [ALERTA CND] ${params.certidaoTipo} vence ${isVencida ? 'HOJE' : `em ${params.diasRestantes} dias`} — ${params.empresaNome}`,
+    html,
+  });
+}

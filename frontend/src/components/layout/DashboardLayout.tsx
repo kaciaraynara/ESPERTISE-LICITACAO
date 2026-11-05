@@ -11,6 +11,7 @@ import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
 import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
 
 const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/dashboard': 'Página Inicial',
@@ -22,6 +23,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/historico-concorrentes': 'Histórico de Concorrentes',
   '/fornecedor/documentos': 'Meus Documentos',
   '/fornecedor/contratos': 'Gestão Contratual Pós-Vitória',
+  '/fornecedor/gestao-pos-vitoria': 'Garantias & Gestão Pós-Vitória',
 };
 
 export default function DashboardLayout() {
@@ -155,6 +157,8 @@ export default function DashboardLayout() {
             </nav>
           </div>
         ) : null}
+
+        <GlobalCertificateAlertBanner />
 
         <main
           id="main-content"
