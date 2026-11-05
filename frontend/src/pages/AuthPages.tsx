@@ -7,6 +7,7 @@ import {
    CircleNotch, CheckCircle, WarningCircle, InstagramLogo, 
    ArrowRight, Eye, EyeSlash, Check
 } from '@phosphor-icons/react';
+import { Eye as EyeIcon, EyeOff as EyeOffIcon } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi } from '@services/api';
@@ -50,11 +51,16 @@ const registerSchema = z.object({
    bairro: z.string().optional(),
    cidade: z.string().optional(),
    uf: z.string().optional(),
-   aceite_lgpd: z.boolean().refine((accepted) => accepted, 'Aceite os termos para continuar.'),
+   aceite_lgpd: z.boolean().refine((accepted) => accepted, 'Aceite os termos corporativos e de privacidade para continuar.'),
    password: z.string()
-      .min(8, 'A senha deve ter pelo menos 8 caracteres')
+      .min(8, 'A senha corporativa deve conter no mínimo 8 caracteres')
       .regex(/[A-Za-z]/, 'A senha deve conter pelo menos uma letra')
-      .regex(/\d/, 'A senha deve conter pelo menos um número')
+      .regex(/\d/, 'A senha deve conter pelo menos um número'),
+   confirmPassword: z.string()
+      .min(1, 'Confirme a senha de acesso corporativo')
+}).refine((data) => data.password === data.confirmPassword, {
+   message: 'A confirmação de senha deve ser estritamente idêntica à senha informada.',
+   path: ['confirmPassword']
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -129,6 +135,7 @@ export default function AuthPages() {
    // Estados para visibilidade de senhas
    const [showLoginPassword, setShowLoginPassword] = useState(false);
    const [showRegPassword, setShowRegPassword] = useState(false);
+   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
    const [showResetPassword, setShowResetPassword] = useState(false);
    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -167,8 +174,17 @@ export default function AuthPages() {
    // -----------------------------
    // REGISTRO
    // -----------------------------
-   const { register: regForm, handleSubmit: handleRegSubmit, watch: regWatch, setValue: regSetValue, formState: { errors: regErrors, isSubmitting: regSubmitting } } = useForm<RegisterFormValues>({
+   const {
+      register: regForm,
+      handleSubmit: handleRegSubmit,
+      watch: regWatch,
+      setValue: regSetValue,
+      trigger: regTrigger,
+      formState: { errors: regErrors, isSubmitting: regSubmitting, isValid: regIsValid }
+   } = useForm<RegisterFormValues>({
       resolver: zodResolver(registerSchema),
+      mode: 'onChange',
+      reValidateMode: 'onChange',
       defaultValues: {
          email: location.state?.email || '',
          cnpj: location.state?.cnpj || '',
@@ -181,10 +197,32 @@ export default function AuthPages() {
          uf: '',
          aceite_lgpd: false,
          password: '',
+         confirmPassword: '',
       }
    });
 
    const cnpjValue = regWatch('cnpj') || '';
+   const regPasswordValue = regWatch('password') || '';
+   const regConfirmPasswordValue = regWatch('confirmPassword') || '';
+
+   const passwordChecks = {
+      minLength: regPasswordValue.length >= 8,
+      hasLetter: /[A-Za-z]/.test(regPasswordValue),
+      hasNumber: /\d/.test(regPasswordValue),
+      matchesConfirm: regPasswordValue.length > 0 && regPasswordValue === regConfirmPasswordValue,
+   };
+
+   const isPasswordSecurityMet =
+      passwordChecks.minLength &&
+      passwordChecks.hasLetter &&
+      passwordChecks.hasNumber &&
+      passwordChecks.matchesConfirm;
+
+   useEffect(() => {
+      if (regConfirmPasswordValue.length > 0) {
+         void regTrigger('confirmPassword');
+      }
+   }, [regPasswordValue, regConfirmPasswordValue, regTrigger]);
 
    useEffect(() => {
       const currentRaw = cnpjValue || '';
@@ -737,13 +775,13 @@ export default function AuthPages() {
 
                            <div className="space-y-1.5">
                               <label htmlFor="reg_pass" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                                 Senha de acesso
+                                 Senha Corporativa de Acesso
                               </label>
                               <div className="relative">
                                  <input
                                     {...regForm('password')}
                                     id="reg_pass"
-                                    placeholder="Mínimo de 8 caracteres"
+                                    placeholder="Mínimo de 8 caracteres (letras e números)"
                                     type={showRegPassword ? 'text' : 'password'}
                                     autoCapitalize="none"
                                     autoCorrect="off"
@@ -754,11 +792,11 @@ export default function AuthPages() {
                                  />
                                  <button 
                                     type="button" 
-                                    aria-label={showRegPassword ? 'Ocultar senha' : 'Mostrar senha'} 
-                                    onClick={() => setShowRegPassword(!showRegPassword)} 
-                                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700 transition-colors"
+                                    aria-label={showRegPassword ? 'Ocultar senha corporativa' : 'Revelar senha corporativa'} 
+                                    onClick={() => setShowRegPassword((prev) => !prev)} 
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
                                  >
-                                    {showRegPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    {showRegPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                                  </button>
                               </div>
                               {regErrors.password && (
@@ -766,6 +804,59 @@ export default function AuthPages() {
                                     <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.password.message}
                                  </p>
                               )}
+                           </div>
+
+                           <div className="space-y-1.5">
+                              <label htmlFor="reg_confirm_pass" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                 Confirmar Senha Corporativa
+                              </label>
+                              <div className="relative">
+                                 <input
+                                    {...regForm('confirmPassword')}
+                                    id="reg_confirm_pass"
+                                    placeholder="Repita a senha corporativa exatamente igual"
+                                    type={showRegConfirmPassword ? 'text' : 'password'}
+                                    autoCapitalize="none"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                    required
+                                    autoComplete="new-password"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 <button 
+                                    type="button" 
+                                    aria-label={showRegConfirmPassword ? 'Ocultar confirmação de senha' : 'Revelar confirmação de senha'} 
+                                    onClick={() => setShowRegConfirmPassword((prev) => !prev)} 
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
+                                 >
+                                    {showRegConfirmPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                                 </button>
+                              </div>
+                              {regErrors.confirmPassword && (
+                                 <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                    <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.confirmPassword.message}
+                                 </p>
+                              )}
+
+                              {/* Indicadores de conformidade de segurança B2B em tempo real */}
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 text-[11px] font-medium">
+                                 <div className={`flex items-center gap-1.5 ${passwordChecks.minLength ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                                    <Check className={`h-3.5 w-3.5 shrink-0 ${passwordChecks.minLength ? 'text-emerald-600' : 'text-slate-400'}`} weight="bold" />
+                                    <span>Mínimo de 8 caracteres</span>
+                                 </div>
+                                 <div className={`flex items-center gap-1.5 ${passwordChecks.hasLetter ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                                    <Check className={`h-3.5 w-3.5 shrink-0 ${passwordChecks.hasLetter ? 'text-emerald-600' : 'text-slate-400'}`} weight="bold" />
+                                    <span>Contém letras (A–Z)</span>
+                                 </div>
+                                 <div className={`flex items-center gap-1.5 ${passwordChecks.hasNumber ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                                    <Check className={`h-3.5 w-3.5 shrink-0 ${passwordChecks.hasNumber ? 'text-emerald-600' : 'text-slate-400'}`} weight="bold" />
+                                    <span>Contém números (0–9)</span>
+                                 </div>
+                                 <div className={`flex items-center gap-1.5 ${passwordChecks.matchesConfirm ? 'text-emerald-700 font-semibold' : 'text-slate-500'}`}>
+                                    <Check className={`h-3.5 w-3.5 shrink-0 ${passwordChecks.matchesConfirm ? 'text-emerald-600' : 'text-slate-400'}`} weight="bold" />
+                                    <span>Confirmação de senha idêntica</span>
+                                 </div>
+                              </div>
                            </div>
 
                            <label className="flex items-start gap-2.5 text-xs text-slate-600 pt-1">
@@ -781,11 +872,11 @@ export default function AuthPages() {
                            </label>
 
                            <motion.button 
-                              disabled={regSubmitting} 
+                              disabled={regSubmitting || !isPasswordSecurityMet || !regIsValid} 
                               type="submit" 
-                              whileHover={{ scale: 1.01 }} 
-                              whileTap={{ scale: 0.98 }} 
-                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                              whileHover={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 1.01 }} 
+                              whileTap={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 0.98 }} 
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed"
                            >
                               {regSubmitting ? (
                                  <>
