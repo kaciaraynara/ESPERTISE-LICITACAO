@@ -78,10 +78,10 @@ export class EmpresasService {
   public async criar(userId: string, body: Record<string, unknown>) {
     const tenantId = await this.getTenantId(userId);
     const rawCnpj = String(body.cnpj ?? '');
-    const cleanCnpj = rawCnpj.replace(/\D/g, '');
+    const cleanCnpj = rawCnpj.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-    if (cleanCnpj.length !== 14) {
-      throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
+    if (cleanCnpj.length !== 14 || /^([A-Z0-9])\1{13}$/.test(cleanCnpj)) {
+      throw new ApiError('Informe um CNPJ válido com 14 caracteres alfanuméricos.', 400, 'CNPJ_INVALID');
     }
 
     const manualRazao = String(
@@ -170,8 +170,8 @@ export class EmpresasService {
     }
 
     const atual = this.mapCompany(atualRow);
-    const requestedCnpj = String(body.cnpj ?? atual.cnpj).replace(/\D/g, '');
-    const official = requestedCnpj === atualRow.cnpj
+    const requestedCnpj = String(body.cnpj ?? atual.cnpj).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const official = !requestedCnpj || requestedCnpj === atualRow.cnpj
       ? {
           cnpj: atualRow.cnpj,
           razao_social: atualRow.razaoSocial,
@@ -245,9 +245,9 @@ export class EmpresasService {
       cnae_principal?: string;
     }
   ) {
-    const cnpj = input.replace(/\D/g, '');
-    if (cnpj.length !== 14) {
-      throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
+    const cnpj = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cnpj.length !== 14 || /^([A-Z0-9])\1{13}$/.test(cnpj)) {
+      throw new ApiError('Informe um CNPJ válido com 14 caracteres alfanuméricos.', 400, 'CNPJ_INVALID');
     }
 
     const fallbackRazao = (fallbackData?.razao_social || '').trim()
@@ -257,7 +257,7 @@ export class EmpresasService {
 
     try {
       const official = await consultarCnpjOficial(cnpj);
-      const officialCnpj = official.cnpj.replace(/\D/g, '');
+      const officialCnpj = official.cnpj.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
       return {
         ...official,

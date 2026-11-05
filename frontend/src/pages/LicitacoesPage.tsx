@@ -10,6 +10,7 @@ import {
 import { lexApi, licitacoesApi, crmApi, propostasApi, noticesApi } from '../services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import toast from 'react-hot-toast';
 
 type Licitacao = {
@@ -382,9 +383,13 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
 
   const handleBuscar = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidCnpj(cnpjFiltro, { optional: true })) {
+      toast.error('CNPJ inválido. Se preenchido, informe os 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).');
+      return;
+    }
     const nextFilters: SearchFilters = {
       busca: busca.trim(),
-      cnpj: cnpjFiltro.trim(),
+      cnpj: sanitizeCnpj(cnpjFiltro),
       cnae: cnaeFiltro.trim(),
       uf: ufSel,
       modalidade: modalidadeSel,
@@ -407,7 +412,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
       toast.error('Nenhuma empresa ativa selecionada.');
       return;
     }
-    const nextCnpj = selectedCompany.cnpj || '';
+    const nextCnpj = formatCnpjMask(selectedCompany.cnpj || '');
     const nextCnae = selectedCompany.cnaePrincipal || selectedCompany.cnae_principal || (meta?.perfilRadar?.cnaes?.[0] ?? '');
     const nextUf = selectedCompany.uf && UFS.includes(selectedCompany.uf.toUpperCase())
       ? selectedCompany.uf.toUpperCase()
@@ -418,7 +423,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
     setUfSel(nextUf);
     setFiltrosAplicados({
       busca: busca.trim(),
-      cnpj: nextCnpj.trim(),
+      cnpj: sanitizeCnpj(nextCnpj),
       cnae: nextCnae.trim(),
       uf: nextUf,
       modalidade: modalidadeSel,
@@ -564,15 +569,16 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3 border-t border-slate-100 animate-in fade-in duration-150">
                 <div>
                   <label htmlFor="licitacoes-cnpj-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                    CNPJ (Empresa ou Órgão)
+                    CNPJ (Opcional · Alfanumérico)
                   </label>
                   <input
                     id="licitacoes-cnpj-filter"
                     type="text"
+                    maxLength={18}
                     value={cnpjFiltro}
-                    onChange={e => setCnpjFiltro(e.target.value)}
-                    placeholder={selectedCompany?.cnpj || '00.000.000/0001-00'}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
+                    onChange={e => setCnpjFiltro(formatCnpjMask(e.target.value))}
+                    placeholder={selectedCompany?.cnpj ? formatCnpjMask(selectedCompany.cnpj) : 'XX.XXX.XXX/XXXX-XX'}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
                   />
                 </div>
 

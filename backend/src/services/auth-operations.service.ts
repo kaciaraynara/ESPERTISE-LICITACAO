@@ -153,9 +153,9 @@ export class AuthOperationsService {
       );
     }
 
-    const cleanCnpj = String(cnpj).replace(/\D/g, '');
-    if (cleanCnpj.length !== 14) {
-      throw new ApiError('Informe um CNPJ válido com 14 dígitos.', 400, 'CNPJ_INVALID');
+    const cleanCnpj = String(cnpj || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleanCnpj.length > 0 && (cleanCnpj.length !== 14 || /^([A-Z0-9])\1{13}$/.test(cleanCnpj))) {
+      throw new ApiError('Informe um CNPJ válido com 14 caracteres alfanuméricos.', 400, 'CNPJ_INVALID');
     }
 
     const manualRazao = (
@@ -182,24 +182,37 @@ export class AuthOperationsService {
       status: string | null;
     };
 
-    try {
-      const oficial = await consultarCnpjOficial(cleanCnpj);
-      empresaOficial = {
-        cnpj: cleanCnpj,
-        razao_social: oficial.razao_social?.trim() || manualRazao || `Empresa ${cleanCnpj}`,
-        nome_fantasia: oficial.nome_fantasia?.trim() || manualFantasia || null,
-        municipio: oficial.municipio || validatedData.municipio || null,
-        uf: (oficial.uf || validatedData.uf || null)?.slice(0, 2).toUpperCase() || null,
-        cnae_principal: oficial.cnae_principal || validatedData.cnae_principal || null,
-        status: oficial.status || 'ATIVO',
-      };
-    } catch (companyError: any) {
-      console.warn(`[AUTH_REGISTER_CNPJ_FALLBACK] Consulta externa falhou para CNPJ ${cleanCnpj}. Utilizando dados manuais/fallback:`, companyError?.message || companyError);
+    if (cleanCnpj.length === 14) {
+      try {
+        const oficial = await consultarCnpjOficial(cleanCnpj);
+        empresaOficial = {
+          cnpj: cleanCnpj,
+          razao_social: oficial.razao_social?.trim() || manualRazao || `Empresa ${cleanCnpj}`,
+          nome_fantasia: oficial.nome_fantasia?.trim() || manualFantasia || null,
+          municipio: oficial.municipio || validatedData.municipio || null,
+          uf: (oficial.uf || validatedData.uf || null)?.slice(0, 2).toUpperCase() || null,
+          cnae_principal: oficial.cnae_principal || validatedData.cnae_principal || null,
+          status: oficial.status || 'ATIVO',
+        };
+      } catch (companyError: any) {
+        console.warn(`[AUTH_REGISTER_CNPJ_FALLBACK] Consulta externa falhou para CNPJ ${cleanCnpj}. Utilizando dados manuais/fallback:`, companyError?.message || companyError);
 
-      const fallbackRazao = manualRazao || manualFantasia || (validatedData.nome ? `${validatedData.nome} Ltda` : '') || `Empresa ${cleanCnpj}`;
+        const fallbackRazao = manualRazao || manualFantasia || (validatedData.nome ? `${validatedData.nome} Ltda` : '') || `Empresa ${cleanCnpj}`;
 
+        empresaOficial = {
+          cnpj: cleanCnpj,
+          razao_social: fallbackRazao,
+          nome_fantasia: manualFantasia || fallbackRazao,
+          municipio: validatedData.municipio?.trim() || null,
+          uf: validatedData.uf ? String(validatedData.uf).trim().slice(0, 2).toUpperCase() : null,
+          cnae_principal: validatedData.cnae_principal?.trim() || null,
+          status: 'ATIVO',
+        };
+      }
+    } else {
+      const fallbackRazao = manualRazao || manualFantasia || (validatedData.nome ? `${validatedData.nome} Ltda` : 'Minha Empresa (Exploração)');
       empresaOficial = {
-        cnpj: cleanCnpj,
+        cnpj: '',
         razao_social: fallbackRazao,
         nome_fantasia: manualFantasia || fallbackRazao,
         municipio: validatedData.municipio?.trim() || null,
@@ -210,7 +223,7 @@ export class AuthOperationsService {
     }
 
     if (!empresaOficial.razao_social?.trim()) {
-      empresaOficial.razao_social = `Empresa ${cleanCnpj}`;
+      empresaOficial.razao_social = cleanCnpj ? `Empresa ${cleanCnpj}` : 'Minha Empresa (Exploração)';
     }
 
     const hashedPassword = await bcrypt.hash(senha, BCRYPT_ROUNDS);

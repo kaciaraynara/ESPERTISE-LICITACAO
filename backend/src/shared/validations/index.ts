@@ -8,8 +8,13 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   nome: z.string().trim().optional().transform((v) => (v && v.length >= 2 ? v : 'Administrador da conta')),
   cnpj: z.string()
-    .transform((value) => value.replace(/\D/g, ''))
-    .refine((value) => value.length === 14, 'CNPJ inválido (deve conter 14 dígitos)'),
+    .optional()
+    .default('')
+    .transform((value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))
+    .refine(
+      (value) => value.length === 0 || (value.length === 14 && !/^([A-Z0-9])\1{13}$/.test(value)),
+      'CNPJ inválido (deve conter 14 caracteres alfanuméricos no formato XX.XXX.XXX/XXXX-XX)',
+    ),
   razao_social: z.string().trim().optional(),
   razoesocial: z.string().trim().optional(),
   razaoSocial: z.string().trim().optional(),

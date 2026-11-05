@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { useCompany } from '@/contexts/CompanyContext';
 import { PaywallModal } from '@/components/monetization/PaywallModal';
 import toast from 'react-hot-toast';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 export default function ConfiguracoesPage() {
   const [abaAtiva, setAbaAtiva] = useState<'EMPRESA' | 'CERTIFICADO' | 'INTEGRACOES' | 'NOTIFICACOES'>('EMPRESA');
@@ -66,7 +67,7 @@ export default function ConfiguracoesPage() {
     if (empresa) {
       setFormData({
         razaoSocial: empresa.razaoSocial || '',
-        cnpj: empresa.cnpj || '',
+        cnpj: formatCnpjMask(empresa.cnpj || ''),
         cnaePrincipal: empresa.cnaePrincipal || '',
         status: empresa.status || '',
         whatsapp: authUser?.telefone || '',
@@ -96,7 +97,7 @@ export default function ConfiguracoesPage() {
   });
 
   const addCompanyMutation = useMutation({
-    mutationFn: async (cnpj: string) => empresasApi.criar({ cnpj: cnpj.replace(/\D/g, '') }),
+    mutationFn: async (cnpj: string) => empresasApi.criar({ cnpj: sanitizeCnpj(cnpj) }),
     onSuccess: async () => {
       toast.success('Empresa adicionada com sucesso.');
       setNovoCnpj('');
@@ -128,9 +129,9 @@ export default function ConfiguracoesPage() {
 
   const handleSubmitNovaEmpresa = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const cnpjLimpo = novoCnpj.replace(/\D/g, '');
-    if (cnpjLimpo.length !== 14) {
-      toast.error('Informe um CNPJ válido com 14 dígitos.');
+    const cnpjLimpo = sanitizeCnpj(novoCnpj);
+    if (!isValidCnpj(cnpjLimpo, { optional: false })) {
+      toast.error('Informe um CNPJ válido com 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).');
       return;
     }
     if (limitReached) {
@@ -161,10 +162,15 @@ export default function ConfiguracoesPage() {
   };
 
   const handleSave = () => {
+    const cleanFormCnpj = sanitizeCnpj(formData.cnpj);
+    if (cleanFormCnpj.length > 0 && !isValidCnpj(cleanFormCnpj, { optional: false })) {
+      toast.error('O CNPJ informado é inválido. Use 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).');
+      return;
+    }
     mutation.mutate({
       empresa: {
         razaoSocial: formData.razaoSocial,
-        cnpj: formData.cnpj,
+        cnpj: cleanFormCnpj,
         cnaePrincipal: formData.cnaePrincipal,
         status: formData.status,
       },
@@ -325,11 +331,10 @@ export default function ConfiguracoesPage() {
                   <input
                     id="novo-cnpj"
                     type="text"
-                    inputMode="numeric"
                     autoComplete="off"
                     value={novoCnpj}
-                    onChange={(event) => setNovoCnpj(event.target.value)}
-                    placeholder="CNPJ da nova empresa"
+                    onChange={(event) => setNovoCnpj(formatCnpjMask(event.target.value))}
+                    placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
                     maxLength={18}
                     className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-400"
                   />
@@ -370,11 +375,13 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ (Alfanumérico — opcional)</label>
                 <input 
-                  type="text" 
+                  type="text"
+                  maxLength={18}
+                  placeholder="XX.XXX.XXX/XXXX-XX"
                   value={formData.cnpj}
-                  onChange={(e) => setFormData(p => ({ ...p, cnpj: e.target.value }))}
+                  onChange={(e) => setFormData(p => ({ ...p, cnpj: formatCnpjMask(e.target.value) }))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                 />
               </div>

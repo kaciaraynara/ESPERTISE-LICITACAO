@@ -6,6 +6,7 @@ import {
 import { GovBrConfiabilidade } from '@components/ui/GovBrConfiabilidade';
 import api from '@services/api';
 import toast from 'react-hot-toast';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 function deriveRadarPreview(empresa: any) {
   const raw = [
@@ -42,7 +43,7 @@ export default function EmpresaPage() {
         const primeiraEmpresa = response.data?.data?.[0];
         if (!cancelled && primeiraEmpresa) {
           setEmpresa(primeiraEmpresa);
-          setCnpj(primeiraEmpresa.cnpj);
+          setCnpj(formatCnpjMask(primeiraEmpresa.cnpj));
         }
       })
       .catch(() => {
@@ -55,8 +56,15 @@ export default function EmpresaPage() {
   }, []);
 
   const buscarCnpj = async (valorCnpj: string) => {
-    const limpo = valorCnpj.replace(/\D/g, '');
-    if (limpo.length !== 14) return;
+    const limpo = sanitizeCnpj(valorCnpj);
+    if (limpo.length === 0) {
+      setErro('');
+      return;
+    }
+    if (!isValidCnpj(limpo, { optional: false })) {
+      setErro('Informe um CNPJ válido no padrão XX.XXX.XXX/XXXX-XX (14 caracteres alfanuméricos).');
+      return;
+    }
 
     setLoading(true);
     setErro('');
@@ -144,13 +152,24 @@ export default function EmpresaPage() {
                 <input
                   id="input-cnpj"
                   type="text"
-                  placeholder="00.000.000/0000-00"
+                  maxLength={18}
+                  placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
                   className="w-full pl-5 pr-12 py-3.5 bg-white border-2 border-gray-100 rounded-lg text-lg font-bold text-brand-blue outline-none focus:border-brand-blue/20 transition-all"
                   value={cnpj}
                   onChange={(e) => {
-                    setCnpj(e.target.value);
-                    if (e.target.value.replace(/\D/g, '').length === 14) {
-                      buscarCnpj(e.target.value);
+                    const masked = formatCnpjMask(e.target.value);
+                    setCnpj(masked);
+                    const limpo = sanitizeCnpj(masked);
+                    if (limpo.length === 0) {
+                      setErro('');
+                    } else if (limpo.length === 14) {
+                      buscarCnpj(masked);
+                    }
+                  }}
+                  onBlur={() => {
+                    const limpo = sanitizeCnpj(cnpj);
+                    if (limpo.length > 0 && !isValidCnpj(limpo, { optional: false })) {
+                      setErro('CNPJ incompleto ou inválido. Use o formato XX.XXX.XXX/XXXX-XX (14 caracteres alfanuméricos).');
                     }
                   }}
                 />

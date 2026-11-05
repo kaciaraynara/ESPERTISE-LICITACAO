@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { hasUserPlanFeature } from '@/components/layout/Sidebar';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import toast from 'react-hot-toast';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 export const InvestigacaoConcorrencialPage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export const InvestigacaoConcorrencialPage: React.FC = () => {
       const res = await api.get(`/concorrentes/${encodeURIComponent(cnpjSubmetido)}/dossie`);
       return res.data;
     },
-    enabled: !!cnpjSubmetido && cnpjSubmetido.replace(/\D/g, '').length === 14,
+    enabled: !!cnpjSubmetido && isValidCnpj(cnpjSubmetido, { optional: false }),
     retry: false,
   });
 
@@ -31,9 +32,13 @@ export const InvestigacaoConcorrencialPage: React.FC = () => {
 
   const handleBuscar = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCnpj = cnpjBusca.replace(/\D/g, '');
-    if (cleanCnpj.length !== 14) {
-      toast.error('CNPJ inválido. Digite os 14 dígitos.');
+    const cleanCnpj = sanitizeCnpj(cnpjBusca);
+    if (cleanCnpj.length === 0) {
+      setCnpjSubmetido('');
+      return;
+    }
+    if (!isValidCnpj(cleanCnpj, { optional: false })) {
+      toast.error('CNPJ inválido. Digite 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).');
       return;
     }
     setCnpjSubmetido(cleanCnpj);
@@ -68,9 +73,10 @@ export const InvestigacaoConcorrencialPage: React.FC = () => {
           <Search size={18} className="absolute left-3 top-3 text-slate-400" />
           <input 
             type="text"
-            placeholder="Digite o CNPJ do concorrente (somente números)..."
+            maxLength={18}
+            placeholder="Digite o CNPJ do concorrente (XX.XXX.XXX/XXXX-XX — letras e números)..."
             value={cnpjBusca}
-            onChange={(e) => setCnpjBusca(e.target.value)}
+            onChange={(e) => setCnpjBusca(formatCnpjMask(e.target.value))}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0A2540]"
           />
         </div>

@@ -232,7 +232,7 @@ export const authApi = {
     nome: string;
     telefone?: string;
     aceite_lgpd: boolean;
-    cnpj: string;
+    cnpj?: string;
     razao_social?: string;
     nome_fantasia?: string;
     cnae_principal?: string;

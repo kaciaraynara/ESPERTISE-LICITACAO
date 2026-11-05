@@ -213,7 +213,7 @@ export async function listarLicitacoes(
 
   if (filtros.cnpj && filtros.cnpj.trim()) {
     const rawCnpj = filtros.cnpj.trim();
-    const cnpjDigits = rawCnpj.replace(/\D/g, '');
+    const cnpjDigits = rawCnpj.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const companyMatch = typeof prisma?.company?.findFirst === 'function'
       ? await prisma.company
           .findFirst({

@@ -17,7 +17,7 @@ const MEMORY_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 const DB_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 
 export function normalizarCnpj(value: string) {
-  return value.replace(/\D/g, '');
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 function getBrasilApiBaseUrl() {

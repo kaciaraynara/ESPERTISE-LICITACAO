@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/auth.store';
 import { hasUserPlanFeature } from '../components/layout/Sidebar';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import type { MalhaFinaLicitacao } from '@/types';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 interface ContratoConcorrente {
   id: string;
@@ -73,13 +74,13 @@ function formatarData(data: string | null | undefined): string {
 }
 
 function normalizarCnpj(valor: string): string {
-  return valor.replace(/\D/g, '');
+  return sanitizeCnpj(valor);
 }
 
 function formatarCnpj(cnpj: string): string {
   const digits = normalizarCnpj(cnpj);
   if (digits.length !== 14) return cnpj;
-  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  return formatCnpjMask(digits);
 }
 
 export function HistoricoConcorrentesPage() {
@@ -104,8 +105,13 @@ export function HistoricoConcorrentesPage() {
   const consultarCnpj = async (cnpjAlvo: string) => {
     const cnpjLimpo = normalizarCnpj(cnpjAlvo);
 
-    if (cnpjLimpo.length !== 14) {
-      setError('Por favor, informe um CNPJ válido com 14 dígitos para gerar o Dossiê de Inteligência.');
+    if (cnpjLimpo.length === 0) {
+      setError(null);
+      return;
+    }
+
+    if (!isValidCnpj(cnpjLimpo, { optional: false })) {
+      setError('Por favor, informe um CNPJ válido com 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX) para gerar o Dossiê de Inteligência.');
       return;
     }
 
@@ -249,9 +255,9 @@ export function HistoricoConcorrentesPage() {
                 id="cnpj-concorrente-input"
                 type="text"
                 value={cnpjInput}
-                onChange={(e) => setCnpjInput(e.target.value)}
-                placeholder="Informe o CNPJ com ou sem pontuação ou nome do órgão"
-                maxLength={100}
+                onChange={(e) => setCnpjInput(formatCnpjMask(e.target.value))}
+                placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
+                maxLength={18}
                 disabled={loading}
                 className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#0A2540] transition disabled:opacity-50"
               />

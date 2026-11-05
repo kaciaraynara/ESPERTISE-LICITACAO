@@ -239,8 +239,8 @@ function normalizeCnpj(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
-  const digits = String(value).replace(/\D/g, '');
-  if (digits.length === 14) {
+  const digits = String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (digits.length === 14 && !/^([A-Z0-9])\1{13}$/.test(digits)) {
     return digits;
   }
   return undefined;

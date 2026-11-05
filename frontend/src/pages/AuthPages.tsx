@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import { authApi, integracoesApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
 import { FORNECEDOR_ROUTES } from '@/routes';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 // Zod Schemas sincronizados com o Backend
 const loginSchema = z.object({
@@ -36,7 +37,11 @@ const resetSchema = z.object({
 
 const registerSchema = z.object({
    email: z.string().email('E-mail corporativo inválido'),
-   cnpj: z.string().min(14, 'CNPJ inválido'),
+   cnpj: z.string()
+      .optional()
+      .refine((val) => isValidCnpj(val, { optional: true }), {
+         message: 'CNPJ inválido. Se preenchido, use 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).'
+      }),
    razoesocial: z.string().optional(),
    aceite_lgpd: z.boolean().refine((accepted) => accepted, 'Aceite os termos para continuar.'),
    password: z.string()
@@ -171,9 +176,11 @@ export default function AuthPages() {
    const [cnpjLookupError, setCnpjLookupError] = useState<string | null>(null);
 
    useEffect(() => {
-      const sanitized = cnpjValue.replace(/\D/g, '').slice(0, 14);
-      if (sanitized !== cnpjValue) {
-         regSetValue('cnpj', sanitized, { shouldValidate: true });
+      const currentRaw = cnpjValue || '';
+      const masked = formatCnpjMask(currentRaw);
+      const sanitized = sanitizeCnpj(currentRaw);
+      if (masked !== currentRaw) {
+         regSetValue('cnpj', masked, { shouldValidate: sanitized.length > 0 });
       }
       if (sanitized.length !== 14) {
          setIsLoadingCnpj(false);
@@ -212,7 +219,7 @@ export default function AuthPages() {
 
    const onRegister = async (data: RegisterFormValues) => {
       try {
-         const cleanCnpj = data.cnpj.replace(/\D/g, '');
+         const cleanCnpj = sanitizeCnpj(data.cnpj);
          const razaoSocialInformada = (data.razoesocial || '').trim();
 
          const response = await authApi.register({
@@ -604,19 +611,17 @@ export default function AuthPages() {
 
                            <div className="space-y-1.5">
                               <label htmlFor="reg_cnpj" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                                 CNPJ da empresa
+                                 CNPJ da empresa <span className="text-slate-400 font-normal normal-case">(Opcional · Aceita letras e números)</span>
                               </label>
                               <div className="relative">
                                  <input
                                     {...regForm('cnpj')}
                                     id="reg_cnpj"
-                                    placeholder="00.000.000/0000-00"
+                                    placeholder="XX.XXX.XXX/XXXX-XX"
                                     type="text"
-                                    inputMode="numeric"
                                     autoComplete="off"
                                     maxLength={18}
-                                    required
-                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-3 text-sm font-mono font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
                                  {isLoadingCnpj && <CircleNotch className="absolute right-3.5 top-3.5 h-5 w-5 text-[#EA580C] animate-spin" />}
                               </div>
