@@ -10,10 +10,8 @@ export default defineConfig({
   },
 
   datasource: {
-    url:
-      process.env.DIRECT_URL ||
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:postgres@127.0.0.1:5432/expertise_dev',
+    // DIRECT_URL dedicada para migrations (bypass PgBouncer); fallback para DATABASE_URL
+    url: process.env.DIRECT_URL || process.env.DATABASE_URL || '',
 
     shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },

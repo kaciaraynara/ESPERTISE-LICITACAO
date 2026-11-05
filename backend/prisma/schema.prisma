@@ -4,6 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Prisma 5/6 syntax (em Prisma 7, url e directUrl são resolvidos via prisma.config.ts e @prisma/adapter-pg):
+  // url       = env("DATABASE_URL") // PgBouncer / Connection Pooler (porta 5432)
+  // directUrl = env("DIRECT_URL")   // Conexão direta exclusiva para Migrations
 }
 
 model Tenant {
@@ -71,6 +74,7 @@ model User {
   monitoredNotices  CompanyMonitoredNotice[]
   assignedDeadlines Deadline[]
   deadlines         Deadline[]              @relation("UserDeadlines")
+  auditLogs         AuditLog[]
 
   @@index([tenantId])
   @@index([deletedAt, anonymizedAt])
@@ -2079,4 +2083,25 @@ model GarantiaLicitacao {
   @@index([status])
   @@index([dataVencimento])
   @@map("garantias_licitacao")
+}
+
+// -----------------------------------------------------------------------------
+// SEGURANÇA E AUDITORIA CORPORATIVA (TRILHA IMUTÁVEL DE EVENTOS CRÍTICOS)
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String
+  ipAddress String   @map("ip_address")
+  userAgent String?  @map("user_agent")
+  payload   Json?    @db.JsonB
+  timestamp DateTime @default(now()) @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([action])
+  @@index([ipAddress])
+  @@index([userId, timestamp])
+  @@map("audit_logs")
 }
