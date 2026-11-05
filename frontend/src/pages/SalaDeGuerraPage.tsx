@@ -32,45 +32,18 @@ export default function SalaDeGuerraPage() {
   const [pregaoId, setPregaoId] = useState('PREGAO-2026-0842');
 
   // Estado dos Inputs Financeiros (Calculadora BDI)
-  const [custoInsumos, setCustoInsumos] = useState<number>(32000);
-  const [despesasOperacionais, setDespesasOperacionais] = useState<number>(1600);
+  const [custoInsumos, setCustoInsumos] = useState<number>(0);
+  const [despesasOperacionais, setDespesasOperacionais] = useState<number>(0);
   const [margemDesejada, setMargemDesejada] = useState<number>(15);
-  const [margemMinimaStopLoss, setMargemMinimaStopLoss] = useState<number>(6);
-  const [bidAmountInput, setBidAmountInput] = useState<string>('44000');
+  const [margemMinimaStopLoss, setMargemMinimaStopLoss] = useState<number>(5);
+  const [bidAmountInput, setBidAmountInput] = useState<string>('');
 
   // Resultado da Simulação Tributária (BDI & Split Payment)
   const [simulation, setSimulation] = useState<SimulateBdiResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  // Lista de lances recebidos em tempo real pelo WebSocket
-  const [bids, setBids] = useState<BidRecord[]>([
-    {
-      id: 'init_1',
-      pregaoId: 'PREGAO-2026-0842',
-      bid_amount: 48000,
-      licitanteNome: 'Consórcio Nacional Tech Ltda',
-      isOwnBid: false,
-      timestamp: '14:28:10',
-      splitPaymentRetido: 5472,
-      receitaLiquida: 42528,
-      lucroLiquido: 8928,
-      margemLiquida: 18.6,
-      status: 'OPONENTE',
-    },
-    {
-      id: 'init_2',
-      pregaoId: 'PREGAO-2026-0842',
-      bid_amount: 46500,
-      licitanteNome: 'Apex Soluções e Serviços',
-      isOwnBid: false,
-      timestamp: '14:29:45',
-      splitPaymentRetido: 5301,
-      receitaLiquida: 41199,
-      lucroLiquido: 7599,
-      margemLiquida: 16.34,
-      status: 'LIDERANDO',
-    },
-  ]);
+  // Lista de lances recebidos em tempo real pelo WebSocket (iniciada vazia)
+  const [bids, setBids] = useState<BidRecord[]>([]);
 
   // Modal de Erro 403 (Stop-Loss Ativado)
   const [stopLossModalError, setStopLossModalError] = useState<SocketBidError | null>(null);
@@ -520,7 +493,20 @@ export default function SalaDeGuerraPage() {
             </div>
 
             <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1 scrollbar-thin">
-              {lancesOrdenados.map((lance, index) => {
+              {lancesOrdenados.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 my-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-[#EA580C] mb-2">
+                    <Lightning className="h-5 w-5" weight="fill" />
+                  </div>
+                  <p className="text-xs font-black text-slate-800">
+                    Nenhum lance registrado nesta sessão
+                  </p>
+                  <p className="text-[11px] text-slate-500 max-w-xs mt-1">
+                    Conecte-se à disputa e envie lances estratégicos em tempo real respeitando a margem Stop-Loss e o Split Payment.
+                  </p>
+                </div>
+              ) : (
+                lancesOrdenados.map((lance, index) => {
                 const isLeader = index === 0;
 
                 return (
@@ -580,7 +566,7 @@ export default function SalaDeGuerraPage() {
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </section>

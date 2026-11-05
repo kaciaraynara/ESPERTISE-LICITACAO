@@ -5,20 +5,30 @@ import { precificacaoApi } from '@services/api';
 
 export const PrecificacaoPage: React.FC = () => {
   const [custos, setCustos] = useState({
-    custoProdutoServico: 150000.00,
+    custoProdutoServico: 0,
     impostosPercentual: 8.5,
     custoOperacionalPercentual: 5.0,
-    margemDesejadaPercentual: 18.0
+    margemDesejadaPercentual: 18.0,
   });
 
-  const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(250000.00);
+  const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(0);
 
   const { data: resp, isLoading } = useQuery({
     queryKey: ['precificacao', custos],
     queryFn: async () => {
+      if (custos.custoProdutoServico <= 0) {
+        return {
+          data: {
+            precoSugerido: 0,
+            precoBreakeven: 0,
+            lucroProjetado: 0,
+            impostoProjetado: 0,
+          },
+        };
+      }
       const res = await precificacaoApi.calcularViabilidade(custos);
       return res.data;
-    }
+    },
   });
 
   const calculo = resp?.data || {

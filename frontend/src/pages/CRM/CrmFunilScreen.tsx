@@ -134,66 +134,72 @@ export const CrmFunilScreen: React.FC = () => {
                     </div>
 
                     <div className="p-3 space-y-3 overflow-y-auto flex-1">
-                      {itensColuna.map((opp) => (
-                        <div 
-                          key={opp.id} 
-                          className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition space-y-2.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded uppercase">
-                              {opp.portal}
-                            </span>
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${
-                              opp.prioridade === 'CRITICA' ? 'bg-rose-100 text-rose-700' :
-                              opp.prioridade === 'ALTA' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {opp.prioridade}
-                            </span>
-                          </div>
-
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-xs">{opp.numeroProcesso}</h4>
-                            <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-0.5">{opp.orgaoComprador}</p>
-                          </div>
-
-                          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex justify-between items-center text-xs">
-                            <div>
-                              <span className="text-[9px] text-slate-400 font-bold block uppercase">Proposta</span>
-                              <span className="font-extrabold text-slate-900">
-                                {formatarMoeda(opp.valorPropostaEmpresa || opp.valorEstimado)}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[9px] text-slate-400 font-bold block uppercase">Margem Est.</span>
-                              <span className="font-extrabold text-emerald-600">
-                                {opp.margemEstimadaPercentual}%
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                            <span className="flex items-center gap-1 font-semibold text-slate-700">
-                              <Calendar size={12} className="text-blue-600" />
-                              {new Date(opp.dataSessao).toLocaleDateString('pt-BR')}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <User size={10} /> {opp.responsavel.split(' ')[0]}
-                            </span>
-                          </div>
-
-                          {coluna.id !== 'HOMOLOGADO' && (
-                            <div className="pt-1 flex justify-end">
-                              <button 
-                                onClick={() => handleAvançar(opp.id, opp.etapa as EtapaFunil)}
-                                disabled={moverEtapaMutation.isPending}
-                                className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 hover:underline disabled:opacity-50"
-                              >
-                                Avançar Etapa <ChevronRight size={12} />
-                              </button>
-                            </div>
-                          )}
+                      {itensColuna.length === 0 ? (
+                        <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-slate-300/80 bg-white/40 p-3 text-center text-xs font-semibold text-slate-400">
+                          Nenhuma oportunidade nesta etapa
                         </div>
-                      ))}
+                      ) : (
+                        itensColuna.map((opp) => (
+                          <div 
+                            key={opp.id} 
+                            className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded uppercase">
+                                {opp.portal}
+                              </span>
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${
+                                opp.prioridade === 'CRITICA' ? 'bg-rose-100 text-rose-700' :
+                                opp.prioridade === 'ALTA' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {opp.prioridade}
+                              </span>
+                            </div>
+
+                            <div>
+                              <h4 className="font-bold text-slate-900 text-xs">{opp.numeroProcesso}</h4>
+                              <p className="text-[11px] text-slate-500 font-medium line-clamp-1 mt-0.5">{opp.orgaoComprador}</p>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex justify-between items-center text-xs">
+                              <div>
+                                <span className="text-[9px] text-slate-400 font-bold block uppercase">Proposta</span>
+                                <span className="font-extrabold text-slate-900">
+                                  {formatarMoeda(opp.valorPropostaEmpresa || opp.valorEstimado)}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[9px] text-slate-400 font-bold block uppercase">Margem Est.</span>
+                                <span className="font-extrabold text-emerald-600">
+                                  {opp.margemEstimadaPercentual}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                              <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                <Calendar size={12} className="text-blue-600" />
+                                {new Date(opp.dataSessao).toLocaleDateString('pt-BR')}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <User size={10} /> {opp.responsavel.split(' ')[0]}
+                              </span>
+                            </div>
+
+                            {coluna.id !== 'HOMOLOGADO' && (
+                              <div className="pt-1 flex justify-end">
+                                <button 
+                                  onClick={() => handleAvançar(opp.id, opp.etapa as EtapaFunil)}
+                                  disabled={moverEtapaMutation.isPending}
+                                  className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5 hover:underline disabled:opacity-50"
+                                >
+                                  Avançar Etapa <ChevronRight size={12} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
                     </div>
 
                   </div>

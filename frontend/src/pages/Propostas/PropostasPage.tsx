@@ -316,7 +316,7 @@ export const PropostasPage: React.FC = () => {
         </div>
 
         {/* ===================================================================
-            2. OS 4 KPI CARDS OFICIAIS (ARTE MOCKUP)
+            2. OS 4 KPI CARDS OFICIAIS DE DESEMPENHO
         =================================================================== */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* CARD 1: Propostas em andamento */}
@@ -536,7 +536,7 @@ export const PropostasPage: React.FC = () => {
             </div>
           </div>
 
-          {/* GRID DUAL-MONTH (AGOSTO E SETEMBRO CONFORME MOCKUP) */}
+          {/* GRID DUAL-MONTH DO CALENDÁRIO OPERACIONAL */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* MÊS 1 */}
             <div className="space-y-3">

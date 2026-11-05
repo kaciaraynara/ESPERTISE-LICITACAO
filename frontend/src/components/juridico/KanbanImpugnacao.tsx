@@ -33,39 +33,6 @@ const fases: FaseImpugnacao[] = [
   'Contrarrazão',
 ];
 
-const itensPadrao: KanbanImpugnacaoItem[] = [
-  {
-    id: 'pe-041-2026',
-    fase: 'Análise de Edital',
-    titulo: 'Pregão Eletrônico 041/2026',
-    orgao: 'Secretaria Municipal de Administração',
-    certame: 'Abertura em 03/06/2026',
-    prazo: 'Impugnação até 29/05/2026',
-    responsavel: 'Jurídico interno',
-    risco: 'alto',
-  },
-  {
-    id: 'pe-018-2026',
-    fase: 'Impugnação Protocolada',
-    titulo: 'Pregão Eletrônico 018/2026',
-    orgao: 'Tribunal Regional',
-    certame: 'Protocolo registrado',
-    prazo: 'Resposta pendente',
-    responsavel: 'Contencioso',
-    risco: 'medio',
-  },
-  {
-    id: 'cc-006-2026',
-    fase: 'Aguardando Resposta',
-    titulo: 'Concorrência 006/2026',
-    orgao: 'Companhia Estadual de Tecnologia',
-    certame: 'Último dia útil anterior ao certame',
-    prazo: 'Acompanhar publicação oficial',
-    responsavel: 'Coordenação jurídica',
-    risco: 'baixo',
-  },
-];
-
 const riscoClasses: Record<RiscoImpugnacao, string> = {
   baixo: 'border-brand-blue text-brand-blue',
   medio: 'border-[#4B1FA6] text-[#4B1FA6]',
@@ -73,7 +40,7 @@ const riscoClasses: Record<RiscoImpugnacao, string> = {
 };
 
 export default function KanbanImpugnacao({
-  items = itensPadrao,
+  items = [],
   onSelectItem,
 }: KanbanImpugnacaoProps) {
   const total = items.length;

@@ -303,7 +303,7 @@ export default function LandingPage() {
                      {/* Iluminação Ambiente Suave */}
                      <div className="absolute -inset-4 sm:-inset-10 bg-gradient-to-tr from-[#EA580C]/20 via-[#0A2540]/10 to-blue-600/20 rounded-full blur-3xl opacity-70 pointer-events-none" />
 
-                     {/* Mockup do Laptop Calmo com Encaixe Perfeito de Tela */}
+                     {/* Visualizador do Laptop com Encaixe Perfeito de Tela */}
                      <motion.div
                         animate={{ y: [0, -4, 0] }}
                         transition={{ 
