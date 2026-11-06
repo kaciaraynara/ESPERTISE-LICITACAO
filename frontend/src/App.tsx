@@ -95,6 +95,7 @@ const TermosDeUsoPage = React.lazy(() => import('./pages/TermosDeUsoPage'));
 const PoliticaPrivacidadePage = React.lazy(() => import('./pages/PoliticaPrivacidadePage'));
 const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));
 const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
+const RadarPage = React.lazy(() => import('./pages/RadarPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -411,6 +412,8 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
             <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
             <Route path={FORNECEDOR_ROUTES.integracoes} element={<IntegracoesPage />} />
+            <Route path="/fornecedor/radar-telemetria" element={<RadarPage />} />
+            <Route path="/admin/radar" element={<RadarPage />} />
 
             {/* Aliases Seguros */}
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />

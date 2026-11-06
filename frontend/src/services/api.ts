@@ -928,3 +928,11 @@ export const propostasApi = {
   preencherPropostaViaLex: (body: { proposalId?: string; noticeId: string; companyId?: string; autoCreate?: boolean }) =>
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/preencher-proposta', body),
 };
+
+export {
+  adminTelemetryApi,
+  fetchAdminRadarTelemetry,
+  type AuditLogTelemetryItem,
+  type AdminTelemetryResponse,
+} from './admin-telemetry.service';
+
