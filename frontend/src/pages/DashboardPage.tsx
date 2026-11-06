@@ -154,7 +154,7 @@ export default function DashboardPage() {
       (metrics.catalogItemsCount ?? 0) === 0);
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-slate-50 min-h-screen">
+    <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-brand-light min-h-screen">
       {/* Header Executivo — Sala de Comando */}
       <header data-tour="executive-header" className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-8">
         <div>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             </span>
             <span className="text-xs text-slate-400 capitalize">{dateLabel}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0A2540]">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-dark">
             Painel Executivo de Licitações
           </h1>
           <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
@@ -212,7 +212,7 @@ export default function DashboardPage() {
 
       {/* Card de Boas-Vindas com o Assistente LEX & Free Trial Master */}
       {isUserTrialActive(user) && (
-        <section className="mb-8 rounded-2xl border border-blue-900/30 bg-gradient-to-br from-[#0A2540] via-slate-900 to-[#0A2540] p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <section className="mb-8 rounded-2xl border border-brand-blue/30 bg-gradient-to-br from-brand-dark via-slate-900 to-brand-dark p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-orange-500/10 blur-3xl pointer-events-none" />
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
             <div className="space-y-3 max-w-2xl">
@@ -280,11 +280,11 @@ export default function DashboardPage() {
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     Valor Total em Disputa
                   </span>
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-[#0A2540]">
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark">
                     <DollarSign className="w-5 h-5" />
                   </div>
                 </div>
-                <div className="text-3xl sm:text-4xl font-black text-[#0A2540] tracking-tight">
+                <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
                   R$ 4.850.000,00
                 </div>
                 <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
@@ -350,10 +350,10 @@ export default function DashboardPage() {
             {/* Overlay Central Primário */}
             <div className="absolute inset-0 flex items-center justify-center p-4 z-10 bg-white/40 backdrop-blur-[1px]">
               <div className="bg-white/95 border border-slate-200/90 shadow-xl rounded-2xl p-6 sm:p-8 max-w-xl text-center backdrop-blur-md">
-                <div className="w-12 h-12 rounded-2xl bg-[#0A2540] text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-blue-950/20">
+                <div className="w-12 h-12 rounded-2xl bg-brand-dark text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-brand-dark/20">
                   <Sparkles className="w-6 h-6 text-brand-orange" />
                 </div>
-                <h3 className="text-lg sm:text-xl font-black text-[#0A2540] tracking-tight mb-2">
+                <h3 className="text-lg sm:text-xl font-black text-brand-dark tracking-tight mb-2">
                   Conecte suas disputas para gerar inteligência de mercado
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 mb-6 leading-relaxed">
@@ -374,13 +374,13 @@ export default function DashboardPage() {
             {/* 1. Valor Total em Disputa */}
             <div
               onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-              className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-[#0A2540] hover:shadow-md transition-all relative overflow-hidden"
+              className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-brand-dark hover:shadow-md transition-all relative overflow-hidden"
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   Valor Total em Disputa
                 </span>
-                <div className="p-2.5 rounded-xl bg-blue-50 text-[#0A2540] group-hover:bg-[#0A2540] group-hover:text-white transition">
+                <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
                   <DollarSign className="w-5 h-5" />
                 </div>
               </div>
@@ -390,7 +390,7 @@ export default function DashboardPage() {
                   <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
                 </div>
               ) : (
-                <div className="text-3xl sm:text-4xl font-black text-[#0A2540] tracking-tight">
+                <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
                   {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
                 </div>
               )}
@@ -399,7 +399,7 @@ export default function DashboardPage() {
                 <span className="text-slate-500 font-medium">
                   {metrics?.crmOportunidades ?? 0} disputas ativas na sua esteira
                 </span>
-                <span className="font-bold text-[#0A2540] group-hover:translate-x-1 transition flex items-center gap-1">
+                <span className="font-bold text-brand-dark group-hover:translate-x-1 transition flex items-center gap-1">
                   Ver esteira <ChevronRight className="w-3.5 h-3.5" />
                 </span>
               </div>
@@ -501,7 +501,7 @@ export default function DashboardPage() {
           CAMINHO DO SUCESSO (ONBOARDING INTELIGENTE: ZERO ATRITO)
           ========================================================================= */}
       {isContaNova && (
-        <section className="bg-gradient-to-r from-[#0A2540] via-slate-900 to-indigo-950 text-white rounded-2xl p-7 sm:p-9 mb-8 shadow-md border border-indigo-900/30 relative overflow-hidden">
+        <section className="bg-gradient-to-r from-brand-dark via-slate-900 to-brand-dark text-white rounded-2xl p-7 sm:p-9 mb-8 shadow-md border border-brand-blue/20 relative overflow-hidden">
           <div className="max-w-3xl relative z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold mb-3 border border-orange-400/30">
               <Trophy className="w-3.5 h-3.5 shrink-0" />
@@ -625,7 +625,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      <p className="text-xs font-black text-[#0A2540]">
+                      <p className="text-xs font-black text-brand-dark">
                         {formatarData(prazo.data)}
                       </p>
                     </div>

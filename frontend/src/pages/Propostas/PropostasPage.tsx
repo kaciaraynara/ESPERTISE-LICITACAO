@@ -246,18 +246,18 @@ export const PropostasPage: React.FC = () => {
   const getDotClass = (type: CalendarEvent['type']) => {
     switch (type) {
       case 'PRAZO_PROPOSTA':
-        return 'bg-blue-600'; // blue dot
+        return 'bg-brand-blue'; // blue dot
       case 'ABERTURA_PROPOSTAS':
-        return 'bg-[#EA580C]'; // orange dot
+        return 'bg-brand-orange'; // orange dot
       case 'SESSAO_PUBLICA':
-        return 'bg-[#0A2540]'; // dark navy dot
+        return 'bg-brand-dark'; // dark navy dot
       case 'ENVIO_PROPOSTA':
-        return 'border-2 border-blue-600 bg-white'; // hollow blue circle
+        return 'border-2 border-brand-blue bg-white'; // hollow blue circle
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-8 font-sans">
+    <div className="min-h-screen bg-brand-light text-slate-800 p-6 md:p-8 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* ===================================================================
@@ -278,15 +278,15 @@ export const PropostasPage: React.FC = () => {
               <button
                 id="btn-preencher-proposta-lex"
                 onClick={() => setModalLexAberto(true)}
-                className="px-4 py-2.5 rounded-xl bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-brand-dark hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
-                <Sparkles size={16} className="text-[#EA580C]" />
+                <Sparkles size={16} className="text-brand-orange" />
                 Preencher proposta com assistência
               </button>
 
               <button
                 onClick={() => setModalManualAberto(true)}
-                className="px-4 py-2.5 rounded-xl bg-[#EA580C] hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 <Plus size={16} />
                 Nova Proposta
@@ -308,7 +308,7 @@ export const PropostasPage: React.FC = () => {
             </div>
             <button
               onClick={() => { }}
-              className="px-6 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs md:text-sm rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+              className="px-6 py-2.5 bg-brand-orange hover:bg-orange-600 text-white font-black text-xs md:text-sm rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
             >
               Buscar
             </button>
@@ -336,7 +336,7 @@ export const PropostasPage: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <p className="text-xs font-bold text-slate-500">Propostas enviadas</p>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[#0A2540] tracking-tight">
+              <span className="text-3xl font-black text-brand-dark tracking-tight">
                 {contagemEnviadas}
               </span>
               <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
@@ -349,7 +349,7 @@ export const PropostasPage: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <p className="text-xs font-bold text-slate-500">Propostas cadastradas</p>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-[#EA580C] tracking-tight">
+              <span className="text-3xl font-black text-brand-orange tracking-tight">
                 {propostas.length}
               </span>
               <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
@@ -409,7 +409,7 @@ export const PropostasPage: React.FC = () => {
                         <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
                           <Link
                             to="/fornecedor/radar"
-                            className="rounded-lg bg-[#0A2540] px-4 py-2 text-xs font-bold text-white"
+                            className="rounded-lg bg-brand-dark px-4 py-2 text-xs font-bold text-white"
                           >
                             Encontrar edital no Radar
                           </Link>
@@ -434,7 +434,7 @@ export const PropostasPage: React.FC = () => {
                       <td className="py-4 px-5">
                         <Link
                           to={`/fornecedor/propostas/${prop.id}`}
-                          className="font-black text-slate-900 hover:text-[#EA580C] transition-colors block text-xs"
+                          className="font-black text-slate-900 hover:text-brand-orange transition-colors block text-xs"
                         >
                           {prop.procurementNotice?.noticeNumber || prop.titulo}
                         </Link>
@@ -690,7 +690,7 @@ export const PropostasPage: React.FC = () => {
                 {eventoSelecionado.time && (
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400">Horário Limite</p>
-                    <p className="font-bold text-[#EA580C]">{eventoSelecionado.time}</p>
+                    <p className="font-bold text-brand-orange">{eventoSelecionado.time}</p>
                   </div>
                 )}
               </div>
@@ -699,7 +699,7 @@ export const PropostasPage: React.FC = () => {
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setEventoSelecionado(null)}
-                className="px-4 py-2 bg-[#0A2540] text-white text-xs font-bold rounded-xl hover:bg-slate-800"
+                className="px-4 py-2 bg-brand-dark text-white text-xs font-bold rounded-xl hover:bg-slate-900"
               >
                 Fechar
               </button>
@@ -716,8 +716,8 @@ export const PropostasPage: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-[#0A2540] text-white rounded-lg">
-                  <Sparkles size={18} className="text-[#EA580C]" />
+                <span className="p-2 bg-brand-dark text-white rounded-lg">
+                  <Sparkles size={18} className="text-brand-orange" />
                 </span>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm">
@@ -794,7 +794,7 @@ export const PropostasPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={extractingLex || !lexNoticeId.trim() || !companyId}
-                  className="px-5 py-2 bg-[#EA580C] hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer"
                 >
                   {extractingLex ? (
                     <>
@@ -821,7 +821,7 @@ export const PropostasPage: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-[#EA580C] text-white rounded-lg">
+                <span className="p-2 bg-brand-orange text-white rounded-lg">
                   <Plus size={18} />
                 </span>
                 <div>
@@ -874,7 +874,7 @@ export const PropostasPage: React.FC = () => {
                   type="text"
                   value={titulo}
                   onChange={(e) => setTitulo(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-orange"
                 />
               </div>
 
@@ -915,7 +915,7 @@ export const PropostasPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={savingManual || !titulo.trim() || !companyId}
-                  className="px-5 py-2 bg-[#EA580C] hover:bg-orange-600 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2"
+                  className="px-5 py-2 bg-brand-orange hover:bg-orange-600 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2"
                 >
                   {savingManual ? 'Criando...' : 'Criar Rascunho'}
                 </button>

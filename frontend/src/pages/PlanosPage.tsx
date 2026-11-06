@@ -443,7 +443,7 @@ export default function PlanosPage() {
   };
 
   return (
-    <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-10 font-sans selection:bg-[#EA580C] selection:text-white">
+    <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-10 font-sans selection:bg-brand-orange selection:text-white">
       {/* Banner de Trial Oficial Ativo */}
       {userTrialActive && (
         <div className="rounded-3xl border border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-5 text-emerald-950 shadow-md">
@@ -471,12 +471,12 @@ export default function PlanosPage() {
 
       {/* Header Corporativo B2B */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0A2540]/5 border border-[#0A2540]/15 text-[#0A2540] text-xs font-black uppercase tracking-wider">
-          <ShieldCheck className="w-4 h-4 text-[#EA580C]" weight="fill" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-dark/5 border border-brand-dark/15 text-brand-dark text-xs font-black uppercase tracking-wider">
+          <ShieldCheck className="w-4 h-4 text-brand-orange" weight="fill" />
           Planos Comerciais • Command Center 2026
         </div>
 
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#0A2540] tracking-tight">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-brand-dark tracking-tight">
           Escale suas Vendas para o Governo
         </h1>
 
@@ -492,7 +492,7 @@ export default function PlanosPage() {
               onClick={() => setBillingPeriod('mensal')}
               className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 billingPeriod === 'mensal'
-                  ? 'bg-white text-[#0A2540] shadow-sm'
+                  ? 'bg-white text-brand-dark shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -503,12 +503,12 @@ export default function PlanosPage() {
               onClick={() => setBillingPeriod('anual')}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 billingPeriod === 'anual'
-                  ? 'bg-[#0A2540] text-white shadow-sm'
+                  ? 'bg-brand-dark text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <span>Faturamento Anual</span>
-              <span className="bg-[#EA580C] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
+              <span className="bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
                 -20% OFF
               </span>
             </button>
@@ -520,7 +520,7 @@ export default function PlanosPage() {
       {loading ? (
         <div className="flex h-72 w-full items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <Spinner className="h-8 w-8 animate-spin text-[#EA580C]" />
+            <Spinner className="h-8 w-8 animate-spin text-brand-orange" />
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Carregando catálogo corporativo...
             </span>
@@ -539,26 +539,26 @@ export default function PlanosPage() {
                 key={plan.id}
                 className={`relative flex flex-col rounded-3xl border p-8 shadow-xl transition-all duration-300 hover:-translate-y-1.5 ${
                   plan.destaque
-                    ? 'border-brand-orange bg-gradient-to-b from-[#0A2540] via-[#0B1E38] to-[#08172D] text-white transform md:-translate-y-3 md:hover:-translate-y-5 shadow-orange-500/10'
+                    ? 'border-brand-orange bg-gradient-to-b from-brand-dark via-[#0a2347] to-brand-dark text-white transform md:-translate-y-3 md:hover:-translate-y-5 shadow-orange-500/10'
                     : 'border-slate-200 bg-white text-slate-800'
                 }`}
               >
                 {/* Badge de Destaque */}
                 {plan.destaque && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#EA580C] text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-orange text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
                     <Star weight="fill" className="w-3.5 h-3.5" /> Mais Escolhido
                   </div>
                 )}
 
                 {plan.id === 'master' && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#0A2540] text-amber-400 border border-amber-400/30 px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-dark text-amber-400 border border-amber-400/30 px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
                     <Crown weight="fill" className="w-3.5 h-3.5" /> Enterprise • Premium
                   </div>
                 )}
 
                 {/* Cabeçalho do Card */}
                 <div className="mb-6 pt-2">
-                  <h3 className={`text-2xl font-black ${plan.destaque ? 'text-white' : 'text-[#0A2540]'}`}>
+                  <h3 className={`text-2xl font-black ${plan.destaque ? 'text-white' : 'text-brand-dark'}`}>
                     {plan.nome}
                   </h3>
                   <p className={`mt-2 text-xs sm:text-sm min-h-[44px] leading-relaxed font-medium ${plan.destaque ? 'text-slate-300' : 'text-slate-600'}`}>
@@ -599,9 +599,7 @@ export default function PlanosPage() {
                   className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md ${
                     isCurrentPlan && !userTrialActive
                       ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                      : plan.destaque
-                        ? 'bg-[#EA580C] hover:bg-orange-600 text-white shadow-orange-500/30 hover:shadow-orange-500/50 active:scale-98'
-                        : 'bg-[#0A2540] hover:bg-slate-900 text-white hover:shadow-slate-900/20 active:scale-98'
+                      : 'bg-brand-orange hover:bg-orange-600 text-white shadow-orange-500/30 hover:shadow-orange-500/50 active:scale-98'
                   }`}
                 >
                   {checkoutLoading === plan.id ? (
@@ -622,19 +620,19 @@ export default function PlanosPage() {
 
                   <ul className="space-y-3 text-xs sm:text-sm font-medium">
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span>Até <strong>{plan.limites.maxCompanies} empresas (CNPJs)</strong></span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span>Até <strong>{plan.limites.maxUsers} usuário(s)</strong> na equipe</span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span><strong>{plan.limites.maxMonitoredNotices} editais</strong> monitorados simultâneos</span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span>
                         {plan.limites.maxProposalsMonth === null ? (
                           <strong className="text-emerald-500">Propostas comerciais ilimitadas</strong>
@@ -644,18 +642,18 @@ export default function PlanosPage() {
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span>Radar de Editais & CNAE (Lei 14.133/21)</span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-[#EA580C]' : 'text-emerald-600'}`} weight="bold" />
+                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
                       <span>Cofre de Documentos & Alerta de Certidões</span>
                     </li>
 
                     {/* Features Avançadas */}
                     {plan.id === 'pro' && (
                       <li className="flex items-start gap-2.5 pt-2 border-t border-white/10 text-white font-bold">
-                        <RocketLaunch className="w-4 h-4 text-[#EA580C] shrink-0 mt-0.5" weight="duotone" />
+                        <RocketLaunch className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" weight="duotone" />
                         <span>Robô de Lances, CRM Kanban & Lex IA</span>
                       </li>
                     )}
@@ -663,11 +661,11 @@ export default function PlanosPage() {
                     {/* Features Master */}
                     {plan.id === 'master' && (
                       <>
-                        <li className="flex items-start gap-2.5 pt-2 border-t border-slate-100 font-bold text-[#0A2540]">
+                        <li className="flex items-start gap-2.5 pt-2 border-t border-slate-100 font-bold text-brand-dark">
                           <Crown className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" weight="fill" />
                           <span>Robô de Reajuste & Assistente de Repactuação</span>
                         </li>
-                        <li className="flex items-start gap-2.5 font-bold text-[#0A2540]">
+                        <li className="flex items-start gap-2.5 font-bold text-brand-dark">
                           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" weight="bold" />
                           <span>Garantias Retidas (Art. 96) & Inteligência Anticartel</span>
                         </li>
@@ -684,7 +682,7 @@ export default function PlanosPage() {
       {/* Seção Corporativa de Confiança e Faturamento B2B */}
       <section className="mt-16 rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-sm">
         <div className="text-center max-w-2xl mx-auto mb-8">
-          <h2 className="text-xl sm:text-2xl font-black text-[#0A2540] tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black text-brand-dark tracking-tight">
             Garantia de Excelência e Conformidade Corporativa
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
@@ -694,7 +692,7 @@ export default function PlanosPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-brand-blue border border-blue-200">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-brand-blue border border-brand-blue/30">
               <Receipt className="w-5 h-5" weight="duotone" />
             </div>
             <div>
@@ -722,7 +720,7 @@ export default function PlanosPage() {
           </div>
 
           <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#EA580C] border border-orange-200">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-brand-orange border border-orange-200">
               <ShieldCheck className="w-5 h-5" weight="duotone" />
             </div>
             <div>
@@ -761,7 +759,7 @@ export default function PlanosPage() {
             href={buildCommercialWhatsAppUrl('Personalizado / Enterprise', user?.email, user?.company?.razaoSocial)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 font-bold text-[#EA580C] hover:text-orange-700 underline cursor-pointer"
+            className="inline-flex items-center gap-2 font-bold text-brand-orange hover:text-orange-700 underline cursor-pointer"
           >
             <WhatsappLogo className="w-4 h-4" weight="fill" />
             <span>Falar com a Diretoria Comercial →</span>

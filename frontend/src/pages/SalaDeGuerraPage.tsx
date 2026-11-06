@@ -241,13 +241,13 @@ export default function SalaDeGuerraPage() {
   }, [bids]);
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-8 sm:py-8 bg-slate-50 min-h-screen font-sans">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-8 sm:py-8 bg-brand-light min-h-screen font-sans">
       {/* Header Executivo da Sala de Guerra */}
       <header className="mb-6 flex flex-col gap-4 pb-5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200">
-              <Lightning className="h-3.5 w-3.5 text-orange-600" weight="fill" />
+              <Lightning className="h-3.5 w-3.5 text-brand-orange" weight="fill" />
               Sala de Guerra & Operação ao Vivo
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
@@ -265,7 +265,7 @@ export default function SalaDeGuerraPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0A2540]">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-dark">
             Cockpit de Disputa & Split Payment
           </h1>
           <p className="text-xs sm:text-sm font-medium text-slate-500">
@@ -282,7 +282,7 @@ export default function SalaDeGuerraPage() {
               type="text"
               value={pregaoId}
               onChange={(e) => setPregaoId(e.target.value)}
-              className="text-xs font-black text-[#0A2540] outline-none bg-transparent"
+              className="text-xs font-black text-brand-dark outline-none bg-transparent"
             />
           </div>
 
@@ -290,10 +290,10 @@ export default function SalaDeGuerraPage() {
             type="button"
             onClick={() => void handleGenerateProposal('docx')}
             disabled={generatingFormat !== null}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2540] hover:bg-slate-800 disabled:opacity-60 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand-orange hover:bg-orange-600 disabled:opacity-60 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-sm transition active:scale-95 cursor-pointer"
             title="Gerar Proposta Comercial em Word (.docx) hidratada com os dados reais da empresa e cálculos de BDI/IVA Dual"
           >
-            <FileDoc className="h-4 w-4 text-orange-400" weight="duotone" />
+            <FileDoc className="h-4 w-4 text-white" weight="duotone" />
             {generatingFormat === 'docx' ? 'Gerando .DOCX...' : 'Gerar Proposta (.DOCX)'}
           </button>
 
@@ -319,13 +319,13 @@ export default function SalaDeGuerraPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-[#EA580C]" weight="duotone" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-[#0A2540]">
+                <Receipt className="h-5 w-5 text-brand-orange" weight="duotone" />
+                <h2 className="text-sm font-black uppercase tracking-wider text-brand-dark">
                   Parâmetros de Custo & Margem
                 </h2>
               </div>
               {isSimulating && (
-                <span className="text-[10px] font-bold text-orange-600 animate-pulse">
+                <span className="text-[10px] font-bold text-brand-orange animate-pulse">
                   Calculando BDI...
                 </span>
               )}
@@ -345,7 +345,7 @@ export default function SalaDeGuerraPage() {
                     step="100"
                     value={custoInsumos}
                     onChange={(e) => setCustoInsumos(Number(e.target.value) || 0)}
-                    className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540]"
+                    className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
                   />
                 </div>
               </div>
@@ -363,7 +363,7 @@ export default function SalaDeGuerraPage() {
                     step="50"
                     value={despesasOperacionais}
                     onChange={(e) => setDespesasOperacionais(Number(e.target.value) || 0)}
-                    className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540]"
+                    className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
                   />
                 </div>
               </div>
@@ -380,7 +380,7 @@ export default function SalaDeGuerraPage() {
                     max="100"
                     value={margemDesejada}
                     onChange={(e) => setMargemDesejada(Number(e.target.value) || 0)}
-                    className="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm font-bold text-slate-900 outline-none focus:border-[#0A2540] focus:ring-1 focus:ring-[#0A2540]"
+                    className="w-full rounded-xl border border-slate-200 py-2 px-3 text-sm font-bold text-slate-900 outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange"
                   />
                 </div>
 
@@ -483,7 +483,7 @@ export default function SalaDeGuerraPage() {
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
                     <span>
                       Empresa Hidratada:{' '}
-                      <strong className="text-[#0A2540]">
+                      <strong className="text-brand-dark">
                         {selectedCompany?.razaoSocial || user?.company?.razaoSocial || 'Empresa Ativa'}
                       </strong>
                     </span>
@@ -496,9 +496,9 @@ export default function SalaDeGuerraPage() {
                       type="button"
                       onClick={() => void handleGenerateProposal('docx')}
                       disabled={generatingFormat !== null}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] hover:bg-slate-800 disabled:opacity-60 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs transition active:scale-95 cursor-pointer"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-brand-orange hover:bg-orange-600 disabled:opacity-60 px-3 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-xs transition active:scale-95 cursor-pointer"
                     >
-                      <DownloadSimple className="h-4 w-4 text-orange-400" weight="bold" />
+                      <DownloadSimple className="h-4 w-4 text-white" weight="bold" />
                       {generatingFormat === 'docx' ? 'Hidratando...' : 'Gerar Proposta (.DOCX)'}
                     </button>
                     <button
@@ -525,13 +525,13 @@ export default function SalaDeGuerraPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <Gavel className="h-5 w-5 text-[#EA580C]" weight="duotone" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-[#0A2540]">
+                <Gavel className="h-5 w-5 text-brand-orange" weight="duotone" />
+                <h2 className="text-sm font-black uppercase tracking-wider text-brand-dark">
                   Disparador de Lances (Cockpit ao Vivo)
                 </h2>
               </div>
               <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
-                <ArrowsDownUp className="h-4 w-4 text-[#EA580C]" />
+                <ArrowsDownUp className="h-4 w-4 text-brand-orange" />
                 Menor Lance de Mercado:{' '}
                 <strong className="text-slate-900">
                   R$ {menorLanceAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -548,7 +548,7 @@ export default function SalaDeGuerraPage() {
                   value={bidAmountInput}
                   onChange={(e) => setBidAmountInput(e.target.value)}
                   placeholder="Valor do seu lance..."
-                  className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-4 text-base font-black text-slate-900 outline-none focus:border-[#EA580C] focus:ring-2 focus:ring-[#EA580C]/20 shadow-xs"
+                  className="w-full rounded-xl border border-slate-300 py-2.5 pl-10 pr-4 text-base font-black text-slate-900 outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 shadow-xs"
                 />
               </div>
 
@@ -556,7 +556,7 @@ export default function SalaDeGuerraPage() {
                 type="button"
                 onClick={handlePlaceBid}
                 disabled={!isConnected}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#EA580C] to-orange-600 px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md hover:from-orange-600 hover:to-orange-700 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-brand-orange hover:bg-orange-600 px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
               >
                 <Broadcast className="h-4 w-4" weight="bold" />
                 Submeter Lance na Disputa
@@ -588,8 +588,8 @@ export default function SalaDeGuerraPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-600" weight="duotone" />
-                <h3 className="text-sm font-black uppercase tracking-wider text-[#0A2540]">
+                <Clock className="h-5 w-5 text-brand-blue" weight="duotone" />
+                <h3 className="text-sm font-black uppercase tracking-wider text-brand-dark">
                   Histórico de Lances em Cascata ({bids.length})
                 </h3>
               </div>
@@ -601,7 +601,7 @@ export default function SalaDeGuerraPage() {
             <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1 scrollbar-thin">
               {lancesOrdenados.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-8 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 my-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-[#EA580C] mb-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-brand-orange mb-2">
                     <Lightning className="h-5 w-5" weight="fill" />
                   </div>
                   <p className="text-xs font-black text-slate-800">
@@ -620,7 +620,7 @@ export default function SalaDeGuerraPage() {
                     key={lance.id}
                     className={`flex items-center justify-between rounded-xl p-3.5 transition-all ${
                       lance.isOwnBid
-                        ? 'border-2 border-[#EA580C] bg-orange-50/40 shadow-xs'
+                        ? 'border-2 border-brand-orange bg-orange-50/40 shadow-xs'
                         : isLeader
                         ? 'border border-emerald-300 bg-emerald-50/50 shadow-xs'
                         : 'border border-slate-200 bg-white hover:bg-slate-50'
@@ -630,7 +630,7 @@ export default function SalaDeGuerraPage() {
                       <div
                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-black text-xs ${
                           lance.isOwnBid
-                            ? 'bg-[#EA580C] text-white shadow-xs'
+                            ? 'bg-brand-orange text-white shadow-xs'
                             : isLeader
                             ? 'bg-emerald-600 text-white'
                             : 'bg-slate-100 text-slate-600'
@@ -641,11 +641,11 @@ export default function SalaDeGuerraPage() {
 
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-[#0A2540]">
+                          <span className="text-xs font-black text-brand-dark">
                             {lance.licitanteNome}
                           </span>
                           {lance.isOwnBid && (
-                            <span className="rounded bg-orange-100 px-1.5 py-0.2 text-[9px] font-black text-[#EA580C] uppercase">
+                            <span className="rounded bg-orange-100 px-1.5 py-0.2 text-[9px] font-black text-brand-orange uppercase">
                               Sua Oferta
                             </span>
                           )}
@@ -706,7 +706,7 @@ export default function SalaDeGuerraPage() {
                   </button>
                 </div>
 
-                <h3 className="mt-2 text-lg font-black text-[#0A2540]">
+                <h3 className="mt-2 text-lg font-black text-brand-dark">
                   Lance Bloqueado pelo Stop-Loss Tributário
                 </h3>
 

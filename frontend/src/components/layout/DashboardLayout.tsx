@@ -64,7 +64,7 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800">
+    <div className="flex h-screen overflow-hidden bg-brand-light text-slate-800">
       <Sidebar />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -127,12 +127,12 @@ export default function DashboardLayout() {
         {mobileMenuOpen ? (
           <div
             id="mobile-navigation"
-            className="absolute inset-x-0 top-20 z-20 border-b border-white/10 bg-[#0b1b3d] p-5 text-white shadow-xl md:hidden"
+            className="absolute inset-x-0 top-20 z-20 border-b border-white/10 bg-brand-dark p-5 text-white shadow-xl md:hidden"
           >
             <nav aria-label="Navegação móvel">
               {groups.map((group) => (
                 <section key={group.label} className="mb-5 last:mb-0">
-                  <h2 className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200/40">
+                  <h2 className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                     {group.label}
                   </h2>
                   <div className="mt-2 space-y-1">
@@ -147,12 +147,12 @@ export default function DashboardLayout() {
                           to={item.path}
                           aria-current={active ? 'page' : undefined}
                           className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold ${active
-                              ? 'bg-white/10 text-white'
-                              : 'text-blue-100/70 hover:bg-white/5 hover:text-white'
+                              ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/30'
+                              : 'text-slate-300 hover:bg-white/5 hover:text-white'
                             }`}
                         >
                           <Icon
-                            className={`h-5 w-5 ${active ? 'text-brand-orange' : ''}`}
+                            className={`h-5 w-5 ${active ? 'text-brand-orange' : 'text-slate-400'}`}
                             weight={active ? 'fill' : 'bold'}
                           />
                           {item.label}
@@ -180,7 +180,7 @@ export default function DashboardLayout() {
           id="main-content"
           tabIndex={-1}
           aria-busy={switchingCompany}
-          className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50"
+          className="flex-1 overflow-y-auto overflow-x-hidden bg-brand-light"
         >
           <ErrorBoundary
             fallbackTitle="Erro ao carregar módulo da plataforma"

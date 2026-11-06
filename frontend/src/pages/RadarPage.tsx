@@ -146,7 +146,7 @@ export const RadarPage: React.FC = () => {
         {/* CABEÇALHO SÓBRIO / CORPORATIVO B2B */}
         <header className="flex flex-col gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3.5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-[#EA580C] shadow-inner">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-brand-orange shadow-inner">
               <ShieldAlert className="h-6 w-6" />
             </div>
             <div>
@@ -181,7 +181,7 @@ export const RadarPage: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/90 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw
-                className={`h-4 w-4 text-[#EA580C] ${isLoading || isRefreshing ? 'animate-spin' : ''}`}
+                className={`h-4 w-4 text-brand-orange ${isLoading || isRefreshing ? 'animate-spin' : ''}`}
               />
               <span>{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
             </button>

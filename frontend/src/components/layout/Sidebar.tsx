@@ -306,12 +306,12 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
       title={isCollapsed ? item.label : undefined}
       className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'px-3 py-2 gap-2.5'
         } rounded-lg text-xs font-semibold transition-all duration-150 ${active
-          ? 'bg-[#EA580C]/15 text-white font-bold border-l-2 border-[#EA580C]'
+          ? 'bg-brand-orange/15 text-white font-bold border-l-2 border-brand-orange'
           : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
         }`}
     >
       <Icon
-        className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-[#EA580C]' : 'text-slate-400 group-hover:text-slate-200'
+        className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
           }`}
         weight={active ? 'fill' : 'regular'}
         aria-hidden="true"
@@ -321,7 +321,7 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
       )}
       {!isCollapsed && item.badge && (
         <span
-          className={`ml-auto px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded ${active ? 'bg-[#EA580C] text-white' : 'bg-white/10 text-slate-300'
+          className={`ml-auto px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded ${active ? 'bg-brand-orange text-white' : 'bg-white/10 text-slate-300'
             }`}
         >
           {item.badge}
@@ -355,21 +355,21 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
         aria-expanded={isExpanded}
         className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
           } rounded-xl text-left transition-all duration-200 ${isAnyChildActive
-            ? 'bg-gradient-to-r from-blue-900/40 to-slate-800/40 text-white border border-blue-500/20 shadow-sm'
+            ? 'bg-white/[0.08] text-white border border-brand-blue/30 shadow-sm'
             : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent'
           }`}
       >
         {/* Indicador de barra ativa na lateral */}
         {isAnyChildActive && (
           <span
-            className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-[#EA580C]"
+            className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-brand-orange"
             aria-hidden="true"
           />
         )}
 
         <div
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${isAnyChildActive
-              ? 'bg-[#EA580C] text-white shadow-md shadow-orange-500/20'
+              ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
               : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
             }`}
         >
@@ -383,7 +383,7 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
                 {hub.label}
               </span>
               {hub.badge && (
-                <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[9px] font-black text-blue-300 border border-blue-400/20">
+                <span className="rounded bg-brand-blue/15 px-1.5 py-0.5 text-[9px] font-black text-brand-blue border border-brand-blue/30">
                   {hub.badge}
                 </span>
               )}
@@ -473,7 +473,7 @@ export default function Sidebar() {
       animate={{ width: isCollapsed ? 80 : 288 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
       aria-label="Menu Principal do Command Center"
-      className="relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-[#07172b] text-white shadow-2xl select-none"
+      className="relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none"
     >
       {/* Botão de Toggle da Sidebar (Retrátil) */}
       <button
@@ -481,7 +481,7 @@ export default function Sidebar() {
         onClick={toggleSidebar}
         title={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
         aria-label={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-        className="absolute -right-3.5 top-6 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-[#0A2540] text-white shadow-lg transition hover:bg-[#EA580C] hover:scale-110 active:scale-95 cursor-pointer"
+        className="absolute -right-3.5 top-6 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-brand-dark text-white shadow-lg transition hover:bg-brand-orange hover:scale-110 active:scale-95 cursor-pointer"
       >
         <motion.div animate={{ rotate: isCollapsed ? 180 : 0 }} transition={{ duration: 0.25 }}>
           <CaretLeft weight="bold" className="h-3.5 w-3.5" />
@@ -492,7 +492,7 @@ export default function Sidebar() {
       <div className={`border-b border-white/10 py-4 transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-5'}`}>
         <Link
           to={FORNECEDOR_ROUTES.dashboard}
-          className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-[#EA580C] ${isCollapsed ? 'justify-center' : 'gap-3'
+          className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-3'
             }`}
           aria-label="EXPERTISE Licitatória — Command Center"
         >
@@ -508,7 +508,7 @@ export default function Sidebar() {
                 className="min-w-0 overflow-hidden whitespace-nowrap"
               >
                 <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
-                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-[#EA580C]">
+                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">
                   Command Center
                 </span>
               </motion.div>
@@ -521,7 +521,7 @@ export default function Sidebar() {
       <div className={`border-b border-white/10 py-3.5 transition-all duration-300 ${isCollapsed ? 'px-3 flex justify-center' : 'px-5'}`}>
         <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
           <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EA580C] text-xs font-black text-white shadow-sm"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-xs font-black text-white shadow-sm"
             title={isCollapsed ? displayName : undefined}
           >
             {displayName.charAt(0).toUpperCase() || 'E'}
@@ -535,7 +535,7 @@ export default function Sidebar() {
                 className="min-w-0 overflow-hidden whitespace-nowrap"
               >
                 <p className="truncate text-xs font-black text-white">{displayName}</p>
-                <p className="truncate text-[10px] font-bold text-[#EA580C]">
+                <p className="truncate text-[10px] font-bold text-brand-orange">
                   {isTrialActive
                     ? `Trial Enterprise (${trialDaysLeft}d)`
                     : currentPlanLabel}
@@ -559,7 +559,7 @@ export default function Sidebar() {
             title={isCollapsed ? 'Painel Executivo (Command Center)' : undefined}
             className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
               } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
-                ? 'bg-[#EA580C] text-white shadow-md shadow-orange-500/20'
+                ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
                 : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
               }`}
           >
@@ -567,7 +567,7 @@ export default function Sidebar() {
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
                 <span className="block text-xs font-black tracking-tight">Painel Executivo</span>
-                <span className="block text-[10px] text-orange-200/80 font-semibold">
+                <span className="block text-[10px] text-orange-200/90 font-semibold">
                   Visão Consolidada
                 </span>
               </div>
@@ -576,7 +576,7 @@ export default function Sidebar() {
         </div>
 
         {!isCollapsed && (
-          <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+          <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
             Centrais Estratégicas
           </p>
         )}
@@ -609,7 +609,7 @@ export default function Sidebar() {
             to={FORNECEDOR_ROUTES.planos}
             title={isCollapsed ? 'Planos & Assinatura' : undefined}
             className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-400 hover:bg-white/[0.06] hover:text-white transition`}
+              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
           >
             <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
             {!isCollapsed && <span>Planos & Assinatura</span>}
@@ -619,7 +619,7 @@ export default function Sidebar() {
             to={FORNECEDOR_ROUTES.configuracoes}
             title={isCollapsed ? 'Configurações' : undefined}
             className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-400 hover:bg-white/[0.06] hover:text-white transition`}
+              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
           >
             <Gear className="h-4 w-4 shrink-0 text-slate-400" />
             {!isCollapsed && <span>Configurações</span>}

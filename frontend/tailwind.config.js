@@ -11,8 +11,10 @@ export default {
       },
       colors: {
         brand: {
-          blue: '#002787',
-          orange: '#FF5A00',
+          dark: '#081c3a',    // Azul Marinho muito escuro (usado no texto da logo e fundo do Sidebar)
+          blue: '#0070c0',    // Azul vibrante (usado na seta superior da logo)
+          orange: '#ff6600',  // Laranja (usado no martelo, linha de crescimento e botões principais)
+          light: '#f4f6f8',   // Cinza muito claro para o fundo geral do painel (Dashboard background)
         },
         // Corporate navy
         blue: {

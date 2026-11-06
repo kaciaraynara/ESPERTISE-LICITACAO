@@ -475,7 +475,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         : 'Central de Radar e Oportunidades';
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex flex-col h-full bg-brand-light">
 
             {/* HEADER E BUSCA DINÂMICA REAL */}
             <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 sticky top-0 z-10">
@@ -870,7 +870,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                 disabled={salvandoId === item.id}
                                                                 className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
                                                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-brand-blue hover:text-brand-blue'
+                                                                    : 'bg-brand-orange text-white hover:bg-orange-600 shadow-xs cursor-pointer'
                                                                     }`}
                                                             >
                                                                 {salvandoId === item.id ? (
