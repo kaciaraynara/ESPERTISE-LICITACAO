@@ -132,7 +132,7 @@ export const CertidoesPage: React.FC = () => {
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="p-2.5 bg-[#0A2540] text-white rounded-xl shadow-md">
+              <span className="p-2.5 bg-brand-dark text-white rounded-xl shadow-md">
                 <FileCheck2 size={24} />
               </span>
               <div>
@@ -149,7 +149,7 @@ export const CertidoesPage: React.FC = () => {
             type="button"
             onClick={() => void sincronizarCertidoes()}
             disabled={!selectedCompany || sincronizando || carregando}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#123b60] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-orange hover:bg-orange-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw size={15} className={sincronizando ? 'animate-spin' : ''} />
             {sincronizando ? 'Consultando emissores...' : 'Atualizar Status'}
@@ -222,7 +222,7 @@ export const CertidoesPage: React.FC = () => {
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-[#0A2540]" />
+                <ShieldCheck size={18} className="text-brand-dark" />
                 Semáforo das Certidões ({certidoes.length})
               </h3>
               <p className="text-xs text-slate-500">

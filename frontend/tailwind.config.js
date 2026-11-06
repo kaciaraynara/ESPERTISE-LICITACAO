@@ -5,16 +5,19 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        display: ['Oswald', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Ubuntu', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        display: ['Ubuntu', 'Oswald', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         mono: ['Courier New', 'monospace'],
       },
       colors: {
+        'brand-dark': '#081c3a',
+        'brand-blue': '#0070c0',
+        'brand-orange': '#ff6600',
         brand: {
-          dark: '#0F172A',    // Azul Marinho profundo SaaS Enterprise (#0F172A / slate-900)
-          blue: '#0070c0',    // Azul vibrante (usado na seta superior da logo)
-          orange: '#ff6600',  // Laranja (usado no martelo, linha de crescimento e botões principais)
-          light: '#f4f6f8',   // Cinza muito claro para o fundo geral do painel (Dashboard background)
+          dark: '#081c3a',    // Azul Escuro - Base do Sidebar e Textos (#081c3a)
+          blue: '#0070c0',    // Azul Vibrante - Destaques secundários (#0070c0)
+          orange: '#ff6600',  // Laranja - Botões primários, alertas e ações (#ff6600)
+          light: '#f8fafc',   // Fundo claro para área de conteúdo (#f8fafc)
         },
         // Corporate navy
         blue: {

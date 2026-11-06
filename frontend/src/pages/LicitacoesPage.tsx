@@ -530,7 +530,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                 type="button"
                                 onClick={() => void buscarLicitacoes(1, true)}
                                 disabled={loading}
-                                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 shrink-0"
+                                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
                             >
                                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} weight="bold" />
                                 Sincronizar PNCP
@@ -554,7 +554,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-7 py-3 bg-brand-blue hover:bg-blue-900 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-md"
+                                className="px-7 py-3 bg-brand-orange hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-md shadow-brand-orange/20 cursor-pointer"
                             >
                                 Consultar PNCP
                             </button>
