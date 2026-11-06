@@ -1,12 +1,13 @@
 import { CookieOptions, NextFunction, Request, RequestHandler, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuditAdminController } from '../controllers/audit-admin.controller';
+import { AuditController } from '../controllers/AuditController';
 import { DataPlatformAdminController } from '../controllers/data-platform-admin.controller';
 import { LegalRulesAdminController } from '../controllers/legal-rules-admin.controller';
 import { RbacAdminController } from '../controllers/rbac-admin.controller';
 import { superAdminController } from '../controllers/super-admin.controller';
-import { prisma } from '../database/prisma';
 import { adminLoginLimiter, extractTrustedClientIp } from '../middlewares/security';
+import { AuditService } from '../services/AuditService';
 import { authOperationsService } from '../services/auth-operations.service';
 import { logAuthEvent, normalizeAuthEmail } from '../services/auth.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
@@ -222,17 +223,11 @@ const adminLoginHandler: RequestHandler = async (req: Request, res: Response) =>
       candidatePerms.length > 0;
 
     if (!isAuthorizedAdmin) {
-      await prisma.auditLog
-        .create({
-          data: {
-            userId: publicUser.id,
-            action: 'ADMIN_LOGIN_FORBIDDEN',
-            ipAddress,
-            userAgent,
-            payload: { email: publicUser.email, role: publicUser.role },
-          },
-        })
-        .catch(() => null);
+      AuditService.logAction('LOGIN_FAILED', ipAddress, userAgent, publicUser.id, {
+        email: publicUser.email,
+        role: publicUser.role,
+        reason: 'insufficient_admin_privileges',
+      });
 
       return res.status(403).json({
         success: false,
@@ -243,17 +238,10 @@ const adminLoginHandler: RequestHandler = async (req: Request, res: Response) =>
 
     setSecureSessionCookie(res, tokens.accessToken);
 
-    await prisma.auditLog
-      .create({
-        data: {
-          userId: publicUser.id,
-          action: 'ADMIN_LOGIN_SUCCESS',
-          ipAddress,
-          userAgent,
-          payload: { email: publicUser.email, role: publicUser.role },
-        },
-      })
-      .catch(() => null);
+    AuditService.logAction('LOGIN_SUCCESS', ipAddress, userAgent, publicUser.id, {
+      email: publicUser.email,
+      role: candidateRole || publicUser.role,
+    });
 
     return res.status(200).json({
       success: true,
@@ -263,7 +251,15 @@ const adminLoginHandler: RequestHandler = async (req: Request, res: Response) =>
       },
     });
   } catch (err: any) {
+    const attemptedEmail =
+      typeof req.body?.email === 'string' ? normalizeAuthEmail(req.body.email) : null;
+
     if (err?.name === 'ZodError') {
+      AuditService.logAction('LOGIN_FAILED', ipAddress, userAgent, null, {
+        email: attemptedEmail,
+        reason: 'validation_error',
+      });
+
       return res.status(400).json({
         success: false,
         code: 'VALIDATION_ERROR',
@@ -271,8 +267,10 @@ const adminLoginHandler: RequestHandler = async (req: Request, res: Response) =>
       });
     }
 
-    const attemptedEmail =
-      typeof req.body?.email === 'string' ? normalizeAuthEmail(req.body.email) : null;
+    AuditService.logAction('LOGIN_FAILED', ipAddress, userAgent, null, {
+      email: attemptedEmail,
+      reason: 'invalid_credentials',
+    });
 
     await logAuthEvent('LOGIN_FAILED', {
       email: attemptedEmail,
@@ -280,18 +278,6 @@ const adminLoginHandler: RequestHandler = async (req: Request, res: Response) =>
       ip: ipAddress,
       userAgent,
     }).catch(() => null);
-
-    await prisma.auditLog
-      .create({
-        data: {
-          userId: null,
-          action: 'ADMIN_LOGIN_FAILED',
-          ipAddress,
-          userAgent,
-          payload: { email: attemptedEmail },
-        },
-      })
-      .catch(() => null);
 
     return res.status(401).json({
       success: false,
@@ -319,6 +305,7 @@ function createProtectedAdminSubRouter(): Router {
   // Isolamento estrito: adminLoginLimiter aplicado exclusivamente no POST /login
   subRouter.post('/login', adminLoginLimiter, handle(adminLoginHandler));
   subRouter.post('/logout', requireAdminCookieSession, handle(adminLogoutHandler));
+  subRouter.get('/radar/telemetry', requireAdminCookieSession, handle(AuditController.getTelemetry));
 
   // Todas as rotas abaixo exigem sessão via cookie HttpOnly estrito
   subRouter.use(requireAdminCookieSession);
