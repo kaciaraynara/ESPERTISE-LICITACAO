@@ -16,7 +16,6 @@ import {
 } from '@phosphor-icons/react';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import type { User } from '@/types';
-import { hasUserPlanFeature } from './Sidebar';
 
 export type ProfileRole = 'fornecedor';
 
@@ -66,11 +65,8 @@ export function resolveProfileRole(_role?: string | null): ProfileRole {
   return 'fornecedor';
 }
 
-export function resolveProfileNavigation(_role?: string | null, user?: User | null): NavGroup[] {
-  return NAV_GROUPS.fornecedor.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => hasUserPlanFeature(user, item.requiredFeature)),
-  }));
+export function resolveProfileNavigation(_role?: string | null, _user?: User | null): NavGroup[] {
+  return NAV_GROUPS.fornecedor;
 }
 
 export function resolveProfileLogoutPath(_role?: string | null) {

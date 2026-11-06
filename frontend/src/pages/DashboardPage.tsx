@@ -21,6 +21,7 @@ import { dashboardApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '@/store/auth.store';
+import { getTrialDaysLeft, isUserTrialActive } from '@/components/layout/Sidebar';
 
 interface DashboardMetrics {
   isContaNova?: boolean;
@@ -210,7 +211,7 @@ export default function DashboardPage() {
       )}
 
       {/* Card de Boas-Vindas com o Assistente LEX & Free Trial Master */}
-      {user?.isTrialActive && (
+      {isUserTrialActive(user) && (
         <section className="mb-8 rounded-2xl border border-blue-900/30 bg-gradient-to-br from-[#0A2540] via-slate-900 to-[#0A2540] p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-orange-500/10 blur-3xl pointer-events-none" />
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
@@ -220,7 +221,7 @@ export default function DashboardPage() {
                 <span>Free Trial Oficial · 15 Dias de Plano Master</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Bem-vindo à EXPERTISE, {user.nome?.split(' ')[0] || 'Licitante'}! 🎉
+                Bem-vindo à EXPERTISE, {user?.nome?.split(' ')[0] || 'Licitante'}! 🎉
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
                 Seu acesso completo está liberado. Eu sou o <strong>LEX</strong>, seu copiloto jurídico com IA especializado na Lei 14.133/2021. Estou pronto para analisar seus editais, apontar exigências restritivas e orientar sua estratégia de vitória.
@@ -255,17 +256,11 @@ export default function DashboardPage() {
                 Tempo Restante de Teste
               </span>
               <div className="text-4xl font-black text-brand-orange tracking-tight my-1">
-                {user.daysLeftTrial ?? 15} <span className="text-base text-slate-300 font-bold">dias</span>
+                {getTrialDaysLeft(user)} <span className="text-base text-slate-300 font-bold">dias</span>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                Todas as 16 ferramentas liberadas
+                Todas as 4 Centrais Estratégicas liberadas
               </p>
-              <Link
-                to={FORNECEDOR_ROUTES.planos}
-                className="mt-3 block text-[11px] font-bold text-orange-300 underline hover:text-white"
-              >
-                Ver detalhes do plano Master →
-              </Link>
             </div>
           </div>
         </section>

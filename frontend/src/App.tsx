@@ -417,7 +417,7 @@ export default function App() {
 
             {/* Aliases Seguros */}
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />
-            <Route path="/dashboard" element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
 
           {/* Fallback 404 */}

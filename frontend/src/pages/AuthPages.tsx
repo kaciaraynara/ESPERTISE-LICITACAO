@@ -12,7 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
-import { FORNECEDOR_ROUTES } from '@/routes';
+import { POST_AUTH_DASHBOARD_ROUTE } from '@/routes';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
 
@@ -165,7 +165,7 @@ export default function AuthPages() {
          setAuth(user, accessToken, refreshToken ?? undefined);
 
          toast.success('Login realizado com sucesso!');
-         navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
+         navigate(POST_AUTH_DASHBOARD_ROUTE, { replace: true });
       } catch (error: any) {
          toast.error(error.response?.data?.message || 'E-mail ou senha incorretos. Verifique suas credenciais.');
       }
@@ -272,7 +272,7 @@ export default function AuthPages() {
             localStorage.setItem('token', accessToken);
             setAuth(user, accessToken, refreshToken ?? undefined);
             toast.success('Conta criada com sucesso!');
-            navigate(FORNECEDOR_ROUTES.dashboard, { replace: true });
+            navigate(POST_AUTH_DASHBOARD_ROUTE, { replace: true });
          } else {
             toast.success('Empresa validada! Faça o login para acessar o ambiente.');
             setActiveView('login');

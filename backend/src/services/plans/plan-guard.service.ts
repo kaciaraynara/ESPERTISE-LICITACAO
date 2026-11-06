@@ -63,12 +63,17 @@ export class PlanGuardService {
       return normalizePlanId(subscriptionPlan);
     }
 
-    // Se o usuário possui trialEndsAt ativo no cadastro, concede plano 'master'
+    // Se o usuário possui trialEndsAt ativo ou conta criada há menos de 15 dias, concede plano 'master'
     const dbUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { trialEndsAt: true },
+      select: { trialEndsAt: true, createdAt: true },
     });
-    if (dbUser?.trialEndsAt && new Date(dbUser.trialEndsAt) > now) {
+    const effectiveTrialEndsAt =
+      dbUser?.trialEndsAt ??
+      (dbUser?.createdAt
+        ? new Date(new Date(dbUser.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+        : null);
+    if (effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now) {
       return 'master';
     }
 

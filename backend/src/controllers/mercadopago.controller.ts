@@ -159,15 +159,20 @@ export class MercadoPagoController {
       }),
       prisma.user.findUnique({
         where: { id: req.user.id },
-        select: { trialEndsAt: true },
+        select: { trialEndsAt: true, createdAt: true },
       }),
     ]);
 
-    const isUserTrialActive = Boolean(dbUser?.trialEndsAt && new Date(dbUser.trialEndsAt) > now);
+    const effectiveTrialEndsAt =
+      dbUser?.trialEndsAt ??
+      (dbUser?.createdAt
+        ? new Date(new Date(dbUser.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+        : null);
+    const isUserTrialActive = Boolean(effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now);
 
     if (!sub) {
-      if (isUserTrialActive) {
-        const trialEndsAt = dbUser!.trialEndsAt!;
+      if (isUserTrialActive && effectiveTrialEndsAt) {
+        const trialEndsAt = effectiveTrialEndsAt;
         const masterDef = getPlanDefinition('master');
         return res.json({
           success: true,
@@ -178,8 +183,8 @@ export class MercadoPagoController {
             status: 'trialing',
             ativa: true,
             isTrialActive: true,
-            trialEndsAt: trialEndsAt.toISOString(),
-            diasRestantes: Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
+            trialEndsAt: new Date(trialEndsAt).toISOString(),
+            diasRestantes: Math.max(1, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
             gateway: null,
             pendingPlanId: null,
             pendingPlanAt: null,

@@ -56,6 +56,8 @@ export const LEGACY_FORNECEDOR_ROUTES = {
   cofre: `${FORNECEDOR_PREFIX}/cofre`,
 } as const;
 
+export const POST_AUTH_DASHBOARD_ROUTE = '/dashboard';
+
 export function resolveAuthenticatedHome(_role?: string | null) {
-  return FORNECEDOR_ROUTES.dashboard;
+  return POST_AUTH_DASHBOARD_ROUTE;
 }

@@ -1,17 +1,18 @@
 import { CalendarBlank, List, SignOut, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import BrandLogo from '@components/brand/BrandLogo';
 import { useLogout } from '../../hooks';
 import { useAuthStore } from '../../store/auth.store';
 import { getUserDisplayName, getUserInitial } from '../../utils';
-import Sidebar from './Sidebar';
+import Sidebar, { hasActivePaidPlan, isUserTrialActive } from './Sidebar';
 import CompanySelector from './CompanySelector';
 import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
 import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
+import { FORNECEDOR_ROUTES } from '../../routes';
 
 const PAGE_LABELS: Record<string, string> = {
   '/fornecedor/dashboard': 'Página Inicial',
@@ -32,6 +33,8 @@ export default function DashboardLayout() {
   const { selectedCompany, switchingCompany } = useCompany();
   const logout = useLogout();
   const user = useAuthStore((state) => state.user);
+  const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
+  const activePlanId = useAuthStore((state) => state.activePlanId);
   const displayName = getUserDisplayName(user, 'Fornecedor');
   const initial = getUserInitial(user, 'F');
   const groups = resolveProfileNavigation(user?.role, user);
@@ -43,9 +46,22 @@ export default function DashboardLayout() {
     year: 'numeric',
   }).format(new Date());
 
+  const isTrialActive = isUserTrialActive(user);
+  const hasPaidPlan = hasActivePaidPlan(user, activePlanId);
+  const shouldForcePlansScreen =
+    planAccessLoaded &&
+    !isTrialActive &&
+    !hasPaidPlan &&
+    location.pathname !== FORNECEDOR_ROUTES.planos &&
+    location.pathname !== FORNECEDOR_ROUTES.configuracoes;
+
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  if (shouldForcePlansScreen) {
+    return <Navigate to={FORNECEDOR_ROUTES.planos} replace />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800">

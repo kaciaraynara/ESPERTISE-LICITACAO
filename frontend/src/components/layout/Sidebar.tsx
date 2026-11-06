@@ -42,7 +42,123 @@ import { getUserDisplayName } from '@/utils';
 
 export type CommercialPlanTier = 'BASICO' | 'AVANCADO' | 'MASTER';
 
+export const TRIAL_DURATION_DAYS = 15;
+export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Verifica se a conta do utilizador está dentro do período de Trial de 15 dias.
+ * Considera:
+ * 1. Flag explícita `user.isTrialActive === true`
+ * 2. Data de expiração `user.trialEndsAt` no futuro
+ * 3. Data de criação da conta (`created_at` / `createdAt`) há menos de 15 dias
+ */
+export function isUserTrialActive(user?: User | null): boolean {
+  const targetUser = user ?? useAuthStore.getState().user;
+  if (!targetUser) return false;
+
+  if (targetUser.isTrialActive === true) {
+    return true;
+  }
+
+  const now = Date.now();
+
+  if (targetUser.trialEndsAt) {
+    const trialEndsMs = new Date(targetUser.trialEndsAt).getTime();
+    if (!Number.isNaN(trialEndsMs)) {
+      return trialEndsMs > now;
+    }
+  }
+
+  const rawCreatedAt =
+    targetUser.created_at ||
+    (targetUser as User & { createdAt?: string }).createdAt;
+
+  if (rawCreatedAt) {
+    const createdAtMs = new Date(rawCreatedAt).getTime();
+    if (!Number.isNaN(createdAtMs)) {
+      return now - createdAtMs < TRIAL_DURATION_MS;
+    }
+  }
+
+  // Fallback seguro para sessões recém-criadas sem carimbo de data hidratado
+  return targetUser.isTrialActive !== false;
+}
+
+/**
+ * Calcula quantos dias restam no Trial de 15 dias do utilizador.
+ */
+export function getTrialDaysLeft(user?: User | null): number {
+  const targetUser = user ?? useAuthStore.getState().user;
+  if (!targetUser) return 0;
+
+  if (typeof targetUser.daysLeftTrial === 'number' && targetUser.daysLeftTrial > 0) {
+    return targetUser.daysLeftTrial;
+  }
+
+  const now = Date.now();
+
+  if (targetUser.trialEndsAt) {
+    const trialEndsMs = new Date(targetUser.trialEndsAt).getTime();
+    if (!Number.isNaN(trialEndsMs) && trialEndsMs > now) {
+      return Math.max(1, Math.ceil((trialEndsMs - now) / (1000 * 60 * 60 * 24)));
+    }
+  }
+
+  const rawCreatedAt =
+    targetUser.created_at ||
+    (targetUser as User & { createdAt?: string }).createdAt;
+
+  if (rawCreatedAt) {
+    const createdAtMs = new Date(rawCreatedAt).getTime();
+    if (!Number.isNaN(createdAtMs)) {
+      const expiresAtMs = createdAtMs + TRIAL_DURATION_MS;
+      if (expiresAtMs > now) {
+        return Math.max(1, Math.ceil((expiresAtMs - now) / (1000 * 60 * 60 * 24)));
+      }
+      return 0;
+    }
+  }
+
+  return isUserTrialActive(targetUser) ? TRIAL_DURATION_DAYS : 0;
+}
+
+/**
+ * Verifica se o utilizador possui um plano comercial pago ativo (fora do estado 'free').
+ */
+export function hasActivePaidPlan(user?: User | null, activePlanIdOverride?: string | null): boolean {
+  const access = useAuthStore.getState();
+  const effectivePlanRaw = String(
+    activePlanIdOverride ??
+      (access.planAccessLoaded ? access.activePlanId : user?.planType || user?.plano || 'free'),
+  )
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const paidPlans = new Set([
+    'basic',
+    'basico',
+    'starter',
+    'avancado',
+    'medium',
+    'medio',
+    'pro',
+    'profissional',
+    'professional',
+    'premium',
+    'master',
+    'enterprise',
+  ]);
+
+  return paidPlans.has(effectivePlanRaw);
+}
+
 export function resolveUserPlanTier(user?: User | null): CommercialPlanTier {
+  if (isUserTrialActive(user)) {
+    return 'MASTER';
+  }
+
   const access = useAuthStore.getState();
   const raw = String(access.planAccessLoaded ? access.activePlanId : user?.planType || user?.plano || 'free')
     .trim()
@@ -77,10 +193,11 @@ export function getPlanDisplayLabel(tier: CommercialPlanTier): string {
 
 export function hasUserPlanFeature(user: User | null | undefined, requiredFeature?: string): boolean {
   if (!requiredFeature) return true;
-  if (user?.isTrialActive) return true;
+  if (isUserTrialActive(user)) return true;
   const access = useAuthStore.getState();
-  if (access.user?.isTrialActive) return true;
-  return access.planAccessLoaded && access.activePlanFeatures.includes(requiredFeature);
+  if (isUserTrialActive(access.user)) return true;
+  if (!access.planAccessLoaded) return true;
+  return access.activePlanFeatures.includes(requiredFeature);
 }
 
 export interface StrategicSubItem {
@@ -128,7 +245,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     badge: 'Disputa',
     items: [
       { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit & Split Payment', icon: Lightning, requiredFeature: 'robo_lances', badge: 'Ao Vivo' },
-      { path: FORNECEDOR_ROUTES.disputas, label: 'Sala de Disputas (CRM Kanban)', icon: Kanban, requiredFeature: 'crm_disputas' },
+      { path: FORNECEDOR_ROUTES.disputas, label: 'Sala de Disputas (CRM Kanban)', icon: Kanban, requiredFeature: 'crm_kanban' },
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô Estratégico de Lances', icon: Robot, requiredFeature: 'robo_lances', badge: 'Auto' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
@@ -143,12 +260,12 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     badge: 'Lex IA',
     items: [
       { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos', badge: 'RAG' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ai', badge: 'GPT-4o' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ia_avancada', badge: 'GPT-4o' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Preparar Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitura e Análise de Editais', icon: Article, requiredFeature: 'resumo_edital_completo' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades & Restrições', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
-      { path: FORNECEDOR_ROUTES.academia, label: 'Academia & Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia' },
+      { path: FORNECEDOR_ROUTES.academia, label: 'Academia & Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },
   {
@@ -161,7 +278,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual', badge: 'Art. 96' },
       { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre de Documentos', icon: Vault, requiredFeature: 'cofre_documentos' },
-      { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'monitoramento_certidoes' },
+      { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
       { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
       { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
       { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios Executivos & KPIs', icon: ChartLineUp, requiredFeature: 'relatorios_estrategicos' },
@@ -314,8 +431,8 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
 export default function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
-  const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
-  const isTrialActive = Boolean(user?.isTrialActive);
+  const isTrialActive = isUserTrialActive(user);
+  const trialDaysLeft = getTrialDaysLeft(user);
   const logout = useLogout();
   const displayName = getUserDisplayName(user, 'Executivo');
   const currentPlanTier = resolveUserPlanTier(user);
@@ -340,18 +457,14 @@ export default function Sidebar() {
     }
   }, [location.pathname]);
 
-  // Filtra as centrais e subitens com base nos recursos do plano (ou libera 100% no Free Trial)
-  const visibleHubs = useMemo(() => {
-    if (isTrialActive) return STRATEGIC_HUBS;
-    if (!planAccessLoaded) return STRATEGIC_HUBS; // Fallback gracioso
+  // Desbloqueio das 4 Centrais Estratégicas (Radar, Sala de Guerra, Lex, Gestão):
+  // Se a conta do utilizador foi criada há menos de 15 dias (isTrialActive = true) ou possui plano ativo,
+  // o menu nunca esconde nenhuma das 4 Centrais Estratégicas.
+  const visibleHubs = useMemo(() => STRATEGIC_HUBS, []);
 
-    return STRATEGIC_HUBS.map((hub) => ({
-      ...hub,
-      items: hub.items.filter((item) => hasUserPlanFeature(user, item.requiredFeature)),
-    })).filter((hub) => hub.items.length > 0);
-  }, [isTrialActive, planAccessLoaded, user]);
-
-  const isDashboardActive = location.pathname === FORNECEDOR_ROUTES.dashboard;
+  const isDashboardActive =
+    location.pathname === FORNECEDOR_ROUTES.dashboard ||
+    location.pathname === '/dashboard';
 
   return (
     <motion.aside
@@ -424,7 +537,7 @@ export default function Sidebar() {
                 <p className="truncate text-xs font-black text-white">{displayName}</p>
                 <p className="truncate text-[10px] font-bold text-[#EA580C]">
                   {isTrialActive
-                    ? `Trial Enterprise (${user?.daysLeftTrial ?? 15}d)`
+                    ? `Trial Enterprise (${trialDaysLeft}d)`
                     : currentPlanLabel}
                 </p>
               </motion.div>
@@ -488,17 +601,17 @@ export default function Sidebar() {
           ))}
         </div>
 
-        {/* Seção Inferior de Gestão e Configurações */}
+        {/* Seção Inferior de Gestão e Configurações (Planos como aba secundária e silenciosa) */}
         <div className="my-3 border-t border-white/10" />
 
         <div className="space-y-1">
           <Link
             to={FORNECEDOR_ROUTES.planos}
-            title={isCollapsed ? 'Planos & Upgrade' : undefined}
+            title={isCollapsed ? 'Planos & Assinatura' : undefined}
             className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
               } rounded-lg text-xs font-semibold text-slate-400 hover:bg-white/[0.06] hover:text-white transition`}
           >
-            <CreditCard className="h-4 w-4 shrink-0 text-amber-400" />
+            <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
             {!isCollapsed && <span>Planos & Assinatura</span>}
           </Link>
 
@@ -508,7 +621,7 @@ export default function Sidebar() {
             className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
               } rounded-lg text-xs font-semibold text-slate-400 hover:bg-white/[0.06] hover:text-white transition`}
           >
-            <Gear className="h-4 w-4 shrink-0" />
+            <Gear className="h-4 w-4 shrink-0 text-slate-400" />
             {!isCollapsed && <span>Configurações</span>}
           </Link>
         </div>

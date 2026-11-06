@@ -93,6 +93,8 @@ export function requirePlanLimit(resource: TrackedResource) {
           tenantId: true,
           planType: true,
           plano: true,
+          trialEndsAt: true,
+          createdAt: true,
           monthlyAnalysesUsed: true,
           monthlyProposalsUsed: true,
           subscriptions: {
@@ -115,10 +117,21 @@ export function requirePlanLimit(resource: TrackedResource) {
         });
       }
 
+      const now = new Date();
+      const effectiveTrialEndsAt =
+        user.trialEndsAt ??
+        (user.createdAt
+          ? new Date(new Date(user.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+          : null);
+      const isTrialActive = Boolean(effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now);
+
       const activeSubscription = user.subscriptions[0];
       const hasActiveSubscription =
-        activeSubscription &&
-        (!activeSubscription.periodoFim || activeSubscription.periodoFim >= new Date());
+        isTrialActive ||
+        Boolean(
+          activeSubscription &&
+          (!activeSubscription.periodoFim || activeSubscription.periodoFim >= now),
+        );
 
       if (!hasActiveSubscription) {
         return res.status(403).json({
@@ -129,7 +142,9 @@ export function requirePlanLimit(resource: TrackedResource) {
         });
       }
 
-      const planType = normalizePlanType(activeSubscription.plano);
+      const planType = isTrialActive
+        ? PlanType.MASTER
+        : normalizePlanType(activeSubscription?.plano);
       const limits = PLAN_LIMITS[planType] || PLAN_LIMITS.BASIC;
 
       if (resource === 'analyses') {
@@ -247,6 +262,8 @@ export function requirePlanFeatureAccess(requiredFeature: PlanFeatureName | stri
         select: {
           planType: true,
           plano: true,
+          trialEndsAt: true,
+          createdAt: true,
           subscriptions: {
             where: {
               categoria: 'plataforma',
@@ -267,11 +284,19 @@ export function requirePlanFeatureAccess(requiredFeature: PlanFeatureName | stri
         });
       }
 
+      const now = new Date();
+      const effectiveTrialEndsAt =
+        user.trialEndsAt ??
+        (user.createdAt
+          ? new Date(new Date(user.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+          : null);
+      const isTrialActive = Boolean(effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now);
+
       const activeSub = user.subscriptions?.[0];
       const subValid =
-        activeSub && (!activeSub.periodoFim || new Date(activeSub.periodoFim) >= new Date());
+        activeSub && (!activeSub.periodoFim || new Date(activeSub.periodoFim) >= now);
 
-      const currentPlan = subValid ? activeSub.plano : 'free';
+      const currentPlan = isTrialActive ? 'master' : (subValid ? activeSub.plano : 'free');
       const currentPlanConfig =
         currentPlan === 'free' ? null : getCommercialPlanConfig(currentPlan);
 

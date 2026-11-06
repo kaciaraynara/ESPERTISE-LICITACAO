@@ -66,11 +66,14 @@ export class AuthOperationsService {
         }
       : null;
 
-    const rawTrialEndsAt = user.trialEndsAt || primaryCompany?.trialEndsAt;
+    const fallbackTrialEndsAt = user.createdAt
+      ? new Date(new Date(user.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+      : null;
+    const rawTrialEndsAt = user.trialEndsAt || primaryCompany?.trialEndsAt || fallbackTrialEndsAt;
     const isTrialActive = Boolean(rawTrialEndsAt && new Date(rawTrialEndsAt) > new Date());
     const trialEndsAtIso = rawTrialEndsAt ? new Date(rawTrialEndsAt).toISOString() : null;
     const daysLeftTrial = isTrialActive
-      ? Math.max(0, Math.ceil((new Date(rawTrialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      ? Math.max(1, Math.ceil((new Date(rawTrialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
       : 0;
 
     // Se o trial estiver ativo (15 dias de teste), o usuário possui plano Master completo com todas as ferramentas

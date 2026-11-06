@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth.store';
+import { hasActivePaidPlan, isUserTrialActive } from '@/components/layout/Sidebar';
 import { PaywallModal } from './PaywallModal';
 
 interface PremiumFeatureGuardProps {
@@ -10,7 +11,8 @@ interface PremiumFeatureGuardProps {
 
 export function isUserFreePlan(_plano?: string | null): boolean {
   const access = useAuthStore.getState();
-  return !access.planAccessLoaded || access.activePlanId === 'free';
+  if (isUserTrialActive(access.user)) return false;
+  return access.planAccessLoaded && !hasActivePaidPlan(access.user, access.activePlanId);
 }
 
 export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
@@ -27,7 +29,9 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
   useEffect(() => {
     // Escuta eventos globais de paywall (disparados em caso de 403 das APIs)
     const handlePaywallEvent = () => {
-      setForcePaywall(true);
+      if (!isUserTrialActive(useAuthStore.getState().user)) {
+        setForcePaywall(true);
+      }
     };
 
     window.addEventListener('expertise:paywall-triggered', handlePaywallEvent);
@@ -36,20 +40,22 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
     };
   }, []);
 
-  const isTrialActive = Boolean(user?.isTrialActive);
-  const hasAccess = isTrialActive
-    ? true
-    : requiredFeature
-      ? activePlanFeatures.includes(requiredFeature)
-      : activePlanId !== 'free';
-  const showModal = !hasAccess || (forcePaywall && !isTrialActive);
+  const isTrialActive = isUserTrialActive(user);
 
-  if (!planAccessLoaded && !isTrialActive) {
-    return (
-      <div className="flex min-h-[calc(100vh-100px)] items-center justify-center">
-        <span className="text-sm font-semibold text-slate-500">Verificando assinatura e permissões…</span>
-      </div>
-    );
+  // Durante os 15 dias de Trial (isTrialActive = true), o utilizador tem acesso total e irrestrito
+  // às 4 Centrais Estratégicas sem qualquer modal de bloqueio.
+  if (isTrialActive) {
+    return <>{children}</>;
+  }
+
+  const hasPaidPlan = hasActivePaidPlan(user, activePlanId);
+  const hasAccess = requiredFeature
+    ? activePlanFeatures.includes(requiredFeature) || hasPaidPlan
+    : hasPaidPlan;
+  const showModal = planAccessLoaded && (!hasAccess || forcePaywall);
+
+  if (!planAccessLoaded) {
+    return <>{children}</>;
   }
 
   if (showModal) {

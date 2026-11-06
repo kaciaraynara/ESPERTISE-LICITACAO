@@ -2,6 +2,49 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '@/types';
 
+const TRIAL_WINDOW_DAYS = 15;
+const TRIAL_WINDOW_MS = TRIAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+function computeUserTrialState(user: User): User {
+  const now = Date.now();
+  let trialActive = user.isTrialActive === true;
+  let daysLeft = typeof user.daysLeftTrial === 'number' ? user.daysLeftTrial : 0;
+
+  if (user.trialEndsAt) {
+    const endsAtMs = new Date(user.trialEndsAt).getTime();
+    if (!Number.isNaN(endsAtMs)) {
+      trialActive = endsAtMs > now;
+      daysLeft = trialActive
+        ? Math.max(1, Math.ceil((endsAtMs - now) / (1000 * 60 * 60 * 24)))
+        : 0;
+    }
+  } else {
+    const rawCreatedAt =
+      user.created_at || (user as User & { createdAt?: string }).createdAt;
+    if (rawCreatedAt) {
+      const createdAtMs = new Date(rawCreatedAt).getTime();
+      if (!Number.isNaN(createdAtMs)) {
+        const endsAtMs = createdAtMs + TRIAL_WINDOW_MS;
+        trialActive = endsAtMs > now;
+        daysLeft = trialActive
+          ? Math.max(1, Math.ceil((endsAtMs - now) / (1000 * 60 * 60 * 24)))
+          : 0;
+      }
+    } else if (user.isTrialActive !== false) {
+      trialActive = true;
+      daysLeft = TRIAL_WINDOW_DAYS;
+    }
+  }
+
+  return {
+    ...user,
+    isTrialActive: trialActive,
+    daysLeftTrial: daysLeft,
+    plano: trialActive ? ('master' as User['plano']) : user.plano,
+    planType: trialActive ? 'MASTER' : user.planType,
+  };
+}
+
 interface AuthStore {
   user: User | null;
   accessToken: string | null;
@@ -35,22 +78,23 @@ export const useAuthStore = create<AuthStore>()(
       activePlanFeatures: [],
 
       setAuth: (user, accessToken, refreshToken) => {
+        const normalizedUser = computeUserTrialState(user);
         if (typeof window !== 'undefined') {
           if (accessToken) {
             localStorage.setItem('token', accessToken);
           }
           const previousUserId = get().user?.id;
-          const isDifferentUser = previousUserId !== user.id;
+          const isDifferentUser = previousUserId !== normalizedUser.id;
           if (isDifferentUser) {
             localStorage.removeItem('@Expertise:selectedCompany');
           }
           const existingCompany = localStorage.getItem('@Expertise:selectedCompany');
           if (
             (!existingCompany || isDifferentUser) &&
-            (user?.company?.id || user?.company_id)
+            (normalizedUser?.company?.id || normalizedUser?.company_id)
           ) {
-            const defaultCompany = user.company ?? {
-              id: String(user.company_id),
+            const defaultCompany = normalizedUser.company ?? {
+              id: String(normalizedUser.company_id),
               razaoSocial: 'Empresa Principal',
               razao_social: 'Empresa Principal',
               cnpj: '',
@@ -59,17 +103,17 @@ export const useAuthStore = create<AuthStore>()(
           }
         }
         set((state) => ({
-          user,
+          user: normalizedUser,
           accessToken,
           refreshToken: refreshToken !== undefined ? refreshToken : state.refreshToken,
           isAuthenticated: true,
           isInitialized: true,
-          ...(state.user?.id === user.id
+          ...(state.user?.id === normalizedUser.id
             ? {}
             : {
-                planAccessLoaded: false,
-                activePlanId: 'free',
-                activePlanFeatures: [],
+                planAccessLoaded: Boolean(normalizedUser.isTrialActive),
+                activePlanId: normalizedUser.isTrialActive ? 'master' : 'free',
+                activePlanFeatures: normalizedUser.permissoes ?? [],
               }),
         }));
       },
@@ -84,26 +128,39 @@ export const useAuthStore = create<AuthStore>()(
               ? 'BASIC'
               : null;
 
-        set((state) => ({
-          planAccessLoaded: true,
-          activePlanId: normalizedPlan,
-          activePlanFeatures: [...features],
-          user: state.user
-            ? {
-                ...state.user,
-                plano: normalizedPlan as User['plano'],
-                planType,
-                permissoes: [...features],
-              }
-            : null,
-        }));
+        set((state) => {
+          const currentUser = state.user ? computeUserTrialState(state.user) : null;
+          const trialStillActive = Boolean(currentUser?.isTrialActive);
+          const effectivePlanId =
+            trialStillActive && (normalizedPlan === 'free' || normalizedPlan === 'none')
+              ? 'master'
+              : normalizedPlan;
+
+          return {
+            planAccessLoaded: true,
+            activePlanId: effectivePlanId,
+            activePlanFeatures: [...features],
+            user: currentUser
+              ? {
+                  ...currentUser,
+                  plano: effectivePlanId as User['plano'],
+                  planType: trialStillActive ? 'MASTER' : planType,
+                  permissoes: features.length > 0 ? [...features] : (currentUser.permissoes ?? []),
+                }
+              : null,
+          };
+        });
       },
 
       clearPlanAccess: () =>
-        set({
-          planAccessLoaded: false,
-          activePlanId: 'free',
-          activePlanFeatures: [],
+        set((state) => {
+          const currentUser = state.user ? computeUserTrialState(state.user) : null;
+          const trialStillActive = Boolean(currentUser?.isTrialActive);
+          return {
+            planAccessLoaded: trialStillActive,
+            activePlanId: trialStillActive ? 'master' : 'free',
+            activePlanFeatures: trialStillActive ? (currentUser?.permissoes ?? []) : [],
+          };
         }),
 
       setAccessToken: (accessToken) => {
