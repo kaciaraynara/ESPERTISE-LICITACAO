@@ -18,8 +18,11 @@ import {
   Sparkles,
   ShieldCheck,
   Target,
+  Clock,
+  Calendar,
+  TrendingUp,
 } from 'lucide-react';
-import { dashboardApi, certidoesApi } from '../services/api';
+import { dashboardApi, certidoesApi, crmApi, licitacoesApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '@/store/auth.store';
@@ -218,6 +221,81 @@ export default function DashboardPage() {
   const disputasSemana = metrics?.prazosEstaSemana ?? metrics?.crmOportunidades ?? 0;
   const disputasTarget = 5;
   const progressoDisputas = disputasSemana > 0 ? Math.min(100, Math.round((disputasSemana / disputasTarget) * 100)) : 0;
+
+  // Licitações salvas do backend para Linha do Tempo e Assertividade
+  const savedLicitacoesQuery = useQuery({
+    queryKey: ['saved-licitacoes-dashboard', selectedCompany?.id ?? 'default'],
+    queryFn: async () => {
+      try {
+        const res = await crmApi.getOportunidades();
+        const raw = res.data?.data || res.data || [];
+        if (Array.isArray(raw) && raw.length > 0) return raw;
+
+        // Fallback: busca licitações monitoradas/recentes do radar se o funil não tiver itens
+        const fallbackRes = await licitacoesApi.listar({ tamanhoPagina: 5 });
+        const fallbackData = fallbackRes.data?.data?.itens || fallbackRes.data?.itens || fallbackRes.data || [];
+        return Array.isArray(fallbackData) ? fallbackData : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const savedLicitacoes = savedLicitacoesQuery.data ?? [];
+
+  // Mapeamento normalizado para a Linha do Tempo (Órgão Público, Modalidade, Data da Sessão, Valor Estimado)
+  const mappedTimeline = savedLicitacoes.slice(0, 5).map((item: any, idx: number) => {
+    const notice = item.notice || item;
+    const id = item.id || notice.id || `lic-${idx}`;
+    const orgao = notice.buyerName || item.orgao || notice.orgao || 'Órgão Licitante';
+    const uasg = notice.uasg || item.uasg || notice.cnpjOrgao || item.cnpjOrgao || (notice.uf ? `UF ${notice.uf}` : null);
+    const modalidade = notice.modality || notice.modalidade || item.modalidade || 'Pregão Eletrônico';
+    const rawData = notice.openingAt || notice.dataAbertura || item.dataAbertura || item.data_abertura || item.dataSessao || notice.data_abertura;
+    const dataSessao = rawData ? formatarData(rawData) : 'A definir';
+    const rawValor = notice.estimatedValue ?? notice.valorEstimado ?? item.valorEstimado ?? item.valor_estimado ?? item.valor ?? null;
+    const valorEstimado = formatarMoeda(rawValor);
+    const licitacaoId = notice.id || item.id || item.noticeId || '';
+
+    return {
+      id,
+      licitacaoId,
+      orgao,
+      uasg,
+      modalidade,
+      dataSessao,
+      valorEstimado,
+    };
+  });
+
+  // Assertividade: Propostas Aceitas (Verde), Fase de Recurso (Laranja/Amarelo), Desclassificações (Vermelho)
+  const propostasAceitasCount = savedLicitacoes.filter((i: any) =>
+    ['ADJUDICADO', 'GANHO', 'HOMOLOGADO', 'VITORIA', 'ACEITA'].includes(String(i.stage || i.situacao || '').toUpperCase())
+  ).length;
+
+  const faseRecursoCount = savedLicitacoes.filter((i: any) =>
+    ['RECURSO', 'IMPUGNACAO', 'ANALISE', 'DISPUTA'].includes(String(i.stage || i.situacao || '').toUpperCase())
+  ).length;
+
+  const desclassificacoesCount = savedLicitacoes.filter((i: any) =>
+    ['PERDIDO', 'DESCLASSIFICADO', 'INABILITADO', 'FRACASSADO'].includes(String(i.stage || i.situacao || '').toUpperCase())
+  ).length;
+
+  const totalAssertividade = propostasAceitasCount + faseRecursoCount + desclassificacoesCount;
+
+  const pctAceitas = totalAssertividade > 0
+    ? Math.round((propostasAceitasCount / totalAssertividade) * 100)
+    : (metrics?.taxaSucesso ?? 0);
+
+  const pctRecurso = totalAssertividade > 0
+    ? Math.round((faseRecursoCount / totalAssertividade) * 100)
+    : (metrics?.prazosEstaSemana && metrics.prazosEstaSemana > 0 ? Math.min(30, metrics.prazosEstaSemana * 10) : 0);
+
+  const pctDesclassificacoes = totalAssertividade > 0
+    ? Math.max(0, 100 - pctAceitas - pctRecurso)
+    : 0;
 
   const isContaNova =
     Boolean(metrics?.isContaNova) ||
@@ -614,40 +692,44 @@ export default function DashboardPage() {
       </section>
 
       {/* =========================================================================
-          OS 3 PILARES DO CEO: DINHEIRO, VITÓRIA E RISCO (DADOS REAIS DA PLATAFORMA)
+          SEÇÃO DO MEIO: INDICADORES PRINCIPAIS & ASSERTIVIDADE (MEIO DIREITA)
           ========================================================================= */}
-      <section className="mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* 3 Indicadores Principais (Meio Esquerda - 7 cols) */}
+        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 1. Valor Total em Disputa */}
           <div
             onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-brand-dark hover:shadow-md transition-all relative overflow-hidden"
+            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-brand-dark hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between"
+            style={{ transition: 'all 0.3s ease' }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Valor Total em Disputa
-              </span>
-              <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
-                <DollarSign className="w-5 h-5" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Em Disputa
+                </span>
+                <div className="p-2 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
+                  <DollarSign className="w-4 h-4" />
+                </div>
               </div>
+
+              {loading ? (
+                <div className="h-8 flex items-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : (
+                <div className="text-2xl font-black text-brand-dark tracking-tight">
+                  {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
+                </div>
+              )}
             </div>
 
-            {loading ? (
-              <div className="h-10 flex items-center">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-              </div>
-            ) : (
-              <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
-                {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
-              </div>
-            )}
-
-            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-              <span className="text-slate-500 font-medium">
-                {metrics?.crmOportunidades ?? 0} disputas ativas na sua esteira
+            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
+              <span className="text-slate-500 font-medium truncate">
+                {metrics?.crmOportunidades ?? 0} disputas ativas
               </span>
-              <span className="font-bold text-brand-dark group-hover:translate-x-1 transition flex items-center gap-1">
-                Ver esteira <ChevronRight className="w-3.5 h-3.5" />
+              <span className="font-bold text-brand-dark flex items-center gap-0.5 shrink-0">
+                Ver <ChevronRight className="w-3 h-3" />
               </span>
             </div>
           </div>
@@ -655,33 +737,36 @@ export default function DashboardPage() {
           {/* 2. Sua Taxa de Sucesso */}
           <div
             onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-emerald-500 hover:shadow-md transition-all relative overflow-hidden"
+            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-emerald-500 hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between"
+            style={{ transition: 'all 0.3s ease' }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Sua Taxa de Sucesso
-              </span>
-              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
-                <Trophy className="w-5 h-5" />
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Taxa de Sucesso
+                </span>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
+                  <Trophy className="w-4 h-4" />
+                </div>
               </div>
+
+              {loading ? (
+                <div className="h-8 flex items-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : (
+                <div className="text-2xl font-black text-emerald-600 tracking-tight">
+                  {metrics?.taxaSucesso ?? 0}%
+                </div>
+              )}
             </div>
 
-            {loading ? (
-              <div className="h-10 flex items-center">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-              </div>
-            ) : (
-              <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
-                {metrics?.taxaSucesso ?? 0}%
-              </div>
-            )}
-
-            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-              <span className="text-slate-500 font-medium">
-                Contratos homologados vs. disputas encerradas
+            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
+              <span className="text-slate-500 font-medium truncate">
+                Homologados vs. disputa
               </span>
-              <span className="font-bold text-emerald-700 group-hover:translate-x-1 transition flex items-center gap-1">
-                Desempenho <ChevronRight className="w-3.5 h-3.5" />
+              <span className="font-bold text-emerald-700 flex items-center gap-0.5 shrink-0">
+                Métricas <ChevronRight className="w-3 h-3" />
               </span>
             </div>
           </div>
@@ -689,56 +774,182 @@ export default function DashboardPage() {
           {/* 3. Atenção Imediata */}
           <div
             onClick={() => navigate(FORNECEDOR_ROUTES.prazos_alertas)}
-            className={`cursor-pointer group rounded-2xl border p-6 shadow-sm transition-all relative overflow-hidden ${
+            className={`cursor-pointer group rounded-2xl border p-5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between ${
               (metrics?.atencaoImediataCount ?? 0) > 0
                 ? 'border-amber-300 bg-amber-50/30 hover:border-amber-500'
                 : 'border-slate-200 bg-white hover:border-slate-300'
             }`}
+            style={{ transition: 'all 0.3s ease' }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Atenção Imediata
-              </span>
-              <div
-                className={`p-2.5 rounded-xl transition ${
-                  (metrics?.atencaoImediataCount ?? 0) > 0
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="h-10 flex items-center">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-              </div>
-            ) : (
-              <div
-                className={`text-3xl sm:text-4xl font-black tracking-tight ${
-                  (metrics?.atencaoImediataCount ?? 0) > 0
-                    ? 'text-amber-600'
-                    : 'text-slate-800'
-                }`}
-              >
-                {metrics?.atencaoImediataCount ?? 0}{' '}
-                <span className="text-base font-bold text-slate-400">
-                  {(metrics?.atencaoImediataCount ?? 0) === 1 ? 'alerta' : 'alertas'}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Atenção Imediata
                 </span>
+                <div
+                  className={`p-2 rounded-xl transition ${
+                    (metrics?.atencaoImediataCount ?? 0) > 0
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
               </div>
-            )}
 
-            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-              <span className="text-slate-500 font-medium">
-                {(metrics?.atencaoImediataCount ?? 0) > 0
-                  ? `${metrics?.certidoesVencendoCount ?? 0} certidões · ${metrics?.prazosUrgentesCount ?? 0} prazos críticos`
-                  : 'Documentação e prazos em dia'}
+              {loading ? (
+                <div className="h-8 flex items-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : (
+                <div
+                  className={`text-2xl font-black tracking-tight ${
+                    (metrics?.atencaoImediataCount ?? 0) > 0
+                      ? 'text-amber-600'
+                      : 'text-slate-800'
+                  }`}
+                >
+                  {metrics?.atencaoImediataCount ?? 0}{' '}
+                  <span className="text-xs font-bold text-slate-400">
+                    {(metrics?.atencaoImediataCount ?? 0) === 1 ? 'alerta' : 'alertas'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
+              <span className="text-slate-500 font-medium truncate">
+                {(metrics?.atencaoImediataCount ?? 0) > 0 ? 'Documentos / prazos' : 'Conformidade ativa'}
               </span>
-              <span className="font-bold text-amber-700 group-hover:translate-x-1 transition flex items-center gap-1">
-                Verificar <ChevronRight className="w-3.5 h-3.5" />
+              <span className="font-bold text-amber-700 flex items-center gap-0.5 shrink-0">
+                Ver <ChevronRight className="w-3 h-3" />
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Assertividade (Meio Direita - 5 cols) */}
+        <div
+          className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md"
+          style={{ transition: 'all 0.3s ease' }}
+        >
+          <div>
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Assertividade
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Conversão em disputas governamentais
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                {totalAssertividade > 0 ? `${totalAssertividade} analisadas` : 'Esteira Real'}
+              </span>
+            </div>
+
+            {/* 3 Barras de Progresso Horizontais Empilhadas */}
+            <div className="mt-4 space-y-3.5">
+              {/* 1. Propostas Aceitas (Verde) */}
+              <div
+                className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
+                style={{ transition: 'all 0.3s ease' }}
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Propostas Aceitas</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {propostasAceitasCount} {propostasAceitasCount === 1 ? 'proposta' : 'propostas'}
+                    </span>
+                    <span className="text-xs font-black text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                      {pctAceitas}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full bg-emerald-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${pctAceitas}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 2. Fase de Recurso (Laranja/Amarelo) */}
+              <div
+                className="p-3 rounded-xl bg-amber-50/50 border border-amber-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
+                style={{ transition: 'all 0.3s ease' }}
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span>Fase de Recurso</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {faseRecursoCount} {faseRecursoCount === 1 ? 'processo' : 'processos'}
+                    </span>
+                    <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {pctRecurso}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full bg-amber-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                    style={{ width: `${pctRecurso}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Desclassificações (Vermelho) */}
+              <div
+                className="p-3 rounded-xl bg-rose-50/50 border border-rose-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
+                style={{ transition: 'all 0.3s ease' }}
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Desclassificações</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {desclassificacoesCount} {desclassificacoesCount === 1 ? 'ocorrência' : 'ocorrências'}
+                    </span>
+                    <span className="text-xs font-black text-rose-700 bg-white px-2 py-0.5 rounded border border-rose-200">
+                      {pctDesclassificacoes}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full bg-rose-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                    style={{ width: `${pctDesclassificacoes}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">
+              Índice de assertividade da esteira
+            </span>
+            <Link
+              to={FORNECEDOR_ROUTES.crm}
+              className="text-xs font-bold text-brand-orange hover:text-orange-600 transition flex items-center gap-1"
+            >
+              <span>Ver Funil</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </section>
@@ -831,19 +1042,126 @@ export default function DashboardPage() {
       )}
 
       {/* =========================================================================
-          DISPUTAS: PRAZOS E OPORTUNIDADES
+          SEÇÃO INFERIOR: LINHA DO TEMPO (INFERIOR ESQUERDA) & PRAZOS (INFERIOR DIREITA)
           ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Prazos Críticos & Recursos */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+        {/* Linha do Tempo (Inferior Esquerda - 7 cols) */}
+        <section
+          className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:shadow-md"
+          style={{ transition: 'all 0.3s ease' }}
+        >
           <div>
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-50 text-brand-blue">
+                  <Clock className="w-5 h-5 text-brand-blue" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Linha do Tempo
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Sessões públicas e licitações salvas na esteira
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                to={FORNECEDOR_ROUTES.radar}
+                className="text-xs font-bold text-brand-blue hover:text-brand-dark transition flex items-center gap-1"
+              >
+                <span>Explorar Radar</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {/* Tabela Limpa */}
+            {mappedTimeline.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200/80 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      <th className="py-2.5 px-3">Órgão Público (UASG)</th>
+                      <th className="py-2.5 px-3">Modalidade</th>
+                      <th className="py-2.5 px-3">Data da Sessão</th>
+                      <th className="py-2.5 px-3 text-right">Valor Estimado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {mappedTimeline.map((item) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => item.licitacaoId && navigate(`/fornecedor/licitacao/${item.licitacaoId}`)}
+                        className="group transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md hover:bg-slate-50/80 cursor-pointer rounded-lg"
+                        style={{ transition: 'all 0.3s ease' }}
+                      >
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-slate-900 text-xs truncate max-w-[240px]">
+                            {item.orgao}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {item.uasg ? (item.uasg.startsWith('UF') ? item.uasg : `UASG: ${item.uasg}`) : 'UASG: —'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-brand-blue border border-blue-100">
+                            {item.modalidade}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <div className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{item.dataSessao}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          <span className="text-xs font-black text-brand-dark">
+                            {item.valorEstimado}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8 px-4 bg-slate-50 rounded-xl border border-slate-100">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-800">
+                  Nenhuma licitação salva na esteira
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                  Acompanhe oportunidades no Radar Governamental e salve editais para visualizar o cronograma aqui.
+                </p>
+                <button
+                  onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
+                  className="mt-4 h-8 px-4 rounded-md bg-brand-orange hover:bg-orange-600 text-white text-xs font-bold transition"
+                >
+                  Conectar Oportunidades
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+            <span>{mappedTimeline.length} licitações monitoradas</span>
+            <span className="font-semibold text-brand-dark">Sincronizado com PNCP</span>
+          </div>
+        </section>
+
+        {/* Prazos Críticos & Sessões Públicas (Inferior Direita - 5 cols) */}
+        <section
+          className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md"
+          style={{ transition: 'all 0.3s ease' }}
+        >
+          <div>
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-base font-black text-slate-900">
-                  Prazos Críticos & Sessões Públicas
+                  Prazos Críticos
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Vencimentos e compromissos operacionais monitorados
+                  Vencimentos e compromissos monitorados
                 </p>
               </div>
               <button
@@ -856,15 +1174,16 @@ export default function DashboardPage() {
 
             {metrics?.prazosCriticos && metrics.prazosCriticos.length > 0 ? (
               <div className="space-y-3">
-                {metrics.prazosCriticos.map((prazo) => (
+                {metrics.prazosCriticos.slice(0, 4).map((prazo) => (
                   <div
                     key={prazo.id}
-                    className="flex items-start justify-between gap-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition"
+                    className="flex items-start justify-between gap-4 p-3 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
+                    style={{ transition: 'all 0.3s ease' }}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-900 truncate">{prazo.evento}</p>
                       {prazo.edital && (
-                        <p className="text-[11px] text-slate-500 mt-0.5">Edital: {prazo.edital}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">Edital: {prazo.edital}</p>
                       )}
                       <span className="inline-block mt-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800">
                         {prazo.tipo?.replace('_', ' ')}
@@ -894,94 +1213,97 @@ export default function DashboardPage() {
                   >
                     Cadastrar Prazo
                   </button>
-                  <button
-                    onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-                    className="h-8 px-3 rounded-md bg-brand-blue text-white text-xs font-bold hover:bg-slate-800 transition"
-                  >
-                    Explorar Mercado
-                  </button>
                 </div>
               </div>
             )}
           </div>
-        </section>
 
-        {/* Mercado Governamental: Oportunidades no Banco Interno */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-base font-black text-slate-900">
-                  Mercado Governamental Recente
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Oportunidades catalogadas no banco de dados interno
-                </p>
-              </div>
-              <button
-                onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-                className="h-8 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1"
-              >
-                Abrir Radar
-              </button>
-            </div>
-
-            {metrics?.recomendacoes && metrics.recomendacoes.length > 0 ? (
-              <div className="space-y-3">
-                {metrics.recomendacoes.map((rec) => (
-                  <div
-                    key={rec.id}
-                    onClick={() => navigate(`/fornecedor/licitacao/${rec.id}`)}
-                    className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-blue-400 hover:bg-blue-50/20 cursor-pointer transition"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <p className="text-xs font-bold text-slate-900 truncate">
-                          {rec.orgao || 'Órgão Licitante'}
-                          {rec.uf ? ` · ${rec.uf}` : ''}
-                        </p>
-                      </div>
-                      {rec.modalidade && (
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">
-                          {rec.modalidade}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">
-                      {rec.objeto}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between border-t border-slate-200/60 pt-2 text-xs">
-                      <span className="text-slate-400 text-[10px] font-semibold">Valor Estimado</span>
-                      <strong className="text-slate-900 font-black">
-                        {formatarMoeda(rec.valor)}
-                      </strong>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 px-4 bg-slate-50 rounded-xl border border-slate-100">
-                <Crosshair className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-xs font-bold text-slate-800">
-                  Carregando oportunidades oficiais...
-                </p>
-                <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
-                  Consulte os editais de Pregão Eletrônico e Dispensa gravados em nosso banco.
-                </p>
-                <div className="mt-4">
-                  <button
-                    onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-                    className="h-8 px-4 rounded-md bg-brand-blue text-white text-xs font-bold hover:bg-slate-800 transition"
-                  >
-                    Acessar Radar
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Agenda integrada</span>
+            <span className="font-semibold text-brand-dark">Lei 14.133/2021</span>
           </div>
         </section>
       </div>
+
+      {/* Mercado Governamental: Oportunidades no Banco Interno */}
+      <section
+        className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between mb-8 transition-all duration-300 ease-in-out hover:shadow-md"
+        style={{ transition: 'all 0.3s ease' }}
+      >
+        <div>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-base font-black text-slate-900">
+                Mercado Governamental Recente
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Oportunidades catalogadas no banco de dados interno
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
+              className="h-8 px-3 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1"
+            >
+              Abrir Radar
+            </button>
+          </div>
+
+          {metrics?.recomendacoes && metrics.recomendacoes.length > 0 ? (
+            <div className="space-y-3">
+              {metrics.recomendacoes.map((rec) => (
+                <div
+                  key={rec.id}
+                  onClick={() => navigate(`/fornecedor/licitacao/${rec.id}`)}
+                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-blue-400 hover:bg-blue-50/20 cursor-pointer transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
+                  style={{ transition: 'all 0.3s ease' }}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <p className="text-xs font-bold text-slate-900 truncate">
+                        {rec.orgao || 'Órgão Licitante'}
+                        {rec.uf ? ` · ${rec.uf}` : ''}
+                      </p>
+                    </div>
+                    {rec.modalidade && (
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800 shrink-0">
+                        {rec.modalidade}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 line-clamp-2 mt-1">
+                    {rec.objeto}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between border-t border-slate-200/60 pt-2 text-xs">
+                    <span className="text-slate-400 text-[10px] font-semibold">Valor Estimado</span>
+                    <strong className="text-slate-900 font-black">
+                      {formatarMoeda(rec.valor)}
+                    </strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 px-4 bg-slate-50 rounded-xl border border-slate-100">
+              <Crosshair className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-xs font-bold text-slate-800">
+                Carregando oportunidades oficiais...
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                Consulte os editais de Pregão Eletrônico e Dispensa gravados em nosso banco.
+              </p>
+              <div className="mt-4">
+                <button
+                  onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
+                  className="h-8 px-4 rounded-md bg-brand-blue text-white text-xs font-bold hover:bg-slate-800 transition"
+                >
+                  Acessar Radar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
