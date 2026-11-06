@@ -18,7 +18,7 @@ interface RequisitoEdital {
 }
 
 export const AnaliseOportunidadePage: React.FC = () => {
-  const [valorProposta, setValorProposta] = useState<number>(450000);
+  const [valorProposta, setValorProposta] = useState<number | ''>('');
   const [prazoExecucaoDias, setPrazoExecucaoDias] = useState<number>(30);
   const [margemEstimada, setMargemEstimada] = useState<number>(15);
 
@@ -61,7 +61,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-8">
-      
+
       {/* CABEÇALHO */}
       <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -80,17 +80,16 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
         {/* DECISÃO FINAL EM DESTAQUE */}
         <div className="flex items-center gap-3">
-          <div className={`px-5 py-3 rounded-xl border shadow-sm flex items-center gap-3 ${
-            resultadoMatriz.decisao === 'GO' 
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
-              : resultadoMatriz.decisao === 'ALERTA' 
-              ? 'bg-amber-50 border-amber-200 text-amber-900' 
-              : 'bg-rose-50 border-rose-200 text-rose-900'
-          }`}>
+          <div className={`px-5 py-3 rounded-xl border shadow-sm flex items-center gap-3 ${resultadoMatriz.decisao === 'GO'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : resultadoMatriz.decisao === 'ALERTA'
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                : 'bg-rose-50 border-rose-200 text-rose-900'
+            }`}>
             {resultadoMatriz.decisao === 'GO' && <CheckCircle className="text-emerald-600" size={28} />}
             {resultadoMatriz.decisao === 'ALERTA' && <AlertTriangle className="text-amber-600" size={28} />}
             {resultadoMatriz.decisao === 'NO_GO' && <XCircle className="text-rose-600" size={28} />}
-            
+
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider block opacity-70">
                 Parecer Técnico Final
@@ -107,7 +106,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
       {/* PAINEL PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* COLUNA DA ESQUERDA: CHECKLIST DE EDITAL */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -122,14 +121,13 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
           <div className="space-y-3">
             {requisitos.map((req) => (
-              <div 
+              <div
                 key={req.id}
                 onClick={() => toggleRequisito(req.id)}
-                className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
-                  req.atendido 
-                    ? 'bg-slate-50/50 border-slate-200 hover:border-slate-300' 
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${req.atendido
+                    ? 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
                     : 'bg-rose-50/30 border-rose-200 hover:border-rose-300'
-                }`}
+                  }`}
               >
                 <button className="mt-0.5 text-slate-700">
                   {req.atendido ? (
@@ -159,7 +157,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
         {/* COLUNA DA DIREITA: PARÂMETROS OPERACIONAIS & DIAGNÓSTICO */}
         <div className="lg:col-span-5 space-y-6">
-          
+
           {/* CARD DE PARÂMETROS */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
@@ -168,10 +166,11 @@ export const AnaliseOportunidadePage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Valor Estimado do Contrato</label>
-              <input 
+              <input
                 type="number"
                 value={valorProposta}
-                onChange={(e) => setValorProposta(parseFloat(e.target.value) || 0)}
+                placeholder="0,00"
+                onChange={(e) => setValorProposta(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0A2540]"
               />
             </div>
@@ -179,7 +178,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Prazo Execução (Dias)</label>
-                <input 
+                <input
                   type="number"
                   value={prazoExecucaoDias}
                   onChange={(e) => setPrazoExecucaoDias(parseInt(e.target.value) || 0)}
@@ -188,7 +187,7 @@ export const AnaliseOportunidadePage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Margem Líquida (%)</label>
-                <input 
+                <input
                   type="number"
                   value={margemEstimada}
                   onChange={(e) => setMargemEstimada(parseFloat(e.target.value) || 0)}
