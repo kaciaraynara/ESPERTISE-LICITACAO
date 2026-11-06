@@ -21,9 +21,10 @@ const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => 
   Promise.resolve(handler(req, res, next)).catch(next);
 };
 
-router.use(authRateLimit);
+// Rate limit estritamente isolado no POST /login para prevenção de brute force
+// Rotas internas, sessões, /me e refresh não possuem rate limit global.
 router.post('/register', handle(controller.register.bind(controller) as RequestHandler));
-router.post('/login', handle(controller.login.bind(controller) as RequestHandler));
+router.post('/login', authRateLimit, handle(controller.login.bind(controller) as RequestHandler));
 router.post('/refresh', handle(controller.refresh.bind(controller) as RequestHandler));
 router.post('/logout', handle(controller.logout.bind(controller) as RequestHandler));
 router.post('/forgot-password', handle(controller.forgotPassword.bind(controller) as RequestHandler));

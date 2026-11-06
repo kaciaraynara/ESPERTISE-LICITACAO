@@ -1,6 +1,5 @@
 import { Router, RequestHandler } from 'express';
 import { prisma } from '../database/prisma';
-import { rateLimit } from 'express-rate-limit';
 import { AIController } from '../controllers/ai.controller';
 import { AuditAdminController } from '../controllers/audit-admin.controller';
 import { DataPlatformAdminController } from '../controllers/data-platform-admin.controller';
@@ -182,37 +181,13 @@ router.get('/health/readiness', async (_req, res) => {
 });
 
 // ==========================================
-// 2. MIDDLEWARE DE AUTENTICAÇÃO E RATE LIMIT
+// 2. MIDDLEWARE DE AUTENTICAÇÃO E CONTEXTO DE EMPRESA
+// (Rate limit global removido: rotas internas como /certidoes, /editais, /dashboard
+//  não possuem rate limit para evitar erros 429 no front-end)
 // ==========================================
 
 router.use(authMiddleware as RequestHandler);
 router.use(companyContextMiddleware as RequestHandler);
-
-router.use(
-  rateLimit({
-    windowMs:
-      Number(process.env.USER_RATE_LIMIT_WINDOW_MS) ||
-      15 * 60 * 1000,
-
-    max:
-      Number(process.env.USER_RATE_LIMIT_MAX) ||
-      300,
-
-    standardHeaders: true,
-    legacyHeaders: false,
-
-    // Store em memória nativo de alta performance (Zero escritas no PostgreSQL)
-    keyGenerator: (req) =>
-      `user:${(req as AuthRequest).user!.id}`,
-
-    message: {
-      success: false,
-      code: 'USER_RATE_LIMIT_EXCEEDED',
-      message:
-        'Limite de requisições da conta excedido. Tente novamente mais tarde.',
-    },
-  }),
-);
 
 // ==========================================
 // ROLES HELPERS

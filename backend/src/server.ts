@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import { rateLimit } from 'express-rate-limit';
 import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './config/openapi';
@@ -88,20 +87,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
   customSiteTitle: 'EXPERTISE API',
 }));
 
-// 4. Rate Limiter Global
-app.use(rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: Number(process.env.RATE_LIMIT_MAX) || 1000,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    code: 'RATE_LIMIT_EXCEEDED',
-    message: 'Muitas requisições deste IP. Tente novamente mais tarde.',
-  },
-}));
-
-// 5. Parser de Body (DEVE vir antes do registro das rotas)
+// 4. Parser de Body (DEVE vir antes do registro das rotas)
 app.use(express.json({
   limit: '10mb',
   verify: (req: any, _res, buffer) => {
