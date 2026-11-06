@@ -52,7 +52,7 @@ function formatDateBR(dateStr?: string | null): string {
 export function GestaoContratualPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, companyId } = useCompany();
 
   // Permissão exclusiva do Plano Master para o Assistente de Reequilíbrio/Repactuação e Robô de Reajuste
   const hasMasterReajuste =
@@ -126,18 +126,22 @@ export function GestaoContratualPage() {
             valorTotalAtivo: 0,
           },
         );
-        const selectedContract =
-          payload.contratos?.find((contract) => contract.id === selectedContractId) ||
-          payload.contratos?.[0];
-        if (selectedContract && selectedContract.id !== selectedContractId) {
-          setSelectedContractId(selectedContract.id);
-          setIndiceAplicado(selectedContract.indiceReajuste || 'IPCA');
-          setTipoPleito(
-            selectedContract.dedicacaoExclusiva || selectedContract.predominanciaMaoDeObra
-              ? 'REPACTUACAO'
-              : 'REAJUSTE',
-          );
-        }
+        setSelectedContractId((prev) => {
+          if (prev && payload.contratos?.some((contract) => contract.id === prev)) {
+            return prev;
+          }
+          const selectedContract = payload.contratos?.[0];
+          if (selectedContract) {
+            setIndiceAplicado(selectedContract.indiceReajuste || 'IPCA');
+            setTipoPleito(
+              selectedContract.dedicacaoExclusiva || selectedContract.predominanciaMaoDeObra
+                ? 'REPACTUACAO'
+                : 'REAJUSTE',
+            );
+            return selectedContract.id;
+          }
+          return '';
+        });
       }
     } catch (err: any) {
       toast.error(
@@ -146,11 +150,12 @@ export function GestaoContratualPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedContractId]);
+  }, []);
 
   useEffect(() => {
+    if (!companyId) return;
     void carregarContratos();
-  }, [carregarContratos, selectedCompany?.id]);
+  }, [companyId]);
 
   const contratoSelecionado = useMemo(
     () => contratos.find((c) => c.id === selectedContractId) || null,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowClockwise,
   CalendarCheck,
@@ -127,17 +127,21 @@ export function PainelGestaoContratual({
   const [erroGarantias, setErroGarantias] = useState('');
   const [baixandoGarantiaId, setBaixandoGarantiaId] = useState<string | null>(null);
 
+  const onUpgradeRef = useRef(onUpgrade);
+  onUpgradeRef.current = onUpgrade;
+
   const carregarGarantias = useCallback(async () => {
     if (!acessoGarantias) return;
     setLoadingGarantias(true);
     setErroGarantias('');
     try {
       const response = await contratosApi.listarGarantias();
-      setGarantias(response.data.data.garantias);
-      setTotalRetido(response.data.data.totalRetido);
+      const payload = response.data?.data;
+      setGarantias(Array.isArray(payload?.garantias) ? payload.garantias : []);
+      setTotalRetido(typeof payload?.totalRetido === 'number' ? payload.totalRetido : 0);
     } catch (error: unknown) {
       if (axios.isAxiosError<{ message?: string }>(error) && error.response?.status === 403) {
-        onUpgrade();
+        onUpgradeRef.current?.();
         return;
       }
       const message = axios.isAxiosError<{ message?: string }>(error)
@@ -148,7 +152,7 @@ export function PainelGestaoContratual({
     } finally {
       setLoadingGarantias(false);
     }
-  }, [acessoGarantias, onUpgrade]);
+  }, [acessoGarantias]);
 
   useEffect(() => {
     setGarantias([]);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { propostasApi, empresasApi, ProposalDto } from '@/services/api';
+import { propostasApi, ProposalDto } from '@/services/api';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
 import { useCompany } from '@/contexts/CompanyContext';
 
@@ -28,7 +28,7 @@ interface CalendarEvent {
 
 export const PropostasPage: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, companyId: activeCompanyId, companies } = useCompany();
   const [searchParams] = useSearchParams();
   const editalUrlParam = searchParams.get('edital') || searchParams.get('id');
 
@@ -75,38 +75,32 @@ export const PropostasPage: React.FC = () => {
   }), [propostas]);
 
   // Carregamento de Propostas Reais
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     setCarregandoDados(true);
     try {
-      const [resProp, resEmp] = await Promise.all([
-        propostasApi.listar(),
-        empresasApi.listar(),
-      ]);
-
+      const resProp = await propostasApi.listar();
       const lista = resProp.data?.data || [];
       setPropostas(Array.isArray(lista) ? lista : []);
 
-      const comps = resEmp.data?.data || resEmp.data || [];
-      if (Array.isArray(comps)) {
-        setEmpresas(comps);
-        const activeCompany = comps.find((company) => company.id === selectedCompany?.id);
-        if (activeCompany) {
-          setCompanyId(activeCompany.id);
-        } else if (comps.length > 0 && !companyId) {
-          setCompanyId(comps[0].id);
+      if (Array.isArray(companies) && companies.length > 0) {
+        setEmpresas(companies);
+        if (activeCompanyId) {
+          setCompanyId(activeCompanyId);
+        } else {
+          setCompanyId(companies[0].id);
         }
       }
     } catch (error) {
-      console.error('[PropostasPage] Falha ao carregar propostas e empresas:', error);
-      toast.error('Não foi possível carregar propostas e empresas. Tente novamente.');
+      console.error('[PropostasPage] Falha ao carregar propostas:', error);
+      toast.error('Não foi possível carregar as propostas. Tente novamente.');
     } finally {
       setCarregandoDados(false);
     }
-  };
+  }, [activeCompanyId, companies]);
 
   useEffect(() => {
-    carregarDados();
-  }, []);
+    void carregarDados();
+  }, [activeCompanyId]);
 
   // Criação manual
   const handleCriarManual = async (e: React.FormEvent) => {

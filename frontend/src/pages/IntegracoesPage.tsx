@@ -38,7 +38,7 @@ function normalizeHealthPayload(payload: any): HealthItem[] {
     })) as HealthItem[];
   }
 
-  throw new Error('Não foi possível verificar o estado dos serviços.');
+  return [];
 }
 
 export default function IntegracoesPage() {
@@ -50,7 +50,7 @@ export default function IntegracoesPage() {
     queryFn: async () => {
       const response = await integracoesApi.catalogo();
       if (!Array.isArray(response.data?.data)) {
-        throw new Error('Não foi possível carregar a lista de serviços. Tente novamente.');
+        return [];
       }
       return response.data.data as Fonte[];
     },

@@ -141,11 +141,15 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
     });
 
     useEffect(() => {
+        if (!modalidadeInicial) return;
         setModalidadeSel(modalidadeInicial);
-        setFiltrosAplicados((prev) => ({
-            ...prev,
-            modalidade: modalidadeInicial,
-        }));
+        setFiltrosAplicados((prev) => {
+            if (prev.modalidade === modalidadeInicial) return prev;
+            return {
+                ...prev,
+                modalidade: modalidadeInicial,
+            };
+        });
     }, [modalidadeInicial]);
 
     const [showFiltros, setShowFiltros] = useState(true);
@@ -213,7 +217,8 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 if (!active) return;
                 const detail = response.data?.data;
                 if (!detail || typeof detail !== 'object') {
-                    throw new Error('Não foi possível carregar os detalhes do edital.');
+                    setErroDetalhesEdital('Não foi possível carregar os detalhes do edital.');
+                    return;
                 }
                 setEditalSelecionado((current) => current?.id === noticeId
                     ? {

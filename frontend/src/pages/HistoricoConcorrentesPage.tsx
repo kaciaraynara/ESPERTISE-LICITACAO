@@ -181,17 +181,18 @@ export function HistoricoConcorrentesPage() {
     }
   };
 
+  const buscaParam = searchParams.get('busca');
+
   useEffect(() => {
-    const buscaParam = searchParams.get('busca');
     if (buscaParam) {
       const decoded = decodeURIComponent(buscaParam).trim();
       setCnpjInput(decoded);
       const digits = normalizarCnpj(decoded);
-      if (digits.length === 14) {
+      if (digits.length === 14 && dossie?.cnpj !== digits) {
         consultarCnpj(digits);
       }
     }
-  }, [searchParams]);
+  }, [buscaParam]);
 
   // Análise de Perfil de Desconto & Modalidade Dominante
   const pregaoCount = dossie?.contratos.filter(c =>

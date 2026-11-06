@@ -45,22 +45,24 @@ export const DispensaEletronicaPage: React.FC = () => {
   const LIMITE_COMPRAS = 59906.02;
   const LIMITE_ENGENHARIA = 119812.02;
 
-  const carregarDispensas = async () => {
+  const carregarDispensas = async (sync = false) => {
     setLoading(true);
     try {
-      try {
-        await licitacoesApi.sincronizar({
-          palavraChave: busca.trim() || undefined,
-          modalidade: 8,
-          uf: ufSelecionada !== 'TODOS' ? ufSelecionada : undefined,
-          pagina: 1,
-          tamanhoPagina: 50,
-        });
-      } catch (syncError: any) {
-        toast.error(
-          syncError?.response?.data?.message
-          || 'Não foi possível atualizar agora os dados oficiais do PNCP. Tentando exibir os últimos resultados salvos.',
-        );
+      if (sync) {
+        try {
+          await licitacoesApi.sincronizar({
+            palavraChave: busca.trim() || undefined,
+            modalidade: 8,
+            uf: ufSelecionada !== 'TODOS' ? ufSelecionada : undefined,
+            pagina: 1,
+            tamanhoPagina: 50,
+          });
+        } catch (syncError: any) {
+          toast.error(
+            syncError?.response?.data?.message
+            || 'Não foi possível atualizar agora os dados oficiais do PNCP. Exibindo os últimos resultados salvos.',
+          );
+        }
       }
 
       const res = await licitacoesApi.listar({
@@ -94,7 +96,7 @@ export const DispensaEletronicaPage: React.FC = () => {
   };
 
   useEffect(() => {
-    carregarDispensas();
+    void carregarDispensas(false);
   }, [ufSelecionada]);
 
   const formatarMoeda = (val: number | null | undefined) =>

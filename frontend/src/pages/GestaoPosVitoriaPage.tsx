@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useCompany } from '../contexts/CompanyContext';
 import {
   Vault,
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
 } from '../types/guarantees.types';
 
 export default function GestaoPosVitoriaPage() {
+  const { companyId } = useCompany();
   const [loading, setLoading] = useState<boolean>(true);
   const [guarantees, setGuarantees] = useState<GarantiaItem[]>([]);
   const [summary, setSummary] = useState<GuaranteesSummary>({
@@ -52,7 +54,7 @@ export default function GestaoPosVitoriaPage() {
     observacoes: '',
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await guaranteesService.getGuarantees();
@@ -64,11 +66,12 @@ export default function GestaoPosVitoriaPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!companyId) return;
+    void loadData();
+  }, [companyId, loadData]);
 
   const handleCreateGuarantee = async (e: React.FormEvent) => {
     e.preventDefault();

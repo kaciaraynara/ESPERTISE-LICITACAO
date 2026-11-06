@@ -208,12 +208,12 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       if (stored && normalizedList.some((c: Company) => c.id === stored!.id)) {
         const currentMatch = normalizedList.find((c: Company) => c.id === stored!.id)!;
-        setSelectedCompanyState(currentMatch);
+        setSelectedCompanyState((prev) => (prev?.id === currentMatch.id && prev?.cnpj === currentMatch.cnpj ? prev : currentMatch));
         if (typeof window !== 'undefined') {
           localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(currentMatch));
         }
       } else if (normalizedList.length > 0) {
-        setSelectedCompanyState(normalizedList[0]);
+        setSelectedCompanyState((prev) => (prev?.id === normalizedList[0].id && prev?.cnpj === normalizedList[0].cnpj ? prev : normalizedList[0]));
         if (typeof window !== 'undefined') {
           localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalizedList[0]));
         }

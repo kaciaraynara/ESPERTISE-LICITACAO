@@ -40,8 +40,12 @@ export const LexAnalisePage: React.FC = () => {
             toast.error('A IA concluiu sem retornar uma análise.');
           }
         },
-        onError: (err) => {
-          throw err;
+        onError: (err: any) => {
+          toast.error(err?.message?.includes('403')
+            ? 'Seu plano não permite executar esta análise.'
+            : 'Não foi possível analisar o edital. Nenhum resultado demonstrativo será exibido.');
+          setAnalisando(false);
+          setIsAuditStreaming(false);
         },
       });
     } catch (err: any) {

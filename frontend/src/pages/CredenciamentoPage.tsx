@@ -11,7 +11,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { empresasApi } from '@/services/api';
+import { useCompany } from '@/contexts/CompanyContext';
 
 interface PortalCredenciamento {
   id: string;
@@ -33,24 +33,16 @@ interface NivelSicaf {
 }
 
 export const CredenciamentoPage: React.FC = () => {
-  const [empresaSelecionada, setEmpresaSelecionada] = useState<any>(null);
+  const { selectedCompany, companyId } = useCompany();
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<any>(selectedCompany);
   const portais: PortalCredenciamento[] = [];
   const niveisSicaf: NivelSicaf[] = [];
 
   useEffect(() => {
-    empresasApi
-      .listar()
-      .then((res) => {
-        const list = res.data?.data || res.data || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setEmpresaSelecionada(list[0]);
-        }
-      })
-      .catch((error) => {
-        console.error('[Credenciamento] Falha ao carregar empresas.', error);
-        toast.error('Não foi possível carregar os dados da empresa.');
-      });
-  }, []);
+    if (selectedCompany) {
+      setEmpresaSelecionada(selectedCompany);
+    }
+  }, [companyId]);
 
   const handleSincronizarPortais = () => {
     toast.error('A sincronização com portais oficiais ainda não está integrada. Nenhum dado foi consultado.');

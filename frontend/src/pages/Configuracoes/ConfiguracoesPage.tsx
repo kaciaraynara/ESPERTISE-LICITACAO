@@ -87,7 +87,7 @@ export default function ConfiguracoesPage() {
         whatsapp: authUser?.telefone || prev.whatsapp || '',
       }));
     }
-  }, [empresa, authUser?.telefone]);
+  }, [empresa?.id, authUser?.telefone]);
 
   const {
     isLoading: isBuscandoCnpj,

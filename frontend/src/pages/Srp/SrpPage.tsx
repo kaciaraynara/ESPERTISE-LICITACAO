@@ -47,23 +47,25 @@ export const SrpPage: React.FC = () => {
   const [erro, setErro] = useState<string | null>(null);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
 
-  const carregarEditais = useCallback(async (termo = '') => {
+  const carregarEditais = useCallback(async (termo = '', sync = false) => {
     setCarregando(true);
     setErro(null);
 
     try {
-      try {
-        await licitacoesApi.sincronizar({
-          srp: true,
-          palavraChave: termo.trim() || undefined,
-          pagina: 1,
-          tamanhoPagina: 50,
-        });
-      } catch (syncError: any) {
-        setErro(
-          syncError.response?.data?.message
-          || 'Falha ao atualizar agora os editais no PNCP. Exibindo os registros já sincronizados.',
-        );
+      if (sync) {
+        try {
+          await licitacoesApi.sincronizar({
+            srp: true,
+            palavraChave: termo.trim() || undefined,
+            pagina: 1,
+            tamanhoPagina: 50,
+          });
+        } catch (syncError: any) {
+          setErro(
+            syncError.response?.data?.message
+            || 'Falha ao atualizar agora os editais no PNCP. Exibindo os registros já sincronizados.',
+          );
+        }
       }
 
       const resposta = await licitacoesApi.listar({
@@ -72,11 +74,8 @@ export const SrpPage: React.FC = () => {
         pagina: 1,
         tamanhoPagina: 50,
       });
-      const itens = resposta.data?.data;
-
-      if (!Array.isArray(itens)) {
-        throw new Error('Não foi possível carregar as atas de registro de preços.');
-      }
+      const raw = resposta.data?.data;
+      const itens = Array.isArray(raw) ? raw : [];
 
       setAtas(itens.filter((item: AtaRegistroPreco) => item.srp === true));
       setAtualizadoEm(new Date());
@@ -93,7 +92,7 @@ export const SrpPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void carregarEditais();
+    void carregarEditais('', false);
   }, [carregarEditais]);
 
   const handleBuscar = (event: React.FormEvent) => {

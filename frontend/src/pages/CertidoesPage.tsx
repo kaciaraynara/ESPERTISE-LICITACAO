@@ -30,7 +30,7 @@ export interface CertidaoItem {
 }
 
 export const CertidoesPage: React.FC = () => {
-  const { selectedCompany } = useCompany();
+  const { selectedCompany, companyId } = useCompany();
   const [empresa, setEmpresa] = useState<Company | null>(selectedCompany);
   const [certidoes, setCertidoes] = useState<CertidaoItem[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -42,7 +42,7 @@ export const CertidoesPage: React.FC = () => {
     setErroCarregamento(null);
     setEmpresa(company);
     try {
-      if (!company) {
+      if (!company?.id) {
         setCertidoes([]);
         return;
       }
@@ -61,8 +61,9 @@ export const CertidoesPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!companyId) return;
     void carregarCertidoes(selectedCompany);
-  }, [carregarCertidoes, selectedCompany]);
+  }, [companyId]);
 
   const sincronizarCertidoes = async () => {
     if (!selectedCompany || sincronizando) return;
