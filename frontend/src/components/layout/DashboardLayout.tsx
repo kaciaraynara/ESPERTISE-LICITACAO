@@ -1,12 +1,10 @@
-import { CalendarBlank, List, SignOut, X } from '@phosphor-icons/react';
+import { SignOut } from '@phosphor-icons/react';
 import { useEffect, useState, Suspense } from 'react';
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import BrandLogo from '@components/brand/BrandLogo';
 import { useLogout } from '../../hooks';
 import { useAuthStore } from '../../store/auth.store';
-import { getUserDisplayName, getUserInitial } from '../../utils';
 import Sidebar, { hasActivePaidPlan, isUserTrialActive } from './Sidebar';
-import CompanySelector from './CompanySelector';
+import Header from './Header';
 import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
 import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
@@ -14,19 +12,6 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { FORNECEDOR_ROUTES } from '../../routes';
-
-const PAGE_LABELS: Record<string, string> = {
-  '/fornecedor/dashboard': 'Página Inicial',
-  '/fornecedor/radar': 'Buscar Oportunidades',
-  '/fornecedor/disputas': 'Gestão de Disputas',
-  '/fornecedor/crm': 'Gestão de Disputas',
-  '/fornecedor/propostas': 'Gerador de Propostas',
-  '/fornecedor/catalogo': 'Catálogo de Produtos',
-  '/fornecedor/historico-concorrentes': 'Histórico de Concorrentes',
-  '/fornecedor/documentos': 'Meus Documentos',
-  '/fornecedor/contratos': 'Gestão Contratual Pós-Vitória',
-  '/fornecedor/gestao-pos-vitoria': 'Garantias & Gestão Pós-Vitória',
-};
 
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,16 +21,7 @@ export default function DashboardLayout() {
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
   const activePlanId = useAuthStore((state) => state.activePlanId);
-  const displayName = getUserDisplayName(user, 'Fornecedor');
-  const initial = getUserInitial(user, 'F');
   const groups = resolveProfileNavigation(user?.role, user);
-  const pageLabel = PAGE_LABELS[location.pathname] || 'Área do fornecedor';
-  const dateLabel = new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date());
 
   const isTrialActive = isUserTrialActive(user);
   const hasPaidPlan = hasActivePaidPlan(user, activePlanId);
@@ -74,61 +50,10 @@ export default function DashboardLayout() {
       <Sidebar />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-30 flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 shadow-sm sm:px-8 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-navigation"
-              aria-label={mobileMenuOpen ? 'Fechar navegação' : 'Abrir navegação'}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-brand-blue md:hidden"
-            >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5" weight="bold" />
-              ) : (
-                <List className="h-5 w-5" weight="bold" />
-              )}
-            </button>
-
-            <Link
-              to="/fornecedor/dashboard"
-              className="flex items-center gap-2 md:hidden"
-              aria-label="EXPERTISE Licitatória, Página Inicial"
-            >
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-0.5">
-                <BrandLogo imageClassName="h-full w-full object-contain" />
-              </div>
-              <span className="hidden text-sm font-black tracking-[0.16em] text-brand-blue sm:block">
-                EXPERTISE
-              </span>
-            </Link>
-
-            <div className="hidden min-w-0 items-center gap-3 md:flex">
-              <span className="h-7 w-1 rounded-full bg-brand-orange" aria-hidden="true" />
-              <p className="truncate text-sm font-black text-brand-blue">{pageLabel}</p>
-            </div>
-          </div>
-
-          <div className="flex min-w-0 items-center gap-3">
-            <div data-tour="company-selector">
-              <CompanySelector />
-            </div>
-            <p className="hidden items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 md:flex">
-              <CalendarBlank className="h-4 w-4" weight="bold" aria-hidden="true" />
-              <span className="first-letter:uppercase">{dateLabel}</span>
-            </p>
-            <div className="hidden min-w-0 text-right sm:block">
-              <p className="max-w-52 truncate text-sm font-black text-slate-900">{displayName}</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Conta autenticada
-              </p>
-            </div>
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-orange text-sm font-black text-white">
-              {initial}
-            </span>
-          </div>
-        </header>
+        <Header
+          onToggleMobileMenu={() => setMobileMenuOpen((open) => !open)}
+          mobileMenuOpen={mobileMenuOpen}
+        />
 
         {mobileMenuOpen ? (
           <div

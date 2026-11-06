@@ -9,6 +9,7 @@ export interface User {
   telefone: string | null;
   plano: PlanoUsuario;
   planType?: 'BASIC' | 'MEDIUM' | 'MASTER' | string | null;
+  planLevel?: string | null;
   cnpjsRegistered?: number;
   monthlyAnalysesUsed?: number;
   monthlyProposalsUsed?: number;

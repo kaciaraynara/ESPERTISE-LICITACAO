@@ -189,6 +189,8 @@ export const LexFloatingWidget: React.FC = () => {
         <button
           data-tour="lex-assistant"
           onClick={() => setIsOpen(true)}
+          title="Lex"
+          aria-label="Lex"
           className="group flex items-center gap-2.5 bg-brand-dark hover:bg-slate-800 text-white px-4 py-3 rounded-full shadow-2xl border-2 border-brand-orange transition-all transform hover:scale-105 cursor-pointer"
         >
           <div className="relative">
