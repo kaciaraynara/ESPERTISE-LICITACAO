@@ -24,12 +24,11 @@ import {
   CreditCard,
   Gear,
   SignOut,
-  CaretLeft,
   CaretDown,
   type Icon,
 } from '@phosphor-icons/react';
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import BrandLogo from '@components/brand/BrandLogo';
@@ -218,6 +217,7 @@ export interface StrategicHubConfig {
 
 /**
  * AS 4 CENTRAIS ESTRATÉGICAS DO COMMAND CENTER ENTERPRISE
+ * Rigorosamente limpas de termos proibidos (zero badges de IA, GPT, RAG, AUTO, RÁPIDO).
  */
 const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
@@ -240,9 +240,9 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     subtitle: 'Operação ao Vivo & Lances',
     icon: Kanban,
     items: [
-      { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit & Split Payment', icon: Lightning, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit de Disputas', icon: Lightning, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Sala de Disputas (CRM Kanban)', icon: Kanban, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô Estratégico de Lances', icon: Robot, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
@@ -250,17 +250,17 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
   },
   {
     id: 'contencioso',
-    label: 'Contencioso & Defesas (Lex)',
+    label: 'Contencioso & Defesas',
     subtitle: 'Segurança Jurídica 14.133',
     icon: Scales,
     items: [
       { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ia_avancada' },
-      { path: FORNECEDOR_ROUTES.impugnacao, label: 'Preparar Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico', icon: Brain, requiredFeature: 'lex_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitura e Análise de Editais', icon: Article, requiredFeature: 'resumo_edital_completo' },
-      { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades & Restrições', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
-      { path: FORNECEDOR_ROUTES.academia, label: 'Academia & Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
+      { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitura de Editais', icon: Article, requiredFeature: 'resumo_edital_completo' },
+      { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
+      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },
   {
@@ -298,20 +298,25 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
       to={item.path}
       aria-current={active ? 'page' : undefined}
       title={isCollapsed ? item.label : undefined}
-      className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2' : 'px-3 py-2 gap-2.5'
-        } rounded-lg text-xs font-semibold transition-all duration-150 ${active
+      className={`group relative flex items-center ${
+        isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
+      } rounded-lg text-xs font-semibold transition-all duration-150 ${
+        active
           ? 'bg-brand-orange/15 text-white font-bold border-l-2 border-brand-orange'
           : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
-        }`}
+      }`}
     >
       <Icon
-        className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
-          }`}
+        className={`h-4.5 w-4.5 shrink-0 transition-colors ${
+          active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
+        }`}
         weight={active ? 'fill' : 'regular'}
         aria-hidden="true"
       />
       {!isCollapsed && (
-        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate transition-opacity duration-300">
+          {item.label}
+        </span>
       )}
     </Link>
   );
@@ -333,17 +338,19 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
   );
 
   return (
-    <div className="mb-2">
+    <div className="mb-1.5">
       <button
         type="button"
         onClick={onToggle}
         title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
-        className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-          } rounded-xl text-left transition-all duration-200 ${isAnyChildActive
+        className={`w-full group relative flex items-center ${
+          isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+        } rounded-xl text-left transition-all duration-200 cursor-pointer ${
+          isAnyChildActive
             ? 'bg-white/[0.08] text-white border border-brand-blue/30 shadow-sm'
             : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent'
-          }`}
+        }`}
       >
         {/* Indicador de barra ativa na lateral */}
         {isAnyChildActive && (
@@ -354,21 +361,20 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
         )}
 
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${isAnyChildActive
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
+            isAnyChildActive
               ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
               : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
-            }`}
+          }`}
         >
           <Icon className="h-4.5 w-4.5" weight={isAnyChildActive ? 'bold' : 'regular'} />
         </div>
 
         {!isCollapsed && (
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1">
-              <span className="truncate text-xs font-black tracking-tight text-white">
-                {hub.label}
-              </span>
-            </div>
+          <div className="min-w-0 flex-1 transition-opacity duration-300">
+            <span className="block truncate text-xs font-black tracking-tight text-white">
+              {hub.label}
+            </span>
             <p className="truncate text-[10px] font-semibold text-slate-400">
               {hub.subtitle}
             </p>
@@ -377,8 +383,9 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
 
         {!isCollapsed && (
           <CaretDown
-            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : ''
-              }`}
+            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
+              isExpanded ? 'rotate-180 text-white' : ''
+            }`}
             weight="bold"
           />
         )}
@@ -386,14 +393,13 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
 
       {/* Sub-itens expansíveis */}
       <AnimatePresence initial={false}>
-        {isExpanded && (
+        {isExpanded && !isCollapsed && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className={`overflow-hidden mt-1 space-y-0.5 ${isCollapsed ? 'pl-0' : 'pl-3.5 ml-3.5 border-l border-white/10'
-              }`}
+            className="overflow-hidden mt-1 space-y-0.5 pl-3.5 ml-3.5 border-l border-white/10"
           >
             {hub.items.map((subItem) => (
               <NavigationSubLink
@@ -419,14 +425,15 @@ export default function Sidebar() {
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
-  // Zustand Store com persistência e zero re-renders globais
-  const isCollapsed = useNavigationStore((state) => state.isCollapsed);
+  // Estado retrátil automático: hover do mouse expande suavemente (0.3s) e recolhe ao sair
+  const [isHovered, setIsHovered] = useState(false);
+  const isCollapsed = !isHovered;
+
   const expandedHubs = useNavigationStore((state) => state.expandedHubs);
-  const toggleSidebar = useNavigationStore((state) => state.toggleSidebar);
   const toggleHub = useNavigationStore((state) => state.toggleHub);
   const expandHub = useNavigationStore((state) => state.expandHub);
 
-  // Auto-expande a Central Estratégica que contém a rota atual no primeiro acesso
+  // Auto-expande a Central Estratégica que contém a rota atual
   useEffect(() => {
     const activeHub = STRATEGIC_HUBS.find((hub) =>
       hub.items.some(
@@ -438,9 +445,6 @@ export default function Sidebar() {
     }
   }, [location.pathname]);
 
-  // Desbloqueio das 4 Centrais Estratégicas (Radar, Sala de Guerra, Lex, Gestão):
-  // Se a conta do utilizador foi criada há menos de 15 dias (isTrialActive = true) ou possui plano ativo,
-  // o menu nunca esconde nenhuma das 4 Centrais Estratégicas.
   const visibleHubs = useMemo(() => STRATEGIC_HUBS, []);
 
   const isDashboardActive =
@@ -448,53 +452,41 @@ export default function Sidebar() {
     location.pathname === '/dashboard';
 
   return (
-    <motion.aside
+    <aside
       data-tour="sidebar-menu"
-      initial={false}
-      animate={{ width: isCollapsed ? 80 : 288 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsHovered(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setIsHovered(false);
+        }
+      }}
       aria-label="Menu Principal do Command Center"
-      className="relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none"
+      className={`relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none transition-[width] duration-300 ease-in-out ${
+        isHovered ? 'w-72' : 'w-20'
+      }`}
     >
-      {/* Botão de Toggle da Sidebar (Retrátil) */}
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        title={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-        aria-label={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
-        className="absolute -right-3.5 top-6 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-brand-dark text-white shadow-lg transition hover:bg-brand-orange hover:scale-110 active:scale-95 cursor-pointer"
-      >
-        <motion.div animate={{ rotate: isCollapsed ? 180 : 0 }} transition={{ duration: 0.25 }}>
-          <CaretLeft weight="bold" className="h-3.5 w-3.5" />
-        </motion.div>
-      </button>
-
       {/* Header com Logo Institucional */}
       <div className={`border-b border-white/10 py-4 transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-5'}`}>
         <Link
           to={FORNECEDOR_ROUTES.dashboard}
-          className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-3'
-            }`}
+          className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${
+            isCollapsed ? 'justify-center' : 'gap-3'
+          }`}
           aria-label="EXPERTISE Licitatória — Command Center"
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5 shadow-md">
             <BrandLogo imageClassName="h-full w-full object-contain" />
           </div>
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="min-w-0 overflow-hidden whitespace-nowrap"
-              >
-                <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
-                <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">
-                  Command Center
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!isCollapsed && (
+            <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
+              <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
+              <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">
+                Command Center
+              </span>
+            </div>
+          )}
         </Link>
       </div>
 
@@ -507,46 +499,42 @@ export default function Sidebar() {
           >
             {displayName.charAt(0).toUpperCase() || 'E'}
           </span>
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="min-w-0 overflow-hidden whitespace-nowrap"
-              >
-                <p className="truncate text-xs font-black text-white">{displayName}</p>
-                <p className="truncate text-[10px] font-bold text-brand-orange">
-                  {isTrialActive
-                    ? `Trial Enterprise (${trialDaysLeft}d)`
-                    : currentPlanLabel}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {!isCollapsed && (
+            <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
+              <p className="truncate text-xs font-black text-white">{displayName}</p>
+              <p className="truncate text-[10px] font-bold text-brand-orange">
+                {isTrialActive
+                  ? `Trial Enterprise (${trialDaysLeft}d)`
+                  : currentPlanLabel}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navegação Principal — 4 Centrais Estratégicas */}
       <nav
         data-tour="strategic-hubs"
-        className={`flex-1 overflow-y-auto overflow-x-hidden py-3.5 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${isCollapsed ? 'px-2' : 'px-3'
-          }`}
+        className={`flex-1 overflow-y-auto overflow-x-hidden py-3.5 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${
+          isCollapsed ? 'px-2' : 'px-3'
+        }`}
       >
         {/* Botão de Atalho para o Painel Executivo Consolidado */}
         <div className="mb-3">
           <Link
             to={FORNECEDOR_ROUTES.dashboard}
-            title={isCollapsed ? 'Painel Executivo (Command Center)' : undefined}
-            className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-              } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
+            title={isCollapsed ? 'Painel Executivo' : undefined}
+            className={`group relative flex items-center ${
+              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+            } rounded-xl font-bold transition-all duration-150 ${
+              isDashboardActive
                 ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
                 : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-              }`}
+            }`}
           >
-            <House className="h-4.5 w-4.5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
+            <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
             {!isCollapsed && (
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 transition-opacity duration-300">
                 <span className="block text-xs font-black tracking-tight">Painel Executivo</span>
                 <span className="block text-[10px] text-orange-200/90 font-semibold">
                   Visão Consolidada
@@ -557,7 +545,7 @@ export default function Sidebar() {
         </div>
 
         {!isCollapsed && (
-          <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+          <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
             Centrais Estratégicas
           </p>
         )}
@@ -570,40 +558,35 @@ export default function Sidebar() {
               hub={hub}
               isCollapsed={isCollapsed}
               isExpanded={Boolean(expandedHubs[hub.id])}
-              onToggle={() => {
-                if (isCollapsed) {
-                  toggleSidebar();
-                  expandHub(hub.id);
-                } else {
-                  toggleHub(hub.id);
-                }
-              }}
+              onToggle={() => toggleHub(hub.id)}
             />
           ))}
         </div>
 
-        {/* Seção Inferior de Gestão e Configurações (Planos como aba secundária e silenciosa) */}
+        {/* Seção Inferior de Gestão e Configurações */}
         <div className="my-3 border-t border-white/10" />
 
         <div className="space-y-1">
           <Link
             to={FORNECEDOR_ROUTES.planos}
             title={isCollapsed ? 'Planos & Assinatura' : undefined}
-            className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            className={`flex items-center ${
+              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+            } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
           >
-            <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
-            {!isCollapsed && <span>Planos & Assinatura</span>}
+            <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+            {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
           </Link>
 
           <Link
             to={FORNECEDOR_ROUTES.configuracoes}
             title={isCollapsed ? 'Configurações' : undefined}
-            className={`flex items-center ${isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            className={`flex items-center ${
+              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+            } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
           >
-            <Gear className="h-4 w-4 shrink-0 text-slate-400" />
-            {!isCollapsed && <span>Configurações</span>}
+            <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+            {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
           </Link>
         </div>
       </nav>
@@ -614,24 +597,18 @@ export default function Sidebar() {
           type="button"
           onClick={() => void logout()}
           title={isCollapsed ? 'Encerrar sessão' : undefined}
-          className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2.5 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
-            }`}
+          className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2.5 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${
+            isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
+          }`}
         >
           <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden whitespace-nowrap"
-              >
-                Encerrar sessão
-              </motion.span>
-            )}
-          </AnimatePresence>
+          {!isCollapsed && (
+            <span className="overflow-hidden whitespace-nowrap transition-opacity duration-300">
+              Encerrar sessão
+            </span>
+          )}
         </button>
       </div>
-    </motion.aside>
+    </aside>
   );
 }
