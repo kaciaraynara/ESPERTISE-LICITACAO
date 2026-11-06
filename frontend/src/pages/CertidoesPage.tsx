@@ -48,10 +48,8 @@ export const CertidoesPage: React.FC = () => {
       }
 
       const response = await certidoesApi.listar({ empresa_id: company.id });
-      const registros = response.data?.data;
-      if (!Array.isArray(registros)) {
-        throw new Error('Não foi possível carregar as certidões da empresa.');
-      }
+      const raw = response.data?.data ?? response.data;
+      const registros = Array.isArray(raw) ? raw : [];
       setCertidoes(registros);
     } catch (error) {
       console.error('[Certidões] Falha ao carregar dados reais da empresa.', error);

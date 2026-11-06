@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useQueryClient } from '@tanstack/react-query';
 import { empresasApi } from '../services/api';
 import { useAuthStore } from '../store/auth.store';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 export interface Company {
   id: string;
@@ -18,9 +19,12 @@ export interface Company {
 
 export interface CompanyContextData {
   selectedCompany: Company | null;
+  companyId: string | null;
   setSelectedCompany: (company: Company) => void;
   switchingCompany: boolean;
   loadingCompanies: boolean;
+  isLoading: boolean;
+  isFetching: boolean;
   companies: Company[];
   setCompanies: (companies: Company[]) => void;
   refreshCompanies: () => Promise<void>;
@@ -41,9 +45,12 @@ export const DEFAULT_COMPANY: Company = {
 
 const DEFAULT_CONTEXT: CompanyContextData = {
   selectedCompany: DEFAULT_COMPANY,
+  companyId: DEFAULT_COMPANY.id,
   setSelectedCompany: () => {},
   switchingCompany: false,
   loadingCompanies: false,
+  isLoading: false,
+  isFetching: false,
   companies: [DEFAULT_COMPANY],
   setCompanies: () => {},
   refreshCompanies: async () => {},
@@ -68,6 +75,19 @@ export function normalizeCompany(raw: any): Company {
   };
 }
 
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/esqueci-senha',
+  '/reset-password',
+  '/redefinir-senha',
+  '/auth/redefinir-senha',
+  '/termos',
+  '/privacidade',
+];
+
 export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -78,7 +98,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const stored = localStorage.getItem('@Expertise:selectedCompany');
       if (stored) {
         try {
-          return [normalizeCompany(JSON.parse(stored))];
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.id && parsed.id !== 'default') {
+            return [normalizeCompany(parsed)];
+          }
         } catch {
           // ignore
         }
@@ -92,13 +115,16 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const stored = localStorage.getItem('@Expertise:selectedCompany');
       if (stored) {
         try {
-          return normalizeCompany(JSON.parse(stored));
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.id && parsed.id !== 'default') {
+            return normalizeCompany(parsed);
+          }
         } catch {
           // ignore
         }
       }
     }
-    if (user?.company) {
+    if (user?.company && user.company.id && user.company.id !== 'default') {
       return normalizeCompany(user.company);
     }
     return null;
@@ -106,14 +132,25 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [switchingCompany, setSwitchingCompany] = useState(false);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       if (!token) return false;
       const stored = localStorage.getItem('@Expertise:selectedCompany');
-      if (stored) return false;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed?.id && parsed.id !== 'default') {
+            return false;
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return true;
     }
-    return true;
+    return false;
   });
 
   const handleSelectCompany = useCallback((company: Company) => {
@@ -144,11 +181,15 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const refreshCompanies = useCallback(async () => {
-    if (!useAuthStore.getState().isAuthenticated) {
+    const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
+    if (!useAuthStore.getState().isAuthenticated && !hasToken) {
       setIsLoading(false);
+      setIsFetching(false);
+      setLoadingCompanies(false);
       return;
     }
     setLoadingCompanies(true);
+    setIsFetching(true);
     try {
       const res = await empresasApi.listar();
       const rawList = Array.isArray(res.data?.data) ? res.data.data : [];
@@ -178,9 +219,13 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       } else {
         const currentUser = useAuthStore.getState().user;
-        const fallbackComp = currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
+        const fallbackComp: Company = currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
           ? normalizeCompany(currentUser.company)
-          : DEFAULT_COMPANY;
+          : {
+              ...DEFAULT_COMPANY,
+              id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
+              razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
+            };
         setSelectedCompanyState(fallbackComp);
         if (typeof window !== 'undefined') {
           localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fallbackComp));
@@ -189,16 +234,35 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (error) {
       console.warn('[CompanyContext] Não foi possível listar empresas da API, aplicando fallback seguro.', error);
       const currentUser = useAuthStore.getState().user;
-      const fallbackComp = currentUser?.company
-        ? normalizeCompany(currentUser.company)
-        : (selectedCompany || DEFAULT_COMPANY);
+      const storedRaw = typeof window !== 'undefined' ? localStorage.getItem('@Expertise:selectedCompany') : null;
+      let stored: Company | null = null;
+      if (storedRaw) {
+        try {
+          stored = normalizeCompany(JSON.parse(storedRaw));
+        } catch {
+          stored = null;
+        }
+      }
+      const fallbackComp: Company = stored && stored.id && stored.id !== 'default'
+        ? stored
+        : currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
+          ? normalizeCompany(currentUser.company)
+          : {
+              ...DEFAULT_COMPANY,
+              id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
+              razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
+            };
       setSelectedCompanyState(fallbackComp);
       setCompaniesState((prev) => (prev.length > 0 ? prev : [fallbackComp]));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fallbackComp));
+      }
     } finally {
+      setIsFetching(false);
       setLoadingCompanies(false);
       setIsLoading(false);
     }
-  }, [selectedCompany]);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -207,28 +271,44 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setCompaniesState([]);
       setSelectedCompanyState(null);
       setLoadingCompanies(false);
+      setIsFetching(false);
       setIsLoading(false);
     }
   }, [isAuthenticated, refreshCompanies]);
 
-  if (isAuthenticated && isLoading && !selectedCompany) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 font-sans" role="status">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-orange border-t-transparent" />
-          <p className="text-sm font-bold text-brand-dark">Carregando ambiente da empresa...</p>
-        </div>
-      </div>
+  const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
+  const isUserAuthenticated = isAuthenticated || hasToken;
+  const isPublicRoute =
+    typeof window !== 'undefined' &&
+    PUBLIC_PATHS.some(
+      (path) =>
+        window.location.pathname === path ||
+        window.location.pathname.startsWith('/termos') ||
+        window.location.pathname.startsWith('/privacidade'),
     );
+
+  // Trava estrutural obrigatória: em rotas autenticadas, SÓ PODE RENDERIZAR {children}
+  // quando a API devolver os dados e os dados essenciais (ex: companyId) estiverem populados na memória.
+  if (isUserAuthenticated && !isPublicRoute) {
+    if (isLoading || isFetching) {
+      return <LoadingSpinner fullscreen message="Carregando ambiente da empresa..." />;
+    }
+
+    if (!selectedCompany?.id) {
+      return <LoadingSpinner fullscreen message="Carregando ambiente da empresa..." />;
+    }
   }
 
   return (
     <CompanyContext.Provider
       value={{
         selectedCompany: selectedCompany || DEFAULT_COMPANY,
+        companyId: selectedCompany?.id || DEFAULT_COMPANY.id,
         setSelectedCompany: handleSelectCompany,
         switchingCompany,
         loadingCompanies,
+        isLoading,
+        isFetching,
         companies: companies.length > 0 ? companies : (selectedCompany ? [selectedCompany] : [DEFAULT_COMPANY]),
         setCompanies,
         refreshCompanies,

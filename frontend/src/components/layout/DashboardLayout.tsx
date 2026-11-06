@@ -12,6 +12,7 @@ import { useCompany } from '../../contexts/CompanyContext';
 import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
+import { LoadingSpinner } from '../common/LoadingSpinner';
 import { FORNECEDOR_ROUTES } from '../../routes';
 
 const PAGE_LABELS: Record<string, string> = {
@@ -30,7 +31,7 @@ const PAGE_LABELS: Record<string, string> = {
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { switchingCompany } = useCompany();
+  const { switchingCompany, selectedCompany, isLoading, isFetching } = useCompany();
   const logout = useLogout();
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
@@ -61,6 +62,11 @@ export default function DashboardLayout() {
 
   if (shouldForcePlansScreen) {
     return <Navigate to={FORNECEDOR_ROUTES.planos} replace />;
+  }
+
+  // Trava estrutural no DashboardLayout: nunca renderiza o layout ou filhos com dados indefinidos
+  if (isLoading || isFetching || !selectedCompany?.id) {
+    return <LoadingSpinner fullscreen message="Carregando ambiente da empresa..." />;
   }
 
   return (
