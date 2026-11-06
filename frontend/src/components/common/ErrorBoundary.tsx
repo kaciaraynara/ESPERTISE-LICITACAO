@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <WarningCircle className="h-8 w-8" weight="duotone" />
           </div>
 
-          <h3 className="mt-4 text-lg font-black tracking-tight text-[#0A2540] sm:text-xl">
+          <h3 className="mt-4 text-lg font-black tracking-tight text-brand-dark sm:text-xl">
             {this.props.fallbackTitle || 'Módulo Temporariamente Indisponível'}
           </h3>
 
@@ -68,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <button
               type="button"
               onClick={this.handleRetry}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#EA580C] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-orange-600 hover:shadow-lg active:scale-95"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-orange-600 hover:shadow-lg active:scale-95 cursor-pointer"
             >
               <ArrowClockwise className="h-4 w-4" weight="bold" />
               Recarregar Módulo

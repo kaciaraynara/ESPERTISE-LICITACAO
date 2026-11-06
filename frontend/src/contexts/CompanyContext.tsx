@@ -105,8 +105,15 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedCompanyState(normalizedList[0]);
         localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalizedList[0]));
       } else {
-        setSelectedCompanyState(null);
-        localStorage.removeItem('@Expertise:selectedCompany');
+        const userCompany = useAuthStore.getState().user?.company;
+        if (userCompany && (userCompany.id || userCompany.razaoSocial)) {
+          const fallbackComp = normalizeCompany(userCompany);
+          setSelectedCompanyState(fallbackComp);
+          localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fallbackComp));
+        } else {
+          setSelectedCompanyState(null);
+          localStorage.removeItem('@Expertise:selectedCompany');
+        }
       }
     } catch (error) {
       console.error('Não foi possível atualizar as empresas da conta.', error);

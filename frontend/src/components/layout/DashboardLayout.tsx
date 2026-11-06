@@ -1,5 +1,5 @@
 import { CalendarBlank, List, SignOut, X } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import BrandLogo from '@components/brand/BrandLogo';
 import { useLogout } from '../../hooks';
@@ -30,7 +30,7 @@ const PAGE_LABELS: Record<string, string> = {
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { selectedCompany, switchingCompany } = useCompany();
+  const { switchingCompany } = useCompany();
   const logout = useLogout();
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
@@ -183,10 +183,22 @@ export default function DashboardLayout() {
           className="flex-1 overflow-y-auto overflow-x-hidden bg-brand-light"
         >
           <ErrorBoundary
+            key={location.pathname}
             fallbackTitle="Erro ao carregar módulo da plataforma"
             fallbackMessage="O módulo solicitado encontrou uma instabilidade. Os dados das demais áreas continuam preservados."
           >
-            <Outlet key={selectedCompany?.id ?? 'no-active-company'} />
+            <Suspense
+              fallback={
+                <div className="flex min-h-[400px] w-full items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-orange border-t-transparent" />
+                    <p className="text-xs font-bold text-slate-500">Carregando módulo da plataforma...</p>
+                  </div>
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
           {switchingCompany ? (
             <div className="pointer-events-none fixed inset-x-0 top-20 z-20 flex justify-center px-4" role="status" aria-live="polite">

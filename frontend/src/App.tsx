@@ -255,8 +255,8 @@ function NotFoundPage() {
       className="flex min-h-screen items-center justify-center bg-slate-50 px-6"
     >
       <div className="max-w-lg text-center">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#EA580C]">Erro 404</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-[#0A2540]">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-orange">Erro 404</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-brand-dark">
           Esta página não está disponível
         </h1>
         <p className="mt-4 text-sm leading-6 text-slate-600 font-medium">
@@ -264,7 +264,7 @@ function NotFoundPage() {
         </p>
         <Link
           to="/"
-          className="mt-7 inline-flex items-center gap-2 rounded-lg bg-[#0A2540] px-5 py-3 text-sm font-black text-white hover:bg-slate-800 transition-colors shadow-lg"
+          className="mt-7 inline-flex items-center gap-2 rounded-lg bg-brand-dark px-5 py-3 text-sm font-black text-white hover:bg-slate-800 transition-colors shadow-lg"
         >
           <ArrowLeft className="h-4 w-4" weight="bold" />
           Voltar ao início
@@ -293,7 +293,7 @@ export default function App() {
       <PlanAccessBootstrap />
       <a
         href="#main-content"
-        className="sr-only fixed left-4 top-4 z-[100] rounded-lg bg-white px-4 py-2 font-bold text-[#0A2540] shadow-xl focus:not-sr-only"
+        className="sr-only fixed left-4 top-4 z-[100] rounded-lg bg-white px-4 py-2 font-bold text-brand-dark shadow-xl focus:not-sr-only"
       >
         Pular para o conteúdo principal
       </a>
@@ -301,7 +301,7 @@ export default function App() {
       <Suspense fallback={
         <div className="flex h-screen w-screen items-center justify-center bg-white font-sans">
           <div className="text-center animate-pulse">
-            <h2 className="text-2xl font-black tracking-tighter text-[#0A2540]">
+            <h2 className="text-2xl font-black tracking-tighter text-brand-dark">
               Carregando sua área de trabalho...
             </h2>
             <p className="mt-2 text-sm font-medium text-slate-400">

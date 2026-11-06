@@ -204,7 +204,6 @@ export interface StrategicSubItem {
   path: string;
   label: string;
   icon: Icon;
-  badge?: string;
   exact?: boolean;
   requiredFeature?: string;
 }
@@ -214,7 +213,6 @@ export interface StrategicHubConfig {
   label: string;
   subtitle: string;
   icon: Icon;
-  badge?: string;
   items: StrategicSubItem[];
 }
 
@@ -227,11 +225,10 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     label: 'Radar & Oportunidades',
     subtitle: 'Captação & Inteligência',
     icon: Crosshair,
-    badge: 'PNCP / IA',
     items: [
-      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais & CNAE', icon: MagnifyingGlass, requiredFeature: 'radar_editais', badge: 'IA' },
+      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais & CNAE', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Termômetro de Oportunidades', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
-      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensas Eletrônicas (Art. 75)', icon: Lightning, requiredFeature: 'dispensa_eletronica', badge: 'Rápido' },
+      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensas Eletrônicas (Art. 75)', icon: Lightning, requiredFeature: 'dispensa_eletronica' },
       { path: FORNECEDOR_ROUTES.pregao_eletronico, label: 'Pregão & Concorrência', icon: Gavel, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
       { path: FORNECEDOR_ROUTES.credenciamento, label: 'Credenciamento & SICAF', icon: IdentificationCard, requiredFeature: 'radar_editais' },
@@ -242,11 +239,10 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     label: 'Sala de Guerra & Disputas',
     subtitle: 'Operação ao Vivo & Lances',
     icon: Kanban,
-    badge: 'Disputa',
     items: [
-      { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit & Split Payment', icon: Lightning, requiredFeature: 'robo_lances', badge: 'Ao Vivo' },
+      { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit & Split Payment', icon: Lightning, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Sala de Disputas (CRM Kanban)', icon: Kanban, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô Estratégico de Lances', icon: Robot, requiredFeature: 'robo_lances', badge: 'Auto' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô Estratégico de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
@@ -257,10 +253,9 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     label: 'Contencioso & Defesas (Lex)',
     subtitle: 'Segurança Jurídica 14.133',
     icon: Scales,
-    badge: 'Lex IA',
     items: [
-      { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos', badge: 'RAG' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ia_avancada', badge: 'GPT-4o' },
+      { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico LEX', icon: Brain, requiredFeature: 'lex_ia_avancada' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Preparar Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitura e Análise de Editais', icon: Article, requiredFeature: 'resumo_edital_completo' },
@@ -273,9 +268,8 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     label: 'Gestão Pós-Vitória & Garantias',
     subtitle: 'Execução & Conformidade',
     icon: Trophy,
-    badge: 'Art. 96',
     items: [
-      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual', badge: 'Art. 96' },
+      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre de Documentos', icon: Vault, requiredFeature: 'cofre_documentos' },
       { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
@@ -318,14 +312,6 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
       />
       {!isCollapsed && (
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      )}
-      {!isCollapsed && item.badge && (
-        <span
-          className={`ml-auto px-1.5 py-0.5 text-[9px] font-black tracking-wider uppercase rounded ${active ? 'bg-brand-orange text-white' : 'bg-white/10 text-slate-300'
-            }`}
-        >
-          {item.badge}
-        </span>
       )}
     </Link>
   );
@@ -382,11 +368,6 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
               <span className="truncate text-xs font-black tracking-tight text-white">
                 {hub.label}
               </span>
-              {hub.badge && (
-                <span className="rounded bg-brand-blue/15 px-1.5 py-0.5 text-[9px] font-black text-brand-blue border border-brand-blue/30">
-                  {hub.badge}
-                </span>
-              )}
             </div>
             <p className="truncate text-[10px] font-semibold text-slate-400">
               {hub.subtitle}
