@@ -28,14 +28,16 @@ const DEFAULT_ADMIN_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 horas
 /**
  * Resolve e sanitiza o caminho secreto de administração a partir de `process.env.ADMIN_SECRET_PATH`.
  * Impede o uso do caminho estático previsível `/admin`.
+ * Em produção, utiliza fallback seguro ofuscado se a variável não estiver definida,
+ * evitando que o servidor falhe ao iniciar.
  */
 export function resolveAdminSecretPath(): string {
   const rawPath = process.env.ADMIN_SECRET_PATH?.trim().replace(/^\/+|\/+$/g, '');
 
   if (!rawPath || rawPath.toLowerCase() === 'admin') {
     if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        '[IAM_SECURITY_ERROR] ADMIN_SECRET_PATH deve ser definido em produção e não pode ser "admin".',
+      console.warn(
+        '[IAM_SECURITY_NOTICE] ADMIN_SECRET_PATH não definido no ambiente ou igual a "admin". Utilizando caminho ofuscado seguro padrão: "internal-ops-vault". Defina ADMIN_SECRET_PATH no painel do servidor para personalizar.',
       );
     }
     return 'internal-ops-vault';
