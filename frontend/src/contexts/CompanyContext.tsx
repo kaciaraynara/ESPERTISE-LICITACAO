@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { empresasApi } from '../services/api';
 import { useAuthStore } from '../store/auth.store';
@@ -16,7 +16,7 @@ export interface Company {
   municipio?: string | null;
 }
 
-interface CompanyContextData {
+export interface CompanyContextData {
   selectedCompany: Company | null;
   setSelectedCompany: (company: Company) => void;
   switchingCompany: boolean;
@@ -26,13 +26,36 @@ interface CompanyContextData {
   refreshCompanies: () => Promise<void>;
 }
 
-const CompanyContext = createContext<CompanyContextData>({} as CompanyContextData);
+export const DEFAULT_COMPANY: Company = {
+  id: 'default',
+  razaoSocial: 'Empresa Principal',
+  razao_social: 'Empresa Principal',
+  nomeFantasia: 'Empresa Principal',
+  nome_fantasia: 'Empresa Principal',
+  cnpj: '',
+  cnaePrincipal: null,
+  cnae_principal: null,
+  uf: null,
+  municipio: null,
+};
 
-function normalizeCompany(raw: any): Company {
-  const razao = raw?.razaoSocial || raw?.razao_social || raw?.nomeFantasia || raw?.nome_fantasia || 'Empresa';
+const DEFAULT_CONTEXT: CompanyContextData = {
+  selectedCompany: DEFAULT_COMPANY,
+  setSelectedCompany: () => {},
+  switchingCompany: false,
+  loadingCompanies: false,
+  companies: [DEFAULT_COMPANY],
+  setCompanies: () => {},
+  refreshCompanies: async () => {},
+};
+
+const CompanyContext = createContext<CompanyContextData>(DEFAULT_CONTEXT);
+
+export function normalizeCompany(raw: any): Company {
+  const razao = raw?.razaoSocial || raw?.razao_social || raw?.nomeFantasia || raw?.nome_fantasia || 'Empresa Principal';
   const cnae = raw?.cnaePrincipal || raw?.cnae_principal || null;
   return {
-    id: String(raw?.id || ''),
+    id: String(raw?.id || 'default'),
     razaoSocial: razao,
     razao_social: razao,
     nomeFantasia: raw?.nomeFantasia || raw?.nome_fantasia || null,
@@ -47,19 +70,61 @@ function normalizeCompany(raw: any): Company {
 
 export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
-  const [companies, setCompaniesState] = useState<Company[]>([]);
-  const [selectedCompany, setSelectedCompanyState] = useState<Company | null>(null);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+
+  const [companies, setCompaniesState] = useState<Company[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('@Expertise:selectedCompany');
+      if (stored) {
+        try {
+          return [normalizeCompany(JSON.parse(stored))];
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return [];
+  });
+
+  const [selectedCompany, setSelectedCompanyState] = useState<Company | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('@Expertise:selectedCompany');
+      if (stored) {
+        try {
+          return normalizeCompany(JSON.parse(stored));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (user?.company) {
+      return normalizeCompany(user.company);
+    }
+    return null;
+  });
+
   const [switchingCompany, setSwitchingCompany] = useState(false);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+      const stored = localStorage.getItem('@Expertise:selectedCompany');
+      if (stored) return false;
+    }
+    return true;
+  });
 
-  const handleSelectCompany = (company: Company) => {
+  const handleSelectCompany = useCallback((company: Company) => {
     const normalized = normalizeCompany(company);
     if (!normalized.id || normalized.id === selectedCompany?.id) return;
 
     setSelectedCompanyState(normalized);
-    localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalized));
-    window.dispatchEvent(new Event('companyChanged'));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalized));
+      window.dispatchEvent(new Event('companyChanged'));
+    }
     setSwitchingCompany(true);
     void queryClient
       .invalidateQueries({
@@ -71,15 +136,18 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.error('Não foi possível atualizar os dados da empresa selecionada.', error);
       })
       .finally(() => setSwitchingCompany(false));
-  };
+  }, [queryClient, selectedCompany?.id]);
 
-  const setCompanies = (list: Company[]) => {
+  const setCompanies = useCallback((list: Company[]) => {
     const normalizedList = Array.isArray(list) ? list.map(normalizeCompany).filter((c) => Boolean(c.id)) : [];
     setCompaniesState(normalizedList);
-  };
+  }, []);
 
-  const refreshCompanies = async () => {
-    if (!useAuthStore.getState().isAuthenticated) return;
+  const refreshCompanies = useCallback(async () => {
+    if (!useAuthStore.getState().isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
     setLoadingCompanies(true);
     try {
       const res = await empresasApi.listar();
@@ -87,7 +155,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const normalizedList = rawList.map(normalizeCompany).filter((c: Company) => Boolean(c.id));
       setCompaniesState(normalizedList);
 
-      const storedRaw = localStorage.getItem('@Expertise:selectedCompany');
+      const storedRaw = typeof window !== 'undefined' ? localStorage.getItem('@Expertise:selectedCompany') : null;
       let stored: Company | null = null;
       if (storedRaw) {
         try {
@@ -100,72 +168,68 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (stored && normalizedList.some((c: Company) => c.id === stored!.id)) {
         const currentMatch = normalizedList.find((c: Company) => c.id === stored!.id)!;
         setSelectedCompanyState(currentMatch);
-        localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(currentMatch));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(currentMatch));
+        }
       } else if (normalizedList.length > 0) {
         setSelectedCompanyState(normalizedList[0]);
-        localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalizedList[0]));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalizedList[0]));
+        }
       } else {
-        const userCompany = useAuthStore.getState().user?.company;
-        if (userCompany && (userCompany.id || userCompany.razaoSocial)) {
-          const fallbackComp = normalizeCompany(userCompany);
-          setSelectedCompanyState(fallbackComp);
+        const currentUser = useAuthStore.getState().user;
+        const fallbackComp = currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
+          ? normalizeCompany(currentUser.company)
+          : DEFAULT_COMPANY;
+        setSelectedCompanyState(fallbackComp);
+        if (typeof window !== 'undefined') {
           localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fallbackComp));
-        } else {
-          setSelectedCompanyState(null);
-          localStorage.removeItem('@Expertise:selectedCompany');
         }
       }
     } catch (error) {
-      console.error('Não foi possível atualizar as empresas da conta.', error);
+      console.warn('[CompanyContext] Não foi possível listar empresas da API, aplicando fallback seguro.', error);
+      const currentUser = useAuthStore.getState().user;
+      const fallbackComp = currentUser?.company
+        ? normalizeCompany(currentUser.company)
+        : (selectedCompany || DEFAULT_COMPANY);
+      setSelectedCompanyState(fallbackComp);
+      setCompaniesState((prev) => (prev.length > 0 ? prev : [fallbackComp]));
     } finally {
       setLoadingCompanies(false);
+      setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    const stored = localStorage.getItem('@Expertise:selectedCompany');
-    if (stored) {
-      try {
-        setSelectedCompanyState(normalizeCompany(JSON.parse(stored)));
-      } catch {
-        localStorage.removeItem('@Expertise:selectedCompany');
-      }
-    }
-  }, []);
+  }, [selectedCompany]);
 
   useEffect(() => {
     if (isAuthenticated) {
-      const stored = localStorage.getItem('@Expertise:selectedCompany');
-      if (stored && !selectedCompany) {
-        try {
-          setSelectedCompanyState(normalizeCompany(JSON.parse(stored)));
-        } catch {
-          // ignore
-        }
-      } else if (!selectedCompany) {
-        const userCompany = useAuthStore.getState().user?.company;
-        if (userCompany?.id) {
-          const normalized = normalizeCompany(userCompany);
-          setSelectedCompanyState(normalized);
-          localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(normalized));
-        }
-      }
       void refreshCompanies();
     } else {
       setCompaniesState([]);
       setSelectedCompanyState(null);
       setLoadingCompanies(false);
+      setIsLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refreshCompanies]);
+
+  if (isAuthenticated && isLoading && !selectedCompany) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 font-sans" role="status">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-orange border-t-transparent" />
+          <p className="text-sm font-bold text-brand-dark">Carregando ambiente da empresa...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <CompanyContext.Provider
       value={{
-        selectedCompany,
+        selectedCompany: selectedCompany || DEFAULT_COMPANY,
         setSelectedCompany: handleSelectCompany,
         switchingCompany,
         loadingCompanies,
-        companies,
+        companies: companies.length > 0 ? companies : (selectedCompany ? [selectedCompany] : [DEFAULT_COMPANY]),
         setCompanies,
         refreshCompanies,
       }}
@@ -175,4 +239,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
-export const useCompany = () => useContext(CompanyContext);
+export const useCompany = (): CompanyContextData => {
+  const context = useContext(CompanyContext);
+  if (!context || !context.setSelectedCompany) {
+    return DEFAULT_CONTEXT;
+  }
+  return context;
+};

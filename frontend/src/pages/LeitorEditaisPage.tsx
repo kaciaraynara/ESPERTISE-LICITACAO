@@ -175,7 +175,7 @@ ${editalTexto.slice(0, 8000)}`;
               <Sparkles size={22} />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assistente de Editais</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lex</p>
               <p className="text-lg font-black text-slate-900">Análise em linguagem clara</p>
               <p className="text-[11px] text-slate-400">Apoio para revisar as informações do edital</p>
             </div>

@@ -116,10 +116,10 @@ export function LexAdvisor() {
           <header className="flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
             <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-md border border-[#1B1B1B] bg-slate-50 overflow-hidden p-1">
-                <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-9 h-9 object-contain" />
+                <img src="/assets/mascote-3d.png" alt="Lex" className="w-9 h-9 object-contain" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-brand-blue">Assistente de Editais</p>
+                <p className="text-sm font-semibold text-brand-blue">Lex</p>
                 <p className="text-xs text-brand-blue/70">Apoio para consultar a Lei 14.133/2021 e referências do TCU</p>
               </div>
             </div>
@@ -140,7 +140,7 @@ export function LexAdvisor() {
                   <div key={message.id} className={`flex gap-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {message.role === 'lex' ? (
                       <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-100 bg-white overflow-hidden p-0.5">
-                        <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-6 h-6 object-contain" />
+                        <img src="/assets/mascote-3d.png" alt="Lex" className="w-6 h-6 object-contain" />
                       </span>
                     ) : null}
                     <div className={`max-w-[86%] rounded-lg border px-4 py-3 text-sm leading-relaxed ${
@@ -246,7 +246,7 @@ export function LexAdvisor() {
         className="fixed bottom-6 right-6 z-[70] flex h-14 items-center gap-3 rounded-lg bg-brand-blue px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-[0_18px_48px_rgba(27,27,27,0.16)]"
         aria-label="Abrir LEX"
       >
-        <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-6 h-6 object-contain" />
+        <img src="/assets/mascote-3d.png" alt="Lex" className="w-6 h-6 object-contain" />
         LEX
       </motion.button>
     </>

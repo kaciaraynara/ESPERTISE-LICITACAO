@@ -62,7 +62,7 @@ export const LexAnalisePage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <span className="p-1 bg-[#0A2540] text-white rounded-lg shadow-md w-10 h-10 flex items-center justify-center overflow-hidden">
-              <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-8 h-8 object-contain" />
+              <img src="/assets/mascote-3d.png" alt="Lex" className="w-8 h-8 object-contain" />
             </span>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
               Análise de Editais
@@ -101,7 +101,7 @@ export const LexAnalisePage: React.FC = () => {
               <div className="flex items-center justify-between border-b border-slate-700 pb-2.5">
                 <div className="flex items-center gap-2">
                   <div className="p-1 bg-slate-800 rounded-lg">
-                    <img src="/assets/mascote-3d.png" alt="Assistente de Editais" className="w-5 h-5 object-contain" />
+                    <img src="/assets/mascote-3d.png" alt="Lex" className="w-5 h-5 object-contain" />
                   </div>
                   <span className="text-xs font-bold text-white tracking-wide">
                     Análise do edital

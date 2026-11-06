@@ -189,16 +189,16 @@ export const LexFloatingWidget: React.FC = () => {
         <button
           data-tour="lex-assistant"
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-3 bg-brand-dark hover:bg-slate-800 text-white px-5 py-3.5 rounded-full shadow-2xl border-2 border-brand-orange transition-all transform hover:scale-105"
+          className="group flex items-center gap-2.5 bg-brand-dark hover:bg-slate-800 text-white px-4 py-3 rounded-full shadow-2xl border-2 border-brand-orange transition-all transform hover:scale-105 cursor-pointer"
         >
           <div className="relative">
-            <img src="/assets/mascote-3d.png" alt="Lex (Central Jurídica)" className="w-7 h-7 object-contain" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <img src="/assets/mascote-3d.png" alt="Lex" className="w-6 h-6 object-contain" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
           </div>
-          <span className="font-bold text-sm text-white tracking-wide">Lex (Central Jurídica)</span>
+          <span className="font-bold text-sm text-white tracking-wide">Lex</span>
         </button>
       )}
 

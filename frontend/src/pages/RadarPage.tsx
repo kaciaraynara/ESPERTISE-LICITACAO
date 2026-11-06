@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -82,7 +82,7 @@ function formatPayloadPreview(payload: Record<string, unknown> | null | undefine
   }
 }
 
-export const RadarPage: React.FC = () => {
+export default function RadarPage() {
   const [logs, setLogs] = useState<AuditLogTelemetryItem[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -386,7 +386,7 @@ export const RadarPage: React.FC = () => {
       </div>
     </div>
   );
-};
+}
 
-export default RadarPage;
+export { RadarPage };
 
