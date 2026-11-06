@@ -16,8 +16,10 @@ import {
   ChevronRight,
   CheckCircle2,
   Sparkles,
+  ShieldCheck,
+  Target,
 } from 'lucide-react';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, certidoesApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '@/store/auth.store';
@@ -78,6 +80,13 @@ function formatarData(data: string): string {
   } catch {
     return data;
   }
+}
+
+function formatCnpj(cnpj?: string | null): string {
+  if (!cnpj) return 'Aguardando cadastro';
+  const clean = cnpj.replace(/\D/g, '');
+  if (clean.length !== 14) return cnpj;
+  return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
 }
 
 const DASHBOARD_METRICS_QUERY_KEY = ['dashboard', 'metrics'] as const;
@@ -144,6 +153,71 @@ export default function DashboardPage() {
     lastManualRefreshRef.current = now;
     void metricsQuery.refetch();
   }, [metricsQuery]);
+
+  // Consulta de regularidade cadastral (SICAF) e certidões reais da empresa
+  const certidoesQuery = useQuery({
+    queryKey: ['certidoes', selectedCompany?.id ?? 'default'],
+    queryFn: async () => {
+      if (!selectedCompany?.id) return [];
+      try {
+        const response = await certidoesApi.listar({ empresa_id: selectedCompany.id });
+        const raw = response.data?.data ?? response.data?.certidoes ?? response.data;
+        return Array.isArray(raw) ? raw : [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: Boolean(selectedCompany?.id),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const certidoes = certidoesQuery.data ?? [];
+
+  const certidaoTrabalhista = certidoes.find((c: any) => {
+    const nome = (c.nome || '').toLowerCase();
+    const orgao = (c.orgao || '').toLowerCase();
+    const esfera = (c.esfera || '').toUpperCase();
+    return esfera === 'TRABALHISTA' || nome.includes('trabalh') || nome.includes('cndt') || orgao.includes('tst');
+  });
+
+  const isTrabalhistaRegular = Boolean(
+    certidaoTrabalhista &&
+      certidaoTrabalhista.status === 'VALIDA' &&
+      certidaoTrabalhista.regularidade !== 'IRREGULAR'
+  );
+
+  const certidaoFgts = certidoes.find((c: any) => {
+    const nome = (c.nome || '').toLowerCase();
+    const orgao = (c.orgao || '').toLowerCase();
+    return nome.includes('fgts') || nome.includes('crf') || orgao.includes('caixa');
+  });
+
+  const isFgtsRegular = Boolean(
+    certidaoFgts &&
+      certidaoFgts.status === 'VALIDA' &&
+      certidaoFgts.regularidade !== 'IRREGULAR'
+  );
+
+  const totalValidas = certidoes.filter(
+    (c: any) => c.status === 'VALIDA' && c.regularidade !== 'IRREGULAR'
+  ).length;
+
+  const notaQualificacao = certidoes.length > 0 ? Number(((totalValidas / certidoes.length) * 10).toFixed(1)) : 0;
+
+  // Metas de Contratos
+  const editaisMonitorados = metrics?.editaisMonitorados ?? 0;
+  const editaisTarget = 20;
+  const progressoEditais = editaisMonitorados > 0 ? Math.min(100, Math.round((editaisMonitorados / editaisTarget) * 100)) : 0;
+
+  const valorHomologado = metrics?.valorTotalEmDisputa ?? 0;
+  const metaTrimestralTarget = 500000;
+  const progressoMetaTrimestral = valorHomologado > 0 ? Math.min(100, Math.round((valorHomologado / metaTrimestralTarget) * 100)) : 0;
+
+  const disputasSemana = metrics?.prazosEstaSemana ?? metrics?.crmOportunidades ?? 0;
+  const disputasTarget = 5;
+  const progressoDisputas = disputasSemana > 0 ? Math.min(100, Math.round((disputasSemana / disputasTarget) * 100)) : 0;
 
   const isContaNova =
     Boolean(metrics?.isContaNova) ||
@@ -267,234 +341,406 @@ export default function DashboardPage() {
       )}
 
       {/* =========================================================================
-          OS 3 PILARES DO CEO: DINHEIRO, VITÓRIA E RISCO
+          SEÇÃO ESTRUTURAL: PAINEL DE REGULARIDADE (SICAF) & METAS DE CONTRATOS
+          ========================================================================= */}
+      <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Painel de Regularidade (SICAF) - Esquerda */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-50 text-brand-dark">
+                  <ShieldCheck className="w-5 h-5 text-brand-blue" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Painel de Regularidade (SICAF)
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Habilitação Fiscal & Cadastral
+                  </p>
+                </div>
+              </div>
+
+              {selectedCompany?.cnpj ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  CNPJ Ativo
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  Aguardando sincronização
+                </span>
+              )}
+            </div>
+
+            {/* Informações da Empresa & CNPJ */}
+            <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-black text-brand-dark truncate">
+                  {selectedCompany?.nomeFantasia || selectedCompany?.razaoSocial || 'Empresa Cadastrada'}
+                </p>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  CNPJ: {formatCnpj(selectedCompany?.cnpj)}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                  Nota Qualificação
+                </span>
+                <div className="text-lg font-black text-brand-dark">
+                  {notaQualificacao > 0 ? (
+                    <span className="text-emerald-600">{notaQualificacao.toFixed(1)}</span>
+                  ) : (
+                    <span className="text-slate-400">0.0</span>
+                  )}
+                  <span className="text-xs font-normal text-slate-400"> / 10</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Duas Barras de Status Curtas (Trabalhista e FGTS) */}
+            <div className="mt-5 space-y-4">
+              {/* 1. Trabalhista (CNDT) */}
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    Trabalhista (CNDT)
+                  </span>
+                  {isTrabalhistaRegular ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      100% Regular
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      0% Aguardando Sincronização
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isTrabalhistaRegular ? 'w-full bg-emerald-500' : 'w-0 bg-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* 2. FGTS / Previdenciária (CRF Caixa) */}
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    FGTS (CRF Caixa)
+                  </span>
+                  {isFgtsRegular ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      100% Regular
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                      0% Aguardando Sincronização
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isFgtsRegular ? 'w-full bg-emerald-500' : 'w-0 bg-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">
+              {certidoes.length > 0
+                ? `${totalValidas} de ${certidoes.length} certidões ativas`
+                : 'Sincronização cadastral pendente'}
+            </span>
+            <Link
+              to={FORNECEDOR_ROUTES.certidoes}
+              className="text-xs font-bold text-brand-blue hover:text-brand-dark transition flex items-center gap-1"
+            >
+              <span>Gerenciar SICAF</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Metas de Contratos - Direita (Topo) */}
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-orange-50 text-brand-orange">
+                  <Target className="w-5 h-5 text-brand-orange" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Metas de Contratos
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Acompanhamento operacional e execução de certames
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-semibold text-slate-400">
+                Ciclo Atual
+              </span>
+            </div>
+
+            {/* 3 Mini-cards com barra de progresso horizontal simples */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {/* 1. Edital Transparência */}
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      1. Transparência
+                    </span>
+                    <span className="text-[10px] font-bold text-brand-blue">
+                      {progressoEditais}%
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800">
+                    Edital Transparência
+                  </h3>
+                  <div className="text-xl font-black text-brand-dark tracking-tight my-1.5">
+                    {editaisMonitorados}{' '}
+                    <span className="text-xs font-normal text-slate-400">
+                      {editaisMonitorados === 1 ? 'edital' : 'editais'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-blue rounded-full transition-all duration-500"
+                      style={{ width: `${progressoEditais}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 truncate">
+                    {editaisMonitorados > 0 ? 'Radar PNCP ativo' : '0% - Aguardando radar'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 2. Meta Trimestral (Capital homologado) */}
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      2. Capital
+                    </span>
+                    <span className="text-[10px] font-bold text-brand-orange">
+                      {progressoMetaTrimestral}%
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800 truncate" title="Meta Trimestral (Capital homologado)">
+                    Meta Trimestral
+                  </h3>
+                  <div className="text-lg font-black text-brand-orange tracking-tight my-1.5 truncate">
+                    {formatarMoeda(valorHomologado)}
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-orange rounded-full transition-all duration-500"
+                      style={{ width: `${progressoMetaTrimestral}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 truncate">
+                    {valorHomologado > 0 ? 'Capital homologado' : '0% - Sem homologações'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 3. Disputas da Semana */}
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      3. Disputas
+                    </span>
+                    <span className="text-[10px] font-bold text-brand-dark">
+                      {progressoDisputas}%
+                    </span>
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-800">
+                    Disputas da Semana
+                  </h3>
+                  <div className="text-xl font-black text-brand-dark tracking-tight my-1.5">
+                    {disputasSemana}{' '}
+                    <span className="text-xs font-normal text-slate-400">
+                      {disputasSemana === 1 ? 'sessão' : 'sessões'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-brand-dark rounded-full transition-all duration-500"
+                      style={{ width: `${progressoDisputas}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 truncate">
+                    {disputasSemana > 0 ? 'Sessões em agenda' : '0% - Nenhuma sessão'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">
+              Conectado ao fluxo do PNCP e CRM Governamental
+            </span>
+            <Link
+              to={FORNECEDOR_ROUTES.crm}
+              className="text-xs font-bold text-brand-orange hover:text-orange-600 transition flex items-center gap-1"
+            >
+              <span>Acompanhar Esteira</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          OS 3 PILARES DO CEO: DINHEIRO, VITÓRIA E RISCO (DADOS REAIS DA PLATAFORMA)
           ========================================================================= */}
       <section className="mb-8">
-        {isContaNova ? (
-          <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50/50 p-2 sm:p-4">
-            {/* Background com dados ilustrativos, mini-gráficos e blur */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 filter blur-[4px] select-none pointer-events-none opacity-40">
-              {/* 1. Ilustrativo: Valor Total em Disputa */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Valor Total em Disputa
-                  </span>
-                  <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark">
-                    <DollarSign className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
-                  R$ 4.850.000,00
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                  <span className="text-slate-500 font-medium">
-                    12 disputas na esteira
-                  </span>
-                  <div className="flex items-end gap-1 h-5">
-                    <span className="w-1.5 h-2 bg-blue-300 rounded-t" />
-                    <span className="w-1.5 h-3.5 bg-blue-400 rounded-t" />
-                    <span className="w-1.5 h-2.5 bg-blue-300 rounded-t" />
-                    <span className="w-1.5 h-5 bg-blue-600 rounded-t" />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Ilustrativo: Sua Taxa de Sucesso */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Sua Taxa de Sucesso
-                  </span>
-                  <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-                    <Trophy className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
-                  68.4%
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                  <span className="text-slate-500 font-medium">
-                    Conversão qualificada
-                  </span>
-                  <div className="flex items-end gap-1 h-5">
-                    <span className="w-1.5 h-3 bg-emerald-300 rounded-t" />
-                    <span className="w-1.5 h-4 bg-emerald-400 rounded-t" />
-                    <span className="w-1.5 h-5 bg-emerald-600 rounded-t" />
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Ilustrativo: Atenção Imediata */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Atenção Imediata
-                  </span>
-                  <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                </div>
-                <div className="text-3xl sm:text-4xl font-black text-amber-600 tracking-tight">
-                  0 <span className="text-base font-bold text-slate-400">alertas</span>
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                  <span className="text-slate-500 font-medium">
-                    100% em conformidade
-                  </span>
-                  <span className="font-bold text-emerald-700">Auditado</span>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* 1. Valor Total em Disputa */}
+          <div
+            onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
+            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-brand-dark hover:shadow-md transition-all relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Valor Total em Disputa
+              </span>
+              <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
+                <DollarSign className="w-5 h-5" />
               </div>
             </div>
 
-            {/* Overlay Central Primário */}
-            <div className="absolute inset-0 flex items-center justify-center p-4 z-10 bg-white/40 backdrop-blur-[1px]">
-              <div className="bg-white/95 border border-slate-200/90 shadow-xl rounded-2xl p-6 sm:p-8 max-w-xl text-center backdrop-blur-md">
-                <div className="w-12 h-12 rounded-2xl bg-brand-dark text-white flex items-center justify-center mx-auto mb-4 shadow-md shadow-brand-dark/20">
-                  <Sparkles className="w-6 h-6 text-brand-orange" />
-                </div>
-                <h3 className="text-lg sm:text-xl font-black text-brand-dark tracking-tight mb-2">
-                  Conecte suas disputas para gerar inteligência de mercado
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 mb-6 leading-relaxed">
-                  Acompanhe oportunidades e visualize informações sobre sua atuação e os próximos passos.
-                </p>
-                <button
-                  onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg hover:shadow-orange-500/25 transition active:scale-95"
-                >
-                  <span>Conectar Disputas no Radar de Oportunidades</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+            {loading ? (
+              <div className="h-10 flex items-center">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
               </div>
+            ) : (
+              <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
+                {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-slate-500 font-medium">
+                {metrics?.crmOportunidades ?? 0} disputas ativas na sua esteira
+              </span>
+              <span className="font-bold text-brand-dark group-hover:translate-x-1 transition flex items-center gap-1">
+                Ver esteira <ChevronRight className="w-3.5 h-3.5" />
+              </span>
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* 1. Valor Total em Disputa */}
-            <div
-              onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-              className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-brand-dark hover:shadow-md transition-all relative overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Valor Total em Disputa
-                </span>
-                <div className="p-2.5 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-              </div>
 
-              {loading ? (
-                <div className="h-10 flex items-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div className="text-3xl sm:text-4xl font-black text-brand-dark tracking-tight">
-                  {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                <span className="text-slate-500 font-medium">
-                  {metrics?.crmOportunidades ?? 0} disputas ativas na sua esteira
-                </span>
-                <span className="font-bold text-brand-dark group-hover:translate-x-1 transition flex items-center gap-1">
-                  Ver esteira <ChevronRight className="w-3.5 h-3.5" />
-                </span>
+          {/* 2. Sua Taxa de Sucesso */}
+          <div
+            onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
+            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-emerald-500 hover:shadow-md transition-all relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Sua Taxa de Sucesso
+              </span>
+              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
+                <Trophy className="w-5 h-5" />
               </div>
             </div>
 
-            {/* 2. Sua Taxa de Sucesso */}
-            <div
-              onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-              className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:border-emerald-500 hover:shadow-md transition-all relative overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Sua Taxa de Sucesso
-                </span>
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
-                  <Trophy className="w-5 h-5" />
-                </div>
+            {loading ? (
+              <div className="h-10 flex items-center">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
               </div>
-
-              {loading ? (
-                <div className="h-10 flex items-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
-                  {metrics?.taxaSucesso ?? 0}%
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                <span className="text-slate-500 font-medium">
-                  Contratos homologados vs. disputas encerradas
-                </span>
-                <span className="font-bold text-emerald-700 group-hover:translate-x-1 transition flex items-center gap-1">
-                  Desempenho <ChevronRight className="w-3.5 h-3.5" />
-                </span>
+            ) : (
+              <div className="text-3xl sm:text-4xl font-black text-emerald-600 tracking-tight">
+                {metrics?.taxaSucesso ?? 0}%
               </div>
-            </div>
+            )}
 
-            {/* 3. Atenção Imediata */}
-            <div
-              onClick={() => navigate(FORNECEDOR_ROUTES.prazos_alertas)}
-              className={`cursor-pointer group rounded-2xl border p-6 shadow-sm transition-all relative overflow-hidden ${
-                (metrics?.atencaoImediataCount ?? 0) > 0
-                  ? 'border-amber-300 bg-amber-50/30 hover:border-amber-500'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Atenção Imediata
-                </span>
-                <div
-                  className={`p-2.5 rounded-xl transition ${
-                    (metrics?.atencaoImediataCount ?? 0) > 0
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="h-10 flex items-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div
-                  className={`text-3xl sm:text-4xl font-black tracking-tight ${
-                    (metrics?.atencaoImediataCount ?? 0) > 0
-                      ? 'text-amber-600'
-                      : 'text-slate-800'
-                  }`}
-                >
-                  {metrics?.atencaoImediataCount ?? 0}{' '}
-                  <span className="text-base font-bold text-slate-400">
-                    {(metrics?.atencaoImediataCount ?? 0) === 1 ? 'alerta' : 'alertas'}
-                  </span>
-                </div>
-              )}
-
-              <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
-                <span className="text-slate-500 font-medium">
-                  {(metrics?.atencaoImediataCount ?? 0) > 0
-                    ? `${metrics?.certidoesVencendoCount ?? 0} certidões · ${metrics?.prazosUrgentesCount ?? 0} prazos críticos`
-                    : 'Documentação e prazos em dia'}
-                </span>
-                <span className="font-bold text-amber-700 group-hover:translate-x-1 transition flex items-center gap-1">
-                  Verificar <ChevronRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
+            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-slate-500 font-medium">
+                Contratos homologados vs. disputas encerradas
+              </span>
+              <span className="font-bold text-emerald-700 group-hover:translate-x-1 transition flex items-center gap-1">
+                Desempenho <ChevronRight className="w-3.5 h-3.5" />
+              </span>
             </div>
           </div>
-        )}
+
+          {/* 3. Atenção Imediata */}
+          <div
+            onClick={() => navigate(FORNECEDOR_ROUTES.prazos_alertas)}
+            className={`cursor-pointer group rounded-2xl border p-6 shadow-sm transition-all relative overflow-hidden ${
+              (metrics?.atencaoImediataCount ?? 0) > 0
+                ? 'border-amber-300 bg-amber-50/30 hover:border-amber-500'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Atenção Imediata
+              </span>
+              <div
+                className={`p-2.5 rounded-xl transition ${
+                  (metrics?.atencaoImediataCount ?? 0) > 0
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="h-10 flex items-center">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+              </div>
+            ) : (
+              <div
+                className={`text-3xl sm:text-4xl font-black tracking-tight ${
+                  (metrics?.atencaoImediataCount ?? 0) > 0
+                    ? 'text-amber-600'
+                    : 'text-slate-800'
+                }`}
+              >
+                {metrics?.atencaoImediataCount ?? 0}{' '}
+                <span className="text-base font-bold text-slate-400">
+                  {(metrics?.atencaoImediataCount ?? 0) === 1 ? 'alerta' : 'alertas'}
+                </span>
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
+              <span className="text-slate-500 font-medium">
+                {(metrics?.atencaoImediataCount ?? 0) > 0
+                  ? `${metrics?.certidoesVencendoCount ?? 0} certidões · ${metrics?.prazosUrgentesCount ?? 0} prazos críticos`
+                  : 'Documentação e prazos em dia'}
+              </span>
+              <span className="font-bold text-amber-700 group-hover:translate-x-1 transition flex items-center gap-1">
+                Verificar <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* =========================================================================
