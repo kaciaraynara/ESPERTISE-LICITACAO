@@ -4,12 +4,13 @@ import { AnimatePresence } from 'framer-motion';
 import {
     Search, Filter, RefreshCw, Building2, Calendar,
     MapPin, AlertTriangle,
-    ChevronDown, Clock, ExternalLink, Download, FileText,
+    ChevronDown, Clock, Download, FileText,
     Plus, CheckCircle2,
 } from '@components/icons/phosphor-compat';
 import { lexApi, licitacoesApi, crmApi, propostasApi, noticesApi } from '../services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
+import ResumoEstrategicoModal, { type ResumoEditalData } from '@/components/ResumoEstrategicoModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import toast from 'react-hot-toast';
 
@@ -122,6 +123,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
 
     const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
     const [editalSelecionado, setEditalSelecionado] = useState<QuickViewNotice | null>(null);
+    const [editalParaResumo, setEditalParaResumo] = useState<ResumoEditalData | null>(null);
     const [resumoRapido, setResumoRapido] = useState<Record<string, unknown> | null>(null);
     const [gerandoResumo, setGerandoResumo] = useState(false);
     const [criandoProposta, setCriandoProposta] = useState(false);
@@ -255,8 +257,15 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         };
     }, [editalSelecionado?.id]);
 
-    // Carrega IDs dos editais já cadastrados no CRM para evitar duplicatas visuais
+    // Carrega IDs dos editais salvos vinculados ao usuário
     useEffect(() => {
+        try {
+            const stored = JSON.parse(localStorage.getItem('expertise_editais_salvos') || '[]');
+            if (Array.isArray(stored) && stored.length > 0) {
+                setSalvosCrmIds(new Set(stored));
+            }
+        } catch { }
+
         crmApi.getOportunidades()
             .then((res) => {
                 const ids = new Set<string>();
@@ -266,33 +275,51 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                     if (item.notice?.id) ids.add(item.notice.id);
                     if (item.notice?.externalId) ids.add(item.notice.externalId);
                 });
-                setSalvosCrmIds(ids);
+                setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
             })
             .catch(() => { });
     }, []);
 
-    const handleSalvarNoCrm = async (e: React.MouseEvent, item: Licitacao) => {
-        e.stopPropagation();
-        if (salvosCrmIds.has(item.id)) {
-            toast('Este edital já está na sua esteira de disputas.');
+    const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | ResumoEditalData) => {
+        if (e) e.stopPropagation();
+        const target = item || editalParaResumo;
+        if (!target) return;
+
+        if (salvosCrmIds.has(target.id)) {
+            toast('Edital já adicionado à sua lista de propostas.');
             return;
         }
-        setSalvandoId(item.id);
+
+        // Mudar o botão imediatamente para "Salvo ✓" (verde suave)
+        setSalvosCrmIds((prev) => new Set([...prev, target.id]));
+        setSalvandoId(target.id);
+
         try {
-            await crmApi.createOportunidade({ noticeId: item.id });
-            setSalvosCrmIds((prev) => new Set([...prev, item.id]));
-            toast.success('Edital adicionado à sua Gestão de Disputas!');
+            // Salva o edital no banco na tabela/estado 'editais_salvos' vinculado ao usuário
+            await crmApi.createOportunidade({ noticeId: target.id });
+
+            // Persiste no cache de editais salvos
+            try {
+                const storedKey = 'expertise_editais_salvos';
+                const current: string[] = JSON.parse(localStorage.getItem(storedKey) || '[]');
+                if (!current.includes(target.id)) {
+                    localStorage.setItem(storedKey, JSON.stringify([...current, target.id]));
+                }
+            } catch { }
+
+            // Notificação rápida obrigatória
+            toast.success('Edital adicionado à sua lista de propostas');
         } catch (err: any) {
             if (err?.response?.status === 409) {
-                setSalvosCrmIds((prev) => new Set([...prev, item.id]));
-                toast.error('Este edital já está na sua esteira de disputas.');
+                toast.success('Edital adicionado à sua lista de propostas');
             } else {
-                toast.error(err?.response?.data?.message || 'Erro ao adicionar edital à esteira de disputas.');
+                toast.error(err?.response?.data?.message || 'Erro ao adicionar edital à lista de propostas.');
             }
         } finally {
             setSalvandoId(null);
         }
     };
+
 
     const buscarLicitacoes = useCallback(async (pg = 1, sincronizarPncp = false) => {
         setLoading(true);
@@ -773,8 +800,10 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                 <tr
                                                     key={item.id || i}
                                                     onClick={() => {
-                                                        setEditalSelecionado(item);
-                                                        setResumoRapido(null);
+                                                        setEditalParaResumo({
+                                                            ...item,
+                                                            downloadUrl,
+                                                        });
                                                     }}
                                                     className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
                                                 >
@@ -856,34 +885,54 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                         </span>
                                                     </td>
 
-                                                    {/* 6. AÇÕES (BAIXAR EDITAL + DISPUTAR) */}
+                                                    {/* 6. AÇÕES: APENAS 3 AÇÕES CLARAS POR LINHA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                                                        <div className="flex flex-col gap-2 items-stretch min-w-[145px]">
+                                                        <div className="flex flex-col gap-2 items-stretch min-w-[155px]">
+                                                            {/* 1. BAIXAR EDITAL (Contorno azul discreto) */}
                                                             {downloadUrl ? (
                                                                 <a
                                                                     href={downloadUrl}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     onClick={e => e.stopPropagation()}
-                                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-brand-blue hover:bg-blue-900 text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-all shadow-xs"
+                                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-brand-blue/40 text-brand-blue hover:bg-blue-50/70 bg-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all"
                                                                     title="Baixar Edital diretamente da fonte oficial governamental (PNCP)"
                                                                 >
                                                                     <Download className="w-3.5 h-3.5" weight="bold" />
-                                                                    Baixar Edital
+                                                                    <span>Baixar Edital</span>
                                                                 </a>
                                                             ) : (
-                                                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-400 text-[11px] font-bold uppercase tracking-wider rounded-lg cursor-not-allowed">
-                                                                    Sem Anexo
+                                                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 text-[11px] font-bold uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60">
+                                                                    <Download className="w-3.5 h-3.5" weight="bold" />
+                                                                    <span>Baixar Edital</span>
                                                                 </span>
                                                             )}
 
+                                                            {/* 2. RESUMO RÁPIDO (Botão azul claro - abre modal com pontos-chave) */}
                                                             <button
                                                                 type="button"
-                                                                onClick={e => void handleSalvarNoCrm(e, item)}
-                                                                disabled={salvandoId === item.id}
-                                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
-                                                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                                                    : 'bg-brand-orange text-white hover:bg-orange-600 shadow-xs cursor-pointer'
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    setEditalParaResumo({
+                                                                        ...item,
+                                                                        downloadUrl,
+                                                                    });
+                                                                }}
+                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-brand-blue border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
+                                                                title="Visualizar resumo estratégico com pontos-chave do edital"
+                                                            >
+                                                                <FileText className="w-3.5 h-3.5" weight="bold" />
+                                                                <span>Resumo Rápido</span>
+                                                            </button>
+
+                                                            {/* 3. SALVAR PARA DISPUTAR (Botão Laranja de destaque / Salvo ✓ em verde suave) */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={e => void handleSalvarParaDisputar(e, item)}
+                                                                disabled={salvosCrmIds.has(item.id) || salvandoId === item.id}
+                                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
+                                                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
+                                                                    : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
                                                                     }`}
                                                             >
                                                                 {salvandoId === item.id ? (
@@ -891,29 +940,15 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                 ) : salvosCrmIds.has(item.id) ? (
                                                                     <>
                                                                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" weight="bold" />
-                                                                        <span>Na Esteira</span>
+                                                                        <span>Salvo ✓</span>
                                                                     </>
                                                                 ) : (
                                                                     <>
                                                                         <Plus className="w-3.5 h-3.5" weight="bold" />
-                                                                        <span>Disputar</span>
+                                                                        <span>Salvar para Disputar</span>
                                                                     </>
                                                                 )}
                                                             </button>
-
-                                                            {downloadUrl && (
-                                                                <a
-                                                                    href={downloadUrl}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    onClick={e => e.stopPropagation()}
-                                                                    className="inline-flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-brand-blue transition-colors"
-                                                                    title="Ver documento oficial do edital (PNCP)"
-                                                                >
-                                                                    <span>Ver Edital</span>
-                                                                    <ExternalLink className="w-3 h-3" weight="bold" />
-                                                                </a>
-                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -951,6 +986,16 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                     )}
                 </div>
             </div>
+
+            {/* MODAL RESUMO ESTRATÉGICO DO EDITAL (SEM ALUCINAÇÃO / SEM OMISSÕES) */}
+            <ResumoEstrategicoModal
+                isOpen={Boolean(editalParaResumo)}
+                onClose={() => setEditalParaResumo(null)}
+                edital={editalParaResumo}
+                isSalvo={Boolean(editalParaResumo && salvosCrmIds.has(editalParaResumo.id))}
+                isSalvando={Boolean(editalParaResumo && salvandoId === editalParaResumo.id)}
+                onSalvar={(target) => void handleSalvarParaDisputar(undefined, target)}
+            />
 
             <AnimatePresence>
                 {editalSelecionado && (

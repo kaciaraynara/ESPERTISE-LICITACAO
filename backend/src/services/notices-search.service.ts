@@ -324,6 +324,8 @@ export class NoticesSearchService {
           externalId: true,
           noticeNumber: true,
           modality: true,
+    judgmentCriterion: true,
+    modoDisputa: true,
           buyerName: true,
           object: true,
           uf: true,
@@ -567,6 +569,8 @@ function noticeSelect(includeRawPayload: boolean, includeItems = false) {
     externalId: true,
     noticeNumber: true,
     modality: true,
+    judgmentCriterion: true,
+    modoDisputa: true,
     buyerName: true,
     buyerDocument: true,
     object: true,
@@ -585,6 +589,17 @@ function noticeSelect(includeRawPayload: boolean, includeItems = false) {
   };
 
   if (includeItems) {
+    select.requirements = {
+      take: 100,
+      select: {
+        id: true,
+        requirementType: true,
+        title: true,
+        description: true,
+        mandatory: true,
+        detectedFrom: true,
+      },
+    };
     select.items = {
       take: 100,
       orderBy: { itemNumber: 'asc' },
@@ -619,6 +634,9 @@ function mapNotice(row: any, includeRawPayload: boolean) {
     externalId: row.externalId ?? null,
     noticeNumber: row.noticeNumber ?? null,
     modality: row.modality ?? null,
+    judgmentCriterion: row.judgmentCriterion ?? null,
+    criterioJulgamento: row.judgmentCriterion ?? null,
+    modoDisputa: row.modoDisputa ?? null,
     agency: row.buyerName ?? null,
     buyerName: row.buyerName ?? null,
     buyerDocument: row.buyerDocument ?? null,
@@ -636,6 +654,16 @@ function mapNotice(row: any, includeRawPayload: boolean) {
     rawPayloadIncluded: false,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
+    requirements: Array.isArray(row.requirements)
+      ? row.requirements.map((req: any) => ({
+          id: req.id,
+          tipo: req.requirementType,
+          titulo: req.title,
+          descricao: req.description,
+          obrigatorio: req.mandatory,
+          detectadoDe: req.detectedFrom,
+        }))
+      : [],
     items: Array.isArray(row.items)
       ? row.items.map((item: any) => ({
           id: item.id,

@@ -67,6 +67,7 @@ export interface LicitacaoRadarPNCP {
   modalidade: string | null;
   modalidadeId: number | null;
   modoDisputa: string | null;
+  criterioJulgamento?: string | null;
   situacao: string | null;
   valorEstimado: number | null;
   valor_estimado?: number | null;
