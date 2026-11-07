@@ -3,6 +3,7 @@ import { prisma } from '../database/prisma';
 import { AiGroundingService, AiGroundedResponse } from '../services/ai-grounding.service';
 import { calcularViabilidadeAutentica } from '../services/viabilidade.service';
 import { parecerJuridicoPdfService } from '../services/parecer-juridico-pdf.service';
+import { buscarLicitacaoPorIdOuControle } from '../services/licitacoes.service';
 import {
   chatWithProvider,
   streamGroundedResultToSse,
@@ -281,15 +282,23 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
         return res.status(400).json({ success: false, message: 'ID do edital não fornecido (noticeId).' });
       }
 
-      const notice = await prisma.procurementNotice.findFirst({
+      const cleanNoticeId = String(noticeId).trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanNoticeId);
+      const whereConditions: any[] = [
+        { externalId: cleanNoticeId },
+        { dedupeKey: `pncp-${cleanNoticeId}` },
+        { dedupeKey: cleanNoticeId },
+        { noticeNumber: cleanNoticeId },
+      ];
+      if (isUuid) {
+        whereConditions.unshift({ id: cleanNoticeId });
+      }
+
+      let notice = await prisma.procurementNotice.findFirst({
         where: {
           AND: [
             {
-              OR: [
-                { id: noticeId },
-                { externalId: noticeId },
-                { noticeNumber: noticeId },
-              ],
+              OR: whereConditions,
             },
             tenantVisibilityWhere(req.user?.tenantId),
           ],
@@ -305,8 +314,42 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
         },
       });
 
+      // Se não encontrou no banco local, busca no PNCP oficial e persiste automaticamente
       if (!notice) {
-        return res.status(404).json({ success: false, message: 'Edital não encontrado no banco de dados.' });
+        try {
+          const fetched = await buscarLicitacaoPorIdOuControle(cleanNoticeId, { requirePersistence: true });
+          const targetNoticeId = fetched?.databaseId || fetched?.id;
+          if (targetNoticeId) {
+            notice = await prisma.procurementNotice.findFirst({
+              where: {
+                OR: [
+                  { id: targetNoticeId },
+                  { externalId: fetched.numeroControlePNCP },
+                  { dedupeKey: `pncp-${fetched.numeroControlePNCP}` },
+                ],
+              },
+              include: {
+                attachments: {
+                  take: 5,
+                },
+                items: {
+                  take: 50,
+                  orderBy: { itemNumber: 'asc' },
+                },
+              },
+            });
+          }
+        } catch (fetchErr) {
+          console.warn('[LexController] Falha ao sincronizar edital remoto do PNCP:', fetchErr);
+        }
+      }
+
+      if (!notice) {
+        return res.status(404).json({
+          success: false,
+          code: 'NOTICE_NOT_FOUND',
+          message: 'Edital não encontrado no banco de dados nem no portal oficial.',
+        });
       }
 
       // Busca também chunks de texto associados ao edital no repositório de documentos
@@ -396,18 +439,56 @@ ${chunksText}
 `.trim();
 
       if (!extracted) {
-        const response = await chatWithProvider([
-          { role: 'user', content: prompt },
-        ]);
-        const cleaned = response.content.replace(/```json/gi, '').replace(/```/g, '').trim();
         try {
-          extracted = JSON.parse(cleaned);
-        } catch {
-          return res.status(502).json({
-            success: false,
-            code: 'AI_EXTRACTION_INVALID',
-            message: 'A extração não retornou um formato estruturado válido. Revise o documento e tente novamente.',
-          });
+          const response = await chatWithProvider([
+            { role: 'user', content: prompt },
+          ]);
+          const cleaned = response.content.replace(/```json/gi, '').replace(/```/g, '').trim();
+          try {
+            extracted = JSON.parse(cleaned);
+          } catch {
+            console.warn('[LexController] Resposta da IA não foi JSON puro, aplicando fallback estruturado.');
+          }
+        } catch (aiErr) {
+          console.warn('[LexController] Modelo de IA indisponível ou com erro, aplicando fallback dos dados do edital:', aiErr);
+        }
+      }
+
+      if (!extracted || !hasValidProposalItems(extracted.itens)) {
+        if (notice.items && notice.items.length > 0) {
+          extracted = {
+            criterioJulgamento: notice.judgmentCriterion || 'menor_preco',
+            modoDisputa: notice.modoDisputa || 'Aberto',
+            prazoValidadeDias: 60,
+            prazoEntregaDias: 15,
+            itens: notice.items.map((it, idx) => ({
+              numero: String(it.itemNumber || idx + 1),
+              descricao: it.description || notice.object,
+              unidade: it.unit || 'UN',
+              quantidade: Number(it.quantity) || 1,
+              marca: null,
+              modelo: null,
+              valorEstimadoUnitario: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : null,
+            })),
+          };
+        } else if (notice.object) {
+          extracted = {
+            criterioJulgamento: notice.judgmentCriterion || 'menor_preco',
+            modoDisputa: notice.modoDisputa || 'Aberto',
+            prazoValidadeDias: 60,
+            prazoEntregaDias: 15,
+            itens: [
+              {
+                numero: '1',
+                descricao: notice.object,
+                unidade: 'UN',
+                quantidade: 1,
+                marca: null,
+                modelo: null,
+                valorEstimadoUnitario: notice.estimatedValue ? Number(notice.estimatedValue) : null,
+              },
+            ],
+          };
         }
       }
 

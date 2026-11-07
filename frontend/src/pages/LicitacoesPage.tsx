@@ -305,6 +305,23 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 if (!current.includes(target.id)) {
                     localStorage.setItem(storedKey, JSON.stringify([...current, target.id]));
                 }
+
+                const anyTarget = target as any;
+                const detailsKey = 'expertise_editais_salvos_detalhes';
+                const currentDetails: any[] = JSON.parse(localStorage.getItem(detailsKey) || '[]');
+                if (!currentDetails.some((d: any) => d.id === target.id)) {
+                    currentDetails.push({
+                        id: target.id,
+                        numeroEdital: anyTarget.numero_processo || anyTarget.numeroEdital || anyTarget.numeroProcesso || `Edital #${target.id.slice(0, 8)}`,
+                        orgao: anyTarget.orgao || anyTarget.buyerName || 'Órgão Licitante',
+                        cnpjOrgao: anyTarget.cnpjOrgao || anyTarget.buyerDocument,
+                        modalidade: anyTarget.modalidade || anyTarget.modality || 'Pregão Eletrônico',
+                        dataCertame: anyTarget.data_abertura ? String(anyTarget.data_abertura).slice(0, 10) : undefined,
+                        objeto: anyTarget.objeto || anyTarget.object,
+                        valorEstimado: anyTarget.valor_estimado || anyTarget.valor_total_estimado || anyTarget.estimatedValue,
+                    });
+                    localStorage.setItem(detailsKey, JSON.stringify(currentDetails));
+                }
             } catch { }
 
             // Notificação rápida obrigatória

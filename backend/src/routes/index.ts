@@ -98,9 +98,9 @@ const mercadoPago = new MercadoPagoController();
 const govbr = new GovBrController();
 const lex = new LexController();
 
-const lexEnabled = getBooleanEnv('ENABLE_LEX', false);
-const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', false);
-const crmEnabled = getBooleanEnv('ENABLE_CRM', false);
+const lexEnabled = getBooleanEnv('ENABLE_LEX', true);
+const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', true);
+const crmEnabled = getBooleanEnv('ENABLE_CRM', true);
 
 const legacyMarketplaceEnabled =
   !isProduction() && getBooleanEnv('ENABLE_LEGACY_MARKETPLACE', false);
@@ -409,6 +409,20 @@ router.get(
   ),
 );
 
+router.post(
+  '/propostas/preencher-via-lex',
+  fornecedor,
+  requirePlanLimit('proposals'),
+  handle(lex.preencherProposta.bind(lex) as RequestHandler),
+);
+
+router.post(
+  '/propostas/extrair-edital',
+  fornecedor,
+  requirePlanLimit('proposals'),
+  handle(lex.extrairParaProposta.bind(lex) as RequestHandler),
+);
+
 router.use(
   '/precificacao',
   requirePlanFeature('pricing.strategy'),
@@ -507,7 +521,7 @@ if (lexEnabled) {
     ),
   );
 
-  router.use('/lex', requirePlanFeature('lex.advanced'), lexRoutes);
+  router.use('/lex', lexRoutes);
 
   // Alias legado: POST /auditoria/:licitacaoId → /lex/auditar
   router.post(

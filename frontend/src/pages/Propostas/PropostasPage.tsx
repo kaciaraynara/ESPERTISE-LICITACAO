@@ -8,8 +8,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
+  Edit3,
   Eye,
   X,
+  AlertCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { propostasApi, ProposalDto } from '@/services/api';
@@ -37,21 +39,30 @@ export const PropostasPage: React.FC = () => {
   const [termoBusca, setTermoBusca] = useState('');
   const [carregandoDados, setCarregandoDados] = useState(true);
 
-  // Modais
-  const [modalManualAberto, setModalManualAberto] = useState(false);
-  const [modalLexAberto, setModalLexAberto] = useState(Boolean(editalUrlParam));
+  // Modal Unificado Criar Proposta com Chave Seletora
+  const [modalCriarAberto, setModalCriarAberto] = useState(Boolean(editalUrlParam));
+  const [modoPreenchimento, setModoPreenchimento] = useState<'automatico' | 'manual'>('automatico');
   const [eventoSelecionado, setEventoSelecionado] = useState<CalendarEvent | null>(null);
 
-  // Form Nova Proposta Manual
+  // Form Geral / Manual
   const [companyId, setCompanyId] = useState(selectedCompany?.id ?? '');
   const [titulo, setTitulo] = useState('Proposta Comercial Oficial');
   const [validadeDias, setValidadeDias] = useState(60);
   const [prazoEntregaDias, setPrazoEntregaDias] = useState(15);
   const [savingManual, setSavingManual] = useState(false);
 
-  // Form Extração LEX IA
+  // Campos Modo Manual
+  const [orgaoManual, setOrgaoManual] = useState('');
+  const [numeroEditalManual, setNumeroEditalManual] = useState('');
+  const [objetoManual, setObjetoManual] = useState('');
+  const [criterioJulgamentoManual, setCriterioJulgamentoManual] = useState('menor_preco');
+
+  // Form Extração Automática / IA
+  const [editalSelecionado, setEditalSelecionado] = useState<EditalOption | null>(null);
   const [lexNoticeId, setLexNoticeId] = useState(editalUrlParam || '');
   const [extractingLex, setExtractingLex] = useState(false);
+  const [erroIaOcorrido, setErroIaOcorrido] = useState(false);
+  const [mensagemErroIa, setMensagemErroIa] = useState('');
 
   const hoje = new Date();
   const [mesAtualBase, setMesAtualBase] = useState(hoje.getMonth());
@@ -102,6 +113,33 @@ export const PropostasPage: React.FC = () => {
     void carregarDados();
   }, [activeCompanyId]);
 
+  // Seleção de Edital no Seletor
+  const handleSelectEdital = (ed: EditalOption) => {
+    setEditalSelecionado(ed);
+    setLexNoticeId(ed.id || ed.numeroEdital);
+    setErroIaOcorrido(false);
+    if (ed.orgao) setOrgaoManual(ed.orgao);
+    if (ed.numeroEdital) {
+      setNumeroEditalManual(ed.numeroEdital);
+      setTitulo(`Proposta Comercial - ${ed.numeroEdital}`);
+    }
+    if (ed.objeto) setObjetoManual(ed.objeto);
+  };
+
+  // Alternar com 1 clique para Modo Manual em caso de erro da IA
+  const handleFallbackParaManual = () => {
+    if (editalSelecionado) {
+      if (editalSelecionado.orgao) setOrgaoManual(editalSelecionado.orgao);
+      if (editalSelecionado.numeroEdital) {
+        setNumeroEditalManual(editalSelecionado.numeroEdital);
+        setTitulo(`Proposta Comercial - ${editalSelecionado.numeroEdital}`);
+      }
+      if (editalSelecionado.objeto) setObjetoManual(editalSelecionado.objeto);
+    }
+    setModoPreenchimento('manual');
+    setErroIaOcorrido(false);
+  };
+
   // Criação manual
   const handleCriarManual = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,13 +157,15 @@ export const PropostasPage: React.FC = () => {
     try {
       const res = await propostasApi.criarRascunho({
         companyId: targetCompany,
-        titulo: titulo.trim(),
+        procurementNoticeId: editalSelecionado?.id || undefined,
+        titulo: titulo.trim() || 'Proposta Comercial Oficial',
         validadeDias: Number(validadeDias) || 60,
         prazoEntregaDias: Number(prazoEntregaDias) || 15,
+        criterioJulgamento: criterioJulgamentoManual,
       });
 
-      toast.success('Rascunho de proposta criado!');
-      setModalManualAberto(false);
+      toast.success('Rascunho de proposta criado! Agora você pode editar os itens livremente.');
+      setModalCriarAberto(false);
       const newId = res.data?.data?.id;
       if (newId) {
         navigate(`/fornecedor/propostas/${newId}`);
@@ -139,15 +179,18 @@ export const PropostasPage: React.FC = () => {
     }
   };
 
-  // Preenchimento via LEX IA
+  // Preenchimento via LEX IA (Modo Automático)
   const handlePreencherViaLex = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!lexNoticeId.trim()) {
-      toast.error('Selecione ou informe o edital a ser extraído.');
+      toast.error('Selecione um edital salvo para o preenchimento automático.');
       return;
     }
 
     setExtractingLex(true);
+    setErroIaOcorrido(false);
+    setMensagemErroIa('');
+
     try {
       const res = await propostasApi.preencherPropostaViaLex({
         noticeId: lexNoticeId.trim(),
@@ -155,8 +198,8 @@ export const PropostasPage: React.FC = () => {
         autoCreate: true,
       });
 
-      toast.success('Proposta gerada com sucesso via LEX com itens e catálogo cruzados!');
-      setModalLexAberto(false);
+      toast.success('Proposta gerada com sucesso com itens e cálculos automáticos!');
+      setModalCriarAberto(false);
       const createdProposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
       if (createdProposalId) {
         navigate(`/fornecedor/propostas/${createdProposalId}`);
@@ -164,7 +207,11 @@ export const PropostasPage: React.FC = () => {
         await carregarDados();
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Falha ao preencher proposta via LEX.');
+      console.error('[PropostasPage] Falha ao preencher proposta via LEX:', err);
+      setErroIaOcorrido(true);
+      const msg = err.response?.data?.message || 'Não foi possível conectar ao serviço de IA no momento.';
+      setMensagemErroIa(msg);
+      toast.error('Não foi possível gerar via IA. Alterne para o Modo Manual em 1 clique.');
     } finally {
       setExtractingLex(false);
     }
@@ -271,7 +318,10 @@ export const PropostasPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 id="btn-preencher-proposta-lex"
-                onClick={() => setModalLexAberto(true)}
+                onClick={() => {
+                  setModoPreenchimento('automatico');
+                  setModalCriarAberto(true);
+                }}
                 className="px-4 py-2.5 rounded-xl bg-brand-dark hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 <Sparkles size={16} className="text-brand-orange" />
@@ -279,11 +329,15 @@ export const PropostasPage: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setModalManualAberto(true)}
+                id="btn-criar-proposta"
+                onClick={() => {
+                  setModoPreenchimento('automatico');
+                  setModalCriarAberto(true);
+                }}
                 className="px-4 py-2.5 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 <Plus size={16} />
-                Nova Proposta
+                Criar Proposta
               </button>
             </div>
           </div>
@@ -409,9 +463,12 @@ export const PropostasPage: React.FC = () => {
                           </Link>
                           <button
                             type="button"
-                            onClick={() => setModalManualAberto(true)}
+                            onClick={() => {
+                              setModoPreenchimento('manual');
+                              setModalCriarAberto(true);
+                            }}
                             disabled={empresas.length === 0}
-                            className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 disabled:opacity-50"
+                            className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 disabled:opacity-50 cursor-pointer hover:bg-slate-50"
                           >
                             Criar proposta manual
                           </button>
@@ -703,218 +760,347 @@ export const PropostasPage: React.FC = () => {
       )}
 
       {/* =======================================================================
-          MODAL EXTRAÇÃO LEX IA (GEMINI)
+          MODAL CRIAR PROPOSTA (UNIFICADO COM CHAVE SELETORA AUTOMÁTICO / MANUAL)
       ======================================================================= */}
-      {modalLexAberto && (
+      {modalCriarAberto && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {/* Cabeçalho do Modal */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="p-2 bg-brand-dark text-white rounded-lg">
-                  <Sparkles size={18} className="text-brand-orange" />
-                </span>
-                <div>
-                  <h3 className="font-black text-slate-900 text-sm">
-                    Preencher Proposta via LEX
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    O LEX extrai o Termo de Referência e cruza com seu Catálogo de Produtos.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setModalLexAberto(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handlePreencherViaLex} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Selecione o Edital Monitorado ou Disputa
-                </label>
-                <EditalSelector
-                  onSelectEdital={(ed: EditalOption) => {
-                    setLexNoticeId(ed.id || ed.numeroEdital);
-                  }}
-                />
-                {lexNoticeId && (
-                  <p className="text-[11px] text-emerald-700 font-bold mt-1">
-                    Edital selecionado: <span className="font-mono text-slate-900">{lexNoticeId}</span>
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Empresa Emitente da Proposta
-                </label>
-                <select
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  disabled={empresas.length === 0}
-                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none"
-                >
-                  {empresas.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.razaoSocial || (c as any).razao_social} ({c.cnpj})
-                    </option>
-                  ))}
-                  {empresas.length === 0 && (
-                    <option value="">Nenhuma empresa cadastrada</option>
-                  )}
-                </select>
-                {empresas.length === 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Cadastre uma empresa antes de criar a proposta.
-                  </p>
-                )}
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
-                <strong className="text-slate-800">Mais agilidade para preparar sua proposta:</strong> A assistência ajuda a organizar as informações do edital e consultar os custos cadastrados no seu catálogo. Confira os dados e os preços antes de concluir.
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalLexAberto(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={extractingLex || !lexNoticeId.trim() || !companyId}
-                  className="px-5 py-2 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer"
-                >
-                  {extractingLex ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Preparando sua proposta...
-                    </>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-brand-dark text-white rounded-xl shadow-xs">
+                  {modoPreenchimento === 'automatico' ? (
+                    <Sparkles size={18} className="text-brand-orange" />
                   ) : (
-                    <>
-                      <Sparkles size={14} /> Preparar proposta
-                    </>
+                    <Edit3 size={18} className="text-brand-orange" />
                   )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =======================================================================
-          MODAL NOVA PROPOSTA MANUAL
-      ======================================================================= */}
-      {modalManualAberto && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="p-2 bg-brand-orange text-white rounded-lg">
-                  <Plus size={18} />
                 </span>
                 <div>
-                  <h3 className="font-black text-slate-900 text-sm">
-                    Nova Proposta Manual (Lei 14.133/21)
+                  <h3 className="font-black text-slate-900 text-sm md:text-base">
+                    Criar Proposta Comercial
                   </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Defina os parâmetros gerais da formulação da proposta de preços.
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Conformidade com a Lei Federal nº 14.133/2021
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setModalManualAberto(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                onClick={() => {
+                  setModalCriarAberto(false);
+                  setErroIaOcorrido(false);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+                title="Fechar"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCriarManual} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Empresa proponente
-                </label>
-                <select
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  required
-                  disabled={empresas.length === 0}
-                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none"
-                >
-                  {empresas.length === 0 && <option value="">Nenhuma empresa cadastrada</option>}
-                  {empresas.map((empresa) => (
-                    <option key={empresa.id} value={empresa.id}>
-                      {empresa.razaoSocial || empresa.razao_social} ({empresa.cnpj})
-                    </option>
-                  ))}
-                </select>
-                {empresas.length === 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Cadastre uma empresa antes de criar a proposta.
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Título da Proposta
-                </label>
-                <input
-                  type="text"
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
-                  className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-orange"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Validade da Proposta (Dias)
-                  </label>
-                  <input
-                    type="number"
-                    value={validadeDias}
-                    onChange={(e) => setValidadeDias(Number(e.target.value))}
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Prazo de Entrega (Dias)
-                  </label>
-                  <input
-                    type="number"
-                    value={prazoEntregaDias}
-                    onChange={(e) => setPrazoEntregaDias(Number(e.target.value))}
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
+            {/* CHAVE SELETORA CLARA: [Modo Automático] ou [Modo Manual] */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                Modo de Preenchimento
+              </label>
+              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setModalManualAberto(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50"
+                  id="tab-modo-automatico"
+                  onClick={() => setModoPreenchimento('automatico')}
+                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    modoPreenchimento === 'automatico'
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  Cancelar
+                  <Sparkles size={15} className={modoPreenchimento === 'automatico' ? 'text-brand-orange' : 'text-slate-400'} />
+                  Modo Automático
                 </button>
                 <button
-                  type="submit"
-                  disabled={savingManual || !titulo.trim() || !companyId}
-                  className="px-5 py-2 bg-brand-orange hover:bg-orange-600 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2"
+                  type="button"
+                  id="tab-modo-manual"
+                  onClick={() => setModoPreenchimento('manual')}
+                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    modoPreenchimento === 'manual'
+                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  {savingManual ? 'Criando...' : 'Criar Rascunho'}
+                  <Edit3 size={15} className={modoPreenchimento === 'manual' ? 'text-brand-orange' : 'text-slate-400'} />
+                  Modo Manual
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* SELEÇÃO DA EMPRESA EMITENTE (Comum para ambos os modos) */}
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Empresa Proponente / Emitente
+              </label>
+              <select
+                value={companyId}
+                onChange={(e) => setCompanyId(e.target.value)}
+                disabled={empresas.length === 0}
+                className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+              >
+                {empresas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.razaoSocial || (c as any).razao_social} ({c.cnpj})
+                  </option>
+                ))}
+                {empresas.length === 0 && (
+                  <option value="">Nenhuma empresa cadastrada</option>
+                )}
+              </select>
+              {empresas.length === 0 && (
+                <p className="mt-1 text-[11px] text-red-600">
+                  Cadastre uma empresa antes de criar a proposta.
+                </p>
+              )}
+            </div>
+
+            {/* CONTEÚDO ESPECÍFICO DO MODO AUTOMÁTICO */}
+            {modoPreenchimento === 'automatico' && (
+              <form onSubmit={handlePreencherViaLex} className="space-y-4">
+                {/* Seletor de editais com os editais salvos */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Selecione o Edital Salvo ou Disputa
+                  </label>
+                  <EditalSelector
+                    onSelectEdital={handleSelectEdital}
+                    selectedId={lexNoticeId}
+                  />
+                </div>
+
+                {/* Card de Preview de Dados Auto-Preenchidos */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-brand-orange" />
+                      Preenchimento Automático do Sistema:
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Conectado
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1">
+                    <div>
+                      <strong className="text-slate-800">Órgão Licitante:</strong>{' '}
+                      <span className="text-slate-900 font-medium">
+                        {editalSelecionado?.orgao || 'Selecione um edital acima'}
+                      </span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-800">Número da Licitação:</strong>{' '}
+                      <span className="text-slate-900 font-medium">
+                        {editalSelecionado?.numeroEdital || 'Selecione um edital acima'}
+                      </span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-800">Empresa:</strong>{' '}
+                      <span className="text-slate-900 font-medium">
+                        {empresas.find((c) => c.id === companyId)?.razaoSocial || empresas[0]?.razaoSocial || 'Empresa ativa'}
+                      </span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-800">Cálculo de Itens:</strong>{' '}
+                      <span className="text-emerald-700 font-bold">
+                        Puxa itens e valores calculados
+                      </span>
+                    </div>
+                    {editalSelecionado?.objeto && (
+                      <div className="sm:col-span-2">
+                        <strong className="text-slate-800">Objeto:</strong>{' '}
+                        <span className="text-slate-700 line-clamp-2">
+                          {editalSelecionado.objeto}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ALERTA AMIGÁVEL SE OCORREU ERRO NA IA (COM 1 CLIQUE PARA MODO MANUAL) */}
+                {erroIaOcorrido && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2 animate-fadeIn">
+                    <div className="flex items-center gap-2 text-amber-800 font-bold">
+                      <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                      <span>Não foi possível conectar ao serviço de IA no momento</span>
+                    </div>
+                    <p className="text-amber-700 text-[11px] leading-relaxed">
+                      {mensagemErroIa || 'O serviço de extração automática não pôde processar este edital no momento.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleFallbackParaManual}
+                      className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-lg text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                    >
+                      <Edit3 size={14} />
+                      Preencher no Modo Manual (1 clique)
+                    </button>
+                  </div>
+                )}
+
+                {/* Botões do Rodapé no Modo Automático */}
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalCriarAberto(false);
+                      setErroIaOcorrido(false);
+                    }}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={extractingLex || !lexNoticeId.trim() || !companyId}
+                    className="px-5 py-2.5 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                  >
+                    {extractingLex ? (
+                      <>
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Calculando e gerando proposta...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={14} /> Gerar Proposta Automática
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* CONTEÚDO ESPECÍFICO DO MODO MANUAL */}
+            {modoPreenchimento === 'manual' && (
+              <form onSubmit={handleCriarManual} className="space-y-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed font-medium">
+                  <strong>Modo Manual Ativo:</strong> Todos os campos abaixo estão editáveis para você preencher ou alterar itens livremente.
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Título da Proposta
+                  </label>
+                  <input
+                    type="text"
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
+                    required
+                    placeholder="Ex: Proposta Comercial - Pregão 45/2026"
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Órgão Licitante
+                    </label>
+                    <input
+                      type="text"
+                      value={orgaoManual}
+                      onChange={(e) => setOrgaoManual(e.target.value)}
+                      placeholder="Ex: Tribunal Regional Federal"
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Número do Edital / Licitação
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroEditalManual}
+                      onChange={(e) => setNumeroEditalManual(e.target.value)}
+                      placeholder="Ex: Pregão Eletrônico 12/2026"
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Objeto da Licitação
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={objetoManual}
+                    onChange={(e) => setObjetoManual(e.target.value)}
+                    placeholder="Descrição do objeto da contratação..."
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Critério de Julgamento
+                  </label>
+                  <select
+                    value={criterioJulgamentoManual}
+                    onChange={(e) => setCriterioJulgamentoManual(e.target.value)}
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                  >
+                    <option value="menor_preco">Menor Preço</option>
+                    <option value="maior_desconto">Maior Desconto</option>
+                    <option value="melhor_tecnica">Melhor Técnica</option>
+                    <option value="tecnica_e_preco">Técnica e Preço</option>
+                    <option value="maior_lance">Maior Lance</option>
+                    <option value="maior_retorno_economico">Maior Retorno Econômico</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Validade da Proposta (Dias)
+                    </label>
+                    <input
+                      type="number"
+                      value={validadeDias}
+                      onChange={(e) => setValidadeDias(Number(e.target.value))}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Prazo de Entrega (Dias)
+                    </label>
+                    <input
+                      type="number"
+                      value={prazoEntregaDias}
+                      onChange={(e) => setPrazoEntregaDias(Number(e.target.value))}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Botões do Rodapé no Modo Manual */}
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalCriarAberto(false);
+                      setErroIaOcorrido(false);
+                    }}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingManual || !titulo.trim() || !companyId}
+                    className="px-5 py-2.5 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                  >
+                    {savingManual ? 'Criando Rascunho...' : 'Criar Proposta Manual'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

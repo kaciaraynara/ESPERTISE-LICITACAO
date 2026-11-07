@@ -115,3 +115,4 @@ describe('Etapa 1: Fluxo do Radar e Resumo Estratégico', () => {
     });
   });
 });
+
