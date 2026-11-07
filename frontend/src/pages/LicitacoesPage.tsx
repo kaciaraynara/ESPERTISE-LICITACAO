@@ -74,25 +74,29 @@ const UFS = [
 ];
 
 function resolveEditalDownloadUrl(item: Licitacao): string | null {
-    const explicit =
-        item.linkDownloadEdital ||
-        item.documento_url ||
-        item.linkSistemaOrigem ||
-        item.link;
+    const numPncp = (item.numeroControlePNCP || (item as any).numero_controle_pncp || item.id || '').trim();
+    const clean = numPncp.replace(/^pncp-/i, '').trim();
 
-    const numPncp = (item.numeroControlePNCP || (item as any).numero_controle_pncp || '').trim();
-    const match = numPncp.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
-    if (match) {
-        const [, cnpj, sequencial, ano] = match;
+    // Suporte aos formatos oficiais do PNCP: CNPJ-1-SEQUENCIAL/ANO, CNPJ-1-SEQUENCIAL-ANO, CNPJ-SEQUENCIAL/ANO
+    const match1 = clean.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
+    if (match1) {
+        const [, cnpj, sequencial, ano] = match1;
         return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
     }
 
-    if (explicit && explicit.trim()) {
+    const match2 = clean.match(/^(\d{14})[/-](\d{4})[/-](\d+)$/);
+    if (match2) {
+        const [, cnpj, ano, sequencial] = match2;
+        return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
+    }
+
+    const explicit = item.linkDownloadEdital || item.documento_url || item.link;
+    if (explicit && explicit.includes('/arquivos/')) {
         return explicit.trim();
     }
 
-    if (numPncp) {
-        return `https://pncp.gov.br/app/editais/${encodeURIComponent(numPncp)}`;
+    if (item.linkSistemaOrigem && item.linkSistemaOrigem.startsWith('http')) {
+        return item.linkSistemaOrigem.trim();
     }
 
     return null;
@@ -235,8 +239,12 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
             })
             .catch((error: any) => {
                 if (!active) return;
-                const message = error.response?.data?.message || error.message;
-                setErroDetalhesEdital(message || 'Não foi possível carregar os detalhes e itens do edital.');
+                const is404 = error.response?.status === 404;
+                const message = is404
+                    ? 'Edital não encontrado na fonte oficial (PNCP).'
+                    : (error.response?.data?.message || error.message || 'Não foi possível carregar os detalhes do edital.');
+                setErroDetalhesEdital(message);
+                toast.error(message, { id: 'edital-detail-error' });
             })
             .finally(() => {
                 if (active) setCarregandoDetalhesEdital(false);
@@ -893,15 +901,16 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                 )}
                                                             </button>
 
-                                                            {item.numeroControlePNCP && (
+                                                            {downloadUrl && (
                                                                 <a
-                                                                    href={`https://pncp.gov.br/app/editais/${encodeURIComponent(item.numeroControlePNCP)}`}
+                                                                    href={downloadUrl}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     onClick={e => e.stopPropagation()}
                                                                     className="inline-flex items-center justify-center gap-1 text-[10px] font-bold text-slate-500 hover:text-brand-blue transition-colors"
+                                                                    title="Ver documento oficial do edital (PNCP)"
                                                                 >
-                                                                    <span>Ver no Portal</span>
+                                                                    <span>Ver Edital</span>
                                                                     <ExternalLink className="w-3 h-3" weight="bold" />
                                                                 </a>
                                                             )}

@@ -26,20 +26,17 @@ function resolvePncpDownloadUrl(
   if (typeof buildPncpDownloadUrl === 'function') {
     return buildPncpDownloadUrl(numeroControlePNCP, linkSistemaOrigem, linkEditalPNCP);
   }
-  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim()) {
-    return linkEditalPNCP.trim();
-  }
-  const cleanControl = typeof numeroControlePNCP === 'string' ? numeroControlePNCP.trim() : '';
-  const match = cleanControl.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
+  const cleanControl = typeof numeroControlePNCP === 'string' ? numeroControlePNCP.trim().replace(/^pncp-/i, '') : '';
+  const match = cleanControl.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
   if (match) {
     const [, cnpj, sequencial, ano] = match;
     return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
   }
+  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim() && linkEditalPNCP.includes('/arquivos/')) {
+    return linkEditalPNCP.trim();
+  }
   if (typeof linkSistemaOrigem === 'string' && linkSistemaOrigem.trim()) {
     return linkSistemaOrigem.trim();
-  }
-  if (cleanControl) {
-    return `https://pncp.gov.br/app/editais/${encodeURIComponent(cleanControl)}`;
   }
   return null;
 }
@@ -404,9 +401,8 @@ export async function listarLicitacoes(
   return {
     data: rows.map((r: any) => {
       const numControle = r.externalId || r.numeroControlePncp || r.noticeNumber || '';
-      const fallbackUrl = numControle ? `https://pncp.gov.br/app/editais/${encodeURIComponent(numControle)}` : '';
-      const portalUrl = r.url || fallbackUrl;
-      const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || portalUrl;
+      const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || r.url || '';
+      const portalUrl = downloadUrl || r.url || '';
 
       return {
         id: r.id,

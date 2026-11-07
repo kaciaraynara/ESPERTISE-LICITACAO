@@ -60,16 +60,51 @@ function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+export function parsePncpControlNumber(numeroControlePNCP: string | null | undefined): {
+  cnpj: string;
+  ano: string;
+  sequencial: number;
+} | null {
+  if (!numeroControlePNCP || typeof numeroControlePNCP !== 'string') {
+    return null;
+  }
+  const clean = numeroControlePNCP.trim().replace(/^pncp-/i, '');
+  // Formato oficial: CNPJ-1-SEQUENCIAL/ANO ou CNPJ-1-SEQUENCIAL-ANO ou CNPJ-SEQUENCIAL/ANO
+  const match1 = clean.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
+  if (match1) {
+    const [, cnpj, sequencial, ano] = match1;
+    return { cnpj, ano, sequencial: Number(sequencial) };
+  }
+  // Formato alternativo: CNPJ/ANO/SEQUENCIAL ou CNPJ-ANO-SEQUENCIAL
+  const match2 = clean.match(/^(\d{14})[/-](\d{4})[/-](\d+)$/);
+  if (match2) {
+    const [, cnpj, ano, sequencial] = match2;
+    return { cnpj, ano, sequencial: Number(sequencial) };
+  }
+  return null;
+}
+
 export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
   const raw = record(rawValue);
   const orgao = record(raw.orgaoEntidade ?? raw.orgao_entidade);
   const unidade = record(raw.unidadeOrgao ?? raw.unidade_orgao);
 
+  const numControle = firstString(
+    raw.numeroControlePNCP,
+    raw.numero_controle_pncp,
+  ) ?? '';
+
+  const parsedControl = parsePncpControlNumber(numControle);
+  const cnpj = firstString(orgao.cnpj)?.replace(/\D/g, '') || parsedControl?.cnpj;
+  const ano = optionalNumber(raw.anoCompra ?? raw.ano) || (parsedControl?.ano ? Number(parsedControl.ano) : undefined);
+  const sequencial = optionalNumber(raw.sequencialCompra ?? raw.sequencial) || parsedControl?.sequencial;
+
+  const officialDownloadUrl = (cnpj && ano && sequencial)
+    ? `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/1`
+    : (firstString(raw.linkEditalPNCP) ?? undefined);
+
   return {
-    numeroControlePNCP: firstString(
-      raw.numeroControlePNCP,
-      raw.numero_controle_pncp,
-    ) ?? '',
+    numeroControlePNCP: numControle,
     orgaoEntidade: {
       razaoSocial: firstString(orgao.razaoSocial, orgao.razaosocial),
       cnpj: firstString(orgao.cnpj),
@@ -93,7 +128,7 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     situacaoCompraNome: firstString(raw.situacaoCompraNome),
     usuarioNome: firstString(raw.usuarioNome),
     linkSistemaOrigem: firstString(raw.linkSistemaOrigem),
-    linkEditalPNCP: firstString(raw.linkEditalPNCP),
+    linkEditalPNCP: officialDownloadUrl,
     srp: typeof raw.srp === 'boolean' ? raw.srp : undefined,
   };
 }
@@ -251,23 +286,20 @@ export function buildPncpDownloadUrl(
   linkSistemaOrigem?: string | null,
   linkEditalPNCP?: string | null,
 ): string | null {
-  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim()) {
-    return linkEditalPNCP.trim();
+  const parsed = parsePncpControlNumber(numeroControlePNCP);
+  if (parsed) {
+    return `https://pncp.gov.br/api/pncp/v1/orgaos/${parsed.cnpj}/compras/${parsed.ano}/${parsed.sequencial}/arquivos/1`;
   }
 
-  const cleanControl = typeof numeroControlePNCP === 'string' ? numeroControlePNCP.trim() : '';
-  const match = cleanControl.match(/^(\d{14})-\d+-(\d+)[/-](\d{4})$/);
-  if (match) {
-    const [, cnpj, sequencial, ano] = match;
-    return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
+  if (typeof linkEditalPNCP === 'string' && linkEditalPNCP.trim()) {
+    const trimmed = linkEditalPNCP.trim();
+    if (trimmed.includes('/arquivos/') || !trimmed.includes('/app/editais/')) {
+      return trimmed;
+    }
   }
 
   if (typeof linkSistemaOrigem === 'string' && linkSistemaOrigem.trim()) {
     return linkSistemaOrigem.trim();
-  }
-
-  if (cleanControl) {
-    return `https://pncp.gov.br/app/editais/${encodeURIComponent(cleanControl)}`;
   }
 
   return null;
@@ -356,6 +388,14 @@ function mapAxiosError(error: unknown): PncpServiceError {
       'PNCP_UNAVAILABLE',
       'Não foi possível consultar a fonte oficial do PNCP.',
       503,
+    );
+  }
+
+  if (error.response?.status === 404 || error.response?.status === 422) {
+    return new PncpServiceError(
+      'PNCP_NOT_FOUND',
+      'Edital não encontrado na fonte oficial do PNCP.',
+      404,
     );
   }
 
@@ -515,11 +555,9 @@ export async function buscarContratacoesPNCP(
 export async function buscarContratacaoPNCP(
   numeroControlePNCP: string,
 ): Promise<LicitacaoPNCP> {
-  const match = numeroControlePNCP
-    .trim()
-    .match(/^(\d{14})-1-(\d{6})\/(\d{4})$/);
+  const parsed = parsePncpControlNumber(numeroControlePNCP);
 
-  if (!match) {
+  if (!parsed) {
     throw new PncpServiceError(
       'INVALID_FILTER',
       'O número de controle PNCP da contratação é inválido.',
@@ -527,8 +565,7 @@ export async function buscarContratacaoPNCP(
     );
   }
 
-  const [, cnpj, sequencialText, ano] = match;
-  const sequencial = Number(sequencialText);
+  const { cnpj, sequencial, ano } = parsed;
   const baseUrl = (
     process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
   ).replace(/\/+$/, '');
@@ -559,10 +596,10 @@ export async function buscarContratacaoPNCP(
     if (error instanceof PncpServiceError) {
       throw error;
     }
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
+    if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 422)) {
       throw new PncpServiceError(
         'PNCP_NOT_FOUND',
-        'Contratação não encontrada no PNCP.',
+        'Contratação não encontrada na fonte oficial do PNCP.',
         404,
       );
     }

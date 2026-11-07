@@ -140,8 +140,16 @@ export default function RadarPage() {
                           <Search size={14} /> Analisar
                         </button>
                         {(() => {
-                          const numPncp = licitacao.numeroControlePNCP || licitacao.numero_controle_pncp;
-                          const portalUrl = licitacao.linkSistemaOrigem || licitacao.documento_url || licitacao.link || (numPncp ? `https://pncp.gov.br/app/editais/${encodeURIComponent(numPncp)}` : null);
+                          const numPncp = (licitacao.numeroControlePNCP || licitacao.numero_controle_pncp || '').trim();
+                          const clean = numPncp.replace(/^pncp-/i, '').trim();
+                          const match1 = clean.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
+                          const match2 = clean.match(/^(\d{14})[/-](\d{4})[/-](\d+)$/);
+                          const officialUrl = match1
+                            ? `https://pncp.gov.br/api/pncp/v1/orgaos/${match1[1]}/compras/${match1[3]}/${Number(match1[2])}/arquivos/1`
+                            : match2
+                            ? `https://pncp.gov.br/api/pncp/v1/orgaos/${match2[1]}/compras/${match2[2]}/${Number(match2[3])}/arquivos/1`
+                            : null;
+                          const portalUrl = officialUrl || licitacao.documento_url || licitacao.link || licitacao.linkSistemaOrigem;
                           if (!portalUrl) return null;
                           return (
                             <a
@@ -151,7 +159,7 @@ export default function RadarPage() {
                               className="px-3 py-2 bg-white border border-slate-200 hover:border-slate-400 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center justify-center"
                               title="Ver edital no portal oficial (PNCP / Compras.gov)"
                             >
-                              Portal
+                              Ver Edital
                             </a>
                           );
                         })()}

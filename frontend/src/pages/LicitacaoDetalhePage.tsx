@@ -210,8 +210,17 @@ export default function LicitacaoDetalhePage() {
   const licitacaoQuery = useQuery({
     queryKey: ['licitacao-detalhe', licitacaoId],
     queryFn: async () => {
-      const response = await licitacoesApi.buscarPorId(licitacaoId);
-      return response.data?.data as Licitacao;
+      try {
+        const response = await licitacoesApi.buscarPorId(licitacaoId);
+        return response.data?.data as Licitacao;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          toast.error('Edital não localizado na fonte oficial do PNCP.', { id: 'edital-detalhe-404' });
+        } else {
+          toast.error('Não foi possível carregar os detalhes do edital.', { id: 'edital-detalhe-err' });
+        }
+        throw err;
+      }
     },
     enabled: Boolean(licitacaoId),
     retry: 1,
@@ -409,6 +418,25 @@ export default function LicitacaoDetalhePage() {
         <div className="rounded-[28px] border border-gray-100 bg-white p-12 text-center shadow-sm shadow-[0_4px_20px_rgba(30,58,138,0.05)]">
           <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-brand-blue" />
           <p className="text-sm text-brand-blue/70">Carregando edital...</p>
+        </div>
+      )}
+
+      {licitacaoQuery.isError && (
+        <div className="rounded-[28px] border border-gray-100 bg-white p-12 text-center shadow-sm">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+          <h2 className="text-lg font-bold text-slate-800">Edital não encontrado</h2>
+          <p className="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+            O edital solicitado não foi localizado na base de dados ou na fonte oficial do governo (PNCP). Verifique o número de controle ou selecione outro certame.
+          </p>
+          <div className="mt-6">
+            <Link
+              to="/fornecedor/radar"
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-blue px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-800 transition-colors shadow-xs"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao Radar
+            </Link>
+          </div>
         </div>
       )}
 
