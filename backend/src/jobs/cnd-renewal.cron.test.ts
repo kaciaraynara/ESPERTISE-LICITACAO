@@ -1,7 +1,12 @@
+const findManyMock = jest.fn();
+
 jest.mock('../database/prisma', () => ({
   prisma: {
+    companyCertificate: {
+      findMany: findManyMock,
+    },
     document: {
-      findMany: jest.fn(),
+      findMany: findManyMock,
     },
   },
 }));
@@ -15,7 +20,6 @@ import { prisma } from '../database/prisma';
 import { runCndRenewalScan } from './cnd-renewal.cron';
 
 const databaseConfiguredMock = isDatabaseConfigured as jest.MockedFunction<typeof isDatabaseConfigured>;
-const findManyMock = prisma.document.findMany as jest.Mock;
 
 describe('runCndRenewalScan', () => {
   beforeEach(() => {

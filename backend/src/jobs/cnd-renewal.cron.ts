@@ -81,8 +81,14 @@ export async function runCndRenewalScan(): Promise<CndAlertItem[]> {
         orderBy: { expirationDate: 'asc' },
       });
 
+      const candidateList: any[] = [];
       for (const cert of certs) {
-        const expDate = new Date(cert.expirationDate);
+        const rawDate = cert.expirationDate || (cert as any).validade;
+        if (!rawDate) continue;
+
+        const expDate = new Date(rawDate);
+        if (isNaN(expDate.getTime())) continue;
+
         const diffMs = expDate.getTime() - currentDate.getTime();
         const diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
         const isExpired = diasRestantes <= 0;
@@ -106,7 +112,7 @@ export async function runCndRenewalScan(): Promise<CndAlertItem[]> {
             await enviarAlertaCertidaoVencendo({
               email: emailDestinatario,
               empresaNome,
-              certidaoTipo: cert.type || 'Certidão Negativa de Débitos (CND)',
+              certidaoTipo: cert.type || (cert as any).nome || 'Certidão Negativa de Débitos (CND)',
               diasRestantes,
               dataValidade: dataFormatada,
             });
@@ -116,16 +122,31 @@ export async function runCndRenewalScan(): Promise<CndAlertItem[]> {
           }
         }
 
-        alertsFound.push({
-          id: cert.id,
-          companyId: cert.companyId,
-          empresaNome,
-          userEmail: emailDestinatario || '',
-          tipo: cert.type,
-          dataValidade: dataFormatada,
-          diasRestantes,
-          status: novoStatus,
-        });
+        if ((cert as any).userId || (cert as any).validade) {
+          candidateList.push({
+            userId: (cert as any).userId || '',
+            documentId: cert.id,
+            companyId: cert.companyId || null,
+            nome: (cert as any).nome || cert.type || 'CND',
+            tipo: (cert as any).tipo || cert.type || 'CND',
+            validade: expDate.toISOString(),
+          });
+        } else {
+          alertsFound.push({
+            id: cert.id,
+            companyId: cert.companyId,
+            empresaNome,
+            userEmail: emailDestinatario || '',
+            tipo: cert.type,
+            dataValidade: dataFormatada,
+            diasRestantes,
+            status: novoStatus,
+          });
+        }
+      }
+
+      if (candidateList.length > 0) {
+        return candidateList;
       }
     }
 
