@@ -345,7 +345,7 @@ export default function CrmKanbanPage() {
         </div>
       )}
 
-      {/* ESTEIRA DE DISPUTAS KANBAN */}
+      {/* ESTEIRA DE DISPUTAS */}
       {!isLoading && !isError && items.length > 0 && (
         <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 md:px-8 py-6 bg-slate-50/50">
           <div className="flex gap-5 h-full items-start min-w-[1550px]">

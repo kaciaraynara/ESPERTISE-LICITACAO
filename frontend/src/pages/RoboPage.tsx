@@ -24,7 +24,7 @@ import api, { roboApi } from '@services/api';
 import toast from 'react-hot-toast';
 
 type StrategyType = 'SNIPER' | 'AGRESSIVO' | 'CONSERVADOR';
-type ActiveTab = 'cockpit' | 'monitor' | 'config';
+type ActiveTab = 'painel' | 'monitor' | 'config';
 
 type LogEntry = {
   id: number | string;
@@ -75,7 +75,7 @@ const STRATEGIES = [
 ] as const;
 
 const TABS = [
-  { id: 'cockpit', label: 'Cockpit', icon: BarChart2 },
+  { id: 'painel', label: 'Painel de Controle', icon: BarChart2 },
   { id: 'monitor', label: 'Portal da Disputa', icon: Globe },
   { id: 'config', label: 'Configuracoes', icon: Settings2 },
 ] as const;
@@ -138,7 +138,7 @@ export default function RoboPage() {
   const [sessaoNome, setSessaoNome] = useState('Sala de disputa');
   const [scoreAderencia, setScoreAderencia] = useState(scoreQuery || 78);
   const [tempoRestante, setTempoRestante] = useState(120);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('cockpit');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('painel');
   const [portalSel, setPortalSel] = useState<DisputePortal>(() => {
     const detectedPortal = inferPortal(portalQuery);
     return portalQuery && detectedPortal.id !== 'outros'
@@ -600,7 +600,7 @@ export default function RoboPage() {
             </div>
           </section>
 
-          {activeTab === 'cockpit' && (
+          {activeTab === 'painel' && (
             <div className="space-y-6">
               <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
                 <div className="space-y-6">
@@ -942,10 +942,10 @@ export default function RoboPage() {
                     Salvar configuracao
                   </button>
                   <button
-                    onClick={() => setActiveTab('cockpit')}
+                    onClick={() => setActiveTab('painel')}
                     className="tech-outline-button"
                   >
-                    Voltar ao cockpit
+                    Voltar ao painel de controle
                   </button>
                 </div>
               </div>

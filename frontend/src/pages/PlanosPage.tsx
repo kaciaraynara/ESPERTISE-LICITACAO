@@ -654,7 +654,7 @@ export default function PlanosPage() {
                     {plan.id === 'pro' && (
                       <li className="flex items-start gap-2.5 pt-2 border-t border-white/10 text-white font-bold">
                         <RocketLaunch className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" weight="duotone" />
-                        <span>Robô de Lances, CRM Kanban & Lex IA</span>
+                        <span>Envio Automático de Lances, Quadro de Etapas & Lex</span>
                       </li>
                     )}
 

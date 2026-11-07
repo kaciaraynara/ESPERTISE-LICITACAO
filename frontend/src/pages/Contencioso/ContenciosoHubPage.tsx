@@ -14,7 +14,6 @@ import {
   FileText,
   BookOpen,
   SpinnerGap,
-  Sparkle,
 } from '@phosphor-icons/react';
 
 import { useAuthStore } from '@/store/auth.store';
@@ -162,11 +161,7 @@ export default function ContenciosoHubPage() {
             <div className="flex items-center gap-2 mb-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-100 text-[#0A2540] border border-blue-200">
                 <Scales className="h-3.5 w-3.5 text-[#EA580C]" weight="bold" />
-                Contencioso Jurídico Lex
-              </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-200">
-                <Sparkle className="h-3 w-3" weight="fill" />
-                GPT-4o & pgvector RAG
+                Central de Defesas e Recursos
               </span>
             </div>
 

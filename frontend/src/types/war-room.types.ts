@@ -1,5 +1,5 @@
 /**
- * Tipos TypeScript da Sala de Guerra, Simulação Tributária e WebSocket (Frontend)
+ * Tipos TypeScript da Disputa ao Vivo, Simulação Tributária e WebSocket (Frontend)
  * Perfeitamente alinhados com o backend para consistência integral.
  */
 

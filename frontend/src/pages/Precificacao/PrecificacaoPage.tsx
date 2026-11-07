@@ -214,13 +214,13 @@ export const PrecificacaoPage: React.FC = () => {
             </div>
           </div>
 
-          {/* REGRAS PARA O ROBÔ DE LANCES */}
+          {/* REGRAS PARA O ENVIO AUTOMÁTICO DE LANCES */}
           <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex items-start gap-4">
             <Zap className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
             <div className="text-xs">
-              <h4 className="font-bold text-amber-900">Parâmetro de Disputa Autônoma (Robô de Lances)</h4>
+              <h4 className="font-bold text-amber-900">Parâmetro de Disputa (Envio Automático de Lances)</h4>
               <p className="text-amber-700 mt-1">
-                Ao exportar esta estratégia para o **Módulo do Robô**, o preço teto de parada será configurado em **{formatarMoeda(calculo.precoBreakeven)}**. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
+                Ao exportar esta estratégia para o **Envio Automático de Lances**, o preço teto de parada será configurado em **{formatarMoeda(calculo.precoBreakeven)}**. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
               </p>
             </div>
           </div>

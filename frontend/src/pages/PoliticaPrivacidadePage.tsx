@@ -64,7 +64,7 @@ export default function PoliticaPrivacidadePage() {
             <li><strong>Direito ao Esquecimento (Exclusão):</strong> Deletar sua conta diretamente no painel de <em>Configurações &gt; Privacidade (LGPD)</em>.</li>
           </ul>
           <p>
-            Ao solicitar a exclusão da conta, seu acesso será encerrado. Alguns dados poderão ser mantidos pelo período necessário para cumprir obrigações legais, prevenir fraudes e proteger a plataforma. Depois desse período, os dados que puderem ser removidos serão excluídos ou anonimizados.
+            Ao solicitar a exclusão da conta, seu acesso será encerrado. Alguns dados poderão ser mantidos pelo período necessário para cumprir obrigações legais, prevenir irregularidades e proteger a plataforma. Depois desse período, os dados que puderem ser removidos serão excluídos ou anonimizados.
           </p>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">5. Medidas de Segurança Adotadas</h2>

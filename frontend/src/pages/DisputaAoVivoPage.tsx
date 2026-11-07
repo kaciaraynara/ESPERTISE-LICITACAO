@@ -27,7 +27,7 @@ import {
   SocketBidError,
 } from '@/types/war-room.types';
 
-export default function SalaDeGuerraPage() {
+export default function DisputaAoVivoPage() {
   const { accessToken, user } = useAuthStore();
   const { selectedCompany } = useCompany();
   const socketRef = useRef<Socket | null>(null);
@@ -73,7 +73,7 @@ export default function SalaDeGuerraPage() {
       const result = await taxService.simulateBdi(payload);
       setSimulation(result);
     } catch (err: any) {
-      console.error('[SalaDeGuerra] Erro na simulação de BDI:', err);
+      console.error('[DisputaAoVivo] Erro na simulação de BDI:', err);
     } finally {
       setIsSimulating(false);
     }
@@ -167,7 +167,7 @@ export default function SalaDeGuerraPage() {
     }
 
     if (!socketRef.current || !isConnected) {
-      toast.error('Conexão com a Sala de Guerra indisponível. Tentando reconectar...');
+      toast.error('Conexão com a Disputa ao Vivo indisponível. Tentando reconectar...');
       return;
     }
 
@@ -242,13 +242,13 @@ export default function SalaDeGuerraPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-8 sm:py-8 bg-brand-light min-h-screen font-sans">
-      {/* Header Executivo da Sala de Guerra */}
+      {/* Header Executivo da Disputa ao Vivo */}
       <header className="mb-6 flex flex-col gap-4 pb-5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200">
               <Lightning className="h-3.5 w-3.5 text-brand-orange" weight="fill" />
-              Sala de Guerra & Operação ao Vivo
+              Disputa ao Vivo & Lances
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
               {isConnected ? (
@@ -266,7 +266,7 @@ export default function SalaDeGuerraPage() {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-dark">
-            Cockpit de Disputa & Split Payment
+            Painel de Controle de Disputa & Split Payment
           </h1>
           <p className="text-xs sm:text-sm font-medium text-slate-500">
             Simulador de BDI tributário sob a Reforma (IVA Dual: CBS 11,3% + IBS 0,1%) com trava anti-prejuízo Stop-Loss.
@@ -310,7 +310,7 @@ export default function SalaDeGuerraPage() {
         </div>
       </header>
 
-      {/* Grid Principal: 2 Colunas (Calculadora Financeira + Cockpit Real-Time) */}
+      {/* Grid Principal: 2 Colunas (Calculadora Financeira + Painel em Tempo Real) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ===================================================================
             COLUNA ESQUERDA: CALCULADORA BDI, IVA DUAL E STOP-LOSS (5 COLS)
@@ -518,7 +518,7 @@ export default function SalaDeGuerraPage() {
         </section>
 
         {/* ===================================================================
-            COLUNA DIREITA: COCKPIT DE LANCES EM TEMPO REAL & WEBSOCKET (7 COLS)
+            COLUNA DIREITA: PAINEL DE CONTROLE DE LANCES EM TEMPO REAL & WEBSOCKET (7 COLS)
             =================================================================== */}
         <section className="lg:col-span-7 space-y-6">
           {/* Caixa de Ação Rápida de Lance */}
@@ -527,7 +527,7 @@ export default function SalaDeGuerraPage() {
               <div className="flex items-center gap-2">
                 <Gavel className="h-5 w-5 text-brand-orange" weight="duotone" />
                 <h2 className="text-sm font-black uppercase tracking-wider text-brand-dark">
-                  Disparador de Lances (Cockpit ao Vivo)
+                  Disparador de Lances (Painel ao Vivo)
                 </h2>
               </div>
               <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">

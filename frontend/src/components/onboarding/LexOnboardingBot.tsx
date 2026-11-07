@@ -52,9 +52,9 @@ export const LexOnboardingBot: React.FC = () => {
   const steps: Step[] = [
     {
       target: '[data-tour="sidebar-menu"]',
-      title: 'Command Center: 4 Centrais Estratégicas',
+      title: 'Centrais Estratégicas',
       content:
-        'A plataforma foi consolidada em 4 Centrais Estratégicas: Radar & Oportunidades, Sala de Guerra & Disputas, Contencioso & Defesas, e Gestão Pós-Vitória & Garantias. Todas liberadas no seu plano.',
+        'A plataforma foi consolidada em 4 Centrais Estratégicas: Radar & Oportunidades, Disputa ao Vivo, Defesas e Recursos, e Gestão Pós-Vitória & Garantias. Todas liberadas no seu plano.',
       skipBeacon: true,
       placement: 'right',
     },

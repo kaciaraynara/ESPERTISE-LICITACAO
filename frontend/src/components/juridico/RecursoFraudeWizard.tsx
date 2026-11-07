@@ -120,7 +120,7 @@ export default function RecursoFraudeWizard() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-brand-orange">
-              Radar de Fraudes
+              Checagem de Sócios e Concorrentes
             </p>
             <h1 className="mt-3 text-3xl md:text-4xl font-black tracking-tight text-slate-900">
               Recurso com prova societária
@@ -175,7 +175,7 @@ export default function RecursoFraudeWizard() {
                 className="mt-6 inline-flex w-full sm:w-auto h-14 items-center justify-center gap-3 rounded-xl bg-brand-blue hover:bg-[#172554] px-8 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {investigarMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" weight="bold" /> : <Scale className="h-5 w-5" weight="bold" />}
-                Processar Malha Fina
+                Checar Vínculos
               </button>
             </div>
 
@@ -249,7 +249,7 @@ export default function RecursoFraudeWizard() {
                 className="inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-brand-orange px-8 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 hover:bg-orange-500 disabled:opacity-50 disabled:hover:translate-y-0"
               >
                 {gerarPecaMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" weight="bold" /> : <ArrowRight className="h-5 w-5" weight="bold" />}
-                Gerar Peça com Malha Fina
+                Gerar Peça com Checagem de Vínculos
               </button>
             </div>
           </div>

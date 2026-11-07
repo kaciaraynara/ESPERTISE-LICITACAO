@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   BarChart3, Download, Award, TrendingUp, CheckCircle2, 
-  ArrowUpRight, Loader2, Kanban, Building2, 
+  ArrowUpRight, Loader2, Columns3, Building2, 
   ExternalLink, FileText, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -162,7 +162,7 @@ export const RelatoriosPage: React.FC = () => {
       {!isLoading && !isError && metrics && metrics.totalPipeline === 0 && (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 shadow-sm text-center max-w-2xl mx-auto my-8">
           <div className="bg-slate-100 p-4 rounded-full inline-flex mb-4">
-            <Kanban size={36} className="text-slate-400" />
+            <Columns3 size={36} className="text-slate-400" />
           </div>
           <h3 className="text-base font-black text-slate-900 mb-2">
             Nenhum edital cadastrado na sua Gestão de Disputas

@@ -8,8 +8,8 @@ import {
   FileText,
   Gauge,
   Gear,
-  Kanban,
   ListBullets,
+  ListChecks,
   MagnifyingGlass,
   Receipt,
   type Icon,
@@ -40,7 +40,7 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
       items: [
         { path: FORNECEDOR_ROUTES.dashboard, label: 'Página Inicial', icon: Gauge, exact: true },
         { path: FORNECEDOR_ROUTES.radar, label: 'Buscar Oportunidades', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-        { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: Kanban, requiredFeature: 'crm_kanban' },
+        { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: ListChecks, requiredFeature: 'crm_kanban' },
         { path: FORNECEDOR_ROUTES.analise_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle, requiredFeature: 'analise_viabilidade' },
         { path: FORNECEDOR_ROUTES.propostas, label: 'Gerador de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
         { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos', icon: ListBullets, requiredFeature: 'catalogo_produtos' },

@@ -16,7 +16,7 @@ export const v3Service = {
     return response.data;
   },
   
-  // CRM Kanban
+  // Quadro de Disputas
   getPipelineCards: async () => {
     const response = await api.get('/pipeline');
     return response.data;

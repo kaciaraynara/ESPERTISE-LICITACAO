@@ -59,7 +59,7 @@ export default function TermosDeUsoPage() {
             <li>Fornecer dados reais, válidos e atualizados durante o cadastro.</li>
             <li>Manter a confidencialidade de suas credenciais de acesso, sendo integralmente responsável por todas as atividades que ocorram sob sua conta.</li>
             <li>Não utilizar ferramentas ou programas para copiar informações ou contornar as proteções da plataforma sem autorização.</li>
-            <li>Não utilizar a plataforma para propósitos ilegais, fraude em licitações, conluio ou qualquer atividade que infrinja as leis anticorrupção vigentes.</li>
+            <li>Não utilizar a plataforma para propósitos ilegais, irregularidades em licitações, conluio ou qualquer atividade que infrinja as leis anticorrupção vigentes.</li>
           </ul>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">4. Propriedade Intelectual</h2>

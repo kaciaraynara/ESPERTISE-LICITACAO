@@ -108,7 +108,7 @@ export const CrmFunilScreen: React.FC = () => {
             Conexão com os portais governamentais temporariamente indisponível. Tentando novamente...
           </div>
         ) : (
-          /* CORPO DO KANBAN */
+          /* CORPO DO QUADRO DE ETAPAS */
           <div className="p-6 flex-1 overflow-x-auto bg-slate-100">
             <div className="flex gap-4 h-full min-w-[1200px]">
               {colunas.map((coluna) => {

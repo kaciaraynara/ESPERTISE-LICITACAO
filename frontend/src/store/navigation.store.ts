@@ -20,7 +20,7 @@ export const useNavigationStore = create<StrategicHubState>()(
       expandedHubs: {
         'radar': true,
         'disputas': false,
-        'contencioso': false,
+        'defesas_recursos': false,
         'pos_vitoria': false,
       },
       activeHubId: 'radar',

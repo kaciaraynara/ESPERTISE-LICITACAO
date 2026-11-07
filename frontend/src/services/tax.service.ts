@@ -28,7 +28,7 @@ export const taxService = {
   /**
    * POST /api/proposals/generate
    * Gera e faz download em tempo real do documento hidratado (.docx ou .xlsx)
-   * com os dados reais da empresa no Prisma e os cálculos exatos da Sala de Guerra.
+   * com os dados reais da empresa no Prisma e os cálculos exatos da Disputa ao Vivo.
    */
   async generateHydratedProposal(payload: GenerateProposalPayload): Promise<{ filename: string }> {
     const response = await api.post<Blob>('/proposals/generate', payload, {

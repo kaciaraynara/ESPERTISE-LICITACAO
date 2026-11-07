@@ -49,7 +49,7 @@ export default function KanbanRecursal({ items = [], onSelectItem }: KanbanRecur
               Módulo de Impugnação
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-brand-blue">
-              Kanban Recursal
+              Quadro de Etapas Recursais
             </h1>
           </div>
 

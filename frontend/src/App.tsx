@@ -82,7 +82,7 @@ const HabilitacaoPage = React.lazy(() => import('./pages/HabilitacaoPage'));
 const CertidoesPage = React.lazy(() => import('./pages/CertidoesPage'));
 const ImpugnacaoPage = React.lazy(() => import('./pages/ImpugnacaoPage'));
 const RoboPage = React.lazy(() => import('./pages/RoboPage'));
-const SalaDeGuerraPage = React.lazy(() => import('./pages/SalaDeGuerraPage'));
+const DisputaAoVivoPage = React.lazy(() => import('./pages/DisputaAoVivoPage'));
 const ContenciosoHubPage = React.lazy(() => import('./pages/Contencioso/ContenciosoHubPage'));
 const GestaoPosVitoriaPage = React.lazy(() => import('./pages/GestaoPosVitoriaPage'));
 const SrpPage = React.lazy(() =>
@@ -345,8 +345,8 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.leitor_editais} element={protectFeature('resumo_edital_completo', 'Leitor Inteligente de Editais', <LeitorEditaisPage />)} />
             <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />
             <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />
-            <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Robôs de Lances', <RoboPage />)} />
-            <Route path={FORNECEDOR_ROUTES.sala_de_guerra} element={protectFeature('robo_lances', 'Sala de Guerra', <SalaDeGuerraPage />)} />
+            <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Envio Automático de Lances', <RoboPage />)} />
+            <Route path={FORNECEDOR_ROUTES.disputa_ao_vivo} element={protectFeature('robo_lances', 'Disputa ao Vivo', <DisputaAoVivoPage />)} />
             <Route
               path={FORNECEDOR_ROUTES.pregao_eletronico}
               element={protectFeature('radar_editais', 'Pregão Eletrônico', <LicitacoesPage key="pregao-eletronico" modalidadeInicial="Pregão Eletrônico" />)}
@@ -362,7 +362,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.sicaf_credenciamento} element={protectFeature('credenciamento', 'SICAF e Certificação', <CredenciamentoPage />)} />
             <Route path={FORNECEDOR_ROUTES.dispensa_eletronica} element={protectFeature('dispensa_eletronica', 'Dispensa Eletrônica', <DispensaEletronicaPage />)} />
             <Route path={FORNECEDOR_ROUTES.recursos} element={protectFeature('recursos_administrativos', 'Recursos Administrativos', <RecursosPage />)} />
-            <Route path={FORNECEDOR_ROUTES.contencioso} element={protectFeature('recursos_administrativos', 'Contencioso Jurídico Lex', <ContenciosoHubPage />)} />
+            <Route path={FORNECEDOR_ROUTES.defesas_recursos} element={protectFeature('recursos_administrativos', 'Defesas e Recursos', <ContenciosoHubPage />)} />
             <Route path={FORNECEDOR_ROUTES.habilitacao} element={protectFeature('habilitacao', 'Habilitação', <HabilitacaoPage />)} />
             <Route path={FORNECEDOR_ROUTES.cofre} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
             <Route path={FORNECEDOR_ROUTES.certidoes} element={protectFeature('certidoes', 'Certidões', <CertidoesPage />)} />

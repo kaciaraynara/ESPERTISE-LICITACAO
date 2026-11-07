@@ -15,7 +15,7 @@ import {
   FileCheck2,
   ChevronRight,
   CheckCircle2,
-  Sparkles,
+  Search,
   ShieldCheck,
   Target,
   Clock,
@@ -362,58 +362,36 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Card de Boas-Vindas com o Assistente LEX & Free Trial Master */}
+      {/* Barra simples de status de teste & atalho rápido */}
       {isUserTrialActive(user) && (
-        <section className="mb-8 rounded-2xl border border-brand-blue/30 bg-gradient-to-br from-brand-dark via-slate-900 to-brand-dark p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-orange-500/10 blur-3xl pointer-events-none" />
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-3 max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-orange-500/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-orange-400 border border-orange-500/30">
-                <Sparkles className="w-3.5 h-3.5 text-brand-orange" />
-                <span>Free Trial Oficial · 15 Dias de Plano Master</span>
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-brand-orange border border-orange-200">
+                <Clock className="w-5 h-5" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Bem-vindo à EXPERTISE, {user?.nome?.split(' ')[0] || 'Licitante'}! 🎉
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
-                Seu acesso completo está liberado. Eu sou o <strong>LEX</strong>, seu copiloto jurídico com IA especializado na Lei 14.133/2021. Estou pronto para analisar seus editais, apontar exigências restritivas e orientar sua estratégia de vitória.
-              </p>
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Link
-                  to={FORNECEDOR_ROUTES.lex}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/20 transition active:scale-95"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Analisar Edital com o LEX</span>
-                </Link>
-                <Link
-                  to={FORNECEDOR_ROUTES.radar}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs uppercase tracking-wider border border-white/20 transition"
-                >
-                  <Crosshair className="w-4 h-4 text-orange-400" />
-                  <span>Buscar Oportunidades no Radar</span>
-                </Link>
-                <Link
-                  to={FORNECEDOR_ROUTES.cofre}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-semibold text-xs transition"
-                >
-                  <FileCheck2 className="w-4 h-4 text-emerald-400" />
-                  <span>Cofre de Documentos</span>
-                </Link>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-brand-dark uppercase tracking-wide">
+                    Período de Testes Ativo
+                  </span>
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700">
+                    {getTrialDaysLeft(user)} dias restantes
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
+                  Acesso completo liberado a todas as ferramentas e busca de oportunidades da plataforma.
+                </p>
               </div>
             </div>
 
-            <div className="shrink-0 rounded-2xl bg-white/5 border border-white/10 p-5 text-center min-w-[220px]">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                Tempo Restante de Teste
-              </span>
-              <div className="text-4xl font-black text-brand-orange tracking-tight my-1">
-                {getTrialDaysLeft(user)} <span className="text-base text-slate-300 font-bold">dias</span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Todas as 4 Centrais Estratégicas liberadas
-              </p>
-            </div>
+            <Link
+              to={FORNECEDOR_ROUTES.radar}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:scale-95 shrink-0"
+            >
+              <Search className="w-4 h-4" />
+              <span>Buscar Editais</span>
+            </Link>
           </div>
         </section>
       )}
@@ -423,7 +401,7 @@ export default function DashboardPage() {
           ========================================================================= */}
       <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Painel de Regularidade (SICAF) - Esquerda */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
           <div>
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -548,7 +526,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Metas de Contratos - Direita (Topo) */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
           <div>
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -573,7 +551,7 @@ export default function DashboardPage() {
             {/* 3 Mini-cards com barra de progresso horizontal simples */}
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3.5">
               {/* 1. Edital Transparência */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -608,7 +586,7 @@ export default function DashboardPage() {
               </div>
 
               {/* 2. Meta Trimestral (Capital homologado) */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -640,7 +618,7 @@ export default function DashboardPage() {
               </div>
 
               {/* 3. Disputas da Semana */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between">
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -958,16 +936,16 @@ export default function DashboardPage() {
           CAMINHO DO SUCESSO (ONBOARDING INTELIGENTE: ZERO ATRITO)
           ========================================================================= */}
       {isContaNova && (
-        <section className="bg-gradient-to-r from-brand-dark via-slate-900 to-brand-dark text-white rounded-2xl p-7 sm:p-9 mb-8 shadow-md border border-brand-blue/20 relative overflow-hidden">
+        <section className="bg-white text-slate-900 rounded-2xl p-6 sm:p-8 mb-8 shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
           <div className="max-w-3xl relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold mb-3 border border-orange-400/30">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-brand-orange text-xs font-bold mb-3 border border-orange-200">
               <Trophy className="w-3.5 h-3.5 shrink-0" />
               Caminho do Sucesso Licitatório
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 text-brand-dark">
               Pronto para faturar sua primeira licitação?
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mb-6 font-medium">
               Encontre oportunidades, consulte seus custos e prepare propostas organizadas de acordo com as exigências do edital.
             </p>
 
@@ -975,18 +953,18 @@ export default function DashboardPage() {
               {/* Passo 1 */}
               <div
                 onClick={() => navigate(FORNECEDOR_ROUTES.catalogo)}
-                className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl p-4 cursor-pointer transition group"
+                className="bg-slate-50 hover:bg-orange-50/40 border border-slate-200 hover:border-orange-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-sm group"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="w-6 h-6 rounded-full bg-brand-orange text-white text-xs font-black flex items-center justify-center">
                     1
                   </span>
-                  <Package className="w-4 h-4 text-orange-400 group-hover:scale-110 transition" />
+                  <Package className="w-4 h-4 text-brand-orange group-hover:scale-110 transition" />
                 </div>
-                <h3 className="font-bold text-sm text-white mb-1">
+                <h3 className="font-bold text-sm text-slate-900 mb-1">
                   Cadastre seus Produtos
                 </h3>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                   Cadastre seus produtos e custos para consultar sua margem ao preparar uma proposta.
                 </p>
               </div>
@@ -994,18 +972,18 @@ export default function DashboardPage() {
               {/* Passo 2 */}
               <div
                 onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-                className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl p-4 cursor-pointer transition group"
+                className="bg-slate-50 hover:bg-orange-50/40 border border-slate-200 hover:border-orange-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-sm group"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="w-6 h-6 rounded-full bg-brand-orange text-white text-xs font-black flex items-center justify-center">
                     2
                   </span>
-                  <Crosshair className="w-4 h-4 text-orange-400 group-hover:scale-110 transition" />
+                  <Crosshair className="w-4 h-4 text-brand-orange group-hover:scale-110 transition" />
                 </div>
-                <h3 className="font-bold text-sm text-white mb-1">
+                <h3 className="font-bold text-sm text-slate-900 mb-1">
                   Oportunidades Sugeridas
                 </h3>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                   Explore oportunidades publicadas nos portais oficiais do governo.
                 </p>
               </div>
@@ -1013,18 +991,18 @@ export default function DashboardPage() {
               {/* Passo 3 */}
               <div
                 onClick={() => navigate(FORNECEDOR_ROUTES.propostas)}
-                className="bg-white/10 hover:bg-white/15 border border-white/15 rounded-xl p-4 cursor-pointer transition group"
+                className="bg-slate-50 hover:bg-orange-50/40 border border-slate-200 hover:border-orange-200 rounded-xl p-4 cursor-pointer transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-sm group"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="w-6 h-6 rounded-full bg-brand-orange text-white text-xs font-black flex items-center justify-center">
                     3
                   </span>
-                  <FileCheck2 className="w-4 h-4 text-orange-400 group-hover:scale-110 transition" />
+                  <FileCheck2 className="w-4 h-4 text-brand-orange group-hover:scale-110 transition" />
                 </div>
-                <h3 className="font-bold text-sm text-white mb-1">
+                <h3 className="font-bold text-sm text-slate-900 mb-1">
                   Gere sua Proposta
                 </h3>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                   Confira os itens identificados e revise seus preços antes de concluir.
                 </p>
               </div>
@@ -1032,7 +1010,7 @@ export default function DashboardPage() {
 
             <button
               onClick={() => navigate(FORNECEDOR_ROUTES.catalogo)}
-              className="h-11 px-6 rounded-md font-bold text-xs uppercase tracking-wider bg-brand-orange hover:bg-orange-600 text-white flex items-center justify-center gap-2 shadow-lg transition"
+              className="h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider bg-brand-orange hover:bg-orange-600 text-white flex items-center justify-center gap-2 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:scale-95 cursor-pointer"
             >
               <span>Começar pelo Catálogo de Produtos</span>
               <ArrowRight className="w-4 h-4" />

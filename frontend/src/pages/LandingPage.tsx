@@ -689,7 +689,7 @@ export default function LandingPage() {
                               { label: 'Tudo do plano Avançado, mais:', bold: true },
                               { label: 'Gestão de até 20 empresas (CNPJs)', bold: true },
                               { label: 'Radar e Inteligência Competitiva ampliados', bold: false },
-                              { label: 'Radar de Fraudes e Compliance', bold: true },
+                              { label: 'Checagem de Sócios e Concorrentes', bold: true },
                               { label: 'Automação total de propostas e fluxos', bold: false },
                               { label: 'Painel Financeiro consolidado', bold: false },
                               { label: 'Robô de Reajuste (índices/cláusulas)', bold: true },

@@ -352,7 +352,7 @@ export function HistoricoConcorrentesPage() {
                 className="h-10 px-4 rounded-lg bg-[#0A2540] hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition shrink-0 cursor-pointer"
               >
                 <ShieldCheck size={15} />
-                <span>Executar Malha Fina</span>
+                <span>Checar Vínculos</span>
               </button>
             </div>
           ) : (
@@ -367,12 +367,12 @@ export function HistoricoConcorrentesPage() {
           )}
         </div>
 
-        {/* Resultado da Malha Fina Societária (Quando executado no Plano Master) */}
+        {/* Resultado da Checagem de Vínculos Societários (Quando executado no Plano Master) */}
         {malhaFinaResult && (
           <div className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-black text-[#0A2540]">
-                Resultado da Malha Fina QSA: Risco {malhaFinaResult.risco}
+                Resultado da Checagem de Vínculos QSA: Risco {malhaFinaResult.risco}
               </h4>
               <span className="text-xs font-bold text-slate-600">
                 {malhaFinaResult.resumo.totalConcorrentes} empresas · {malhaFinaResult.resumo.totalVinculosSocietarios} vínculo(s) societário(s)

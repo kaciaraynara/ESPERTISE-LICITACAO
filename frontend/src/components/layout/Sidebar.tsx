@@ -1,7 +1,7 @@
 import {
   House,
   Crosshair,
-  Kanban,
+  ListChecks as QuadroIcon,
   Scales,
   Trophy,
   MagnifyingGlass,
@@ -28,7 +28,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import BrandLogo from '@components/brand/BrandLogo';
@@ -236,26 +236,26 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
   },
   {
     id: 'disputas',
-    label: 'Sala de Guerra & Disputas',
-    subtitle: 'Operação ao Vivo & Lances',
-    icon: Kanban,
+    label: 'Disputa ao Vivo',
+    subtitle: 'Acompanhamento & Lances',
+    icon: QuadroIcon,
     items: [
-      { path: FORNECEDOR_ROUTES.sala_de_guerra, label: 'Cockpit de Disputas', icon: Lightning, requiredFeature: 'robo_lances' },
-      { path: FORNECEDOR_ROUTES.disputas, label: 'Sala de Disputas (CRM Kanban)', icon: Kanban, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.disputa_ao_vivo, label: 'Painel de Controle da Disputa', icon: Lightning, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Envio Automático de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
   },
   {
-    id: 'contencioso',
-    label: 'Contencioso & Defesas',
-    subtitle: 'Segurança Jurídica 14.133',
+    id: 'defesas_recursos',
+    label: 'Defesas e Recursos',
+    subtitle: 'Segurança e Recursos 14.133',
     icon: Scales,
     items: [
-      { path: FORNECEDOR_ROUTES.contencioso, label: 'Central de Contencioso & Defesas', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Copiloto Jurídico', icon: Brain, requiredFeature: 'lex_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Assistente Lex', icon: Brain, requiredFeature: 'lex_ia_avancada' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitura de Editais', icon: Article, requiredFeature: 'resumo_edital_completo' },
@@ -425,9 +425,36 @@ export default function Sidebar() {
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
-  // Estado retrátil automático: hover do mouse expande suavemente (0.3s) e recolhe ao sair
+  // Estado retrátil automático: hover do mouse expande suavemente com delay de 300ms antes de fechar
   const [isHovered, setIsHovered] = useState(false);
   const isCollapsed = !isHovered;
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false);
+      closeTimeoutRef.current = null;
+    }, 300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const expandedHubs = useNavigationStore((state) => state.expandedHubs);
   const toggleHub = useNavigationStore((state) => state.toggleHub);
@@ -454,16 +481,17 @@ export default function Sidebar() {
   return (
     <aside
       data-tour="sidebar-menu"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onFocus={() => setIsHovered(true)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onFocus={handleMouseEnter}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) {
-          setIsHovered(false);
+          handleMouseLeave();
         }
       }}
-      aria-label="Menu Principal do Command Center"
-      className={`relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none transition-[width] duration-300 ease-in-out ${
+      aria-label="Menu Principal da Plataforma"
+      style={{ transition: 'width 350ms cubic-bezier(0.4, 0, 0.2, 1)' }}
+      className={`relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none ${
         isHovered ? 'w-72' : 'w-20'
       }`}
     >

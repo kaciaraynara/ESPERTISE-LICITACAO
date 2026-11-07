@@ -35,7 +35,7 @@ export function useMetricasCRM() {
   });
 }
 
-// Hook de Mutação: Atualizar Etapa no Kanban
+// Hook de Mutação: Atualizar Etapa no Quadro
 export function useMoverEtapaOportunidade() {
   const queryClient = useQueryClient();
 

@@ -54,7 +54,7 @@ export default function KanbanImpugnacao({
               Módulo de Impugnação
             </p>
             <h1 className="mt-3 text-3xl md:text-4xl font-black tracking-tight text-slate-900">
-              Kanban de Impugnações
+              Passo a Passo das Impugnações
             </h1>
           </div>
 
