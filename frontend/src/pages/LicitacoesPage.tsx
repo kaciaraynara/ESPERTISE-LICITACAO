@@ -12,7 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
 import ResumoEstrategicoModal, { type ResumoEditalData } from '@/components/ResumoEstrategicoModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
-import { handleDownloadEdital } from '@/utils/pncp';
+import { handleDownloadEdital, buildOfficialPncpPortalUrl } from '@/utils/pncp';
 import toast from 'react-hot-toast';
 
 type Licitacao = {
@@ -824,6 +824,16 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                     PNCP: {item.numeroControlePNCP}
                                                                 </span>
                                                             )}
+                                                            <a
+                                                                href={buildOfficialPncpPortalUrl(item)}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                onClick={e => e.stopPropagation()}
+                                                                className="btn-link-pncp inline-flex items-center gap-1 text-[11px] font-medium text-brand-blue hover:text-blue-800 hover:underline mt-1 w-fit"
+                                                                title="Ver no Portal Oficial do PNCP"
+                                                            >
+                                                                <span>Ver no Portal Oficial do PNCP ↗</span>
+                                                            </a>
                                                         </div>
                                                     </td>
 

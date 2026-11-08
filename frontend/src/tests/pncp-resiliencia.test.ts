@@ -5,6 +5,7 @@ import {
   handleDownloadEdital,
 } from '../utils/pncp';
 import modalContent from '../components/ResumoEstrategicoModal.tsx?raw';
+import radarContent from '../pages/LicitacoesPage.tsx?raw';
 
 describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resumo', () => {
   const editalExemplo = {
@@ -108,5 +109,10 @@ describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resu
     // 5. Garante zero repetições consecutivas de "Não informado no edital"
     const repeticoesConsecutivas = (modalContent.match(/Não informado no edital[\s\S]{0,100}Não informado no edital/g) || []);
     expect(repeticoesConsecutivas.length).toBe(0);
+  });
+
+  it('4. Garante que o Radar de Editais exibe o link verídico de auditoria direta no PNCP', () => {
+    expect(radarContent).toContain('btn-link-pncp');
+    expect(radarContent).toContain('Ver no Portal Oficial do PNCP ↗');
   });
 });

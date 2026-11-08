@@ -2,6 +2,13 @@ jest.mock('../database/prisma', () => ({
   prisma: {
     procurementNotice: {
       upsert: jest.fn(),
+      findMany: jest.fn(),
+    },
+    company: {
+      findMany: jest.fn(),
+    },
+    notification: {
+      create: jest.fn(),
     },
   },
 }));
@@ -18,7 +25,7 @@ jest.mock('../services/pncp.service', () => ({
 
 import { prisma } from '../database/prisma';
 import { buscarContratacoesPNCP } from '../services/pncp.service';
-import { fetchWithBackoff, syncPncpLast24Hours } from './radar.cron';
+import { fetchWithBackoff, syncPncpLast24Hours, runDailyOpportunityAlertsScan } from './radar.cron';
 
 const buscarContratacoesMock = buscarContratacoesPNCP as jest.Mock;
 const upsertMock = prisma.procurementNotice.upsert as jest.Mock;
@@ -164,6 +171,61 @@ describe('radar.cron - fetchWithBackoff & syncPncpLast24Hours', () => {
       expect(buscarContratacoesMock).toHaveBeenCalledWith(
         expect.objectContaining({ codigoModalidadeContratacao: 12 }),
       );
+    });
+  });
+
+  describe('runDailyOpportunityAlertsScan (06:00)', () => {
+    test('cruza editais com empresas ativas e cria notificações no banco', async () => {
+      buscarContratacoesMock.mockResolvedValue({
+        data: [],
+        totalRegistros: 0,
+      });
+
+      (prisma.company.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'company-1',
+          userId: 'user-uuid-1',
+          razaoSocial: 'Empresa Alpha Tech',
+          cnaePrincipal: '6201-5/01 - Desenvolvimento de software',
+          palavrasChave: ['software', 'sistema'],
+          uf: 'SP',
+        },
+      ]);
+
+      (prisma.procurementNotice.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'notice-tech-1',
+          noticeNumber: '123/2026',
+          buyerName: 'Prefeitura de SP',
+          object: 'Contratação de licença de software e desenvolvimento de sistemas',
+          uf: 'SP',
+          estimatedValue: 50000,
+        },
+        {
+          id: 'notice-food-2',
+          noticeNumber: '456/2026',
+          buyerName: 'Hospital RJ',
+          object: 'Fornecimento de merenda escolar e alimentos',
+          uf: 'RJ',
+          estimatedValue: 30000,
+        },
+      ]);
+
+      (prisma.notification.create as jest.Mock).mockResolvedValue({ id: 'notif-1' });
+
+      const res = await runDailyOpportunityAlertsScan();
+
+      expect(res.empresasNotificadas).toBe(1);
+      expect(res.totalNotificacoes).toBe(1);
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-uuid-1',
+          tipo: 'nova_oportunidade',
+          titulo: 'Novas Oportunidades Abertas no seu Segmento',
+          canal: 'painel',
+          status: 'enviada',
+        }),
+      });
     });
   });
 });

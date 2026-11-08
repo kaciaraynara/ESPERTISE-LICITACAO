@@ -7,7 +7,12 @@ import {
   sincronizarLicitacoesPNCP,
   NoticePersistenceError,
 } from '../services/licitacoes.service';
-import { PncpServiceError } from '../services/pncp.service';
+import {
+  PncpServiceError,
+  buscarItensPNCP,
+  buscarArquivosPNCP,
+  parsePncpControlNumber,
+} from '../services/pncp.service';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 
 function stringParam(value: unknown): string | undefined {
@@ -171,6 +176,27 @@ export class LicitacoesController {
       }
 
       const licitacao = await buscarLicitacaoPorNumeroControle(id);
+      const parsed = parsePncpControlNumber(licitacao?.numeroControlePNCP || id);
+
+      if (parsed) {
+        try {
+          const arquivos = await buscarArquivosPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+          if (Array.isArray(arquivos) && arquivos.length > 0) {
+            const editalArquivo = arquivos.find((a: any) =>
+              a.tipoDocumentoId === 1 ||
+              /edital|aviso|termo/i.test(a.titulo || a.nome || a.tipoDocumentoNome || '')
+            ) || arquivos[0];
+
+            const fileUrl = editalArquivo.url || editalArquivo.uri ||
+              `https://pncp.gov.br/api/pncp/v1/orgaos/${parsed.cnpj}/compras/${parsed.ano}/${parsed.sequencial}/arquivos/${editalArquivo.sequencialDocumento || 1}`;
+
+            return res.json({ success: true, downloadUrl: fileUrl });
+          }
+        } catch {
+          // Fallback para URL calculada ou registrada localmente
+        }
+      }
+
       if (licitacao) {
         const downloadUrl = (licitacao as any).linkDownloadEdital || (licitacao as any).documento_url || (licitacao as any).link;
         if (downloadUrl && typeof downloadUrl === 'string' && downloadUrl.startsWith('http')) {
@@ -187,6 +213,36 @@ export class LicitacoesController {
         success: false,
         message: 'Servidor do governo instável',
       });
+    }
+  };
+
+  public obterItens = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const id = String(req.params.id ?? '').trim();
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'ID do edital obrigatório' });
+      }
+
+      const licitacao = await buscarLicitacaoPorNumeroControle(id);
+      const parsed = parsePncpControlNumber(licitacao?.numeroControlePNCP || id);
+
+      let itens: any[] = [];
+      if (parsed) {
+        itens = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+      } else if (licitacao?.cnpjOrgao && (licitacao as any).anoCompra && (licitacao as any).sequencialCompra) {
+        itens = await buscarItensPNCP(licitacao.cnpjOrgao, (licitacao as any).anoCompra, (licitacao as any).sequencialCompra);
+      }
+
+      return res.json({
+        success: true,
+        data: itens,
+        total: itens.length,
+      });
+    } catch (error) {
+      return sendPncpError(res, error);
     }
   };
 

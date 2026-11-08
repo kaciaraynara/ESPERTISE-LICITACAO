@@ -163,8 +163,9 @@ export default function ResumoEstrategicoModal({
     Promise.allSettled([
       noticesApi.getById(edital.id),
       noticesApi.getBasicSummary(edital.id),
+      noticesApi.getItens(edital.id),
     ])
-      .then(([detailRes, summaryRes]) => {
+      .then(([detailRes, summaryRes, itensRes]) => {
         if (!active) return;
 
         if (detailRes.status === 'fulfilled') {
@@ -188,9 +189,16 @@ export default function ResumoEstrategicoModal({
             if (!criterioExtra && summary.criterioJulgamento) {
               setCriterioExtra(summary.criterioJulgamento);
             }
-            if (Array.isArray(summary.items) && summary.items.length > 0 && itensExtra.length === 0) {
-              setItensExtra(summary.items);
+            if (Array.isArray(summary.items) && summary.items.length > 0) {
+              setItensExtra((prev) => (prev.length > 0 ? prev : summary.items));
             }
+          }
+        }
+
+        if (itensRes.status === 'fulfilled') {
+          const itens = itensRes.value?.data?.data || itensRes.value?.data;
+          if (Array.isArray(itens) && itens.length > 0) {
+            setItensExtra((prev) => (prev.length > 0 ? prev : itens));
           }
         }
       })

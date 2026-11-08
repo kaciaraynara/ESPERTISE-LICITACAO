@@ -35,6 +35,7 @@ export interface LicitacaoPNCP {
     nomeUnidade?: string;
   };
   objeto?: string;
+  informacaoComplementar?: string;
   processo?: string;
   numeroCompra?: string;
   valorTotalEstimado?: number;

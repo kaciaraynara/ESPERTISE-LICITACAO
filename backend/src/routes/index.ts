@@ -1157,6 +1157,13 @@ router.get(
 );
 
 router.get(
+  ['/editais/:id/itens', '/licitacoes/:id/itens'],
+  handle(
+    licitacoes.obterItens as RequestHandler,
+  ),
+);
+
+router.get(
   '/licitacoes/:id',
   fornecedor,
   handle(

@@ -412,6 +412,8 @@ export const noticesApi = {
   getOpportunityScore: (id: string) => api.get(`/notices/${id}/opportunity-score`),
   getBatchOpportunityScore: (noticeIds: string[]) =>
     api.post('/notices/batch-score', { noticeIds }),
+  getDownloadUrl: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/download-url`),
+  getItens: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/itens`),
 };
 
 export const concorrentesApi = {

@@ -1,4 +1,8 @@
-import { avaliarCompatibilidadeCnae, analisarEditalParaCnae } from '../services/cnae-to-keywords.service';
+import {
+  avaliarCompatibilidadeCnae,
+  analisarEditalParaCnae,
+  keywordsForCnae,
+} from '../services/cnae-to-keywords.service';
 import cron from 'node-cron';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
@@ -453,6 +457,7 @@ export function setupCronJobs(): void {
   setupPlanResetCron();
   setupDataPlatformWorkers();
   setupCnaeAlertCron();
+  setupDailyOpportunityAlertsCron();
 }
 /**
  * Cron de Alerta Diário de Editais por CNAE (Resend + Agente Semântico de IA)
@@ -582,3 +587,135 @@ export function setupCnaeAlertCron() {
 }
 
 export const iniciarRadarDiarioCron = setupCnaeAlertCron;
+
+/**
+ * Cron diário às 06:00 (0 6 * * *)
+ * 1. Consulta contratações das últimas 24h no PNCP e persiste no banco (syncPncpLast24Hours).
+ * 2. Cruza com CNAEs, palavras-chave e UFs das empresas ativas.
+ * 3. Grava notificação no banco (Notification com tipo: nova_oportunidade, título: "Novas Oportunidades Abertas no seu Segmento").
+ */
+export async function runDailyOpportunityAlertsScan(): Promise<{
+  empresasNotificadas: number;
+  totalNotificacoes: number;
+}> {
+  console.info('[Alerta Oportunidades 06:00] Iniciando sincronização e envio de alertas diários...');
+
+  // 1. Sincroniza últimas 24h do PNCP
+  await syncPncpLast24Hours().catch((err) => {
+    console.error('[Alerta Oportunidades 06:00] Erro ao sincronizar PNCP:', err);
+  });
+
+  // 2. Busca empresas ativas
+  const empresas = await prisma.company.findMany({
+    where: {
+      OR: [
+        { status: null },
+        { status: { in: ['ATIVO', 'ativo', 'ATIVA', 'ativa'] } },
+      ],
+      user: { deletedAt: null },
+    },
+    select: {
+      id: true,
+      userId: true,
+      razaoSocial: true,
+      cnaePrincipal: true,
+      palavrasChave: true,
+      uf: true,
+    },
+  });
+
+  if (!empresas || empresas.length === 0) {
+    console.info('[Alerta Oportunidades 06:00] Nenhuma empresa ativa encontrada.');
+    return { empresasNotificadas: 0, totalNotificacoes: 0 };
+  }
+
+  // 3. Busca editais das últimas 24h
+  const dataOntem = new Date();
+  dataOntem.setDate(dataOntem.getDate() - 1);
+
+  const editaisRecentes = await prisma.procurementNotice.findMany({
+    where: {
+      createdAt: { gte: dataOntem },
+    },
+    select: {
+      id: true,
+      noticeNumber: true,
+      buyerName: true,
+      object: true,
+      uf: true,
+      estimatedValue: true,
+    },
+    take: 200,
+  });
+
+  if (!editaisRecentes || editaisRecentes.length === 0) {
+    console.info('[Alerta Oportunidades 06:00] Nenhum edital recente nas últimas 24h para cruzamento.');
+    return { empresasNotificadas: 0, totalNotificacoes: 0 };
+  }
+
+  let empresasNotificadas = 0;
+  let totalNotificacoes = 0;
+
+  for (const empresa of empresas) {
+    if (!empresa.userId) continue;
+
+    // Palavras-chave do CNAE e customizadas
+    const cnaeKeywords = empresa.cnaePrincipal ? keywordsForCnae(empresa.cnaePrincipal) : [];
+    const customKeywords = Array.isArray(empresa.palavrasChave) ? empresa.palavrasChave : [];
+    const allKeywords = Array.from(new Set([...cnaeKeywords, ...customKeywords].map(k => String(k).toLowerCase().trim()))).filter(k => k.length >= 3);
+
+    const matches = editaisRecentes.filter((edital) => {
+      // Filtro por UF (se empresa tiver UF cadastrada e edital tiver UF cadastrada)
+      if (empresa.uf && edital.uf && empresa.uf.toUpperCase() !== edital.uf.toUpperCase()) {
+        return false;
+      }
+
+      if (allKeywords.length === 0) {
+        return true;
+      }
+
+      const objLower = (edital.object || '').toLowerCase();
+      return allKeywords.some((kw) => objLower.includes(kw));
+    });
+
+    if (matches.length > 0) {
+      await prisma.notification.create({
+        data: {
+          userId: empresa.userId,
+          tipo: 'nova_oportunidade',
+          titulo: 'Novas Oportunidades Abertas no seu Segmento',
+          mensagem: `Encontramos ${matches.length} nova(s) oportunidade(s) aderente(s) ao seu segmento nas últimas 24h.`,
+          canal: 'painel',
+          status: 'enviada',
+          enviadaEm: new Date(),
+          link: '/licitacoes',
+        },
+      });
+
+      empresasNotificadas++;
+      totalNotificacoes++;
+    }
+  }
+
+  console.info(`[Alerta Oportunidades 06:00] Finalizado: ${empresasNotificadas} empresas notificadas (${totalNotificacoes} notificações).`);
+  return { empresasNotificadas, totalNotificacoes };
+}
+
+export function setupDailyOpportunityAlertsCron(): cron.ScheduledTask | null {
+  const schedule = process.env.DAILY_OPPORTUNITIES_CRON_SCHEDULE || '0 6 * * *';
+  const validSchedule = cron.validate(schedule) ? schedule : '0 6 * * *';
+
+  console.info(`[Alerta Oportunidades Cron] Cron Job configurado para executar na rotina: "${validSchedule}" (Fuso: ${TIMEZONE}).`);
+
+  return cron.schedule(
+    validSchedule,
+    async () => {
+      try {
+        await runDailyOpportunityAlertsScan();
+      } catch (err: any) {
+        console.error('[Alerta Oportunidades Cron] Erro não capturado no ciclo de alerta de oportunidades:', err);
+      }
+    },
+    { timezone: TIMEZONE }
+  );
+}

@@ -9,6 +9,7 @@ import {
 export type { FiltrosBusca, LicitacaoPNCP, ResultadoConsultaPNCP };
 
 const DEFAULT_PNCP_BASE_URL = 'https://pncp.gov.br/api/consulta/v1';
+const DEFAULT_PNCP_API_V1_BASE_URL = 'https://pncp.gov.br/api/pncp/v1';
 const DEFAULT_MODALIDADE = 6; // 6 = Pregão Eletrônico (Lei 14.133/2021)
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -115,6 +116,7 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
       nomeUnidade: firstString(unidade.nomeUnidade),
     },
     objeto: firstString(raw.objetoCompra, raw.objeto),
+    informacaoComplementar: firstString(raw.informacaoComplementar, raw.informacao_complementar),
     processo: firstString(raw.processo),
     numeroCompra: firstString(raw.numeroCompra),
     valorTotalEstimado: optionalNumber(raw.valorTotalEstimado),
@@ -333,6 +335,7 @@ function filterByKeyword(
   return items.filter((item) => {
     const searchable = normalizeSearchText([
       item.objeto,
+      item.informacaoComplementar,
       item.orgaoEntidade?.razaoSocial,
       item.unidadeOrgao?.nomeUnidade,
       item.unidadeOrgao?.municipioNome,
@@ -602,6 +605,113 @@ export async function buscarContratacaoPNCP(
         'Contratação não encontrada na fonte oficial do PNCP.',
         404,
       );
+    }
+    throw mapAxiosError(error);
+  }
+}
+
+export async function buscarItensPNCP(
+  cnpjOrControl: string,
+  ano?: string | number,
+  sequencial?: string | number,
+): Promise<any[]> {
+  let cleanCnpj = '';
+  let cleanAno = '';
+  let cleanSeq = '';
+
+  if (!ano || !sequencial) {
+    const parsed = parsePncpControlNumber(cnpjOrControl);
+    if (parsed) {
+      cleanCnpj = parsed.cnpj;
+      cleanAno = String(parsed.ano);
+      cleanSeq = String(parsed.sequencial);
+    } else {
+      throw new PncpServiceError(
+        'INVALID_FILTER',
+        'Identificador PNCP inválido para consulta de itens.',
+        400,
+      );
+    }
+  } else {
+    cleanCnpj = String(cnpjOrControl).replace(/\D/g, '');
+    cleanAno = String(ano);
+    cleanSeq = String(sequencial);
+  }
+
+  const baseUrl = (process.env.PNCP_API_BASE_URL || DEFAULT_PNCP_API_V1_BASE_URL).replace(/\/+$/, '');
+  const url = `${baseUrl}/orgaos/${cleanCnpj}/compras/${cleanAno}/${cleanSeq}/itens`;
+
+  try {
+    const response = await axios.get(url, {
+      timeout: timeoutMs(),
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'EXPERTISE-SaaS/1.0',
+      },
+    });
+
+    const items = readRawItems(response.data);
+    return items.map((it: any) => ({
+      numeroItem: it.numeroItem ?? it.item ?? it.itemNumero ?? 1,
+      descricao: it.descricao ?? it.especificacao ?? it.descricaoItem ?? it.objeto ?? 'Item da contratação',
+      quantidade: Number(it.quantidade ?? it.quantidadeHomologada ?? 1),
+      valorUnitarioEstimado: Number(it.valorUnitarioEstimado ?? it.valorEstimado ?? it.precoUnitario ?? 0),
+      valorTotal: Number(it.valorTotal ?? it.valorEstimadoTotal ?? ((Number(it.quantidade) || 1) * (Number(it.valorUnitarioEstimado) || 0))),
+      unidadeMedida: it.unidadeMedida ?? it.siglaUnidadeMedida ?? 'UN',
+      situacaoCompraItemNome: it.situacaoCompraItemNome ?? it.situacaoItemNome ?? 'Ativo',
+    }));
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return [];
+    }
+    throw mapAxiosError(error);
+  }
+}
+
+export async function buscarArquivosPNCP(
+  cnpjOrControl: string,
+  ano?: string | number,
+  sequencial?: string | number,
+): Promise<any[]> {
+  let cleanCnpj = '';
+  let cleanAno = '';
+  let cleanSeq = '';
+
+  if (!ano || !sequencial) {
+    const parsed = parsePncpControlNumber(cnpjOrControl);
+    if (parsed) {
+      cleanCnpj = parsed.cnpj;
+      cleanAno = String(parsed.ano);
+      cleanSeq = String(parsed.sequencial);
+    } else {
+      throw new PncpServiceError(
+        'INVALID_FILTER',
+        'Identificador PNCP inválido para consulta de arquivos.',
+        400,
+      );
+    }
+  } else {
+    cleanCnpj = String(cnpjOrControl).replace(/\D/g, '');
+    cleanAno = String(ano);
+    cleanSeq = String(sequencial);
+  }
+
+  const baseUrl = (process.env.PNCP_API_BASE_URL || DEFAULT_PNCP_API_V1_BASE_URL).replace(/\/+$/, '');
+  const url = `${baseUrl}/orgaos/${cleanCnpj}/compras/${cleanAno}/${cleanSeq}/arquivos`;
+
+  try {
+    const response = await axios.get(url, {
+      timeout: timeoutMs(),
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'EXPERTISE-SaaS/1.0',
+      },
+    });
+
+    return readRawItems(response.data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return [];
     }
     throw mapAxiosError(error);
   }
