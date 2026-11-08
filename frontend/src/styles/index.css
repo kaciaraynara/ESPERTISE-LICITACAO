@@ -624,3 +624,30 @@ button.btn-secondary-navy {
 button.btn-secondary-navy:hover {
   background-color: rgba(11, 25, 44, 0.05) !important;
 }
+
+.btn-link-pncp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 112, 192, 0.3);
+  background-color: #EFF6FF;
+  color: #0070C0;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-link-pncp:hover {
+  background-color: #DBEAFE;
+  border-color: #0070C0;
+  color: #005699;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 112, 192, 0.15);
+}

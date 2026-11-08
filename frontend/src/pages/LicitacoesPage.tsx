@@ -12,6 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
 import ResumoEstrategicoModal, { type ResumoEditalData } from '@/components/ResumoEstrategicoModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
+import { handleDownloadEdital } from '@/utils/pncp';
 import toast from 'react-hot-toast';
 
 type Licitacao = {
@@ -882,25 +883,19 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                     {/* 6. AÇÕES: APENAS 3 AÇÕES CLARAS POR LINHA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                                         <div className="flex flex-col gap-2 items-stretch min-w-[155px]">
-                                                            {/* 1. BAIXAR EDITAL (Fundo transparente com borda fina azul #0B192C e texto na mesma cor) */}
-                                                            {downloadUrl ? (
-                                                                <a
-                                                                    href={downloadUrl}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    onClick={e => e.stopPropagation()}
-                                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all"
-                                                                    title="Baixar Edital diretamente da fonte oficial governamental (PNCP)"
-                                                                >
-                                                                    <Download className="w-3.5 h-3.5" weight="bold" />
-                                                                    <span>Baixar Edital</span>
-                                                                </a>
-                                                            ) : (
-                                                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 text-[11px] font-medium uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60">
-                                                                    <Download className="w-3.5 h-3.5" weight="bold" />
-                                                                    <span>Baixar Edital</span>
-                                                                </span>
-                                                            )}
+                                                            {/* 1. BAIXAR EDITAL (Download resiliente com fallback seguro para o portal PNCP) */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    void handleDownloadEdital(item);
+                                                                }}
+                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                                                                title="Baixar Edital oficial ou visualizar autos no portal oficial do PNCP"
+                                                            >
+                                                                <Download className="w-3.5 h-3.5" weight="bold" />
+                                                                <span>Baixar Edital</span>
+                                                            </button>
 
                                                             {/* 2. RESUMO RÁPIDO (Botão azul claro - abre modal com pontos-chave) */}
                                                             <button

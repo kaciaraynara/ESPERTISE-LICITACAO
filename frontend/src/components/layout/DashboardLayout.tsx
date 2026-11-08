@@ -77,8 +77,8 @@ export default function DashboardLayout() {
                           to={item.path}
                           aria-current={active ? 'page' : undefined}
                           className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold ${active
-                              ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/30'
-                              : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                            ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/30'
+                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
                             }`}
                         >
                           <Icon

@@ -3,24 +3,43 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   FileText,
-  Calendar,
   Clock,
   Download,
   Plus,
   CheckCircle2,
   DollarSign,
   Gavel,
-  ShieldCheck,
+  Building2,
   MapPin,
   RefreshCw,
+  Package,
 } from 'lucide-react';
 import { noticesApi } from '../services/api';
+import {
+  buildOfficialPncpPortalUrl,
+  handleDownloadEdital,
+  formatCnpj,
+} from '../utils/pncp';
+
+export interface ResumoEditalItem {
+  numeroItem?: number | string;
+  itemNumber?: number | string;
+  numero?: number | string;
+  descricao?: string;
+  description?: string;
+  quantidade?: number | string;
+  quantity?: number | string;
+  valorReferencia?: number | string;
+  valorUnitarioEstimado?: number | string;
+  valorTotal?: number | string;
+}
 
 export interface ResumoEditalData {
   id: string;
   objeto: string;
   orgao: string;
   cnpjOrgao?: string | null;
+  cnpj?: string | null;
   uf?: string | null;
   municipio?: string | null;
   valorEstimado?: number | null;
@@ -39,6 +58,10 @@ export interface ResumoEditalData {
   processo?: string | null;
   numeroControlePNCP?: string | null;
   downloadUrl?: string | null;
+  itens?: ResumoEditalItem[];
+  items?: ResumoEditalItem[];
+  anoCompra?: number | string;
+  sequencialCompra?: number | string;
   exigenciasHabilitacao?: {
     balanco?: string | null;
     atestados?: string | null;
@@ -57,7 +80,7 @@ interface ResumoEstrategicoModalProps {
 
 function formatBRL(valor?: number | null): string {
   if (valor === undefined || valor === null || !Number.isFinite(Number(valor)) || Number(valor) <= 0) {
-    return 'Não informado no edital';
+    return 'Valor consolidado no TR';
   }
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -70,16 +93,14 @@ function formatDataHoraLimite(
   dataAbertura?: string | null,
 ): string {
   const raw = dataEncerramento || dataAbertura;
-  if (!raw) return 'Não informado no edital';
+  if (!raw) return 'Conforme cronograma do certame';
 
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
-    // Se for string pura tipo "2026-11-20"
     const cleaned = String(raw).trim();
-    return cleaned.length > 0 ? cleaned : 'Não informado no edital';
+    return cleaned.length > 0 ? cleaned : 'Conforme cronograma do certame';
   }
 
-  // Verifica se há horário especificado
   const hasTime =
     raw.includes('T') ||
     raw.includes(':') ||
@@ -113,11 +134,9 @@ export default function ResumoEstrategicoModal({
 }: ResumoEstrategicoModalProps) {
   const [detalhesCarregando, setDetalhesCarregando] = useState(false);
   const [criterioExtra, setCriterioExtra] = useState<string | null>(null);
-  const [exigenciasExtra, setExigenciasExtra] = useState<{
-    balanco?: string | null;
-    atestados?: string | null;
-    certidoes?: string | null;
-  } | null>(null);
+  const [modoDisputaExtra, setModoDisputaExtra] = useState<string | null>(null);
+  const [itensExtra, setItensExtra] = useState<ResumoEditalItem[]>([]);
+  const [baixando, setBaixando] = useState(false);
 
   // Fecha com tecla ESC
   useEffect(() => {
@@ -133,14 +152,14 @@ export default function ResumoEstrategicoModal({
   useEffect(() => {
     if (!isOpen || !edital?.id) {
       setCriterioExtra(null);
-      setExigenciasExtra(null);
+      setModoDisputaExtra(null);
+      setItensExtra([]);
       return;
     }
 
     let active = true;
     setDetalhesCarregando(true);
 
-    // Consulta detalhes do edital e basic-summary de forma não bloqueante
     Promise.allSettled([
       noticesApi.getById(edital.id),
       noticesApi.getBasicSummary(edital.id),
@@ -148,34 +167,17 @@ export default function ResumoEstrategicoModal({
       .then(([detailRes, summaryRes]) => {
         if (!active) return;
 
-        let crit: string | null = null;
-        let bal: string | null = null;
-        let atest: string | null = null;
-        let cert: string | null = null;
-
         if (detailRes.status === 'fulfilled') {
           const detail = detailRes.value?.data?.data || detailRes.value?.data;
           if (detail) {
-            crit =
-              detail.judgmentCriterion ||
-              detail.criterioJulgamento ||
-              detail.modoDisputa ||
-              null;
-
-            if (Array.isArray(detail.requirements)) {
-              for (const req of detail.requirements) {
-                const tipo = String(req.tipo || req.requirementType || '').toLowerCase();
-                const desc = req.descricao || req.description || req.titulo || req.title;
-                if (!desc) continue;
-
-                if (tipo.includes('economico') || tipo.includes('balanco')) {
-                  bal = desc;
-                } else if (tipo.includes('tecnica') || tipo.includes('atestado')) {
-                  atest = desc;
-                } else if (tipo.includes('fiscal') || tipo.includes('certidao')) {
-                  cert = desc;
-                }
-              }
+            if (detail.judgmentCriterion || detail.criterioJulgamento) {
+              setCriterioExtra(detail.judgmentCriterion || detail.criterioJulgamento);
+            }
+            if (detail.modoDisputa || detail.disputeMode) {
+              setModoDisputaExtra(detail.modoDisputa || detail.disputeMode);
+            }
+            if (Array.isArray(detail.items) && detail.items.length > 0) {
+              setItensExtra(detail.items);
             }
           }
         }
@@ -183,31 +185,17 @@ export default function ResumoEstrategicoModal({
         if (summaryRes.status === 'fulfilled') {
           const summary = summaryRes.value?.data?.data || summaryRes.value?.data;
           if (summary) {
-            if (Array.isArray(summary.requirements?.documentsFound)) {
-              for (const doc of summary.requirements.documentsFound) {
-                const code = String(doc.code || '').toLowerCase();
-                const label = doc.label || doc.evidence;
-                if (!label) continue;
-
-                if (code.includes('economic') && !bal) bal = label;
-                if (code.includes('technical') && !atest) atest = label;
-                if (code.includes('fiscal') && !cert) cert = label;
-              }
+            if (!criterioExtra && summary.criterioJulgamento) {
+              setCriterioExtra(summary.criterioJulgamento);
+            }
+            if (Array.isArray(summary.items) && summary.items.length > 0 && itensExtra.length === 0) {
+              setItensExtra(summary.items);
             }
           }
         }
-
-        if (crit) setCriterioExtra(crit);
-        if (bal || atest || cert) {
-          setExigenciasExtra({
-            balanco: bal,
-            atestados: atest,
-            certidoes: cert,
-          });
-        }
       })
       .catch(() => {
-        // Falhas na consulta adicional são absorvidas para nunca travar a tela
+        // Falhas não bloqueiam a visualização do resumo
       })
       .finally(() => {
         if (active) setDetalhesCarregando(false);
@@ -220,12 +208,16 @@ export default function ResumoEstrategicoModal({
 
   if (!isOpen || !edital) return null;
 
+  const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
+
   const numeroExibido =
     edital.numeroEdital ||
     edital.numeroCompra ||
     edital.processo ||
     edital.numeroControlePNCP ||
     edital.id;
+
+  const cnpjFormatado = formatCnpj(edital.cnpjOrgao || edital.cnpj);
 
   const dataHoraLimite = formatDataHoraLimite(
     edital.dataEncerramento || edital.data_encerramento,
@@ -236,31 +228,31 @@ export default function ResumoEstrategicoModal({
     edital.valorEstimado ?? edital.valor_estimado,
   );
 
-  const criterioJulgamento =
+  const modoDisputaExibido =
+    modoDisputaExtra ||
+    edital.modoDisputa ||
     criterioExtra ||
     edital.criterioJulgamento ||
-    edital.modoDisputa ||
-    (edital.modalidade && edital.modalidade.toLowerCase().includes('dispensa')
-      ? 'Menor Preço'
-      : null);
+    'Aberto / Fechado';
 
-  // Exigências com Regra de Ouro: Nunca inventar exigências. Se não constar, "Não informado no edital".
-  const exigenciaBalanco =
-    exigenciasExtra?.balanco ||
-    edital.exigenciasHabilitacao?.balanco ||
-    null;
+  const modalidadeExibida = edital.modalidade || 'Pregão Eletrônico';
 
-  const exigenciaAtestados =
-    exigenciasExtra?.atestados ||
-    edital.exigenciasHabilitacao?.atestados ||
-    null;
+  const localizacaoExibida = [edital.municipio, edital.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional';
 
-  const exigenciaCertidoes =
-    exigenciasExtra?.certidoes ||
-    edital.exigenciasHabilitacao?.certidoes ||
-    null;
+  const itensExibidos = (edital.itens && edital.itens.length > 0)
+    ? edital.itens
+    : (edital.items && edital.items.length > 0)
+      ? edital.items
+      : itensExtra;
 
-  const downloadUrl = edital.downloadUrl;
+  const dispararDownloadSeguro = async () => {
+    setBaixando(true);
+    try {
+      await handleDownloadEdital(edital);
+    } finally {
+      setBaixando(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -270,13 +262,13 @@ export default function ResumoEstrategicoModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-8 max-h-[90vh]"
+          className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-8 max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* CABEÇALHO LIMPO / LIGHT PREMIUM */}
-          <header className="px-6 py-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200/80 flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
+          {/* CABEÇALHO COM BOTÃO DE AUDITORIA OFICIAL PNCP */}
+          <header className="px-6 py-5 bg-gradient-to-r from-slate-50 via-white to-blue-50/20 border-b border-slate-200/80 flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20">
                   <FileText className="w-3.5 h-3.5" />
                   Resumo Estratégico do Edital
@@ -284,202 +276,250 @@ export default function ResumoEstrategicoModal({
                 {detalhesCarregando && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400">
                     <RefreshCw className="w-3 h-3 animate-spin" />
-                    Sincronizando TR…
+                    Sincronizando dados oficiais…
                   </span>
                 )}
               </div>
-              <h2 className="text-lg font-black text-slate-900 leading-snug">
+              <h2 className="text-lg font-black text-[#0B192C] leading-snug">
                 {edital.orgao || 'Órgão Licitante'}
               </h2>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs font-semibold text-slate-500">
                 <span className="font-mono text-slate-700">Edital nº {numeroExibido}</span>
-                {(edital.municipio || edital.uf) && (
-                  <span className="inline-flex items-center gap-1 text-slate-500">
-                    <MapPin className="w-3 h-3 text-slate-400" />
-                    {[edital.municipio, edital.uf].filter(Boolean).join(' / ')}
-                  </span>
-                )}
-                {edital.modalidade && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700">
-                    {edital.modalidade}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 text-slate-500">
+                  <MapPin className="w-3 h-3 text-slate-400" />
+                  {localizacaoExibida}
+                </span>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors shrink-0"
-              title="Fechar janela"
-              aria-label="Fechar resumo estratégico"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2.5 shrink-0">
+              {/* BOTÃO DE AUDITORIA OFICIAL (LINK VERÍDICO PNCP) */}
+              <a
+                href={urlOficialPncp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-link-pncp"
+                title="Auditar contratação e autos diretamente no portal oficial do PNCP"
+              >
+                <span>Ver no Portal Oficial do PNCP ↗</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                title="Fechar janela"
+                aria-label="Fechar resumo estratégico"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </header>
 
-          {/* CORPO DO MODAL COM OS PONTOS-CHAVE OBRIGATÓRIOS */}
+          {/* CORPO DO MODAL (GRADE ESTRUTURADA DE DADOS REAIS) */}
           <div className="p-6 overflow-y-auto space-y-5 text-sm">
-            {/* 1. OBJETO RESUMIDO EM 2 LINHAS SIMPLES */}
-            <div className="bg-slate-50/70 border border-slate-200/80 rounded-xl p-4">
+            {/* 1. OBJETO RESUMIDO EM 2 LINHAS */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4">
               <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
                 <FileText className="w-4 h-4 text-brand-blue" />
-                <span>Objeto do Edital (Termo de Referência)</span>
+                <span>Objeto da Contratação (Termo de Referência)</span>
               </div>
               <p
                 className="text-xs sm:text-sm font-semibold text-slate-800 leading-relaxed line-clamp-2"
                 title={edital.objeto}
               >
-                {edital.objeto ? edital.objeto.trim() : 'Não informado no edital'}
+                {edital.objeto ? edital.objeto.trim() : 'Consulte os anexos do certame para descrição detalhada.'}
               </p>
             </div>
 
-            {/* 2. DATA E HORÁRIO LIMITE DE ENVIO DA PROPOSTA */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
-              <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-600 mb-1.5">
-                <Clock className="w-4 h-4 text-brand-orange" />
-                <span>Data e Horário Limite de Envio da Proposta</span>
+            {/* 2. IDENTIFICAÇÃO DO ÓRGÃO E DETALHES DO CERTAME */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* BLOCO: IDENTIFICAÇÃO DO ÓRGÃO */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0B192C]">
+                  <Building2 className="w-4 h-4 text-brand-blue" />
+                  <span>Identificação do Órgão</span>
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Razão Social</span>
+                    <span className="font-semibold text-slate-800 leading-snug">{edital.orgao || 'Administração Pública'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">CNPJ Oficial</span>
+                    <span className="font-mono font-bold text-slate-800">{cnpjFormatado}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Município / UF</span>
+                    <span className="font-semibold text-slate-700">{localizacaoExibida}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-brand-blue shrink-0" />
-                <span className="text-sm font-black text-slate-900">
-                  {dataHoraLimite}
-                </span>
+
+              {/* BLOCO: DETALHES DO CERTAME */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0B192C]">
+                  <Gavel className="w-4 h-4 text-brand-orange" />
+                  <span>Detalhes do Certame</span>
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Número no PNCP</span>
+                    <span className="font-mono font-bold text-slate-800 truncate block" title={numeroExibido}>
+                      {numeroExibido}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Modalidade</span>
+                      <span className="font-semibold text-slate-800">{modalidadeExibida}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Modo de Disputa</span>
+                      <span className="font-semibold text-slate-800">{modoDisputaExibido}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Limite de Envio</span>
+                    <span className="font-bold text-slate-900 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                      {dataHoraLimite}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 3. EXIGÊNCIAS PRINCIPAIS DE HABILITAÇÃO */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-600">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Exigências Principais de Habilitação</span>
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Fonte Oficial PNCP
+            {/* 3. VALOR TOTAL DE REFERÊNCIA */}
+            <div className="bg-gradient-to-r from-blue-50/60 to-slate-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">
+                  Valor Total de Referência
                 </span>
-              </div>
-
-              <div className="grid gap-2.5 sm:grid-cols-3">
-                {/* A) Balanço Patrimonial */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                    Balanço Patrimonial
-                  </p>
-                  <p className="text-xs font-bold text-slate-800 leading-snug">
-                    {exigenciaBalanco || 'Não informado no edital'}
-                  </p>
-                </div>
-
-                {/* B) Atestados de Capacidade Técnica */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                    Atestados de Capacidade
-                  </p>
-                  <p className="text-xs font-bold text-slate-800 leading-snug">
-                    {exigenciaAtestados || 'Não informado no edital'}
-                  </p>
-                </div>
-
-                {/* C) Certidões Específicas */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                    Certidões Específicas
-                  </p>
-                  <p className="text-xs font-bold text-slate-800 leading-snug">
-                    {exigenciaCertidoes || 'Não informado no edital'}
-                  </p>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-400 italic">
-                * Regra de verificação: Exibição estrita de requisitos confirmados na documentação oficial. Requisitos ausentes constam como "Não informado no edital".
-              </p>
-            </div>
-
-            {/* 4. VALOR TOTAL DE REFERÊNCIA E CRITÉRIO DE JULGAMENTO */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Valor Total */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <span>Valor Total de Referência</span>
-                </div>
-                <p className="text-base font-black text-brand-blue">
+                <p className="text-xl font-black text-brand-blue">
                   {valorTotalRef}
                 </p>
               </div>
-
-              {/* Critério de Julgamento */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-600 mb-1">
-                  <Gavel className="w-4 h-4 text-brand-blue" />
-                  <span>Critério de Julgamento</span>
-                </div>
-                <p className="text-xs sm:text-sm font-bold text-slate-800">
-                  {criterioJulgamento || 'Não informado no edital'}
-                </p>
+              <div className="p-2.5 bg-white rounded-xl border border-blue-100 shadow-2xs text-brand-blue">
+                <DollarSign className="w-6 h-6" />
               </div>
+            </div>
+
+            {/* 4. ITENS DA CONTRATAÇÃO */}
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0B192C]">
+                  <Package className="w-4 h-4 text-brand-blue" />
+                  <span>Itens da Contratação</span>
+                </div>
+                {itensExibidos.length > 0 && (
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {itensExibidos.length} {itensExibidos.length === 1 ? 'item catalogado' : 'itens catalogados'}
+                  </span>
+                )}
+              </div>
+
+              {itensExibidos.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border border-slate-100">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                        <th className="py-2.5 px-3 whitespace-nowrap">Item #</th>
+                        <th className="py-2.5 px-3 min-w-[200px]">Descrição</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap text-center">Quantidade</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap text-right">Valor de Referência</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                      {itensExibidos.map((item, idx) => {
+                        const num = item.numeroItem ?? item.itemNumber ?? item.numero ?? idx + 1;
+                        const desc = item.descricao ?? item.description ?? 'Item da contratação';
+                        const qtd = item.quantidade ?? item.quantity ?? '—';
+                        const val = formatBRL(Number(item.valorReferencia ?? item.valorUnitarioEstimado ?? item.valorTotal));
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-800">{num}</td>
+                            <td className="py-2.5 px-3 leading-relaxed text-slate-800">{desc}</td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">{qtd}</td>
+                            <td className="py-2.5 px-3 text-right font-semibold text-brand-blue whitespace-nowrap">{val}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center">
+                  <p className="text-xs font-semibold text-slate-600">
+                    Valores globais consolidados no Termo de Referência oficial
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* RODAPÉ DO MODAL COM AÇÕES INTEGRADAS */}
-          <footer className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              {downloadUrl ? (
-                <a
-                  href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 border border-brand-blue/40 text-brand-blue hover:bg-blue-50 bg-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
-                  title="Baixar Edital oficial diretamente da fonte"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Baixar Edital
-                </a>
-              ) : (
-                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-400 bg-white text-xs font-bold uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60">
-                  <Download className="w-3.5 h-3.5" />
-                  Sem Anexo
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
-              >
-                Fechar
-              </button>
-
-              {onSalvar && (
+          {/* RODAPÉ DO MODAL COM DOWNLOAD CONTROLADO E TEXTO DE AUDITORIA */}
+          <footer className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onSalvar(edital)}
-                  disabled={isSalvo || isSalvando}
-                  className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${
-                    isSalvo
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
-                      : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
-                  }`}
+                  onClick={() => void dispararDownloadSeguro()}
+                  disabled={baixando}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-60"
+                  title="Baixar Edital oficial ou visualizar certame no PNCP"
                 >
-                  {isSalvando ? (
+                  {baixando ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : isSalvo ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Salvo ✓</span>
-                    </>
                   ) : (
-                    <>
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Salvar para Disputar</span>
-                    </>
+                    <Download className="w-3.5 h-3.5" />
                   )}
+                  <span>{baixando ? 'Processando…' : 'Baixar Edital'}</span>
                 </button>
-              )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+
+                {onSalvar && (
+                  <button
+                    type="button"
+                    onClick={() => onSalvar(edital)}
+                    disabled={isSalvo || isSalvando}
+                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${
+                      isSalvo
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
+                        : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
+                    }`}
+                  >
+                    {isSalvando ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : isSalvo ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Salvo ✓</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Salvar para Disputar</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* TEXTO DE AUDITORIA OBRIGATÓRIO NO RODAPÉ */}
+            <p className="text-[11px] text-slate-500 font-medium text-center border-t border-slate-200/60 pt-2.5">
+              Dados verificados e sincronizados via PNCP / Governo Federal. Acesse a fonte oficial para auditoria completa dos autos.
+            </p>
           </footer>
         </motion.div>
       </div>

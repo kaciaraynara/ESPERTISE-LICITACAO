@@ -1150,6 +1150,13 @@ router.get(
 );
 
 router.get(
+  ['/editais/:id/download-url', '/licitacoes/:id/download-url'],
+  handle(
+    licitacoes.obterDownloadUrl as RequestHandler,
+  ),
+);
+
+router.get(
   '/licitacoes/:id',
   fornecedor,
   handle(

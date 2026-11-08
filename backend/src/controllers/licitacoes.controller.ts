@@ -160,6 +160,36 @@ export class LicitacoesController {
     }
   };
 
+  public obterDownloadUrl = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const id = String(req.params.id ?? '').trim();
+      if (!id) {
+        return res.status(400).json({ success: false, message: 'ID do edital obrigatório' });
+      }
+
+      const licitacao = await buscarLicitacaoPorNumeroControle(id);
+      if (licitacao) {
+        const downloadUrl = (licitacao as any).linkDownloadEdital || (licitacao as any).documento_url || (licitacao as any).link;
+        if (downloadUrl && typeof downloadUrl === 'string' && downloadUrl.startsWith('http')) {
+          return res.json({ success: true, downloadUrl });
+        }
+      }
+
+      return res.status(404).json({
+        success: false,
+        message: 'Anexo indisponível no momento',
+      });
+    } catch (error) {
+      return res.status(503).json({
+        success: false,
+        message: 'Servidor do governo instável',
+      });
+    }
+  };
+
   public monitorar = async (
     req: AuthRequest,
     res: Response,
