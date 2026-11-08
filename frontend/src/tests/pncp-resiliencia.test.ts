@@ -46,44 +46,36 @@ describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resu
     });
   });
 
-  it('2. Simula falha 503 no endpoint de download e valida se aciona o redirecionamento seguro para a URL oficial sem quebrar a aplicação', async () => {
+  it('2. Elimina erro 503 no download: abre direto a URL pública oficial do PNCP em nova aba com noopener,noreferrer', async () => {
     const mockOpen = vi.fn();
-    const mockWarn = vi.fn();
 
-    // Simula resposta 503 Service Unavailable do servidor governamental
-    const mockFetch503 = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable',
-      json: async () => ({ message: 'Servidor do governo instável' }),
+    // Caso de teste obrigatório da especificação:
+    // CNPJ: 06742480000142, Ano: 2026, Sequencial: 115
+    const editalTesteObrigatorio = {
+      id: 'edital-teste-503',
+      cnpjOrgao: '06.742.480/0001-42', // Com pontuação para validar regex de limpeza
+      anoCompra: 2026,
+      sequencialCompra: 115,
+      objeto: 'Aquisição de equipamentos de TI e infraestrutura',
+    };
+
+    const urlRetornada = await handleDownloadEdital(editalTesteObrigatorio, {
+      openFn: mockOpen,
     });
 
-    // A função não deve explodir erro não tratado, mas sim executar o fallback imediato
-    await expect(
-      handleDownloadEdital(editalExemplo, {
-        fetchFn: mockFetch503 as any,
-        openFn: mockOpen,
-        warnFn: mockWarn,
-      }),
-    ).resolves.not.toThrow();
-
-    // 1. Validar que tentou a rota interna
-    expect(mockFetch503).toHaveBeenCalledWith(
-      expect.stringContaining('/api/editais/edital-123/download-url'),
-    );
-
-    // 2. Validar que alertou o warning de fallback
-    expect(mockWarn).toHaveBeenCalledWith(
-      '[PNCP Fallback] Redirecionando para visualização no portal governamental:',
-      expect.any(Error),
-    );
-
-    // 3. Validar que abriu a URL oficial do certame no PNCP
+    // 1. O clique DEVE abrir https://pncp.gov.br/app/editais/06742480000142/2026/115
+    expect(urlRetornada).toBe('https://pncp.gov.br/app/editais/06742480000142/2026/115');
     expect(mockOpen).toHaveBeenCalledTimes(1);
     expect(mockOpen).toHaveBeenCalledWith(
-      'https://pncp.gov.br/app/editais/00394452000103/2026/274',
+      'https://pncp.gov.br/app/editais/06742480000142/2026/115',
       '_blank',
+      'noopener,noreferrer',
     );
+
+    // 2. Garante que NUNCA redireciona para o endpoint /arquivos/1 da API governamental que causa 503
+    expect(urlRetornada).not.toContain('/arquivos/1');
+    expect(urlRetornada).not.toContain('/api/pncp/');
+    expect(urlRetornada).not.toContain('undefined');
   });
 
   it('3. Garante 0 ocorrências de "Não informado no edital" replicadas consecutivamente no modal de resumo', () => {
@@ -114,5 +106,19 @@ describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resu
   it('4. Garante que o Radar de Editais exibe o link verídico de auditoria direta no PNCP', () => {
     expect(radarContent).toContain('btn-link-pncp');
     expect(radarContent).toContain('Ver no Portal Oficial do PNCP ↗');
+  });
+
+  it('5. Garante que os botões com classe btn-download-edital estão presentes na tabela e modal com a ação de acessar o edital oficial no PNCP sem erro 503', () => {
+    // Tabela do Radar
+    expect(radarContent).toContain('btn-download-edital');
+    expect(radarContent).toContain('Acessar Edital Oficial no PNCP ↗');
+
+    // Modal de Resumo Estratégico
+    expect(modalContent).toContain('btn-download-edital');
+    expect(modalContent).toContain('Acessar Edital Oficial no PNCP ↗');
+
+    // NUNCA conter links diretos para o endpoint de anexo da API governamental que dispara 503
+    expect(radarContent).not.toContain('/arquivos/1');
+    expect(modalContent).not.toContain('/arquivos/1');
   });
 });

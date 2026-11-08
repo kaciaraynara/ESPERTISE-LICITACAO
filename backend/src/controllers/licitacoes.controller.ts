@@ -179,25 +179,20 @@ export class LicitacoesController {
       const parsed = parsePncpControlNumber(licitacao?.numeroControlePNCP || id);
 
       if (parsed) {
-        try {
-          const arquivos = await buscarArquivosPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
-          if (Array.isArray(arquivos) && arquivos.length > 0) {
-            const editalArquivo = arquivos.find((a: any) =>
-              a.tipoDocumentoId === 1 ||
-              /edital|aviso|termo/i.test(a.titulo || a.nome || a.tipoDocumentoNome || '')
-            ) || arquivos[0];
-
-            const fileUrl = editalArquivo.url || editalArquivo.uri ||
-              `https://pncp.gov.br/api/pncp/v1/orgaos/${parsed.cnpj}/compras/${parsed.ano}/${parsed.sequencial}/arquivos/${editalArquivo.sequencialDocumento || 1}`;
-
-            return res.json({ success: true, downloadUrl: fileUrl });
-          }
-        } catch {
-          // Fallback para URL calculada ou registrada localmente
-        }
+        const urlWebPncp = `https://pncp.gov.br/app/editais/${parsed.cnpj}/${parsed.ano}/${parsed.sequencial}`;
+        return res.json({ success: true, downloadUrl: urlWebPncp, urlWebPncp });
       }
 
       if (licitacao) {
+        const rawCnpj = String(licitacao.cnpjOrgao || '').replace(/\D/g, '');
+        const rawAno = (licitacao as any).anoCompra || (licitacao.dataPublicacao ? new Date(licitacao.dataPublicacao).getFullYear() : null);
+        const rawSeq = (licitacao as any).sequencialCompra || (licitacao.numeroCompra ? String(licitacao.numeroCompra).replace(/\D/g, '') : null);
+
+        if (rawCnpj.length === 14 && rawAno && rawSeq) {
+          const urlWebPncp = `https://pncp.gov.br/app/editais/${rawCnpj}/${Number(rawAno)}/${Number(rawSeq)}`;
+          return res.json({ success: true, downloadUrl: urlWebPncp, urlWebPncp });
+        }
+
         const downloadUrl = (licitacao as any).linkDownloadEdital || (licitacao as any).documento_url || (licitacao as any).link;
         if (downloadUrl && typeof downloadUrl === 'string' && downloadUrl.startsWith('http')) {
           return res.json({ success: true, downloadUrl });

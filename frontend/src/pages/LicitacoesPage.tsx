@@ -75,33 +75,8 @@ const UFS = [
     'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
 ];
 
-function resolveEditalDownloadUrl(item: Licitacao): string | null {
-    const numPncp = (item.numeroControlePNCP || (item as any).numero_controle_pncp || item.id || '').trim();
-    const clean = numPncp.replace(/^pncp-/i, '').trim();
-
-    // Suporte aos formatos oficiais do PNCP: CNPJ-1-SEQUENCIAL/ANO, CNPJ-1-SEQUENCIAL-ANO, CNPJ-SEQUENCIAL/ANO
-    const match1 = clean.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
-    if (match1) {
-        const [, cnpj, sequencial, ano] = match1;
-        return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
-    }
-
-    const match2 = clean.match(/^(\d{14})[/-](\d{4})[/-](\d+)$/);
-    if (match2) {
-        const [, cnpj, ano, sequencial] = match2;
-        return `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(sequencial)}/arquivos/1`;
-    }
-
-    const explicit = item.linkDownloadEdital || item.documento_url || item.link;
-    if (explicit && explicit.includes('/arquivos/')) {
-        return explicit.trim();
-    }
-
-    if (item.linkSistemaOrigem && item.linkSistemaOrigem.startsWith('http')) {
-        return item.linkSistemaOrigem.trim();
-    }
-
-    return null;
+function resolveEditalDownloadUrl(item: Licitacao): string {
+    return buildOfficialPncpPortalUrl(item);
 }
 
 export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modalidadeInicial?: string } = {}) {
@@ -893,18 +868,18 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                     {/* 6. AÇÕES: APENAS 3 AÇÕES CLARAS POR LINHA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                                         <div className="flex flex-col gap-2 items-stretch min-w-[155px]">
-                                                            {/* 1. BAIXAR EDITAL (Download resiliente com fallback seguro para o portal PNCP) */}
+                                                            {/* 1. ACESSAR EDITAL OFICIAL NO PNCP (Elimina erro 503 e abre direto a contratação oficial pública) */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => {
                                                                     e.stopPropagation();
                                                                     void handleDownloadEdital(item);
                                                                 }}
-                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                                                                title="Baixar Edital oficial ou visualizar autos no portal oficial do PNCP"
+                                                                className="btn-download-edital inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                                                                title="Acessar Edital Oficial no PNCP"
                                                             >
                                                                 <Download className="w-3.5 h-3.5" weight="bold" />
-                                                                <span>Baixar Edital</span>
+                                                                <span>Acessar Edital Oficial no PNCP ↗</span>
                                                             </button>
 
                                                             {/* 2. RESUMO RÁPIDO (Botão azul claro - abre modal com pontos-chave) */}

@@ -28,7 +28,35 @@ export function formatCnpj(rawCnpj?: string | null): string {
 export function extractPncpParams(edital: any): PncpUrlParams | null {
   if (!edital) return null;
 
-  // 1. Extração do número de controle PNCP
+  // 1. Extração prioritária direta de propriedades individuais
+  const rawCnpj = String(
+    edital.cnpjOrgao ||
+    edital.cnpj ||
+    edital.buyerDocument ||
+    '',
+  ).replace(/\D/g, '');
+
+  const rawAno =
+    edital.anoCompra ||
+    edital.ano ||
+    (edital.dataPublicacao || edital.dataAbertura
+      ? new Date(edital.dataPublicacao || edital.dataAbertura).getFullYear()
+      : null);
+
+  const rawSeq =
+    edital.sequencialCompra ||
+    edital.sequencial ||
+    (edital.numeroCompra ? String(edital.numeroCompra).replace(/\D/g, '') : null);
+
+  if (rawCnpj.length === 14 && rawAno && rawSeq !== undefined && rawSeq !== null && rawSeq !== '') {
+    return {
+      cnpj: rawCnpj,
+      anoCompra: Number(rawAno),
+      sequencialCompra: Number(rawSeq),
+    };
+  }
+
+  // 2. Extração do número de controle PNCP
   const numControle = String(
     edital.numeroControlePNCP ||
     edital.numero_controle_pncp ||
@@ -58,7 +86,7 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     };
   }
 
-  // 2. Extração de URLs existentes
+  // 3. Extração de URLs existentes
   const candidateUrl = String(
     edital.link ||
     edital.linkEditalPNCP ||
@@ -78,32 +106,17 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     }
   }
 
-  // 3. Extração direta de propriedades individuais
-  const rawCnpj = String(
-    edital.cnpjOrgao ||
-    edital.cnpj ||
-    edital.buyerDocument ||
-    '',
-  ).replace(/\D/g, '');
-
-  const rawAno =
-    edital.anoCompra ||
-    edital.ano ||
-    (edital.dataPublicacao || edital.dataAbertura
-      ? new Date(edital.dataPublicacao || edital.dataAbertura).getFullYear()
-      : null);
-
-  const rawSeq =
-    edital.sequencialCompra ||
-    edital.sequencial ||
-    (edital.numeroCompra ? String(edital.numeroCompra).replace(/\D/g, '') : null);
-
-  if (rawCnpj.length === 14 && rawAno && rawSeq) {
-    return {
-      cnpj: rawCnpj,
-      anoCompra: Number(rawAno),
-      sequencialCompra: Number(rawSeq),
-    };
+  // Suporte a URLs de API: /orgaos/{cnpj}/compras/{ano}/{sequencial}
+  if (candidateUrl.includes('/compras/')) {
+    const matchApi = candidateUrl.match(/\/orgaos\/(\d{14})\/compras\/(\d{4})\/(\d+)/);
+    if (matchApi) {
+      const [, cnpj, ano, sequencial] = matchApi;
+      return {
+        cnpj,
+        anoCompra: Number(ano),
+        sequencialCompra: Number(sequencial),
+      };
+    }
   }
 
   return null;
@@ -114,51 +127,49 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
  * https://pncp.gov.br/app/editais/{cnpj}/{ano}/{sequencial}
  */
 export function buildOfficialPncpPortalUrl(edital: any): string {
+  if (!edital) return 'https://pncp.gov.br/app/editais';
+
+  // 1. Extração direta de propriedades com sanitização do CNPJ
+  const rawCnpj = String(
+    edital.cnpjOrgao ||
+    edital.cnpj ||
+    edital.buyerDocument ||
+    '',
+  ).replace(/\D/g, '');
+
+  const rawAno = edital.anoCompra || edital.ano;
+  const rawSeq = edital.sequencialCompra || edital.sequencial;
+
+  if (rawCnpj.length === 14 && rawAno && rawSeq !== undefined && rawSeq !== null && rawSeq !== '') {
+    return `https://pncp.gov.br/app/editais/${rawCnpj}/${Number(rawAno)}/${Number(rawSeq)}`;
+  }
+
+  // 2. Extração via extractPncpParams (numeroControlePNCP, links, etc.)
   const params = extractPncpParams(edital);
   if (params) {
     return `https://pncp.gov.br/app/editais/${params.cnpj}/${params.anoCompra}/${params.sequencialCompra}`;
   }
+
   return 'https://pncp.gov.br/app/editais';
 }
 
 /**
- * Função resiliente para download de editais com fallback imediato para o portal oficial
- * em caso de erro 503, indisponibilidade ou ausência de anexo direto.
+ * Função para acesso direto e seguro ao edital no portal web oficial do PNCP.
+ * ELIMINA DEFINITIVAMENTE O ERRO 503 ao NUNCA redirecionar o navegador para '/api/pncp/.../arquivos/1'.
  */
 export async function handleDownloadEdital(
   edital: any,
   options?: {
-    fetchFn?: typeof fetch;
-    openFn?: (url: string, target?: string) => void;
-    warnFn?: typeof console.warn;
+    openFn?: (url: string, target?: string, features?: string) => void;
   },
-): Promise<void> {
-  const fetchImpl = options?.fetchFn || (typeof window !== 'undefined' ? window.fetch.bind(window) : fetch);
-  const openImpl = options?.openFn || ((url: string, target = '_blank') => {
-    if (typeof window !== 'undefined') window.open(url, target);
+): Promise<string> {
+  const openImpl = options?.openFn || ((url: string, target = '_blank', features = 'noopener,noreferrer') => {
+    if (typeof window !== 'undefined') {
+      window.open(url, target, features);
+    }
   });
-  const warnImpl = options?.warnFn || console.warn;
 
-  const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
-
-  try {
-    const editalId = encodeURIComponent(edital?.id || edital?.numeroControlePNCP || '');
-    const response = await fetchImpl(`/api/editais/${editalId}/download-url`);
-    if (!response.ok) {
-      throw new Error(`Servidor do governo instável (status ${response.status})`);
-    }
-
-    const data = await response.json();
-    if (data?.downloadUrl) {
-      openImpl(data.downloadUrl, '_blank');
-      return;
-    }
-
-    throw new Error('Anexo indisponível');
-  } catch (err) {
-    // FALLBACK IMEDIATO: Se falhar ou der 503, redireciona para a página oficial do certame no PNCP
-    warnImpl('[PNCP Fallback] Redirecionando para visualização no portal governamental:', err);
-    openImpl(urlOficialPncp, '_blank');
-  }
+  const urlWebPncp = buildOfficialPncpPortalUrl(edital);
+  openImpl(urlWebPncp, '_blank', 'noopener,noreferrer');
+  return urlWebPncp;
 }
-

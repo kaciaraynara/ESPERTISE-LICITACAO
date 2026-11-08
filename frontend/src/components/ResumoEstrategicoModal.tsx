@@ -136,7 +136,6 @@ export default function ResumoEstrategicoModal({
   const [criterioExtra, setCriterioExtra] = useState<string | null>(null);
   const [modoDisputaExtra, setModoDisputaExtra] = useState<string | null>(null);
   const [itensExtra, setItensExtra] = useState<ResumoEditalItem[]>([]);
-  const [baixando, setBaixando] = useState(false);
 
   // Fecha com tecla ESC
   useEffect(() => {
@@ -253,13 +252,8 @@ export default function ResumoEstrategicoModal({
       ? edital.items
       : itensExtra;
 
-  const dispararDownloadSeguro = async () => {
-    setBaixando(true);
-    try {
-      await handleDownloadEdital(edital);
-    } finally {
-      setBaixando(false);
-    }
+  const dispararDownloadSeguro = () => {
+    void handleDownloadEdital(edital);
   };
 
   return (
@@ -472,17 +466,12 @@ export default function ResumoEstrategicoModal({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => void dispararDownloadSeguro()}
-                  disabled={baixando}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-60"
-                  title="Baixar Edital oficial ou visualizar certame no PNCP"
+                  onClick={dispararDownloadSeguro}
+                  className="btn-download-edital inline-flex items-center justify-center gap-1.5 px-3.5 py-2 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                  title="Acessar Edital Oficial no PNCP"
                 >
-                  {baixando ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5" />
-                  )}
-                  <span>{baixando ? 'Processando…' : 'Baixar Edital'}</span>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Acessar Edital Oficial no PNCP ↗</span>
                 </button>
               </div>
 
@@ -500,11 +489,10 @@ export default function ResumoEstrategicoModal({
                     type="button"
                     onClick={() => onSalvar(edital)}
                     disabled={isSalvo || isSalvando}
-                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${
-                      isSalvo
+                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${isSalvo
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
                         : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
-                    }`}
+                      }`}
                   >
                     {isSalvando ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
