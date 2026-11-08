@@ -103,20 +103,6 @@ function resolveEditalDownloadUrl(item: Licitacao): string | null {
     return null;
 }
 
-function StatusBadge({ situacao }: { situacao?: string }) {
-    const s = (situacao || '').toLowerCase();
-    const isActive = s.includes('publicad') || s.includes('ativ') || s.includes('aberta') || s.includes('divulgad');
-    return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${isActive
-            ? 'bg-blue-50/70 text-brand-blue border border-brand-blue/20'
-            : 'bg-slate-50 text-slate-600 border border-slate-200'
-            }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-brand-blue animate-pulse' : 'bg-slate-400'}`} />
-            {situacao || 'Publicada'}
-        </span>
-    );
-}
-
 export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modalidadeInicial?: string } = {}) {
     const navigate = useNavigate();
     const { selectedCompany } = useCompany();
@@ -528,8 +514,8 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
     };
 
     const tituloPagina = modalidadeInicial && modalidadeInicial !== 'Todos'
-        ? `${modalidadeInicial} (Lei 14.133/21)`
-        : 'Central de Radar e Oportunidades';
+        ? `${modalidadeInicial} em Aberto`
+        : 'Oportunidades Abertas';
 
     return (
         <div className="flex flex-col h-full bg-brand-light">
@@ -539,31 +525,20 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{tituloPagina}</h1>
-                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                            <h1 className="text-2xl md:text-3xl font-bold text-[#0B192C] tracking-tight">{tituloPagina}</h1>
+                            <p className="text-sm font-normal text-[#334155] mt-1">Editais disponíveis para o seu negócio disputar</p>
+                            <div className="flex flex-wrap items-center gap-3 mt-1.5">
                                 {meta?.total != null ? (
-                                    <p className="text-sm font-semibold text-slate-500 flex items-center gap-2">
-                                        <span className="font-bold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais oficiais no PNCP
+                                    <p className="text-xs font-medium text-slate-500 flex items-center gap-2">
+                                        <span className="font-semibold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais oficiais encontrados
                                         {ultimaAtualizacao && (
                                             <span className="text-xs text-slate-400">· Sincronizado às {ultimaAtualizacao.toLocaleTimeString('pt-BR')}</span>
                                         )}
                                     </p>
                                 ) : (
-                                    <p className="text-sm font-semibold text-slate-500">Alimentação oficial e diária via Portal Nacional de Contratações Públicas (PNCP)</p>
+                                    <p className="text-xs font-medium text-slate-500">Consulta direta e oficial ao Portal Nacional de Contratações Públicas (PNCP)</p>
                                 )}
                             </div>
-                            {meta?.perfilRadar && !busca.trim() && !cnaeFiltro.trim() && (
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    <span className="rounded-lg border border-brand-blue/20 bg-blue-50/40 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue">
-                                        Radar alinhado ao CNAE da empresa
-                                    </span>
-                                    {(meta.perfilRadar.palavras_chave || []).slice(0, 5).map((tag) => (
-                                        <span key={tag} className="rounded-lg border border-gray-100 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-blue/70">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         <div className="flex items-center gap-2.5">
@@ -778,6 +753,20 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                     {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP */}
                     {!loading && licitacoes.length > 0 && (
                         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                            {/* Indicador consolidado e discreto no topo da tabela */}
+                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-xs font-medium text-[#334155]">
+                                        Base PNCP / SICAF: <span className="font-semibold text-emerald-700">Sincronizada</span>
+                                    </span>
+                                </div>
+                                {meta?.total != null && (
+                                    <span className="text-xs text-slate-400">
+                                        {meta.total.toLocaleString('pt-BR')} editais disponíveis
+                                    </span>
+                                )}
+                            </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
@@ -811,7 +800,6 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                             const urgente = dias !== null && dias >= 0 && dias <= 3;
                                             const valorExibido = item.valorEstimado ?? item.valor_estimado;
                                             const downloadUrl = resolveEditalDownloadUrl(item);
-                                            const pct = item.score?.pontuacao;
 
                                             return (
                                                 <tr
@@ -822,12 +810,12 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                             downloadUrl,
                                                         });
                                                     }}
-                                                    className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
+                                                    className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
                                                 >
                                                     {/* 1. NÚMERO DO EDITAL */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap">
                                                         <div className="flex flex-col gap-1">
-                                                            <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md inline-block w-fit">
+                                                            <span className="font-mono text-xs font-semibold text-[#0B192C] bg-slate-100 px-2.5 py-1 rounded-md inline-block w-fit">
                                                                 {numeroEdital}
                                                             </span>
                                                             {item.numeroControlePNCP && item.numeroControlePNCP !== numeroEdital && (
@@ -835,15 +823,12 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                     PNCP: {item.numeroControlePNCP}
                                                                 </span>
                                                             )}
-                                                            <div className="mt-1">
-                                                                <StatusBadge situacao={item.situacao} />
-                                                            </div>
                                                         </div>
                                                     </td>
 
                                                     {/* 2. ÓRGÃO */}
                                                     <td className="py-4 px-4 align-top max-w-[240px]">
-                                                        <div className="font-bold text-slate-900 text-xs leading-snug line-clamp-2">
+                                                        <div className="font-semibold text-[#0B192C] text-xs leading-snug line-clamp-2">
                                                             {item.orgao || 'Órgão Público'}
                                                         </div>
                                                         {item.cnpjOrgao && (
@@ -852,7 +837,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                             </div>
                                                         )}
                                                         {(item.municipio || item.uf) && (
-                                                            <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 mt-1">
+                                                            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500 mt-1">
                                                                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" weight="bold" />
                                                                 <span>{[item.municipio, item.uf].filter(Boolean).join(' / ')}</span>
                                                             </div>
@@ -861,12 +846,12 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
 
                                                     {/* 3. DATA DE ABERTURA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap">
-                                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0B192C]">
                                                             <Calendar className="w-4 h-4 text-brand-blue shrink-0" weight="bold" />
                                                             <span>{formatDate(dataAberturaExibida)}</span>
                                                         </div>
                                                         {urgente && (
-                                                            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">
+                                                            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">
                                                                 <Clock className="w-3 h-3" weight="bold" />
                                                                 {dias === 0 ? 'Abre Hoje' : `${dias}d restantes`}
                                                             </span>
@@ -875,29 +860,21 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
 
                                                     {/* 4. OBJETO */}
                                                     <td className="py-4 px-4 align-top max-w-md">
-                                                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                                                            {item.modalidade && (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-black text-slate-600 bg-slate-100 uppercase tracking-wider">
+                                                        {item.modalidade && (
+                                                            <div className="mb-1.5">
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wider">
                                                                     {item.modalidade}
                                                                 </span>
-                                                            )}
-                                                            {pct !== undefined && (
-                                                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${pct >= 75
-                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                                                    : 'bg-blue-50 text-brand-blue border border-brand-blue/20'
-                                                                    }`}>
-                                                                    {pct}% Match
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs font-semibold text-slate-800 leading-relaxed line-clamp-3 group-hover:text-brand-blue transition-colors">
+                                                            </div>
+                                                        )}
+                                                        <p className="text-xs font-normal text-[#334155] leading-relaxed line-clamp-3 group-hover:text-brand-blue transition-colors">
                                                             {item.objeto}
                                                         </p>
                                                     </td>
 
                                                     {/* 5. VALOR ESTIMADO */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap text-right">
-                                                        <span className="text-sm font-black text-brand-blue">
+                                                        <span className="text-sm font-semibold text-[#0B192C]">
                                                             {formatVal(valorExibido)}
                                                         </span>
                                                     </td>
@@ -905,21 +882,21 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                     {/* 6. AÇÕES: APENAS 3 AÇÕES CLARAS POR LINHA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                                         <div className="flex flex-col gap-2 items-stretch min-w-[155px]">
-                                                            {/* 1. BAIXAR EDITAL (Contorno azul discreto) */}
+                                                            {/* 1. BAIXAR EDITAL (Fundo transparente com borda fina azul #0B192C e texto na mesma cor) */}
                                                             {downloadUrl ? (
                                                                 <a
                                                                     href={downloadUrl}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     onClick={e => e.stopPropagation()}
-                                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-brand-blue/40 text-brand-blue hover:bg-blue-50/70 bg-white text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all"
+                                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all"
                                                                     title="Baixar Edital diretamente da fonte oficial governamental (PNCP)"
                                                                 >
                                                                     <Download className="w-3.5 h-3.5" weight="bold" />
                                                                     <span>Baixar Edital</span>
                                                                 </a>
                                                             ) : (
-                                                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 text-[11px] font-bold uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60">
+                                                                <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-400 bg-slate-50 text-[11px] font-medium uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60">
                                                                     <Download className="w-3.5 h-3.5" weight="bold" />
                                                                     <span>Baixar Edital</span>
                                                                 </span>
@@ -935,21 +912,21 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                         downloadUrl,
                                                                     });
                                                                 }}
-                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-brand-blue border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
+                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
                                                                 title="Visualizar resumo estratégico com pontos-chave do edital"
                                                             >
                                                                 <FileText className="w-3.5 h-3.5" weight="bold" />
                                                                 <span>Resumo Rápido</span>
                                                             </button>
 
-                                                            {/* 3. SALVAR PARA DISPUTAR (Botão Laranja de destaque / Salvo ✓ em verde suave) */}
+                                                            {/* 3. SALVAR PARA DISPUTAR (Laranja Vibrante #F97316 com hover e leve elevação / Salvo ✓ em verde suave) */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => void handleSalvarParaDisputar(e, item)}
                                                                 disabled={salvosCrmIds.has(item.id) || salvandoId === item.id}
-                                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
+                                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
                                                                     ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
-                                                                    : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
+                                                                    : 'bg-[#F97316] text-white hover:brightness-95 hover:-translate-y-0.5 border-transparent shadow-xs cursor-pointer'
                                                                     }`}
                                                             >
                                                                 {salvandoId === item.id ? (

@@ -14,7 +14,6 @@ import {
 import DashboardLayout from './components/layout/DashboardLayout';
 import LandingPage from './pages/LandingPage';
 import AuthPages from './pages/AuthPages';
-import { LexFloatingWidget } from './components/LexFloatingWidget';
 import { PremiumFeatureGuard } from './components/monetization/PremiumFeatureGuard';
 import { CompanyProvider } from './contexts/CompanyContext';
 
@@ -443,8 +442,6 @@ export default function App() {
           error: { iconTheme: { primary: '#B91C1C', secondary: '#FFFFFF' } },
         }}
       />
-      {/* Widget do LEX Fixo na Tela */}
-      <LexFloatingWidget />
       </CompanyProvider>
     </QueryClientProvider>
   );

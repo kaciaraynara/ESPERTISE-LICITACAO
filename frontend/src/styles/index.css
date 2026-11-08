@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -44,8 +44,8 @@
     min-height: 100vh;
     margin: 0;
     background: #F8FAFC;
-    color: #081c3a;
-    font-family: 'Ubuntu', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #334155;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -105,11 +105,11 @@
   h4,
   h5,
   h6 {
-    color: #334155;
-    font-family: 'Outfit', 'Sora', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-weight: 700;
-    letter-spacing: 0;
-    line-height: 1.2;
+    color: #0B192C;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
   }
 
   a {
@@ -128,7 +128,7 @@
   textarea,
   select {
     border-color: #E2E8F0;
-    color: #334155;
+    color: #0B192C;
     background-color: #FFFFFF;
   }
 
@@ -215,7 +215,7 @@
     border: 1px solid #F1F5F9;
     border-radius: 6px;
     background: #FFFFFF;
-    color: #334155;
+    color: #0B192C;
     box-shadow: 0 4px 20px rgba(30, 58, 138, 0.05);
     transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
   }
@@ -271,7 +271,7 @@
     border-radius: 6px;
     background: #FFFFFF;
     padding: 0.75rem 1rem;
-    color: #334155;
+    color: #0B192C;
     font-size: 0.875rem;
     outline: none;
     box-shadow: inset 0 0 0 1px transparent;
@@ -315,14 +315,14 @@
     border: 1px solid rgba(107, 33, 168, 0.30);
     border-radius: 6px;
     background: rgba(107, 33, 168, 0.08);
-    color: #334155;
+    color: #0B192C;
     padding: 0.125rem 0.625rem;
     font-size: 0.6875rem;
     font-weight: 700;
   }
 
   .stat-value {
-    color: #334155;
+    color: #0B192C;
     font-size: 1.5rem;
     font-weight: 750;
     line-height: 1;
@@ -341,7 +341,7 @@
     border: 1px solid rgba(30, 58, 138, 0.16);
     border-radius: 6px;
     background: #FFFFFF;
-    color: #334155;
+    color: #0B192C;
     padding: 0.375rem 0.75rem;
     font-size: 0.625rem;
     font-weight: 800;
@@ -389,7 +389,7 @@
   .table-licit td {
     border-bottom: 1px solid #F1F5F9;
     padding: 0.75rem 1rem;
-    color: #334155;
+    color: #0B192C;
   }
 
   .table-licit tr:hover td {
@@ -406,7 +406,7 @@
   }
 
   .page-title {
-    color: #334155;
+    color: #0B192C;
     font-size: 1.5rem;
     font-weight: 750;
   }
@@ -498,7 +498,7 @@
   body,
   #root {
     background: #F8FAFC;
-    color: #334155;
+    color: #0B192C;
   }
 
   h1,
@@ -507,7 +507,7 @@
   h4,
   h5,
   h6 {
-    color: #334155;
+    color: #0B192C;
     font-weight: 700;
   }
 }
@@ -523,7 +523,7 @@
     border: 1px solid #F3F4F6;
     border-radius: 8px;
     background: #FFFFFF;
-    color: #334155;
+    color: #0B192C;
     box-shadow: 0 4px 20px rgba(30, 58, 138, 0.05);
     transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
   }
@@ -590,4 +590,37 @@
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Light Premium Brand Buttons */
+.btn-action-primary,
+button.btn-primary-orange {
+  background-color: #F97316 !important;
+  color: #FFFFFF !important;
+  border: 1px solid transparent !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+  font-weight: 600 !important;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.btn-action-primary:hover,
+button.btn-primary-orange:hover {
+  filter: brightness(0.95) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25) !important;
+}
+
+.btn-action-secondary,
+button.btn-secondary-navy {
+  background-color: transparent !important;
+  color: #0B192C !important;
+  border: 1px solid #0B192C !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+  font-weight: 500 !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-action-secondary:hover,
+button.btn-secondary-navy:hover {
+  background-color: rgba(11, 25, 44, 0.05) !important;
 }

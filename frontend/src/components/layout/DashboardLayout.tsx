@@ -7,7 +7,6 @@ import Sidebar, { hasActivePaidPlan, isUserTrialActive } from './Sidebar';
 import Header from './Header';
 import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
-import { LexOnboardingBot } from '../onboarding/LexOnboardingBot';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
 import { LoadingSpinner } from '../common/LoadingSpinner';
@@ -140,7 +139,6 @@ export default function DashboardLayout() {
           ) : null}
         </main>
       </div>
-      <LexOnboardingBot />
     </div>
   );
 }
