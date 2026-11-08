@@ -111,6 +111,41 @@ function getAutomaticSearchTerms(
   return profile?.keywords.slice(0, AUTOMATIC_RADAR_KEYWORD_LIMIT) ?? [];
 }
 
+function extractPncpAuditParams(
+  numeroControlePNCP?: string | null,
+  cnpjOrgao?: string | null,
+  anoCompra?: number | string | null,
+  sequencialCompra?: number | string | null,
+): { cnpj: string; anoCompra: number; sequencialCompra: number; urlOficialPncp: string } | null {
+  const cleanControl = String(numeroControlePNCP || '').trim().replace(/^pncp-/i, '');
+  const match = cleanControl.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
+  if (match) {
+    const [, cnpj, seq, ano] = match;
+    const anoNum = Number(ano);
+    const seqNum = Number(seq);
+    return {
+      cnpj,
+      anoCompra: anoNum,
+      sequencialCompra: seqNum,
+      urlOficialPncp: `https://pncp.gov.br/app/editais/${cnpj}/${anoNum}/${seqNum}`,
+    };
+  }
+
+  const rawCnpj = String(cnpjOrgao || '').replace(/\D/g, '');
+  const rawAno = Number(anoCompra);
+  const rawSeq = Number(sequencialCompra);
+  if (rawCnpj.length === 14 && Number.isFinite(rawAno) && rawAno > 1990 && Number.isFinite(rawSeq) && rawSeq > 0) {
+    return {
+      cnpj: rawCnpj,
+      anoCompra: rawAno,
+      sequencialCompra: rawSeq,
+      urlOficialPncp: `https://pncp.gov.br/app/editais/${rawCnpj}/${rawAno}/${rawSeq}`,
+    };
+  }
+
+  return null;
+}
+
 function getPncpModality(
   value: FiltrosBusca['modalidade'] | FiltrosBusca['codigoModalidadeContratacao'],
 ): number {
@@ -125,8 +160,15 @@ function getPncpModality(
 
   const normalized = String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (normalized.includes('dispensa')) return 8;
+  if (normalized.includes('inexigibilidade')) return 9;
   if (normalized.includes('concorrencia')) return 4;
+  if (normalized.includes('leilao')) return 1;
+  if (normalized.includes('concurso')) return 2;
+  if (normalized.includes('dialogo')) return 14;
   if (normalized.includes('credenciamento')) return 12;
+  if (normalized.includes('pre-qualificacao') || normalized.includes('prequalificacao')) return 13;
+  if (normalized.includes('pmi') || normalized.includes('manifestacao de interesse')) return 15;
+  if (normalized.includes('registro cadastral')) return 16;
   if (normalized.includes('pregao')) return 6;
 
   return 6;
@@ -152,17 +194,31 @@ export function normalizarLicitacaoPNCP(
     item.linkSistemaOrigem,
     item.linkEditalPNCP,
   );
+  const cnpjOrgao = nullableString(item.orgaoEntidade?.cnpj);
+  const auditParams = extractPncpAuditParams(
+    numeroControlePNCP,
+    cnpjOrgao,
+    (item as any).anoCompra,
+    (item as any).sequencialCompra,
+  );
+  const urlOficialPncp = auditParams?.urlOficialPncp
+    || nullableString(item.linkEditalPNCP)
+    || nullableString(item.linkSistemaOrigem)
+    || 'https://pncp.gov.br/app/editais';
 
   return {
     id: numeroControlePNCP,
     databaseId: null,
     numeroControlePNCP,
     orgao: nullableString(item.orgaoEntidade?.razaoSocial) ?? '',
-    cnpjOrgao: nullableString(item.orgaoEntidade?.cnpj),
+    cnpjOrgao,
+    anoCompra: auditParams?.anoCompra ?? nullableNumber((item as any).anoCompra) ?? undefined,
+    sequencialCompra: auditParams?.sequencialCompra ?? nullableNumber((item as any).sequencialCompra) ?? undefined,
+    urlOficialPncp,
     unidade: nullableString(item.unidadeOrgao?.nomeUnidade),
     uf: nullableString(item.unidadeOrgao?.ufSigla),
     municipio: nullableString(item.unidadeOrgao?.municipioNome),
-    objeto: nullableString(item.objeto) ?? '',
+    objeto: nullableString(item.objeto) ?? nullableString((item as any).objetoCompra) ?? '',
     processo: nullableString(item.processo),
     numeroCompra: nullableString(item.numeroCompra),
     numeroEdital: nullableString(item.numeroCompra) || nullableString(item.processo) || numeroControlePNCP,
@@ -179,13 +235,13 @@ export function normalizarLicitacaoPNCP(
     data_abertura: nullableString(item.dataAberturaProposta),
     dataEncerramento: nullableString(item.dataEncerramentoProposta),
     data_encerramento: nullableString(item.dataEncerramentoProposta),
-    link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP),
+    link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP) || urlOficialPncp,
     linkSistemaOrigem: nullableString(item.linkSistemaOrigem),
     documento_url: downloadUrl,
     linkDownloadEdital: downloadUrl,
     srp: item.srp,
     fonte: 'PNCP',
-  };
+  } as LicitacaoRadarPNCP;
 }
 
 /**
@@ -276,22 +332,38 @@ export async function listarLicitacoes(
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
 
-    let modTerm = rawStr;
-    if (normalized.includes('pregao') || rawStr === '6' || rawStr === '7') {
-      modTerm = 'Pregão';
-    } else if (normalized.includes('concorrencia') || rawStr === '4' || rawStr === '5') {
-      modTerm = 'Concorrência';
-    } else if (normalized.includes('credenciamento') || rawStr === '12') {
-      modTerm = 'Credenciamento';
-    } else if (normalized.includes('dispensa') || rawStr === '8') {
-      modTerm = 'Dispensa';
-    } else if (rawStr === '14' || normalized.includes('leilao')) {
-      modTerm = 'Leilão';
-    }
+    if (normalized === 'srp' || normalized.includes('registro de precos')) {
+      and.push({ srp: true });
+    } else {
+      let modTerm = rawStr;
+      if (normalized.includes('pregao') || rawStr === '6') {
+        modTerm = 'Pregão';
+      } else if (normalized.includes('concorrencia') || rawStr === '4' || rawStr === '5' || rawStr === '7') {
+        modTerm = 'Concorrência';
+      } else if (normalized.includes('credenciamento') || rawStr === '12') {
+        modTerm = 'Credenciamento';
+      } else if (normalized.includes('dispensa') || rawStr === '8') {
+        modTerm = 'Dispensa';
+      } else if (normalized.includes('inexigibilidade') || rawStr === '9') {
+        modTerm = 'Inexigibilidade';
+      } else if (normalized.includes('leilao') || rawStr === '1') {
+        modTerm = 'Leilão';
+      } else if (normalized.includes('concurso') || rawStr === '2') {
+        modTerm = 'Concurso';
+      } else if (normalized.includes('dialogo') || rawStr === '14') {
+        modTerm = 'Diálogo Competitivo';
+      } else if (normalized.includes('pre-qualificacao') || normalized.includes('prequalificacao') || rawStr === '13') {
+        modTerm = 'Pré-Qualificação';
+      } else if (normalized.includes('pmi') || normalized.includes('manifestacao de interesse') || rawStr === '15') {
+        modTerm = 'Manifestação de Interesse';
+      } else if (normalized.includes('registro cadastral') || rawStr === '16') {
+        modTerm = 'Registro Cadastral';
+      }
 
-    and.push({
-      modality: { contains: modTerm, mode: 'insensitive' },
-    });
+      and.push({
+        modality: { contains: modTerm, mode: 'insensitive' },
+      });
+    }
   }
 
   if (searchTerms.length > 0) {
@@ -404,6 +476,8 @@ export async function listarLicitacoes(
       const numControle = r.externalId || r.numeroControlePncp || r.noticeNumber || '';
       const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || r.url || '';
       const portalUrl = downloadUrl || r.url || '';
+      const auditParams = extractPncpAuditParams(numControle, r.buyerDocument, null, null);
+      const urlOficialPncp = auditParams?.urlOficialPncp || r.url || 'https://pncp.gov.br/app/editais';
 
       return {
         id: r.id,
@@ -411,6 +485,9 @@ export async function listarLicitacoes(
         numeroControlePNCP: numControle || r.id,
         orgao: r.buyerName || '',
         cnpjOrgao: r.buyerDocument || '',
+        anoCompra: auditParams?.anoCompra,
+        sequencialCompra: auditParams?.sequencialCompra,
+        urlOficialPncp,
         unidade: '',
         uf: r.uf || '',
         municipio: r.municipality || '',
@@ -431,8 +508,8 @@ export async function listarLicitacoes(
         data_abertura: safeFormatDate(r.openingAt),
         dataEncerramento: safeFormatDate(r.closingAt),
         data_encerramento: safeFormatDate(r.closingAt),
-        link: portalUrl,
-        linkSistemaOrigem: portalUrl,
+        link: portalUrl || urlOficialPncp,
+        linkSistemaOrigem: portalUrl || urlOficialPncp,
         documento_url: downloadUrl,
         linkDownloadEdital: downloadUrl,
         srp: Boolean(r.srp),

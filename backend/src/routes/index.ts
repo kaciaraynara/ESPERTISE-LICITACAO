@@ -1163,11 +1163,19 @@ router.get(
   ),
 );
 
-router.get(
-  '/licitacoes/:id',
+router.post(
+  ['/licitacoes/salvar', '/editais/salvar'],
   fornecedor,
   handle(
-    licitacoes.buscarPorId as RequestHandler,
+    licitacoes.salvar as RequestHandler,
+  ),
+);
+
+router.get(
+  ['/licitacoes/salvos', '/editais/salvos'],
+  fornecedor,
+  handle(
+    licitacoes.listarSalvos as RequestHandler,
   ),
 );
 
@@ -1176,6 +1184,14 @@ router.post(
   fornecedor,
   handle(
     licitacoes.monitorar as RequestHandler,
+  ),
+);
+
+router.get(
+  '/licitacoes/:id',
+  fornecedor,
+  handle(
+    licitacoes.buscarPorId as RequestHandler,
   ),
 );
 

@@ -68,7 +68,19 @@ type SearchFilters = {
 };
 
 const MODALIDADES = [
-    'Todos', 'Pregão Eletrônico', 'Dispensa Eletrônica', 'Concorrência', 'Credenciamento',
+    'Todos',
+    'Pregão Eletrônico',
+    'Concorrência',
+    'Dispensa Eletrônica',
+    'Inexigibilidade',
+    'Leilão',
+    'Concurso',
+    'Diálogo Competitivo',
+    'SRP / Registro de Preços',
+    'Credenciamento',
+    'Pré-Qualificação',
+    'PMI',
+    'Registro Cadastral',
 ];
 const UFS = [
     'Todos', 'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
@@ -240,6 +252,19 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
             })
             .catch(() => { });
+
+        licitacoesApi.listarSalvos()
+            .then((res) => {
+                const ids = new Set<string>();
+                const list = res.data?.data || [];
+                list.forEach((item: any) => {
+                    if (item.id) ids.add(item.id);
+                    if (item.noticeId) ids.add(item.noticeId);
+                    if (item.numeroControlePNCP) ids.add(item.numeroControlePNCP);
+                });
+                setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
+            })
+            .catch(() => { });
     }, []);
 
     const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | ResumoEditalData) => {
@@ -252,15 +277,34 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
             return;
         }
 
-        // Mudar o botão imediatamente para "Salvo ✓" (verde suave)
+        // Mudar o botão imediatamente para "Salvo ✓" (verde suave #DCFCE7 / texto #166534)
         setSalvosCrmIds((prev) => new Set([...prev, target.id]));
         setSalvandoId(target.id);
 
         try {
-            // Salva o edital no banco na tabela/estado 'editais_salvos' vinculado ao usuário
-            await crmApi.createOportunidade({ noticeId: target.id });
+            const anyTarget = target as any;
+            const urlOficialPncp = buildOfficialPncpPortalUrl(anyTarget);
 
-            // Persiste no cache de editais salvos
+            // 1. Persiste na rota dedicada /api/licitacoes/salvar (PostgreSQL + Itens + Pipeline)
+            await licitacoesApi.salvar({
+                id: target.id,
+                numeroControlePNCP: anyTarget.numeroControlePNCP || anyTarget.numero_processo || anyTarget.numeroEdital || target.id,
+                orgao: anyTarget.orgao || anyTarget.buyerName || 'Órgão Licitante',
+                cnpjOrgao: anyTarget.cnpjOrgao || anyTarget.buyerDocument,
+                modalidade: anyTarget.modalidade || anyTarget.modality || 'Pregão Eletrônico',
+                objeto: anyTarget.objeto || anyTarget.object || 'Objeto da contratação pública',
+                valorEstimado: anyTarget.valorEstimado ?? anyTarget.valor_estimado ?? anyTarget.estimatedValue ?? null,
+                dataLimite: anyTarget.dataEncerramento || anyTarget.data_encerramento || anyTarget.dataAbertura || anyTarget.data_abertura || null,
+                urlOficialPncp,
+                uf: anyTarget.uf,
+                municipio: anyTarget.municipio,
+                itens: Array.isArray(anyTarget.itens) ? anyTarget.itens : undefined,
+            }).catch(() => {
+                // Fallback direto via CRM caso o endpoint alternativo seja usado
+                return crmApi.createOportunidade({ noticeId: target.id });
+            });
+
+            // 2. Persiste no cache de editais salvos
             try {
                 const storedKey = 'expertise_editais_salvos';
                 const current: string[] = JSON.parse(localStorage.getItem(storedKey) || '[]');
@@ -268,19 +312,21 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                     localStorage.setItem(storedKey, JSON.stringify([...current, target.id]));
                 }
 
-                const anyTarget = target as any;
                 const detailsKey = 'expertise_editais_salvos_detalhes';
                 const currentDetails: any[] = JSON.parse(localStorage.getItem(detailsKey) || '[]');
                 if (!currentDetails.some((d: any) => d.id === target.id)) {
                     currentDetails.push({
                         id: target.id,
+                        numeroControlePNCP: anyTarget.numeroControlePNCP || target.id,
                         numeroEdital: anyTarget.numero_processo || anyTarget.numeroEdital || anyTarget.numeroProcesso || `Edital #${target.id.slice(0, 8)}`,
                         orgao: anyTarget.orgao || anyTarget.buyerName || 'Órgão Licitante',
                         cnpjOrgao: anyTarget.cnpjOrgao || anyTarget.buyerDocument,
                         modalidade: anyTarget.modalidade || anyTarget.modality || 'Pregão Eletrônico',
                         dataCertame: anyTarget.data_abertura ? String(anyTarget.data_abertura).slice(0, 10) : undefined,
                         objeto: anyTarget.objeto || anyTarget.object,
-                        valorEstimado: anyTarget.valor_estimado || anyTarget.valor_total_estimado || anyTarget.estimatedValue,
+                        valorEstimado: anyTarget.valor_estimado || anyTarget.valorEstimado || anyTarget.valor_total_estimado || anyTarget.estimatedValue,
+                        urlOficialPncp,
+                        itens: Array.isArray(anyTarget.itens) ? anyTarget.itens : [],
                     });
                     localStorage.setItem(detailsKey, JSON.stringify(currentDetails));
                 }
@@ -307,8 +353,16 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
             'Pregão Eletrônico': 6,
             'Dispensa Eletrônica': 8,
             'Concorrência': 4,
+            'Inexigibilidade': 9,
+            'Leilão': 1,
+            'Concurso': 2,
+            'Diálogo Competitivo': 14,
             'Credenciamento': 12,
+            'Pré-Qualificação': 13,
+            'PMI': 15,
+            'Registro Cadastral': 16,
         };
+        const isSrpFilter = filtrosAplicados.modalidade === 'SRP / Registro de Preços';
         try {
             if (sincronizarPncp) {
                 try {
@@ -347,7 +401,11 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                 params.uf = filtrosAplicados.uf;
             }
             if (filtrosAplicados.modalidade !== 'Todos') {
-                params.modalidade = pncpModMap[filtrosAplicados.modalidade] || filtrosAplicados.modalidade;
+                if (isSrpFilter) {
+                    params.srp = true;
+                } else {
+                    params.modalidade = pncpModMap[filtrosAplicados.modalidade] || filtrosAplicados.modalidade;
+                }
             }
 
             const { data } = await licitacoesApi.listar(params);
@@ -899,13 +957,13 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                 <span>Resumo Rápido</span>
                                                             </button>
 
-                                                            {/* 3. SALVAR PARA DISPUTAR (Laranja Vibrante #F97316 com hover e leve elevação / Salvo ✓ em verde suave) */}
+                                                            {/* 3. SALVAR PARA DISPUTAR (Laranja Vibrante #F97316 com hover e leve elevação / Salvo ✓ em verde suave #DCFCE7 / texto #166534) */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => void handleSalvarParaDisputar(e, item)}
                                                                 disabled={salvosCrmIds.has(item.id) || salvandoId === item.id}
                                                                 className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
-                                                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
+                                                                    ? 'bg-[#DCFCE7] border-emerald-300 text-[#166534] cursor-default'
                                                                     : 'bg-[#F97316] text-white hover:brightness-95 hover:-translate-y-0.5 border-transparent shadow-xs cursor-pointer'
                                                                     }`}
                                                             >
@@ -913,7 +971,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                                                                 ) : salvosCrmIds.has(item.id) ? (
                                                                     <>
-                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" weight="bold" />
+                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#166534]" weight="bold" />
                                                                         <span>Salvo ✓</span>
                                                                     </>
                                                                 ) : (

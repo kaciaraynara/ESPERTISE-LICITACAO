@@ -307,4 +307,211 @@ export class LicitacoesController {
       return sendPncpError(res, error);
     }
   };
+
+  public salvar = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+      }
+
+      const {
+        id,
+        noticeId,
+        numeroControlePNCP,
+        orgao,
+        cnpjOrgao,
+        objeto,
+        valorEstimado,
+        dataLimite,
+        urlOficialPncp,
+        modalidade,
+        itens,
+      } = req.body || {};
+
+      const targetId = String(numeroControlePNCP || noticeId || id || '').trim();
+      if (!targetId) {
+        return res.status(400).json({ success: false, message: 'numeroControlePNCP ou ID do edital é obrigatório' });
+      }
+
+      const { prisma } = require('../database/prisma');
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+      let notice = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [
+            ...(isUuid ? [{ id: targetId }] : []),
+            { externalId: targetId },
+            { dedupeKey: `pncp-${targetId}` },
+            { dedupeKey: targetId },
+          ],
+        },
+      });
+
+      if (!notice) {
+        let licitacaoPncp: any = null;
+        if (!orgao || !objeto) {
+          try {
+            licitacaoPncp = await buscarLicitacaoPorNumeroControle(targetId, { requirePersistence: false });
+          } catch {
+            // Usa payload enviado pelo frontend
+          }
+        }
+
+        const ctrl = licitacaoPncp?.numeroControlePNCP || targetId;
+        const parsed = parsePncpControlNumber(ctrl);
+        const computedUrl = urlOficialPncp
+          || licitacaoPncp?.urlOficialPncp
+          || (parsed ? `https://pncp.gov.br/app/editais/${parsed.cnpj}/${parsed.ano}/${parsed.sequencial}` : 'https://pncp.gov.br/app/editais');
+
+        notice = await prisma.procurementNotice.upsert({
+          where: { dedupeKey: `pncp-${ctrl}` },
+          create: {
+            source: 'PNCP',
+            externalId: ctrl,
+            dedupeKey: `pncp-${ctrl}`,
+            contentHash: ctrl,
+            noticeNumber: licitacaoPncp?.processo || licitacaoPncp?.numeroCompra || ctrl,
+            modality: modalidade || licitacaoPncp?.modalidade || 'Pregão Eletrônico',
+            buyerName: orgao || licitacaoPncp?.orgao || 'Órgão Licitante',
+            buyerDocument: cnpjOrgao || licitacaoPncp?.cnpjOrgao || parsed?.cnpj || null,
+            object: objeto || licitacaoPncp?.objeto || 'Objeto da contratação',
+            uf: licitacaoPncp?.uf || '',
+            municipality: licitacaoPncp?.municipio || '',
+            estimatedValue: valorEstimado !== undefined && valorEstimado !== null
+              ? Number(valorEstimado)
+              : licitacaoPncp?.valorEstimado ?? null,
+            status: licitacaoPncp?.situacao || 'Publicada',
+            url: computedUrl,
+            closingAt: dataLimite ? new Date(dataLimite) : (licitacaoPncp?.dataEncerramento ? new Date(licitacaoPncp.dataEncerramento) : null),
+            rawPayload: Array.isArray(itens) ? { itens, urlOficialPncp: computedUrl } : { urlOficialPncp: computedUrl },
+          },
+          update: {
+            ...(valorEstimado !== undefined && valorEstimado !== null ? { estimatedValue: Number(valorEstimado) } : {}),
+            ...(urlOficialPncp ? { url: urlOficialPncp } : {}),
+            ...(Array.isArray(itens) ? { rawPayload: { itens, urlOficialPncp: computedUrl } } : {}),
+          },
+        });
+      } else if (Array.isArray(itens) && itens.length > 0) {
+        const existingPayload = (notice.rawPayload && typeof notice.rawPayload === 'object') ? notice.rawPayload : {};
+        notice = await prisma.procurementNotice.update({
+          where: { id: notice.id },
+          data: {
+            rawPayload: { ...existingPayload, itens, ...(urlOficialPncp ? { urlOficialPncp } : {}) },
+          },
+        });
+      }
+
+      const existingPipeline = await prisma.biddingPipeline.findFirst({
+        where: {
+          userId,
+          noticeId: notice.id,
+        },
+      });
+
+      const savedPipeline = existingPipeline || await prisma.biddingPipeline.create({
+        data: {
+          userId,
+          noticeId: notice.id,
+          stage: 'OPORTUNIDADE',
+          position: 0,
+        },
+      });
+
+      return res.status(existingPipeline ? 200 : 201).json({
+        success: true,
+        message: 'Edital adicionado à sua lista de propostas',
+        data: {
+          id: notice.id,
+          pipelineId: savedPipeline.id,
+          numeroControlePNCP: notice.externalId || notice.noticeNumber,
+          orgao: notice.buyerName,
+          objeto: notice.object,
+          valorEstimado: notice.estimatedValue ? Number(notice.estimatedValue) : null,
+          dataLimite: notice.closingAt ? notice.closingAt.toISOString() : null,
+          urlOficialPncp: urlOficialPncp || notice.url,
+          itens: Array.isArray(itens) ? itens : (notice.rawPayload as any)?.itens || [],
+        },
+      });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+
+  public listarSalvos = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+      }
+
+      const { prisma } = require('../database/prisma');
+      const pipelines = await prisma.biddingPipeline.findMany({
+        where: { userId },
+        include: {
+          notice: {
+            include: {
+              items: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const data = pipelines
+        .filter((p: any) => Boolean(p.notice))
+        .map((p: any) => {
+          const n = p.notice;
+          const ctrl = n.externalId || n.noticeNumber || n.id;
+          const parsed = parsePncpControlNumber(ctrl);
+          const urlOficialPncp =
+            (n.rawPayload as any)?.urlOficialPncp
+            || (parsed ? `https://pncp.gov.br/app/editais/${parsed.cnpj}/${parsed.ano}/${parsed.sequencial}` : n.url)
+            || 'https://pncp.gov.br/app/editais';
+
+          const rawItens = Array.isArray(n.items) && n.items.length > 0
+            ? n.items.map((it: any, idx: number) => ({
+                numeroItem: it.itemNumber ?? idx + 1,
+                descricao: it.description || '',
+                quantidade: it.quantity ? Number(it.quantity) : 1,
+                unidadeMedida: it.unit || 'UN',
+                valorUnitarioEstimado: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : 0,
+              }))
+            : Array.isArray((n.rawPayload as any)?.itens)
+              ? (n.rawPayload as any).itens
+              : [];
+
+          return {
+            id: n.id,
+            pipelineId: p.id,
+            noticeId: n.id,
+            numeroControlePNCP: ctrl,
+            numeroEdital: n.noticeNumber || ctrl,
+            orgao: n.buyerName || 'Órgão Licitante',
+            cnpjOrgao: n.buyerDocument || parsed?.cnpj || null,
+            modalidade: n.modality || 'Pregão Eletrônico',
+            objeto: n.object || '',
+            valorEstimado: n.estimatedValue ? Number(n.estimatedValue) : null,
+            dataLimite: n.closingAt ? n.closingAt.toISOString() : null,
+            dataAbertura: n.openingAt ? n.openingAt.toISOString() : null,
+            urlOficialPncp,
+            itens: rawItens,
+          };
+        });
+
+      return res.json({
+        success: true,
+        data,
+        total: data.length,
+      });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
 }

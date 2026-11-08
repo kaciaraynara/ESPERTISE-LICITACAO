@@ -108,7 +108,8 @@ export default function DashboardLayout() {
 
         <main
           id="main-content"
-          tabIndex={-1}
+          tabIndex={0}
+          style={{ overflowY: 'auto' }}
           aria-busy={switchingCompany}
           className="flex-1 overflow-y-auto overflow-x-hidden bg-brand-light"
         >

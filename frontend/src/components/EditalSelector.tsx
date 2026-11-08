@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
-import api, { crmApi } from '../services/api';
+import api, { crmApi, licitacoesApi } from '../services/api';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '../store/auth.store';
 
 export interface EditalOption {
   id: string;
   numeroEdital: string;
+  numeroControlePNCP?: string;
   orgao: string;
   cnpjOrgao?: string;
   modalidade: string;
   dataCertame?: string;
   objeto?: string;
   valorEstimado?: number;
+  urlOficialPncp?: string;
+  itens?: Array<{
+    id?: string;
+    numeroItem?: number;
+    descricao: string;
+    quantidade: number;
+    unidadeMedida?: string;
+    valorUnitarioEstimado?: number | null;
+    valorTotalEstimado?: number | null;
+  }>;
   fonte: 'salvo' | 'monitorado' | 'proposta' | 'padrao';
 }
 
@@ -49,6 +60,34 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
     const carregarEditais = async () => {
       const listaFinal: EditalOption[] = [];
       let failedRequests = 0;
+
+      // 0. Busca Editais Salvos para Disputar via rota dedicada GET /api/licitacoes/salvos
+      try {
+        const resSalvos = await licitacoesApi.listarSalvos().catch(() => ({ data: null }));
+        const rawSalvos = resSalvos.data?.data || [];
+        if (Array.isArray(rawSalvos)) {
+          for (const ed of rawSalvos) {
+            if (ed && ed.id && !listaFinal.some((x) => x.id === ed.id)) {
+              listaFinal.push({
+                id: ed.id,
+                numeroEdital: ed.numeroEdital || ed.numeroControlePNCP || `Edital #${String(ed.id).slice(0, 8)}`,
+                numeroControlePNCP: ed.numeroControlePNCP,
+                orgao: ed.orgao || 'Órgão Licitante',
+                cnpjOrgao: ed.cnpjOrgao,
+                modalidade: ed.modalidade || 'Pregão Eletrônico',
+                dataCertame: ed.dataLimite ? String(ed.dataLimite).slice(0, 10) : ed.dataAbertura ? String(ed.dataAbertura).slice(0, 10) : undefined,
+                objeto: ed.objeto,
+                valorEstimado: ed.valorEstimado != null ? Number(ed.valorEstimado) : undefined,
+                urlOficialPncp: ed.urlOficialPncp,
+                itens: Array.isArray(ed.itens) ? ed.itens : [],
+                fonte: 'salvo',
+              });
+            }
+          }
+        }
+      } catch (salvosErr) {
+        console.warn('[EditalSelector] Aviso ao carregar /licitacoes/salvos:', salvosErr);
+      }
 
       // 1. Busca Editais Salvos para Disputar (Pipeline de Oportunidades do CRM)
       try {

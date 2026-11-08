@@ -27,6 +27,7 @@ export const FORNECEDOR_ROUTES = {
   contencioso: `${FORNECEDOR_PREFIX}/defesas-recursos`,
 
   // Sub-rotas e Aliases Operacionais
+  proposta_criar: `${FORNECEDOR_PREFIX}/propostas/criar`,
   proposta_detalhe: `${FORNECEDOR_PREFIX}/propostas/:id`,
   catalogo: `${FORNECEDOR_PREFIX}/catalogo`,
   documentos: `${FORNECEDOR_PREFIX}/documentos`,

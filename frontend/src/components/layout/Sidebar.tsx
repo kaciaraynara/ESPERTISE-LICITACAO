@@ -425,7 +425,7 @@ export default function Sidebar() {
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
-  // Estado retrátil automático: hover do mouse expande suavemente com delay de 300ms antes de fechar
+  // Estado retrátil automático: hover do mouse expande suavemente com delay de 350ms antes de fechar
   const [isHovered, setIsHovered] = useState(false);
   const isCollapsed = !isHovered;
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -445,7 +445,7 @@ export default function Sidebar() {
     closeTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       closeTimeoutRef.current = null;
-    }, 300);
+    }, 350);
   };
 
   useEffect(() => {

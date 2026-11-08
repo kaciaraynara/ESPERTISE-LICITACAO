@@ -294,6 +294,7 @@ export const empresasApi = {
 
 export const catalogoApi = {
   listar: () => api.get('/catalogo'),
+  listarMercado: () => api.get('/catalogo/mercado'),
   criar: (body: Record<string, unknown>) => api.post('/catalogo', body),
   atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/catalogo/${encodeURIComponent(id)}`, body),
   remover: (id: string) => api.delete(`/catalogo/${encodeURIComponent(id)}`),
@@ -319,7 +320,24 @@ export const licitacoesApi = {
   listar: (params?: RadarLicitacoesFiltros) => api.get('/licitacoes', { params }),
   sincronizar: (body?: Record<string, unknown>) => api.post('/licitacoes/sincronizar', body || {}),
   buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),
+  obterItens: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}/itens`),
   monitorar: (id: string) => api.post('/licitacoes/monitor', { id }),
+  salvar: (body: {
+    id?: string;
+    noticeId?: string;
+    numeroControlePNCP: string;
+    orgao: string;
+    cnpjOrgao?: string | null;
+    objeto: string;
+    valorEstimado?: number | null;
+    dataLimite?: string | null;
+    urlOficialPncp: string;
+    modalidade?: string;
+    uf?: string;
+    municipio?: string;
+    itens?: any[];
+  }) => api.post('/licitacoes/salvar', body),
+  listarSalvos: () => api.get('/licitacoes/salvos'),
 };
 
 

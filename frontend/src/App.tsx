@@ -41,6 +41,7 @@ const RelatoriosPage = React.lazy(() =>
   import('./pages/Relatorios/RelatoriosPage').then((module) => ({ default: module.RelatoriosPage })),
 );
 const PropostasPage = React.lazy(() => import('./pages/Propostas/PropostasPage'));
+const CriarPropostaPage = React.lazy(() => import('./pages/Propostas/CriarPropostaPage'));
 const PropostaDetalhePage = React.lazy(() => import('./pages/Propostas/PropostaDetalhePage'));
 const LexAnalisePage = React.lazy(() =>
   import('./pages/Lex/LexAnalisePage').then((module) => ({ default: module.LexAnalisePage })),
@@ -378,11 +379,23 @@ export default function App() {
 
             {/* Módulos de Gestão, Sub-rotas e Aliases */}
             <Route
+              path={FORNECEDOR_ROUTES.proposta_criar}
+              element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)}
+            />
+            <Route
               path={FORNECEDOR_ROUTES.proposta_detalhe}
               element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostaDetalhePage />)}
             />
             <Route path={FORNECEDOR_ROUTES.catalogo} element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
             <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+
+            {/* Rotas Diretas Operacionais Desobstruídas */}
+            <Route path="/oportunidades" element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
+            <Route path="/propostas" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)} />
+            <Route path="/propostas/criar" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)} />
+            <Route path="/catalogo" element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
+            <Route path="/prazos" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+            <Route path="/configuracoes" element={<ConfiguracoesPage />} />
             <Route
               path={FORNECEDOR_ROUTES.gestao_contratual}
               element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)}
