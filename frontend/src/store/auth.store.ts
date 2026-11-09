@@ -36,8 +36,16 @@ function computeUserTrialState(user: User): User {
     }
   }
 
+  const normalizedPlanLevel =
+    user.planLevel && /trial\s*enterprise/i.test(user.planLevel)
+      ? 'Teste Gratuito'
+      : trialActive && !user.planLevel
+        ? 'Teste Gratuito'
+        : user.planLevel;
+
   return {
     ...user,
+    planLevel: normalizedPlanLevel,
     isTrialActive: trialActive,
     daysLeftTrial: daysLeft,
     plano: trialActive ? ('master' as User['plano']) : user.plano,

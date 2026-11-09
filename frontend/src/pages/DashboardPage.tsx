@@ -307,17 +307,14 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-brand-light min-h-screen">
-      {/* Header Executivo — Sala de Comando */}
+      {/* Header — Visão Geral das Licitações */}
       <header data-tour="executive-header" className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200">
-              Sala de Comando
-            </span>
             <span className="text-xs text-slate-400 capitalize">{dateLabel}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-dark">
-            Painel Executivo de Licitações
+            Visão Geral das Licitações
           </h1>
           <p className="text-xs sm:text-sm font-medium text-slate-500 mt-0.5">
             Inteligência estratégica, margem de lucro e governança sob a Lei 14.133/2021.

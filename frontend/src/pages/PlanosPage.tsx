@@ -473,7 +473,7 @@ export default function PlanosPage() {
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-dark/5 border border-brand-dark/15 text-brand-dark text-xs font-black uppercase tracking-wider">
           <ShieldCheck className="w-4 h-4 text-brand-orange" weight="fill" />
-          Planos Comerciais • Command Center 2026
+          Planos Comerciais • Plataforma Oficial 2026
         </div>
 
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-brand-dark tracking-tight">
@@ -570,7 +570,7 @@ export default function PlanosPage() {
                 {isCurrentPlan && (
                   <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-2">
                     <Check className="w-4 h-4 text-emerald-600" weight="bold" />
-                    <span>{userTrialActive ? 'Plano liberado durante o Trial' : 'Seu plano atual ativo'}</span>
+                    <span>{userTrialActive ? 'Plano liberado durante o Teste Gratuito' : 'Seu plano atual ativo'}</span>
                   </div>
                 )}
 
@@ -643,7 +643,7 @@ export default function PlanosPage() {
                     </li>
                     <li className="flex items-start gap-2.5">
                       <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />
-                      <span>Radar de Editais & CNAE (Lei 14.133/21)</span>
+                      <span>Radar de Editais (Lei 14.133/21)</span>
                     </li>
                     <li className="flex items-start gap-2.5">
                       <Check className={`w-4 h-4 shrink-0 mt-0.5 ${plan.destaque ? 'text-brand-orange' : 'text-emerald-600'}`} weight="bold" />

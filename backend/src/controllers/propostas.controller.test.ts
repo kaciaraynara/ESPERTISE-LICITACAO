@@ -20,6 +20,7 @@ jest.mock('../services/proposal.service', () => {
       getById: mockGetById,
       validateCompliance: mockValidateCompliance,
       generateOfficialProposalDocument: mockGenerateOfficialProposalDocument,
+      calcularPrecificacao: actual.proposalService.calcularPrecificacao.bind(actual.proposalService),
     },
   };
 });

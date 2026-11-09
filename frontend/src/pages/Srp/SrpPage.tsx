@@ -9,6 +9,7 @@ import {
   Search,
 } from 'lucide-react';
 import { licitacoesApi } from '../../services/api';
+import { InfoTooltip } from '../../components/common/InfoTooltip';
 
 interface AtaRegistroPreco {
   id: string;
@@ -111,7 +112,7 @@ export const SrpPage: React.FC = () => {
               <FileCheck size={20} />
             </span>
             <h1 className="text-2xl font-black tracking-tight text-slate-900">
-              Registro de Preços no PNCP
+              SRP / Registro de Preços no PNCP <InfoTooltip text="Modalidade de fornecimento sob demanda ao longo do ano via Ata de Registro de Preços." />
             </h1>
           </div>
           <p className="mt-2 text-sm text-slate-600">
@@ -190,7 +191,7 @@ export const SrpPage: React.FC = () => {
               <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="mb-2 inline-flex rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-900">
-                    Sistema de Registro de Preços
+                    SRP / Registro de Preços <InfoTooltip text="Modalidade de fornecimento sob demanda ao longo do ano via Ata de Registro de Preços." />
                   </p>
                   <h2 className="font-bold leading-relaxed text-slate-900">{ata.objeto || 'Objeto não informado pelo PNCP'}</h2>
                   <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600">

@@ -796,7 +796,7 @@ export const analiseViabilidadeApi = {
     api.get(editalId ? `/analise-viabilidade/${encodeURIComponent(editalId)}` : '/analise-viabilidade', { params }),
 };
 
-// ─── Fábrica de Propostas (Lei 14.133/2021) ──────────────────────────────────
+// ─── Criar Proposta (Lei 14.133/2021) ────────────────────────────────────────
 export interface ProposalItemDto {
   id: string;
   proposalId: string;
@@ -948,6 +948,35 @@ export const propostasApi = {
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/extrair-proposta', body),
   preencherPropostaViaLex: (body: { proposalId?: string; noticeId: string; companyId?: string; autoCreate?: boolean }) =>
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/preencher-proposta', body),
+  calcularPrecificacao: (body: {
+    custoDireto: number;
+    tributosPercentual: number;
+    valorReferenciaEdital: number;
+    precoOfertado?: number;
+  }) =>
+    api.post<{
+      success: boolean;
+      custoBase: number;
+      precoMinimo: number;
+      precoCompetitivo: number;
+      precoTeto: number;
+      statusExequibilidade: string;
+      data: {
+        custoBase: number;
+        precoMinimo: number;
+        precoCompetitivo: number;
+        precoTeto: number;
+        statusExequibilidade: string;
+      };
+    }>('/propostas/calcular-precificacao', body),
+  exportarDocx: (id: string, body?: Record<string, unknown>) =>
+    api.post<Blob>(`/propostas/${encodeURIComponent(id)}/exportar-docx`, body || {}, {
+      responseType: 'blob',
+    }),
+  exportarPdf: (id: string, body?: Record<string, unknown>) =>
+    api.post<Blob>(`/propostas/${encodeURIComponent(id)}/exportar-pdf`, body || {}, {
+      responseType: 'blob',
+    }),
 };
 
 export {

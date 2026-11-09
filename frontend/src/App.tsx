@@ -390,6 +390,8 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
 
             {/* Rotas Diretas Operacionais Desobstruídas */}
+            <Route path="/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
+            <Route path="/fornecedor/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
             <Route path="/oportunidades" element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
             <Route path="/propostas" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)} />
             <Route path="/propostas/criar" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)} />

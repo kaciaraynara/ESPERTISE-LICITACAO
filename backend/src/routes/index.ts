@@ -136,6 +136,11 @@ router.post(
   handle(mercadoPago.webhook.bind(mercadoPago) as RequestHandler),
 );
 
+router.post(
+  '/propostas/calcular-precificacao',
+  handle(propostas.calcularPrecificacao.bind(propostas) as RequestHandler),
+);
+
 // ==========================================
 // HEALTH CHECKS PÚBLICOS
 // ==========================================
@@ -404,6 +409,26 @@ router.get(
   fornecedor,
   handle(
     propostas.gerarDocumentoOficial.bind(
+      propostas,
+    ) as RequestHandler,
+  ),
+);
+
+router.post(
+  '/propostas/:id/exportar-docx',
+  fornecedor,
+  handle(
+    propostas.exportarDocx.bind(
+      propostas,
+    ) as RequestHandler,
+  ),
+);
+
+router.post(
+  '/propostas/:id/exportar-pdf',
+  fornecedor,
+  handle(
+    propostas.exportarPdf.bind(
       propostas,
     ) as RequestHandler,
   ),

@@ -3,6 +3,7 @@ import {
   ProposalServiceError,
   proposalService,
 } from '../services/proposal.service';
+import { propostaDocumentoService } from '../services/proposta-documento.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import {
   createProposalDraftSchema,
@@ -297,6 +298,85 @@ export class PropostasController {
         });
       }
 
+      throw error;
+    }
+  }
+
+  async calcularPrecificacao(req: AuthRequest, res: Response) {
+    const resultado = proposalService.calcularPrecificacao(req.body ?? {});
+
+    return res.status(200).json({
+      success: true,
+      ...resultado,
+      data: resultado,
+    });
+  }
+
+  async exportarDocx(req: AuthRequest, res: Response) {
+    const userId = req.user?.id;
+    const proposalId = req.params.id || 'preview';
+
+    try {
+      const dados = await propostaDocumentoService.montarDadosEstruturados(
+        userId,
+        proposalId,
+        req.body ?? {},
+      );
+      const buffer = await propostaDocumentoService.gerarDocxBuffer(dados);
+      const fileSlug = String(dados.propostaId || 'Oficial')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 24);
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="Proposta_Comercial_${fileSlug}.docx"`,
+      );
+      return res.status(200).send(buffer);
+    } catch (error) {
+      if (error instanceof ProposalServiceError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
+      throw error;
+    }
+  }
+
+  async exportarPdf(req: AuthRequest, res: Response) {
+    const userId = req.user?.id;
+    const proposalId = req.params.id || 'preview';
+
+    try {
+      const dados = await propostaDocumentoService.montarDadosEstruturados(
+        userId,
+        proposalId,
+        req.body ?? {},
+      );
+      const buffer = await propostaDocumentoService.gerarPdfBuffer(dados);
+      const fileSlug = String(dados.propostaId || 'Oficial')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 24);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="Proposta_Comercial_${fileSlug}.pdf"`,
+      );
+      return res.status(200).send(buffer);
+    } catch (error) {
+      if (error instanceof ProposalServiceError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
       throw error;
     }
   }

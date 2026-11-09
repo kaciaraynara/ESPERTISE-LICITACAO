@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EditalSelector } from './components/EditalSelector';
 import { PropostasPage } from './pages/Propostas/PropostasPage';
+import { calcularPrecificacaoProposta } from './pages/Propostas/CriarPropostaPage';
 import { propostasApi, crmApi } from './services/api';
 
 describe('ETAPA 2: Criação de Propostas Automatizada e Conectada', () => {
@@ -226,6 +227,41 @@ describe('ETAPA 2: Criação de Propostas Automatizada e Conectada', () => {
       expect(manualForm.orgao).toBe('Tribunal Superior Eleitoral');
       expect(manualForm.numeroEdital).toBe('PE 33/2026');
       expect(manualForm.titulo).toBe('Proposta Comercial - PE 33/2026');
+    });
+  });
+
+  describe('4. Precificação Automatizada e Formação de Custos (STEP 4/5)', () => {
+    it('calcula Custo Base, Preço Mínimo Seguro (+10%), Preço Competitivo (+25%), Preço Teto e Exequibilidade', () => {
+      expect(typeof propostasApi.calcularPrecificacao).toBe('function');
+
+      const resultadoVerde = calcularPrecificacaoProposta({
+        custoDireto: 100,
+        tributosPercentual: 10,
+        valorReferenciaEdital: 150,
+        precoOfertado: 121,
+      });
+
+      expect(resultadoVerde.custoBase).toBe(110);
+      expect(resultadoVerde.precoMinimo).toBe(121);
+      expect(resultadoVerde.precoCompetitivo).toBe(137.5);
+      expect(resultadoVerde.precoTeto).toBe(150);
+      expect(resultadoVerde.statusExequibilidade).toBe('Exequível (Sinal Verde)');
+
+      const resultadoVermelho = calcularPrecificacaoProposta({
+        custoDireto: 100,
+        tributosPercentual: 10,
+        valorReferenciaEdital: 150,
+        precoOfertado: 95,
+      });
+
+      expect(resultadoVermelho.statusExequibilidade).toBe('Risco de Inexequibilidade (Sinal Vermelho)');
+    });
+  });
+
+  describe('5. Motor de Geração e Exportação de Propostas Oficiais Word & PDF (STEP 5/5)', () => {
+    it('propostasApi deve expor exportarDocx e exportarPdf', () => {
+      expect(typeof propostasApi.exportarDocx).toBe('function');
+      expect(typeof propostasApi.exportarPdf).toBe('function');
     });
   });
 });

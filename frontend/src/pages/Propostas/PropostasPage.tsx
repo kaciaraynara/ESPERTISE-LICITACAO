@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { propostasApi, ProposalDto } from '@/services/api';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
 import { useCompany } from '@/contexts/CompanyContext';
+import { InfoTooltip } from '@/components/common/InfoTooltip';
 
 interface CalendarEvent {
   day: number;
@@ -207,7 +208,7 @@ export const PropostasPage: React.FC = () => {
         await carregarDados();
       }
     } catch (err: any) {
-      console.error('[PropostasPage] Falha ao preencher proposta via LEX:', err);
+      console.error('[PropostasPage] Falha no preenchimento automático:', err);
       setErroIaOcorrido(true);
       const msg = err.response?.data?.message || 'Não foi possível conectar ao serviço de IA no momento.';
       setMensagemErroIa(msg);
@@ -325,7 +326,7 @@ export const PropostasPage: React.FC = () => {
                 className="px-4 py-2.5 rounded-xl bg-brand-dark hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 <Sparkles size={16} className="text-brand-orange" />
-                Preencher proposta com assistência
+                Preenchimento Automático
               </button>
 
               <button
@@ -1055,8 +1056,9 @@ export const PropostasPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Validade da Proposta (Dias)
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1">
+                      <span>Validade da Proposta (Dias)</span>
+                      <InfoTooltip text="Prazo oficial durante o qual seus preços permanecem congelados para o órgão público." />
                     </label>
                     <input
                       type="number"

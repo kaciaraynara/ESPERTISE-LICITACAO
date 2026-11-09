@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 import { licitacoesApi, propostasApi, crmApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import { buildOfficialPncpPortalUrl } from '@/utils/pncp';
+import { InfoTooltip } from '@/components/common/InfoTooltip';
 
 export interface SavedEditalItem {
   id?: string;
@@ -25,9 +26,54 @@ export interface SavedEditalItem {
   descricao: string;
   unidadeMedida: string;
   quantidade: number;
+  custoDiretoUnitario?: number;
   valorUnitarioEstimado: number;
   valorUnitarioProposto: number;
   marcaModelo?: string;
+}
+
+export interface ResultadoPrecificacao {
+  custoBase: number;
+  precoMinimo: number;
+  precoCompetitivo: number;
+  precoTeto: number;
+  statusExequibilidade: 'Exequível (Sinal Verde)' | 'Risco de Inexequibilidade (Sinal Vermelho)';
+}
+
+export function calcularPrecificacaoProposta(input: {
+  custoDireto: number;
+  tributosPercentual: number;
+  valorReferenciaEdital: number;
+  precoOfertado?: number;
+}): ResultadoPrecificacao {
+  const custoDireto = Math.max(0, Number(input.custoDireto ?? 0) || 0);
+  const tributosPercentual = Math.max(0, Number(input.tributosPercentual ?? 0) || 0);
+  const valorReferenciaEdital = Math.max(0, Number(input.valorReferenciaEdital ?? 0) || 0);
+
+  const custoBase = Number((custoDireto * (1 + tributosPercentual / 100)).toFixed(2));
+  const precoMinimo = Number((custoBase * 1.10).toFixed(2));
+  const precoCompetitivo = Number((custoBase * 1.25).toFixed(2));
+  const precoTeto = Number(valorReferenciaEdital.toFixed(2));
+
+  const precoOfertado =
+    input.precoOfertado !== undefined && input.precoOfertado !== null && !Number.isNaN(Number(input.precoOfertado))
+      ? Number(input.precoOfertado)
+      : valorReferenciaEdital > 0
+        ? valorReferenciaEdital
+        : precoMinimo;
+
+  const statusExequibilidade =
+    precoOfertado >= custoBase
+      ? 'Exequível (Sinal Verde)'
+      : 'Risco de Inexequibilidade (Sinal Vermelho)';
+
+  return {
+    custoBase,
+    precoMinimo,
+    precoCompetitivo,
+    precoTeto,
+    statusExequibilidade,
+  };
 }
 
 export interface SavedEditalRecord {
@@ -70,6 +116,10 @@ export const CriarPropostaPage: React.FC = () => {
   const [prazoEntregaDias, setPrazoEntregaDias] = useState<number>(15);
   const [criterioJulgamento] = useState<string>('menor_preco');
 
+  // Parâmetros de Precificação Automatizada e Formação de Custos
+  const [tributosPercentual, setTributosPercentual] = useState<number>(12);
+  const [margemAplicada, setMargemAplicada] = useState<'minimo' | 'competitivo' | 'teto' | null>(null);
+
   // Tabela Oficial de Itens
   const [itensTabela, setItensTabela] = useState<SavedEditalItem[]>([
     {
@@ -77,6 +127,7 @@ export const CriarPropostaPage: React.FC = () => {
       descricao: '',
       unidadeMedida: 'UN',
       quantidade: 1,
+      custoDiretoUnitario: 0,
       valorUnitarioEstimado: 0,
       valorUnitarioProposto: 0,
       marcaModelo: '',
@@ -84,7 +135,57 @@ export const CriarPropostaPage: React.FC = () => {
   ]);
 
   const [salvando, setSalvando] = useState(false);
+  const [exportandoFormato, setExportandoFormato] = useState<'docx' | 'pdf' | null>(null);
   const [erroIa, setErroIa] = useState<string | null>(null);
+
+  const handleExportarArquivoOficial = async (formato: 'docx' | 'pdf') => {
+    setExportandoFormato(formato);
+    try {
+      const payloadExportacao = {
+        companyId: companyId || undefined,
+        titulo: tituloProposta,
+        orgaoLicitante,
+        cnpjOrgao,
+        numeroEdital: numeroCertame,
+        modalidade,
+        objeto: objetoContratacao,
+        validadeDias,
+        prazoEntregaDias,
+        itens: itensTabela,
+      };
+      const targetId = selectedEditalId || 'preview';
+      const res =
+        formato === 'docx'
+          ? await propostasApi.exportarDocx(targetId, payloadExportacao)
+          : await propostasApi.exportarPdf(targetId, payloadExportacao);
+
+      const mime =
+        formato === 'docx'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : 'application/pdf';
+      const blob = new Blob([res.data], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Proposta_Comercial_${(numeroCertame || 'Oficial').replace(/[^a-zA-Z0-9_-]/g, '_')}.${formato}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(
+        formato === 'docx'
+          ? 'Proposta oficial em Word (.docx) baixada com sucesso!'
+          : 'Proposta oficial em PDF baixada com sucesso!'
+      );
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+          `Não foi possível exportar a proposta em ${formato.toUpperCase()}.`
+      );
+    } finally {
+      setExportandoFormato(null);
+    }
+  };
 
   useEffect(() => {
     if (selectedCompany?.id) {
@@ -112,8 +213,9 @@ export const CriarPropostaPage: React.FC = () => {
                 descricao: insumo.nome,
                 unidadeMedida: insumo.unidadeMedida || 'UN',
                 quantidade: 1,
-                valorUnitarioEstimado: precoBase > 0 ? Number((precoBase * 1.15).toFixed(2)) : 0,
-                valorUnitarioProposto: precoBase,
+                custoDiretoUnitario: precoBase,
+                valorUnitarioEstimado: precoBase > 0 ? Number((precoBase * 1.35).toFixed(2)) : 0,
+                valorUnitarioProposto: precoBase > 0 ? Number((precoBase * (1 + tributosPercentual / 100) * 1.10).toFixed(2)) : 0,
                 marcaModelo: insumo.razaoSocial || insumo.sku || '',
               },
             ];
@@ -144,12 +246,14 @@ export const CriarPropostaPage: React.FC = () => {
               const mappedItens: SavedEditalItem[] = Array.isArray(item.itens)
                 ? item.itens.map((it: any, idx: number) => {
                     const est = Number(it.valorUnitarioEstimado ?? it.estimatedUnitPrice ?? 0);
+                    const custoDir = Number(it.custoDiretoUnitario ?? (est > 0 ? Number((est * 0.65).toFixed(2)) : 0));
                     return {
                       id: it.id,
                       numeroItem: Number(it.numeroItem ?? it.itemNumber ?? idx + 1),
                       descricao: String(it.descricao || it.description || `Item ${idx + 1}`),
                       unidadeMedida: String(it.unidadeMedida || it.unit || 'UN'),
                       quantidade: Number(it.quantidade ?? it.quantity ?? 1),
+                      custoDiretoUnitario: custoDir,
                       valorUnitarioEstimado: est,
                       valorUnitarioProposto: est > 0 ? Number((est * 0.95).toFixed(2)) : 0,
                       marcaModelo: '',
@@ -281,12 +385,14 @@ export const CriarPropostaPage: React.FC = () => {
               it.valorUnitario ??
               0
           );
+          const custoDir = Number(it.custoDiretoUnitario ?? (est > 0 ? Number((est * 0.65).toFixed(2)) : 0));
           return {
             id: it.id,
             numeroItem: Number(it.numeroItem ?? it.itemNumber ?? idx + 1),
             descricao: String(it.descricao || it.description || it.materialOuServicoNome || `Item ${idx + 1}`),
             unidadeMedida: String(it.unidadeMedida || it.unit || 'UN'),
             quantidade: Number(it.quantidade ?? it.quantity ?? 1),
+            custoDiretoUnitario: custoDir,
             valorUnitarioEstimado: est,
             valorUnitarioProposto: est > 0 ? Number((est * 0.95).toFixed(2)) : 0,
             marcaModelo: '',
@@ -301,6 +407,7 @@ export const CriarPropostaPage: React.FC = () => {
             descricao: edital.objeto || 'Lote Único — Fornecimento conforme Termo de Referência',
             unidadeMedida: 'UN',
             quantidade: 1,
+            custoDiretoUnitario: valorRef > 0 ? Number((valorRef * 0.65).toFixed(2)) : 0,
             valorUnitarioEstimado: valorRef,
             valorUnitarioProposto: valorRef > 0 ? Number((valorRef * 0.95).toFixed(2)) : 0,
             marcaModelo: '',
@@ -315,6 +422,7 @@ export const CriarPropostaPage: React.FC = () => {
           descricao: edital.objeto || 'Item 1 — Especificação conforme Termo de Referência',
           unidadeMedida: 'UN',
           quantidade: 1,
+          custoDiretoUnitario: valorRef > 0 ? Number((valorRef * 0.65).toFixed(2)) : 0,
           valorUnitarioEstimado: valorRef,
           valorUnitarioProposto: valorRef > 0 ? Number((valorRef * 0.95).toFixed(2)) : 0,
           marcaModelo: '',
@@ -334,14 +442,115 @@ export const CriarPropostaPage: React.FC = () => {
     }
   };
 
+  const calcularPrecoUnitarioPorMargem = (
+    item: SavedEditalItem,
+    tipoMargem: 'minimo' | 'competitivo' | 'teto',
+    aliquotaTributos: number
+  ): number => {
+    const ref = Number(item.valorUnitarioEstimado || 0);
+    const custoDireto = Number(
+      item.custoDiretoUnitario !== undefined && item.custoDiretoUnitario !== null
+        ? item.custoDiretoUnitario
+        : ref > 0
+          ? Number((ref * 0.65).toFixed(2))
+          : 0
+    );
+    const resultado = calcularPrecificacaoProposta({
+      custoDireto,
+      tributosPercentual: aliquotaTributos,
+      valorReferenciaEdital: ref,
+    });
+    if (tipoMargem === 'minimo') return resultado.precoMinimo;
+    if (tipoMargem === 'competitivo') return resultado.precoCompetitivo;
+    return resultado.precoTeto > 0 ? resultado.precoTeto : Number((resultado.custoBase * 1.35).toFixed(2));
+  };
+
+  const handleAplicarMargemRapida = (tipoMargem: 'minimo' | 'competitivo' | 'teto') => {
+    setMargemAplicada(tipoMargem);
+    setItensTabela((prev) => {
+      const atualizados = prev.map((item) => {
+        const ref = Number(item.valorUnitarioEstimado || 0);
+        const custoDireto =
+          item.custoDiretoUnitario !== undefined && Number(item.custoDiretoUnitario) > 0
+            ? Number(item.custoDiretoUnitario)
+            : ref > 0
+              ? Number((ref * 0.65).toFixed(2))
+              : 100;
+        const itemComCusto = { ...item, custoDiretoUnitario: custoDireto };
+        return {
+          ...itemComCusto,
+          valorUnitarioProposto: calcularPrecoUnitarioPorMargem(
+            itemComCusto,
+            tipoMargem,
+            tributosPercentual
+          ),
+        };
+      });
+
+      const custoTotal = atualizados.reduce(
+        (acc, it) => acc + Number(it.quantidade || 0) * Number(it.custoDiretoUnitario || 0),
+        0
+      );
+      const refTotal = atualizados.reduce(
+        (acc, it) => acc + Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || 0),
+        0
+      );
+      const propTotal = atualizados.reduce(
+        (acc, it) => acc + Number(it.quantidade || 0) * Number(it.valorUnitarioProposto || 0),
+        0
+      );
+
+      void propostasApi
+        .calcularPrecificacao({
+          custoDireto: Number(custoTotal.toFixed(2)),
+          tributosPercentual,
+          valorReferenciaEdital: Number(refTotal.toFixed(2)),
+          precoOfertado: Number(propTotal.toFixed(2)),
+        })
+        .catch(() => {
+          // Cálculo local já garante operação instantânea
+        });
+
+      return atualizados;
+    });
+  };
+
+  const handleAlterarAliquotaTributos = (novaAliquota: number) => {
+    const aliquotaSegura = Math.max(0, Number(novaAliquota) || 0);
+    setTributosPercentual(aliquotaSegura);
+    if (margemAplicada === 'minimo' || margemAplicada === 'competitivo') {
+      setItensTabela((prev) =>
+        prev.map((item) => ({
+          ...item,
+          valorUnitarioProposto: calcularPrecoUnitarioPorMargem(
+            item,
+            margemAplicada,
+            aliquotaSegura
+          ),
+        }))
+      );
+    }
+  };
+
   const handleAtualizarItem = (index: number, field: keyof SavedEditalItem, value: string | number) => {
     setItensTabela((prev) =>
       prev.map((item, idx) => {
         if (idx !== index) return item;
-        return {
+        const atualizado: SavedEditalItem = {
           ...item,
           [field]: value,
         };
+        if (
+          (field === 'custoDiretoUnitario' || field === 'valorUnitarioEstimado') &&
+          margemAplicada
+        ) {
+          atualizado.valorUnitarioProposto = calcularPrecoUnitarioPorMargem(
+            atualizado,
+            margemAplicada,
+            tributosPercentual
+          );
+        }
+        return atualizado;
       })
     );
   };
@@ -354,6 +563,7 @@ export const CriarPropostaPage: React.FC = () => {
         descricao: '',
         unidadeMedida: 'UN',
         quantidade: 1,
+        custoDiretoUnitario: 0,
         valorUnitarioEstimado: 0,
         valorUnitarioProposto: 0,
         marcaModelo: '',
@@ -373,6 +583,15 @@ export const CriarPropostaPage: React.FC = () => {
     );
   };
 
+  const custoDiretoTotal = useMemo(
+    () =>
+      itensTabela.reduce(
+        (acc, it) => acc + Number(it.quantidade || 0) * Number(it.custoDiretoUnitario || 0),
+        0
+      ),
+    [itensTabela]
+  );
+
   const valorTotalEstimado = useMemo(
     () =>
       itensTabela.reduce(
@@ -390,6 +609,45 @@ export const CriarPropostaPage: React.FC = () => {
       ),
     [itensTabela]
   );
+
+  const precificacaoGlobal = useMemo(
+    () =>
+      calcularPrecificacaoProposta({
+        custoDireto: custoDiretoTotal,
+        tributosPercentual,
+        valorReferenciaEdital: valorTotalEstimado,
+        precoOfertado: valorTotalProposto,
+      }),
+    [custoDiretoTotal, tributosPercentual, valorTotalEstimado, valorTotalProposto]
+  );
+
+  const possuiItemInexequivel = useMemo(
+    () =>
+      itensTabela.some((it) => {
+        const custoUnit = Number(it.custoDiretoUnitario || 0);
+        const custoBaseUnit = Number((custoUnit * (1 + tributosPercentual / 100)).toFixed(2));
+        const propostoUnit = Number(it.valorUnitarioProposto || 0);
+        return (custoUnit > 0 && propostoUnit < custoBaseUnit) || (custoUnit > 0 && propostoUnit < custoUnit);
+      }),
+    [itensTabela, tributosPercentual]
+  );
+
+  const statusExequibilidade = useMemo<
+    'Exequível (Sinal Verde)' | 'Risco de Inexequibilidade (Sinal Vermelho)'
+  >(() => {
+    if (
+      possuiItemInexequivel ||
+      precificacaoGlobal.statusExequibilidade === 'Risco de Inexequibilidade (Sinal Vermelho)'
+    ) {
+      return 'Risco de Inexequibilidade (Sinal Vermelho)';
+    }
+    return 'Exequível (Sinal Verde)';
+  }, [possuiItemInexequivel, precificacaoGlobal.statusExequibilidade]);
+
+  const margemLiquidaRealPercentual = useMemo(() => {
+    if (precificacaoGlobal.custoBase <= 0 || valorTotalProposto <= 0) return 0;
+    return ((valorTotalProposto - precificacaoGlobal.custoBase) / precificacaoGlobal.custoBase) * 100;
+  }, [precificacaoGlobal.custoBase, valorTotalProposto]);
 
   const descontoPercentual = useMemo(() => {
     if (valorTotalEstimado <= 0 || valorTotalProposto <= 0) return 0;
@@ -485,12 +743,30 @@ export const CriarPropostaPage: React.FC = () => {
             </p>
           </div>
 
-          {/* CHAVE SELETORA: [Modo Automático] vs [Modo Manual] */}
-          <div
-            role="group"
-            aria-label="Modo de preenchimento da proposta"
-            className="inline-flex items-center bg-slate-100 p-1.5 rounded-xl border border-slate-200 self-start lg:self-auto"
-          >
+          {/* CHAVE SELETORA: [Modo Automático] vs [Modo Manual] + BOTÕES DE EXPORTAÇÃO OFICIAL */}
+          <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            <button
+              type="button"
+              onClick={() => void handleExportarArquivoOficial('docx')}
+              disabled={exportandoFormato !== null}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-[#0B192C] text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span>📄 Baixar Proposta em Word (.docx)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportarArquivoOficial('pdf')}
+              disabled={exportandoFormato !== null}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#F97316] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span>📑 Baixar Proposta em PDF</span>
+            </button>
+
+            <div
+              role="group"
+              aria-label="Modo de preenchimento da proposta"
+              className="inline-flex items-center bg-slate-100 p-1.5 rounded-xl border border-slate-200"
+            >
             <button
               type="button"
               onClick={() => setModoPreenchimento('automatico')}
@@ -515,6 +791,7 @@ export const CriarPropostaPage: React.FC = () => {
               <Edit3 className="w-3.5 h-3.5 text-[#F97316]" />
               Modo Manual
             </button>
+            </div>
           </div>
         </div>
 
@@ -701,8 +978,9 @@ export const CriarPropostaPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Validade da Proposta (Dias)
+                <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  <span>Validade da Proposta (Dias)</span>
+                  <InfoTooltip text="Prazo oficial durante o qual seus preços permanecem congelados para o órgão público." />
                 </label>
                 <input
                   type="number"
@@ -761,14 +1039,145 @@ export const CriarPropostaPage: React.FC = () => {
               </button>
             </div>
 
+            {/* BARRA DE PRECIFICAÇÃO AUTOMATIZADA E APLICAÇÃO DE MARGEM EM 1 CLIQUE */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div>
+                    <label
+                      htmlFor="aliquota-tributos-input"
+                      className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
+                    >
+                      Alíquota de Tributos (%)
+                    </label>
+                    <input
+                      id="aliquota-tributos-input"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.5"
+                      value={tributosPercentual}
+                      onChange={(e) => handleAlterarAliquotaTributos(Number(e.target.value))}
+                      className="w-32 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#0B192C] focus:outline-none focus:border-[#0B192C]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                      <span>Aplicação Rápida de Margem em 1 Clique</span>
+                      <InfoTooltip text="Percentual líquido que sobra para a empresa após deduzir custos diretos e tributos." />
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAplicarMargemRapida('minimo')}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                          margemAplicada === 'minimo'
+                            ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
+                            : 'bg-white text-[#0B192C] border-slate-300 hover:border-[#0B192C]'
+                        }`}
+                      >
+                        10% Mínimo Seguro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAplicarMargemRapida('competitivo')}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                          margemAplicada === 'competitivo'
+                            ? 'bg-[#F97316] text-white border-[#F97316] shadow-xs'
+                            : 'bg-white text-[#0B192C] border-slate-300 hover:border-[#F97316]'
+                        }`}
+                      >
+                        25% Competitivo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAplicarMargemRapida('teto')}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                          margemAplicada === 'teto'
+                            ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
+                            : 'bg-white text-[#0B192C] border-slate-300 hover:border-[#0B192C]'
+                        }`}
+                      >
+                        Preço Máximo de Referência
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-white border border-slate-200 rounded-xl p-3">
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">
+                      Custo Base (+Tributos)
+                    </span>
+                    <span className="font-bold text-[#0B192C]">
+                      {formatMoeda(precificacaoGlobal.custoBase)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">
+                      Mínimo Seguro (+10%)
+                    </span>
+                    <span className="font-bold text-slate-700">
+                      {formatMoeda(precificacaoGlobal.precoMinimo)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">
+                      Competitivo (+25%)
+                    </span>
+                    <span className="font-bold text-[#F97316]">
+                      {formatMoeda(precificacaoGlobal.precoCompetitivo)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase text-slate-400">
+                      Preço Teto (Edital)
+                    </span>
+                    <span className="font-bold text-slate-700">
+                      {formatMoeda(precificacaoGlobal.precoTeto)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* AVISO DE EXEQUIBILIDADE SE PREÇO FINAL FICAR ABAIXO DO CUSTO DE AQUISIÇÃO / BASE */}
+              {statusExequibilidade === 'Risco de Inexequibilidade (Sinal Vermelho)' && (
+                <div
+                  role="alert"
+                  className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-rose-900">
+                        Risco de Inexequibilidade (Sinal Vermelho) — Preço abaixo do custo de aquisição / custo base!
+                      </p>
+                      <p className="text-[11px] text-rose-700 mt-0.5">
+                        O valor ofertado ({formatMoeda(valorTotalProposto)}) não cobre o Custo Base com tributos ({formatMoeda(precificacaoGlobal.custoBase)}), gerando risco de desclassificação pelo Art. 59, III da Lei 14.133/2021.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAplicarMargemRapida('minimo')}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition-all shrink-0 cursor-pointer"
+                  >
+                    Restaurar 10% Mínimo Seguro
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                     <th className="py-3 px-3 w-14">Item</th>
-                    <th className="py-3 px-3 min-w-[240px]">Descrição / Especificação</th>
-                    <th className="py-3 px-3 w-24">Unid.</th>
-                    <th className="py-3 px-3 w-28 text-right">Qtd.</th>
+                    <th className="py-3 px-3 min-w-[220px]">Descrição / Especificação</th>
+                    <th className="py-3 px-3 w-20">Unid.</th>
+                    <th className="py-3 px-3 w-24 text-right">Qtd.</th>
+                    <th className="py-3 px-3 w-36 text-right">Custo Direto (R$)</th>
                     <th className="py-3 px-3 w-36 text-right">Vlr. Unit. Ref (R$)</th>
                     <th className="py-3 px-3 w-36 text-right">Vlr. Unit. Proposto (R$)</th>
                     <th className="py-3 px-3 w-36 text-right">Subtotal Proposto</th>
@@ -778,8 +1187,15 @@ export const CriarPropostaPage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {itensTabela.map((it, idx) => {
                     const subtotal = Number(it.quantidade || 0) * Number(it.valorUnitarioProposto || 0);
+                    const custoUnit = Number(it.custoDiretoUnitario || 0);
+                    const custoBaseUnit = Number((custoUnit * (1 + tributosPercentual / 100)).toFixed(2));
+                    const itemAbaixoDoCusto =
+                      custoUnit > 0 && Number(it.valorUnitarioProposto || 0) < custoBaseUnit;
                     return (
-                      <tr key={idx} className="hover:bg-slate-50/70">
+                      <tr
+                        key={idx}
+                        className={itemAbaixoDoCusto ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-slate-50/70'}
+                      >
                         <td className="py-3 px-3 font-mono font-bold text-[#0B192C]">
                           #{it.numeroItem}
                         </td>
@@ -815,6 +1231,19 @@ export const CriarPropostaPage: React.FC = () => {
                             type="number"
                             min={0}
                             step="0.01"
+                            aria-label={`Custo direto do item ${it.numeroItem}`}
+                            value={it.custoDiretoUnitario ?? 0}
+                            onChange={(e) =>
+                              handleAtualizarItem(idx, 'custoDiretoUnitario', Number(e.target.value))
+                            }
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-right text-[#0B192C] focus:outline-none focus:border-[#0B192C]"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
                             value={it.valorUnitarioEstimado}
                             onChange={(e) =>
                               handleAtualizarItem(idx, 'valorUnitarioEstimado', Number(e.target.value))
@@ -828,10 +1257,15 @@ export const CriarPropostaPage: React.FC = () => {
                             min={0}
                             step="0.01"
                             value={it.valorUnitarioProposto}
-                            onChange={(e) =>
-                              handleAtualizarItem(idx, 'valorUnitarioProposto', Number(e.target.value))
-                            }
-                            className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-right text-emerald-700 focus:outline-none focus:border-emerald-600"
+                            onChange={(e) => {
+                              setMargemAplicada(null);
+                              handleAtualizarItem(idx, 'valorUnitarioProposto', Number(e.target.value));
+                            }}
+                            className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-bold text-right focus:outline-none ${
+                              itemAbaixoDoCusto
+                                ? 'border-rose-400 text-rose-700 focus:border-rose-600'
+                                : 'border-emerald-300 text-emerald-700 focus:border-emerald-600'
+                            }`}
                           />
                         </td>
                         <td className="py-3 px-3 text-right font-bold text-[#0B192C]">
@@ -874,11 +1308,38 @@ export const CriarPropostaPage: React.FC = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="block text-[11px] font-bold uppercase text-slate-500">
-                    Deságio / Margem Competitiva
+                  <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-slate-500">
+                    <span>Margem de Lucro Sugerida</span>
+                    <InfoTooltip text="Percentual líquido que sobra para a empresa após deduzir custos diretos e tributos." />
                   </span>
                   <span className="text-xs font-bold text-[#0B192C]">
-                    {descontoPercentual.toFixed(2)}% abaixo do teto
+                    {margemLiquidaRealPercentual >= 0
+                      ? `+${margemLiquidaRealPercentual.toFixed(1)}% líquida (${descontoPercentual.toFixed(1)}% abaixo do teto)`
+                      : `${margemLiquidaRealPercentual.toFixed(1)}% (abaixo do Custo Base)`}
+                  </span>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-slate-500">
+                    <span>Exequibilidade (Art. 59, III)</span>
+                    <InfoTooltip text="Garante que o seu valor cobre os custos diretos para evitar desclassificação por preço irrisório." />
+                  </span>
+                  <span
+                    className={`text-xs font-bold ${
+                      statusExequibilidade === 'Exequível (Sinal Verde)'
+                        ? 'text-emerald-700'
+                        : 'text-rose-600'
+                    }`}
+                  >
+                    {statusExequibilidade}
+                  </span>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[11px] font-bold uppercase text-slate-500">
+                    <span>Declarações Obrigatórias</span>
+                    <InfoTooltip text="Declarações legais exigidas por lei (menor aprendiz, idoneidade, inexistência de fatos impeditivos)." />
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700">
+                    Inclusas no Documento
                   </span>
                 </div>
               </div>

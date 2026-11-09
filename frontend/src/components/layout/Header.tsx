@@ -30,10 +30,16 @@ export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
     selectedCompany?.razao_social ||
     'Empresa';
 
+  const rawPlanLevel = String(user?.planLevel || '').trim();
+  const normalizedPlanLevel =
+    /trial\s*enterprise/i.test(rawPlanLevel)
+      ? 'Teste Gratuito'
+      : rawPlanLevel;
+
   const userPlanLevel =
-    user?.planLevel ||
+    normalizedPlanLevel ||
     (user?.isTrialActive
-      ? 'Trial Enterprise'
+      ? 'Teste Gratuito'
       : getPlanDisplayLabel(resolveUserPlanTier(user)));
 
   const initial = (

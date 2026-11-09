@@ -767,6 +767,44 @@ export class ProposalService {
       data: { valorTotalProposto: total === null ? null : Number(total.toFixed(2)) },
     });
   }
+
+  calcularPrecificacao(rawInput: {
+    custoDireto?: number;
+    tributosPercentual?: number;
+    valorReferenciaEdital?: number;
+    precoOfertado?: number;
+  }) {
+    const custoDireto = Math.max(0, Number(rawInput?.custoDireto ?? 0) || 0);
+    const tributosPercentual = Math.max(0, Number(rawInput?.tributosPercentual ?? 0) || 0);
+    const valorReferenciaEdital = Math.max(0, Number(rawInput?.valorReferenciaEdital ?? 0) || 0);
+
+    const custoBase = Number((custoDireto * (1 + tributosPercentual / 100)).toFixed(2));
+    const precoMinimo = Number((custoBase * 1.10).toFixed(2));
+    const precoCompetitivo = Number((custoBase * 1.25).toFixed(2));
+    const precoTeto = Number(valorReferenciaEdital.toFixed(2));
+
+    const precoOfertado =
+      rawInput?.precoOfertado !== undefined &&
+      rawInput?.precoOfertado !== null &&
+      !Number.isNaN(Number(rawInput.precoOfertado))
+        ? Number(rawInput.precoOfertado)
+        : valorReferenciaEdital > 0
+          ? valorReferenciaEdital
+          : precoMinimo;
+
+    const statusExequibilidade =
+      precoOfertado >= custoBase
+        ? 'Exequível (Sinal Verde)'
+        : 'Risco de Inexequibilidade (Sinal Vermelho)';
+
+    return {
+      custoBase,
+      precoMinimo,
+      precoCompetitivo,
+      precoTeto,
+      statusExequibilidade,
+    };
+  }
 }
 
 export const proposalService = new ProposalService();

@@ -29,6 +29,7 @@ import {
 } from '@/services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
+import { InfoTooltip } from '@/components/common/InfoTooltip';
 
 // =============================================================================
 // AS 6 DECLARAÇÕES OBRIGATÓRIAS DA LEI FEDERAL Nº 14.133/2021 & UTILITÁRIO PDF
@@ -136,7 +137,7 @@ export const PropostaDetalhePage: React.FC = () => {
       );
       setModalSelecionarEditalLex(false);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Falha ao preencher proposta via LEX.');
+      toast.error(err.response?.data?.message || 'Falha ao executar o preenchimento automático da proposta.');
     } finally {
       setPreenchendoLex(false);
     }
@@ -426,6 +427,64 @@ export const PropostaDetalhePage: React.FC = () => {
     }
   };
 
+  const handleExportarDocxOficial = async () => {
+    if (!id) return;
+    setGerandoDocumento(true);
+    try {
+      const res = await propostasApi.exportarDocx(id, {
+        orgaoLicitante,
+        numeroEdital,
+        modalidade: modalidadeEdital,
+        objeto: objetoLicitacao,
+        itens,
+      });
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Proposta_Comercial_${id.slice(0, 8)}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Proposta oficial em Word (.docx) baixada com sucesso!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Não foi possível exportar a proposta em Word (.docx).');
+    } finally {
+      setGerandoDocumento(false);
+    }
+  };
+
+  const handleExportarPdfOficial = async () => {
+    if (!id) return;
+    setGerandoDocumento(true);
+    try {
+      const res = await propostasApi.exportarPdf(id, {
+        orgaoLicitante,
+        numeroEdital,
+        modalidade: modalidadeEdital,
+        objeto: objetoLicitacao,
+        itens,
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Proposta_Comercial_${id.slice(0, 8)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Proposta oficial em PDF baixada com sucesso!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Não foi possível exportar a proposta em PDF.');
+    } finally {
+      setGerandoDocumento(false);
+    }
+  };
+
   const handleDownloadDoc = () => {
     if (!documentoTexto) {
       toast.error('Valide e gere a proposta antes de baixar o documento.');
@@ -534,7 +593,7 @@ export const PropostaDetalhePage: React.FC = () => {
               )}
 
               <div className="flex flex-wrap items-center gap-3">
-                {/* 1. BOTÃO DE AÇÃO PRIMÁRIA: PREENCHER PROPOSTA VIA LEX */}
+                {/* 1. BOTÃO DE AÇÃO PRIMÁRIA: PREENCHIMENTO AUTOMÁTICO */}
                 <button
                   type="button"
                   id="btn-preencher-proposta-lex"
@@ -544,7 +603,7 @@ export const PropostaDetalhePage: React.FC = () => {
                   title="Extrai Termo de Referência e cruza com Catálogo de Produtos da empresa automaticamente"
                 >
                   <Sparkles size={16} className="text-[#EA580C]" />
-                  {preenchendoLex ? 'Cruzando Edital & Catálogo via LEX...' : 'Preencher Proposta via LEX'}
+                  {preenchendoLex ? 'Preenchendo itens automaticamente...' : 'Preenchimento Automático'}
                 </button>
 
                 <button
@@ -554,6 +613,24 @@ export const PropostaDetalhePage: React.FC = () => {
                 >
                   <Plus size={16} />
                   Adicionar Item na Tabela
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportarDocxOficial}
+                  disabled={gerandoDocumento}
+                  className="px-4 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-[#0B192C] font-bold text-xs flex items-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <span>📄 Baixar Proposta em Word (.docx)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportarPdfOficial}
+                  disabled={gerandoDocumento}
+                  className="px-4 py-3 rounded-xl bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <span>📑 Baixar Proposta em PDF</span>
                 </button>
 
                 {/* 3. BOTÃO PRINCIPAL "GERAR PROPOSTA PDF" (DISABLED SE ITEM <= CUSTO) */}
@@ -696,6 +773,7 @@ export const PropostaDetalhePage: React.FC = () => {
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Scale size={13} className={!existeItemAbaixoOuIgualAoCusto ? 'text-emerald-700' : 'text-red-700'} />
                 Exequibilidade (Art. 59, III)
+                <InfoTooltip text="Garante que o seu valor cobre os custos diretos para evitar desclassificação por preço irrisório." />
               </span>
               <div className="flex items-center gap-2 mt-1">
                 {!existeItemAbaixoOuIgualAoCusto ? (
@@ -721,6 +799,7 @@ export const PropostaDetalhePage: React.FC = () => {
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Clock size={13} className="text-blue-600" />
                 Validade da Proposta
+                <InfoTooltip text="Prazo oficial durante o qual seus preços permanecem congelados para o órgão público." />
               </span>
               <p className="text-base font-bold text-slate-900 mt-1">
                 {proposta.validadeDias} dias corridos
@@ -733,7 +812,8 @@ export const PropostaDetalhePage: React.FC = () => {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/70">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <ShieldCheck size={13} className="text-emerald-600" />
-                6 Declarações Lei 14.133
+                Declarações Obrigatórias
+                <InfoTooltip text="Declarações legais exigidas por lei (menor aprendiz, idoneidade, inexistência de fatos impeditivos)." />
               </span>
               <div className="mt-1">
                 {compliance?.isCompliant || compliance === null ? (
@@ -776,7 +856,7 @@ export const PropostaDetalhePage: React.FC = () => {
                 className="text-xs bg-[#0A2540] hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <Sparkles size={15} className="text-[#EA580C]" />
-                {preenchendoLex ? 'Processando LEX...' : 'Preencher Proposta via LEX'}
+                {preenchendoLex ? 'Preenchendo...' : 'Preenchimento Automático'}
               </button>
               <button
                 type="button"
@@ -844,7 +924,7 @@ export const PropostaDetalhePage: React.FC = () => {
                   className="text-xs bg-[#0A2540] hover:bg-slate-800 text-white font-black px-4 py-2.5 rounded-xl inline-flex items-center gap-2 shadow-md cursor-pointer"
                 >
                   <Sparkles size={15} className="text-[#EA580C]" />
-                  Preencher Proposta via LEX
+                  Preenchimento Automático
                 </button>
                 <button
                   type="button"
@@ -865,10 +945,20 @@ export const PropostaDetalhePage: React.FC = () => {
                     <th className="p-3 text-center w-28">Qtd / Un</th>
                     <th className="p-3 text-right w-36">Custo Direto (R$)</th>
                     <th className="p-3 text-right w-32">Tributos/Encargos (%)</th>
-                    <th className="p-3 text-right w-32">Margem de Lucro (%)</th>
+                    <th className="p-3 text-right w-36">
+                      <span className="inline-flex items-center justify-end gap-1">
+                        Margem de Lucro Sugerida (%)
+                        <InfoTooltip text="Percentual líquido que sobra para a empresa após deduzir custos diretos e tributos." />
+                      </span>
+                    </th>
                     <th className="p-3 text-right w-40">Valor Unitário Ofertado</th>
                     <th className="p-3 text-right w-36">Valor Final Ofertado Total</th>
-                    <th className="p-3 text-center w-32">Exequibilidade (Art. 59, III)</th>
+                    <th className="p-3 text-center w-36">
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Exequibilidade (Art. 59, III)
+                        <InfoTooltip text="Garante que o seu valor cobre os custos diretos para evitar desclassificação por preço irrisório." />
+                      </span>
+                    </th>
                     <th className="p-3 text-center w-12"></th>
                   </tr>
                 </thead>
@@ -1143,8 +1233,9 @@ export const PropostaDetalhePage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <ShieldCheck size={20} className="text-emerald-600" />
                 <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                  Bloco Oficial das 6 Declarações Obrigatórias (Lei 14.133/21)
+                  Declarações Obrigatórias (Lei 14.133/21)
                 </h2>
+                <InfoTooltip text="Declarações legais exigidas por lei (menor aprendiz, idoneidade, inexistência de fatos impeditivos)." />
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Revise cada declaração e marque somente as afirmações verdadeiras para sua empresa antes de gerar o PDF.
@@ -1428,10 +1519,10 @@ export const PropostaDetalhePage: React.FC = () => {
                 </span>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm">
-                    Preencher Proposta via LEX
+                    Preenchimento Automático
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Selecione o edital para o LEX extrair os itens e cruzar com seus produtos.
+                    Selecione o edital para extrair os itens e cruzar com seus produtos.
                   </p>
                 </div>
               </div>

@@ -13,6 +13,7 @@ import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQ
 import ResumoEstrategicoModal, { type ResumoEditalData } from '@/components/ResumoEstrategicoModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import { handleDownloadEdital, buildOfficialPncpPortalUrl } from '@/utils/pncp';
+import { InfoTooltip } from '@/components/common/InfoTooltip';
 import toast from 'react-hot-toast';
 
 type Licitacao = {
@@ -67,20 +68,28 @@ type SearchFilters = {
     modalidade: string;
 };
 
+const MODALIDADES_ART_28 = [
+    { label: 'Pregão Eletrônico', codigo: 6 },
+    { label: 'Concorrência', codigo: 7 },
+    { label: 'Dispensa de Licitação', codigo: 8 },
+    { label: 'Inexigibilidade', codigo: 9 },
+    { label: 'Leilão Eletrônico', codigo: 1 },
+    { label: 'Concurso', codigo: 2 },
+    { label: 'Diálogo Competitivo', codigo: 14 },
+] as const;
+
+const PROCEDIMENTOS_AUXILIARES_ART_78 = [
+    { label: 'Sistema de Registro de Preços', srp: true },
+    { label: 'Credenciamento', codigo: 12 },
+    { label: 'Pré-Qualificação Técnica', codigo: 13 },
+    { label: 'Procedimento de Manifestação de Interesse (PMI)', codigo: 15 },
+    { label: 'Registro Cadastral Unificado', codigo: 16 },
+] as const;
+
 const MODALIDADES = [
     'Todos',
-    'Pregão Eletrônico',
-    'Concorrência',
-    'Dispensa Eletrônica',
-    'Inexigibilidade',
-    'Leilão',
-    'Concurso',
-    'Diálogo Competitivo',
-    'SRP / Registro de Preços',
-    'Credenciamento',
-    'Pré-Qualificação',
-    'PMI',
-    'Registro Cadastral',
+    ...MODALIDADES_ART_28.map((m) => m.label),
+    ...PROCEDIMENTOS_AUXILIARES_ART_78.map((p) => p.label),
 ];
 const UFS = [
     'Todos', 'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
@@ -91,7 +100,13 @@ function resolveEditalDownloadUrl(item: Licitacao): string {
     return buildOfficialPncpPortalUrl(item);
 }
 
-export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modalidadeInicial?: string } = {}) {
+export default function LicitacoesPage({
+    modalidadeInicial = 'Todos',
+    tituloCustomizado,
+}: {
+    modalidadeInicial?: string;
+    tituloCustomizado?: string;
+} = {}) {
     const navigate = useNavigate();
     const { selectedCompany } = useCompany();
 
@@ -111,6 +126,7 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
     const [cnaeFiltro, setCnaeFiltro] = useState('');
     const [ufSel, setUfSel] = useState('Todos');
     const [modalidadeSel, setModalidadeSel] = useState(modalidadeInicial);
+    const [abaCategoriaContratacao, setAbaCategoriaContratacao] = useState<'modalidades_art28' | 'procedimentos_art78'>('modalidades_art28');
 
     const [filtrosAplicados, setFiltrosAplicados] = useState<SearchFilters>({
         busca: '',
@@ -119,6 +135,18 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         uf: 'Todos',
         modalidade: modalidadeInicial,
     });
+
+    const handleSelecionarModalidadeInstantanea = (novaModalidade: string) => {
+        setModalidadeSel(novaModalidade);
+        setFiltrosAplicados((prev) => ({
+            ...prev,
+            busca: busca.trim(),
+            cnpj: sanitizeCnpj(cnpjFiltro),
+            cnae: cnaeFiltro.trim(),
+            uf: ufSel,
+            modalidade: novaModalidade,
+        }));
+    };
 
     useEffect(() => {
         if (!modalidadeInicial) return;
@@ -351,18 +379,25 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         let avisoSincronizacao: string | undefined;
         const pncpModMap: Record<string, number> = {
             'Pregão Eletrônico': 6,
+            'Concorrência': 7,
+            'Dispensa de Licitação': 8,
             'Dispensa Eletrônica': 8,
-            'Concorrência': 4,
             'Inexigibilidade': 9,
+            'Leilão Eletrônico': 1,
             'Leilão': 1,
             'Concurso': 2,
             'Diálogo Competitivo': 14,
             'Credenciamento': 12,
+            'Pré-Qualificação Técnica': 13,
             'Pré-Qualificação': 13,
+            'Procedimento de Manifestação de Interesse (PMI)': 15,
             'PMI': 15,
+            'Registro Cadastral Unificado': 16,
             'Registro Cadastral': 16,
         };
-        const isSrpFilter = filtrosAplicados.modalidade === 'SRP / Registro de Preços';
+        const isSrpFilter =
+            filtrosAplicados.modalidade === 'Sistema de Registro de Preços' ||
+            filtrosAplicados.modalidade === 'SRP / Registro de Preços';
         try {
             if (sincronizarPncp) {
                 try {
@@ -547,9 +582,11 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
         return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
     };
 
-    const tituloPagina = modalidadeInicial && modalidadeInicial !== 'Todos'
-        ? `${modalidadeInicial} em Aberto`
-        : 'Oportunidades Abertas';
+    const tituloPagina = tituloCustomizado
+        ? tituloCustomizado
+        : modalidadeInicial && modalidadeInicial !== 'Todos'
+            ? `${modalidadeInicial} em Aberto`
+            : 'Radar de Editais';
 
     return (
         <div className="flex flex-col h-full bg-brand-light">
@@ -596,6 +633,95 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} weight="bold" />
                                 Sincronizar PNCP
                             </button>
+                        </div>
+                    </div>
+
+                    {/* ABAS DE TIPOS DE CONTRATAÇÃO (ART. 28 MODALIDADES & ART. 78 PROCEDIMENTOS AUXILIARES) */}
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div
+                                role="tablist"
+                                aria-label="Categorias de Tipos de Contratação da Lei 14.133/2021"
+                                className="inline-flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200"
+                            >
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={abaCategoriaContratacao === 'modalidades_art28'}
+                                    onClick={() => setAbaCategoriaContratacao('modalidades_art28')}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        abaCategoriaContratacao === 'modalidades_art28'
+                                            ? 'bg-[#0B192C] text-white shadow-2xs'
+                                            : 'text-slate-600 hover:text-[#0B192C]'
+                                    }`}
+                                >
+                                    Modalidades (Art. 28)
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={abaCategoriaContratacao === 'procedimentos_art78'}
+                                    onClick={() => setAbaCategoriaContratacao('procedimentos_art78')}
+                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        abaCategoriaContratacao === 'procedimentos_art78'
+                                            ? 'bg-[#0B192C] text-white shadow-2xs'
+                                            : 'text-slate-600 hover:text-[#0B192C]'
+                                    }`}
+                                >
+                                    Procedimentos Auxiliares (Art. 78)
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => handleSelecionarModalidadeInstantanea('Todos')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                    modalidadeSel === 'Todos'
+                                        ? 'bg-[#F97316] text-white border-[#F97316]'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                }`}
+                            >
+                                Todas as Contratações
+                            </button>
+                        </div>
+
+                        {/* Pílulas de Filtro Instantâneo em Tempo Real */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {abaCategoriaContratacao === 'modalidades_art28'
+                                ? MODALIDADES_ART_28.map((mod) => {
+                                      const ativo = modalidadeSel === mod.label;
+                                      return (
+                                          <button
+                                              key={mod.label}
+                                              type="button"
+                                              onClick={() => handleSelecionarModalidadeInstantanea(mod.label)}
+                                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                                                  ativo
+                                                      ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
+                                                      : 'bg-white text-[#334155] border-slate-200 hover:border-[#0B192C]/40'
+                                              }`}
+                                          >
+                                              {mod.label}
+                                          </button>
+                                      );
+                                  })
+                                : PROCEDIMENTOS_AUXILIARES_ART_78.map((proc) => {
+                                      const ativo = modalidadeSel === proc.label;
+                                      return (
+                                          <button
+                                              key={proc.label}
+                                              type="button"
+                                              onClick={() => handleSelecionarModalidadeInstantanea(proc.label)}
+                                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                                                  ativo
+                                                      ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
+                                                      : 'bg-white text-[#334155] border-slate-200 hover:border-[#0B192C]/40'
+                                              }`}
+                                          >
+                                              {proc.label}
+                                          </button>
+                                      );
+                                  })}
                         </div>
                     </div>
 
@@ -648,8 +774,9 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                 </div>
 
                                 <div>
-                                    <label htmlFor="licitacoes-cnae-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                                        CNAE / Ramo de Atividade
+                                    <label htmlFor="licitacoes-cnae-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                        <span>CNAE / Ramo de Atividade</span>
+                                        <InfoTooltip text="Código da atividade econômica da sua empresa para filtrar editais compatíveis com seu objeto social." />
                                     </label>
                                     <input
                                         id="licitacoes-cnae-filter"
@@ -677,14 +804,15 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                 </div>
 
                                 <div>
-                                    <label htmlFor="licitacoes-modalidade-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                                        Modalidade
+                                    <label htmlFor="licitacoes-modalidade-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                                        <span>Modalidade / SRP / Registro de Preços</span>
+                                        <InfoTooltip text="Modalidade de fornecimento sob demanda ao longo do ano via Ata de Registro de Preços." />
                                     </label>
                                     <select
                                         id="licitacoes-modalidade-filter"
                                         aria-label="Filtrar licitações por modalidade"
                                         value={modalidadeSel}
-                                        onChange={e => setModalidadeSel(e.target.value)}
+                                        onChange={e => handleSelecionarModalidadeInstantanea(e.target.value)}
                                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand-blue"
                                     >
                                         {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -809,7 +937,12 @@ export default function LicitacoesPage({ modalidadeInicial = 'Todos' }: { modali
                                             <th className="py-3.5 px-4">Órgão</th>
                                             <th className="py-3.5 px-4 whitespace-nowrap">Data de Abertura</th>
                                             <th className="py-3.5 px-4 min-w-[280px]">Objeto</th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap text-right">Valor Estimado</th>
+                                            <th className="py-3.5 px-4 whitespace-nowrap text-right">
+                                                <span className="inline-flex items-center justify-end gap-1">
+                                                    Valor Estimado
+                                                    <InfoTooltip text="Teto máximo de referência definido pelo órgão público no Termo de Referência." />
+                                                </span>
+                                            </th>
                                             <th className="py-3.5 px-4 whitespace-nowrap text-center">Ações</th>
                                         </tr>
                                     </thead>

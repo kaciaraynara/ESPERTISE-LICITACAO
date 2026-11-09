@@ -100,7 +100,7 @@ export default function IntegracoesPage() {
       {/* CABEÇALHO CORPORATIVO */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-lg border border-gray-100 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-brand-blue tracking-tight">Painel Executivo</h1>
+          <h1 className="text-2xl font-bold text-brand-blue tracking-tight">Página Inicial</h1>
           <p className="text-brand-blue/70 mt-1 text-sm">
             Acompanhe as informações e os serviços conectados à sua conta.
           </p>

@@ -9,7 +9,6 @@ import {
   Article,
   ChartLineUp,
   Robot,
-  IdentificationCard,
   Lightning,
   Gavel,
   CheckSquare,
@@ -216,8 +215,8 @@ export interface StrategicHubConfig {
 }
 
 /**
- * AS 4 CENTRAIS ESTRATÉGICAS DO COMMAND CENTER ENTERPRISE
- * Rigorosamente limpas de termos proibidos (zero badges de IA, GPT, RAG, AUTO, RÁPIDO).
+ * AS 4 CENTRAIS ESTRATÉGICAS DA PLATAFORMA
+ * Rigorosamente limpas de termos proibidos e jargões técnicos.
  */
 const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
@@ -226,12 +225,10 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     subtitle: 'Captação & Inteligência',
     icon: Crosshair,
     items: [
-      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais & CNAE', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: '/tipos-contratacao', label: 'Tipos de Contratação', icon: Gavel, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Termômetro de Oportunidades', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
-      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensas Eletrônicas (Art. 75)', icon: Lightning, requiredFeature: 'dispensa_eletronica' },
-      { path: FORNECEDOR_ROUTES.pregao_eletronico, label: 'Pregão & Concorrência', icon: Gavel, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
-      { path: FORNECEDOR_ROUTES.credenciamento, label: 'Credenciamento & SICAF', icon: IdentificationCard, requiredFeature: 'radar_editais' },
     ],
   },
   {
@@ -243,7 +240,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.disputa_ao_vivo, label: 'Painel de Controle da Disputa', icon: Lightning, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Envio Automático de Lances', icon: Robot, requiredFeature: 'robo_lances' },
-      { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
+      { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
@@ -502,7 +499,7 @@ export default function Sidebar() {
           className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${
             isCollapsed ? 'justify-center' : 'gap-3'
           }`}
-          aria-label="EXPERTISE Licitatória — Command Center"
+          aria-label="EXPERTISE Licitatória — Página Inicial"
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5 shadow-md">
             <BrandLogo imageClassName="h-full w-full object-contain" />
@@ -510,9 +507,6 @@ export default function Sidebar() {
           {!isCollapsed && (
             <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
               <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
-              <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-brand-orange">
-                Command Center
-              </span>
             </div>
           )}
         </Link>
@@ -532,7 +526,7 @@ export default function Sidebar() {
               <p className="truncate text-xs font-black text-white">{displayName}</p>
               <p className="truncate text-[10px] font-bold text-brand-orange">
                 {isTrialActive
-                  ? `Trial Enterprise (${trialDaysLeft}d)`
+                  ? `Teste Gratuito (${trialDaysLeft}d)`
                   : currentPlanLabel}
               </p>
             </div>
@@ -547,11 +541,11 @@ export default function Sidebar() {
           isCollapsed ? 'px-2' : 'px-3'
         }`}
       >
-        {/* Botão de Atalho para o Painel Executivo Consolidado */}
+        {/* Botão de Atalho para a Página Inicial */}
         <div className="mb-3">
           <Link
             to={FORNECEDOR_ROUTES.dashboard}
-            title={isCollapsed ? 'Painel Executivo' : undefined}
+            title={isCollapsed ? 'Página Inicial' : undefined}
             className={`group relative flex items-center ${
               isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
             } rounded-xl font-bold transition-all duration-150 ${
@@ -563,10 +557,7 @@ export default function Sidebar() {
             <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
             {!isCollapsed && (
               <div className="min-w-0 flex-1 transition-opacity duration-300">
-                <span className="block text-xs font-black tracking-tight">Painel Executivo</span>
-                <span className="block text-[10px] text-orange-200/90 font-semibold">
-                  Visão Consolidada
-                </span>
+                <span className="block text-xs font-black tracking-tight">Página Inicial</span>
               </div>
             )}
           </Link>

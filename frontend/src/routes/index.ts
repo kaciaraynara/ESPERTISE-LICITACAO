@@ -9,6 +9,7 @@ export const FORNECEDOR_ROUTES = {
   impugnacao: `${FORNECEDOR_PREFIX}/impugnacao`,
   score_viabilidade: `${FORNECEDOR_PREFIX}/score-viabilidade`,
   robo_lances: `${FORNECEDOR_PREFIX}/robo-lances`,
+  tipos_contratacao: '/tipos-contratacao',
   pregao_eletronico: `${FORNECEDOR_PREFIX}/pregao-eletronico`,
   concorrencia: `${FORNECEDOR_PREFIX}/concorrencia`,
   credenciamento: `${FORNECEDOR_PREFIX}/credenciamento`,

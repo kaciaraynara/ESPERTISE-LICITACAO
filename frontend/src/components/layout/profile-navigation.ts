@@ -39,10 +39,11 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
       label: 'Operacional',
       items: [
         { path: FORNECEDOR_ROUTES.dashboard, label: 'Página Inicial', icon: Gauge, exact: true },
-        { path: FORNECEDOR_ROUTES.radar, label: 'Buscar Oportunidades', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+        { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+        { path: '/tipos-contratacao', label: 'Tipos de Contratação', icon: ListChecks, requiredFeature: 'radar_editais' },
         { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: ListChecks, requiredFeature: 'crm_kanban' },
         { path: FORNECEDOR_ROUTES.analise_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle, requiredFeature: 'analise_viabilidade' },
-        { path: FORNECEDOR_ROUTES.propostas, label: 'Gerador de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
+        { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
         { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos', icon: ListBullets, requiredFeature: 'catalogo_produtos' },
         { path: FORNECEDOR_ROUTES.documentos, label: 'Meus Documentos', icon: Briefcase, requiredFeature: 'cofre_documentos' },
         { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
