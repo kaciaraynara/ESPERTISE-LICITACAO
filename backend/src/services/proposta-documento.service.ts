@@ -204,7 +204,7 @@ export class PropostaDocumentoService {
       try {
         dbProposal = await proposalService.getById(userId, proposalId);
       } catch (err) {
-        if (!overridePayload || !Array.isArray(overridePayload.itens)) {
+        if (!overridePayload || (!Array.isArray(overridePayload.itens) && !Array.isArray(overridePayload.items))) {
           throw err;
         }
       }
@@ -279,9 +279,11 @@ export class PropostaDocumentoService {
     const rawItems: any[] =
       Array.isArray(overridePayload?.itens) && overridePayload.itens.length > 0
         ? overridePayload.itens
-        : Array.isArray(dbProposal?.items)
-          ? dbProposal.items
-          : [];
+        : Array.isArray(overridePayload?.items) && overridePayload.items.length > 0
+          ? overridePayload.items
+          : Array.isArray(dbProposal?.items)
+            ? dbProposal.items
+            : [];
 
     if (rawItems.length === 0 && !dbProposal && !overridePayload) {
       throw new ProposalServiceError(

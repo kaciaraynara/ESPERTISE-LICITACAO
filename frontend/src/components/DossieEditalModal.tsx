@@ -404,7 +404,337 @@ export default function DossieEditalModal({
     'Consulte a íntegra do Termo de Referência no edital.';
 
   const handleBaixarPdf = () => {
-    window.print();
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) {
+        window.print();
+        return;
+      }
+
+      const itensParaRender = itens.length > 0 ? itens : (edital.itens || edital.items || []);
+      const itensRowsHtml = itensParaRender
+        .map((it, idx) => {
+          const itemNum = it.numeroItem ?? it.itemNumber ?? it.numero ?? idx + 1;
+          const desc = it.descricao ?? it.description ?? 'Item do edital';
+          const qtd = it.quantidade ?? it.quantity ?? 1;
+          const unid = it.unidadeMedida ?? it.siglaUnidadeMedida ?? it.unidade ?? 'UN';
+          const unit = it.valorUnitarioEstimado ?? it.valorReferencia ?? it.precoUnitario ?? 0;
+          const tot = it.valorTotal ?? ((Number(qtd) || 1) * (Number(unit) || 0));
+          return `
+            <tr>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: center; font-weight: bold; font-family: monospace;">${itemNum}</td>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; color: #1E293B;">${desc}</td>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: center; font-weight: 600;">${typeof qtd === 'number' ? qtd.toLocaleString('pt-BR') : qtd}</td>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: center; font-family: monospace; font-size: 10px;">${unid}</td>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: right; font-family: monospace;">${formatCurrency(unit)}</td>
+              <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: right; font-family: monospace; font-weight: bold; color: #1D4ED8;">${formatCurrency(tot)}</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      const checklistHtml = CHECKLIST_HABILITACAO_PADRAO.map((chk) => {
+        const isOk = Boolean(checklist[chk.id]);
+        return `
+          <div style="padding: 8px 10px; border: 1px solid ${isOk ? '#86EFAC' : '#E2E8F0'}; background: ${isOk ? '#F0FDF4' : '#FFFFFF'}; border-radius: 6px; margin-bottom: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 900; font-family: monospace; font-size: 12px; color: ${isOk ? '#166534' : '#64748B'};">${isOk ? '[X]' : '[  ]'}</span>
+              <span style="font-weight: bold; font-size: 11px; color: ${isOk ? '#166534' : '#0B192C'}; ${isOk ? 'text-decoration: line-through;' : ''}">${chk.titulo}</span>
+            </div>
+            <div style="font-size: 9.5px; color: #64748B; margin-top: 3px; padding-left: 20px;">${chk.detalhe}</div>
+          </div>
+        `;
+      }).join('');
+
+      const emissaoData = new Date().toLocaleDateString('pt-BR');
+      const emissaoHora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      const html = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Dossiê Estratégico do Edital — ${numeroPncp}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 12mm 14mm 14mm 14mm;
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              color: #0F172A;
+              line-height: 1.35;
+              font-size: 10.5px;
+              margin: 0;
+              padding: 0;
+            }
+            .header-banner {
+              border-bottom: 2px solid #0B192C;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+            }
+            .brand-sub {
+              font-size: 9px;
+              font-weight: 800;
+              color: #1D4ED8;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .brand-title {
+              font-size: 18px;
+              font-weight: 900;
+              color: #0B192C;
+              letter-spacing: -0.3px;
+              margin-top: 1px;
+            }
+            .section-box {
+              margin-bottom: 12px;
+              page-break-inside: avoid;
+            }
+            .section-title {
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #0B192C;
+              border-bottom: 1px solid #CBD5E1;
+              padding-bottom: 3px;
+              margin-bottom: 6px;
+            }
+            .grid-3 {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 6px;
+              margin-bottom: 6px;
+            }
+            .card {
+              border: 1px solid #E2E8F0;
+              background: #F8FAFC;
+              border-radius: 6px;
+              padding: 6px 8px;
+            }
+            .card-label {
+              font-size: 8px;
+              font-weight: 800;
+              text-transform: uppercase;
+              color: #64748B;
+              letter-spacing: 0.4px;
+            }
+            .card-value {
+              font-size: 11px;
+              font-weight: bold;
+              color: #0B192C;
+              margin-top: 1px;
+            }
+            .objeto-box {
+              background: #F8FAFC;
+              border: 1px solid #E2E8F0;
+              border-radius: 6px;
+              padding: 8px;
+              font-size: 10px;
+              line-height: 1.45;
+              white-space: pre-wrap;
+              color: #1E293B;
+            }
+            .table-itens {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 9.5px;
+            }
+            .table-itens th {
+              background: #F1F5F9;
+              border: 1px solid #CBD5E1;
+              padding: 5px 6px;
+              font-weight: 800;
+              text-transform: uppercase;
+              font-size: 8.5px;
+              color: #334155;
+            }
+            .checklist-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 6px;
+            }
+            .passo-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 6px;
+            }
+            .passo-num {
+              display: inline-block;
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: #DBEAFE;
+              color: #1D4ED8;
+              text-align: center;
+              line-height: 18px;
+              font-weight: 900;
+              font-size: 10px;
+              margin-bottom: 4px;
+            }
+            .footer-info {
+              border-top: 1px solid #CBD5E1;
+              padding-top: 6px;
+              margin-top: 10px;
+              font-size: 8.5px;
+              color: #64748B;
+              text-align: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-banner">
+            <div>
+              <div class="brand-sub">EXPERTISE LICITATÓRIA • LEI FEDERAL Nº 14.133/2021</div>
+              <div class="brand-title">Dossiê Estratégico do Edital</div>
+              <div style="font-size: 10.5px; color: #334155; margin-top: 2px;">Órgão Comprador: <strong>${edital.orgao || edital.nomeOrgao || 'Administração Pública'}</strong></div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 8.5px; color: #64748B;">Emissão: ${emissaoData} às ${emissaoHora}</div>
+              <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">ID PNCP: ${numeroPncp}</div>
+            </div>
+          </div>
+
+          <!-- SEÇÃO 1: IDENTIFICAÇÃO DO CERTAME -->
+          <div class="section-box">
+            <div class="section-title">Seção 1: Identificação do Certame</div>
+            <div class="grid-3">
+              <div class="card">
+                <div class="card-label">Órgão Comprador</div>
+                <div class="card-value">${edital.orgao || edital.nomeOrgao || 'Administração Pública'}</div>
+                <div style="font-size: 8.5px; color: #64748B;">${localizacaoExibida}</div>
+              </div>
+              <div class="card">
+                <div class="card-label">CNPJ Oficial & Registro</div>
+                <div class="card-value" style="font-family: monospace;">${cnpjFormatado}</div>
+                <div style="font-size: 8.5px; font-family: monospace; color: #64748B;">Controle: ${numeroPncp}</div>
+              </div>
+              <div class="card">
+                <div class="card-label">Amparo Legal & Modalidade</div>
+                <div class="card-value">${modalidadeExibida}</div>
+                <div style="font-size: 8.5px; color: #1D4ED8; font-weight: bold;">Lei 14.133/2021 (${modoDisputaExibido})</div>
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="card">
+                <div class="card-label">Prazo Limite para Envio</div>
+                <div class="card-value" style="color: #EA580C;">${formatDataHora(prazoLimiteEnvio)}</div>
+              </div>
+              <div class="card">
+                <div class="card-label">Sessão de Disputa / Lances</div>
+                <div class="card-value" style="color: #1D4ED8;">${formatDataHora(prazoSessaoDisputa)}</div>
+              </div>
+              <div class="card">
+                <div class="card-label">Valor Total Estimado</div>
+                <div class="card-value" style="color: #0B192C; font-size: 12px;">${formatCurrency(valorTotalExibido)}</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 4px;">
+              <div class="card-label" style="margin-bottom: 2px;">Objeto Integral da Contratação</div>
+              <div class="objeto-box">${objetoCompleto}</div>
+            </div>
+          </div>
+
+          <!-- SEÇÃO 2: TABELA OFICIAL DE ITENS E VALORES -->
+          <div class="section-box">
+            <div class="section-title">Seção 2: Tabela Oficial de Itens e Valores</div>
+            ${itensRowsHtml ? `
+              <table class="table-itens">
+                <thead>
+                  <tr>
+                    <th style="width: 40px; text-align: center;">Item #</th>
+                    <th>Descrição Detalhada</th>
+                    <th style="width: 60px; text-align: center;">Qtd</th>
+                    <th style="width: 45px; text-align: center;">Unid</th>
+                    <th style="width: 90px; text-align: right;">Valor Unitário</th>
+                    <th style="width: 95px; text-align: right;">Valor Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itensRowsHtml}
+                </tbody>
+              </table>
+            ` : `
+              <div class="card" style="text-align: center; color: #64748B; font-size: 9.5px;">
+                Valores globais consolidados no Termo de Referência oficial do certame no PNCP.
+              </div>
+            `}
+          </div>
+
+          <!-- SEÇÃO 3: CHECKLIST DE HABILITAÇÃO DOCUMENTAL -->
+          <div class="section-box">
+            <div class="section-title">Seção 3: Checklist de Habilitação Documental (${checklistCheckedCount}/${checklistTotal} Conferidos - ${checklistPorcentagem}%)</div>
+            <div class="checklist-grid">
+              ${checklistHtml}
+            </div>
+          </div>
+
+          <!-- SEÇÃO 4: PASSO A PASSO OPERACIONAL -->
+          <div class="section-box">
+            <div class="section-title">Seção 4: Passo a Passo Operacional para Disputar</div>
+            <div class="passo-grid">
+              <div class="card">
+                <span class="passo-num">1</span>
+                <div style="font-weight: bold; font-size: 10px; margin-bottom: 1px;">Cadastrar proposta de preços</div>
+                <div style="font-size: 8.5px; color: #475569;">Acesse o sistema eletrônico indicado e cadastre os valores e marcas iniciais.</div>
+              </div>
+              <div class="card">
+                <span class="passo-num">2</span>
+                <div style="font-weight: bold; font-size: 10px; margin-bottom: 1px;">Inserir declarações e documentos</div>
+                <div style="font-size: 8.5px; color: #475569;">Faça o upload dos documentos e confirme as declarações legais antes do prazo.</div>
+              </div>
+              <div class="card">
+                <span class="passo-num" style="background: #FFEDD5; color: #EA580C;">3</span>
+                <div style="font-weight: bold; font-size: 10px; margin-bottom: 1px;">Acessar sala de lances com antecedência</div>
+                <div style="font-size: 8.5px; color: #475569;">Conecte-se com 15 a 30 minutos de antecedência para a fase competitiva.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RODAPÉ -->
+          <div class="footer-info">
+            Dossiê estruturado emitido pelo sistema EXPERTISE com base em dados sincronizados do PNCP e Lei nº 14.133/2021.<br/>
+            Consulta oficial: <strong>${urlOficialPncp}</strong>
+          </div>
+        </body>
+        </html>
+      `;
+
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+          } catch {
+            // Limpeza
+          }
+        }, 1500);
+      }, 300);
+    } catch {
+      window.print();
+    }
   };
 
   return (
@@ -451,15 +781,15 @@ export default function DossieEditalModal({
 
             {/* BOTÕES DE AÇÃO DO CABEÇALHO */}
             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end print:hidden">
-              {/* BOTÃO [Baixar em PDF] */}
+              {/* BOTÃO [Baixar Dossiê em PDF] */}
               <button
                 type="button"
                 onClick={handleBaixarPdf}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="Imprimir ou salvar dossiê em formato PDF oficial"
+                className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
+                title="Baixar em PDF (Dossiê Estratégico)"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Baixar em PDF</span>
+                <span>Baixar Dossiê em PDF</span>
               </button>
 
               {/* BOTÃO [Ver no Portal Oficial do PNCP ↗] */}

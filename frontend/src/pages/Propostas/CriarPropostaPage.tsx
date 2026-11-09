@@ -745,20 +745,29 @@ export const CriarPropostaPage: React.FC = () => {
 
           {/* CHAVE SELETORA: [Modo Automático] vs [Modo Manual] + BOTÕES DE EXPORTAÇÃO OFICIAL */}
           <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+            {/* BOTÃO PRIMÁRIO: BAIXAR PROPOSTA EM WORD (.DOCX) */}
             <button
               type="button"
               onClick={() => void handleExportarArquivoOficial('docx')}
               disabled={exportandoFormato !== null}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-[#0B192C] text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              className="btn-exportar-word inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Exportar proposta oficial formatada em Word (.docx)"
             >
+              {exportandoFormato === 'docx' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
+              ) : null}
               <span>📄 Baixar Proposta em Word (.docx)</span>
             </button>
             <button
               type="button"
               onClick={() => void handleExportarArquivoOficial('pdf')}
               disabled={exportandoFormato !== null}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#F97316] hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Exportar proposta oficial em PDF"
             >
+              {exportandoFormato === 'pdf' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-blue" />
+              ) : null}
               <span>📑 Baixar Proposta em PDF</span>
             </button>
 

@@ -13,7 +13,7 @@ describe('Dossiê Estratégico do Edital (DossieEditalModal.tsx)', () => {
     expect(modalContent).toContain('Dossiê Estratégico do Edital');
 
     // Botões de Ação
-    expect(modalContent).toContain('Baixar em PDF');
+    expect(modalContent).toContain('Baixar Dossiê em PDF');
     expect(modalContent).toContain('Ver no Portal Oficial do PNCP ↗');
   });
 
