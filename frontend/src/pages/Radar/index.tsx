@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Target, Search, RefreshCw, Loader2, MapPin, Calendar } from 'lucide-react';
+import { Target, Search, RefreshCw, Loader2, MapPin, Calendar, Clock } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { licitacoesApi } from '@services/api';
 import { useNavigate } from 'react-router-dom';
@@ -253,7 +253,15 @@ export default function RadarPage() {
                   const nomeOrgao = licitacao.nomeOrgao || licitacao.orgao || 'Órgão Público';
                   const objetoCompra = licitacao.objetoCompra || licitacao.objeto || 'Objeto não especificado';
                   const modalidadeNome = licitacao.nomeModalidade || licitacao.modalidadeNome || licitacao.modalidade || 'Contratação';
-                  const dataRef = licitacao.dataEncerramentoProposta || licitacao.dataEncerramento || licitacao.dataAbertura;
+                  const dataLimiteProposta =
+                    licitacao.dataLimiteProposta ||
+                    licitacao.dataEncerramentoProposta ||
+                    licitacao.dataEncerramento;
+                  const dataSessaoDisputa =
+                    licitacao.dataSessaoDisputa ||
+                    licitacao.dataAberturaProposta ||
+                    licitacao.dataAbertura ||
+                    dataLimiteProposta;
                   const valor = licitacao.valorTotalEstimado ?? licitacao.valorEstimado;
 
                   return (
@@ -282,11 +290,15 @@ export default function RadarPage() {
                       </div>
 
                       <div className="space-y-3 pt-3 border-t border-slate-100">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-500 font-medium flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" /> Encerramento:
-                          </span>
-                          <span className="font-bold text-slate-900">{formatarData(dataRef)}</span>
+                        <div className="flex flex-col gap-1 text-xs">
+                          <div className="text-slate-700 font-medium flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>Envio até: {formatarData(dataLimiteProposta)}</span>
+                          </div>
+                          <div className="text-brand-blue font-semibold flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+                            <span>Disputa: {formatarData(dataSessaoDisputa)}</span>
+                          </div>
                         </div>
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-slate-500 font-medium">Valor Estimado:</span>

@@ -36,6 +36,8 @@ type Licitacao = {
     data_encerramento?: string | null;
     dataEncerramento?: string | null;
     dataEncerramentoProposta?: string | null;
+    dataLimiteProposta?: string | null;
+    dataSessaoDisputa?: string | null;
     data_publicacao?: string | null;
     dataPublicacao?: string | null;
     modalidade?: string;
@@ -958,7 +960,7 @@ export default function LicitacoesPage({
                                         <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
                                             <th className="py-3.5 px-4 whitespace-nowrap">Número do Edital</th>
                                             <th className="py-3.5 px-4">Órgão</th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap">Data de Abertura</th>
+                                            <th className="py-3.5 px-4 whitespace-nowrap">PRAZO LIMITE / SESSÃO</th>
                                             <th className="py-3.5 px-4 min-w-[280px]">Objeto</th>
                                             <th className="py-3.5 px-4 whitespace-nowrap text-right">
                                                 <span className="inline-flex items-center justify-end gap-1">
@@ -989,12 +991,19 @@ export default function LicitacoesPage({
                                                 item.nomeModalidade ||
                                                 item.modalidadeNome ||
                                                 item.modalidade;
-                                            const dataEncerramentoOuAbertura =
+                                            const dataLimitePropostaExibida =
+                                                item.dataLimiteProposta ||
                                                 item.dataEncerramentoProposta ||
                                                 item.dataEncerramento ||
-                                                item.data_encerramento ||
+                                                item.data_encerramento;
+                                            const dataSessaoDisputaExibida =
+                                                item.dataSessaoDisputa ||
                                                 item.dataAbertura ||
                                                 item.data_abertura ||
+                                                dataLimitePropostaExibida;
+                                            const dataEncerramentoOuAbertura =
+                                                dataLimitePropostaExibida ||
+                                                dataSessaoDisputaExibida ||
                                                 item.dataPublicacao ||
                                                 item.data_publicacao;
                                             const dias = diasRestantes(dataEncerramentoOuAbertura);
@@ -1063,11 +1072,17 @@ export default function LicitacoesPage({
                                                         )}
                                                     </td>
 
-                                                    {/* 3. ENCERRAMENTO / ABERTURA */}
+                                                    {/* 3. PRAZO LIMITE / SESSÃO */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap">
-                                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0B192C]">
-                                                            <Calendar className="w-4 h-4 text-brand-blue shrink-0" weight="bold" />
-                                                            <span>{formatDate(dataEncerramentoOuAbertura)}</span>
+                                                        <div className="flex flex-col gap-1 text-xs">
+                                                            <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                                                <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                                                <span>Envio até: {formatDate(dataLimitePropostaExibida)}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 font-semibold text-brand-blue">
+                                                                <Calendar className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
+                                                                <span>Disputa: {formatDate(dataSessaoDisputaExibida)}</span>
+                                                            </div>
                                                         </div>
                                                         {urgente && (
                                                             <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">

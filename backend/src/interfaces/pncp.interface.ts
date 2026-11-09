@@ -94,6 +94,8 @@ export interface LicitacaoRadarPNCP {
   dataEncerramentoProposta?: string | null;
   dataEncerramento: string | null;
   data_encerramento?: string | null;
+  dataLimiteProposta?: string | null;
+  dataSessaoDisputa?: string | null;
   link: string | null;
   linkSistemaOrigem?: string | null;
   documento_url?: string | null;

@@ -211,6 +211,11 @@ export function normalizarLicitacaoPNCP(
   const modalidadeNome = nullableString(item.modalidadeNome) ?? nullableString((item as any).nomeModalidade);
   const valorTotalEstimado = nullableNumber(item.valorTotalEstimado);
   const dataEncerramentoProposta = nullableString(item.dataEncerramentoProposta);
+  const dataAberturaProposta = nullableString(item.dataAberturaProposta);
+
+  // Extrair com precisão os dois marcos temporais retornados pelo PNCP
+  const dataLimiteProposta = dataEncerramentoProposta;
+  const dataSessaoDisputa = dataAberturaProposta || dataEncerramentoProposta;
 
   return {
     id: numeroControlePNCP,
@@ -244,11 +249,13 @@ export function normalizarLicitacaoPNCP(
     valor_estimado: valorTotalEstimado,
     dataPublicacao: nullableString(item.dataPublicacaoPncp),
     data_publicacao: nullableString(item.dataPublicacaoPncp),
-    dataAbertura: nullableString(item.dataAberturaProposta),
-    data_abertura: nullableString(item.dataAberturaProposta),
+    dataAbertura: dataAberturaProposta,
+    data_abertura: dataAberturaProposta,
     dataEncerramentoProposta,
     dataEncerramento: dataEncerramentoProposta,
     data_encerramento: dataEncerramentoProposta,
+    dataLimiteProposta,
+    dataSessaoDisputa,
     link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP) || urlOficialPncp,
     linkSistemaOrigem: nullableString(item.linkSistemaOrigem),
     documento_url: downloadUrl,
@@ -657,6 +664,8 @@ export async function listarLicitacoes(
         data_abertura: safeFormatDate(r.openingAt),
         dataEncerramento: safeFormatDate(r.closingAt),
         data_encerramento: safeFormatDate(r.closingAt),
+        dataLimiteProposta: safeFormatDate(r.closingAt),
+        dataSessaoDisputa: safeFormatDate(r.openingAt) || safeFormatDate(r.closingAt),
         link: portalUrl || urlOficialPncp,
         linkSistemaOrigem: portalUrl || urlOficialPncp,
         documento_url: downloadUrl,
