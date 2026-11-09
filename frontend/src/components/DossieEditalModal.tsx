@@ -20,6 +20,9 @@ import {
   Send,
   UploadCloud,
   Timer,
+  Target,
+  Lightbulb,
+  TrendingUp,
 } from 'lucide-react';
 import { licitacoesApi, noticesApi } from '../services/api';
 import {
@@ -405,6 +408,41 @@ export default function DossieEditalModal({
     edital.informacaoComplementar ||
     'Consulte a íntegra do Termo de Referência no edital.';
 
+  const resumoEstrategico = useMemo(() => {
+    const agora = Date.now();
+    const dataLimite = prazoLimiteEnvio ? new Date(prazoLimiteEnvio).getTime() : null;
+    const diasAteLimite = dataLimite ? Math.ceil((dataLimite - agora) / 86400000) : null;
+
+    let urgencia = 'Prazo Confortável';
+    let urgenciaCor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    if (diasAteLimite !== null) {
+      if (diasAteLimite <= 1) {
+        urgencia = 'Crítica (Encerra em < 24h)';
+        urgenciaCor = 'text-rose-700 bg-rose-50 border-rose-200';
+      } else if (diasAteLimite <= 4) {
+        urgencia = 'Alta (Últimos dias de envio)';
+        urgenciaCor = 'text-amber-700 bg-amber-50 border-amber-200';
+      }
+    }
+
+    const valor = Number(valorTotalExibido || 0);
+    let porteOportunidade = 'Médio Porte';
+    if (valor >= 1_000_000) {
+      porteOportunidade = 'Grande Porte (> R$ 1 Mi)';
+    } else if (valor > 0 && valor < 100_000) {
+      porteOportunidade = 'Pequeno Porte';
+    } else if (valor === 0) {
+      porteOportunidade = 'Valor no Termo de Referência';
+    }
+
+    return {
+      diasAteLimite,
+      urgencia,
+      urgenciaCor,
+      porteOportunidade,
+    };
+  }, [prazoLimiteEnvio, valorTotalExibido]);
+
   const handleBaixarPdf = () => {
     try {
       const iframe = document.createElement('iframe');
@@ -597,6 +635,36 @@ export default function DossieEditalModal({
               color: #64748B;
               text-align: center;
             }
+            .estrategico-box {
+              background: #F0F7FF;
+              border: 1px solid #BFDBFE;
+              border-radius: 6px;
+              padding: 8px 10px;
+              margin-bottom: 12px;
+            }
+            .estrategico-header {
+              font-size: 9.5px;
+              font-weight: 900;
+              text-transform: uppercase;
+              color: #1E3A8A;
+              margin-bottom: 4px;
+              display: flex;
+              justify-content: space-between;
+            }
+            .estrategico-text {
+              font-size: 9.5px;
+              color: #1E293B;
+              line-height: 1.4;
+              margin-bottom: 5px;
+            }
+            .estrategico-dica {
+              font-size: 8.5px;
+              color: #334155;
+              background: #FFFFFF;
+              border: 1px solid #DBEAFE;
+              border-radius: 4px;
+              padding: 5px 8px;
+            }
           </style>
         </head>
         <body>
@@ -609,6 +677,20 @@ export default function DossieEditalModal({
             <div style="text-align: right;">
               <div style="font-size: 8.5px; color: #64748B;">Emissão: ${emissaoData} às ${emissaoHora}</div>
               <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">ID PNCP: ${numeroPncp}</div>
+            </div>
+          </div>
+
+          <!-- QUADRO ESTRATÉGICO & RESUMO EXPLICATIVO -->
+          <div class="estrategico-box">
+            <div class="estrategico-header">
+              <span>Quadro Estratégico & Resumo Explicativo</span>
+              <span>${resumoEstrategico.urgencia} • ${resumoEstrategico.porteOportunidade}</span>
+            </div>
+            <div class="estrategico-text">
+              <strong>Resumo do Objeto: </strong>${objetoCompleto.length > 320 ? `${objetoCompleto.slice(0, 320).trim()}...` : objetoCompleto}
+            </div>
+            <div class="estrategico-dica">
+              <strong>Diretriz de Disputa: </strong>Verifique certidões obrigatórias da Lei 14.133/2021. Envie a proposta antes do encerramento (${formatDataHora(prazoLimiteEnvio)}) e prepare sua margem para a fase competitiva de lances em ${formatDataHora(prazoSessaoDisputa)}.
             </div>
           </div>
 
@@ -820,6 +902,52 @@ export default function DossieEditalModal({
 
           {/* CORPO DO DOSSIÊ COM AS 4 SEÇÕES OFICIAIS */}
           <div className="p-6 overflow-y-auto space-y-6 text-sm print:overflow-visible print:p-2 print:space-y-4">
+            {/* QUADRO ESTRATÉGICO & RESUMO EXPLICATIVO */}
+            <div className="bg-gradient-to-br from-blue-50/70 via-white to-slate-50 border border-blue-100/90 rounded-2xl p-5 shadow-xs space-y-3.5 print:bg-white print:border-slate-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-100/80 rounded-lg text-brand-blue">
+                    <Target className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-black uppercase tracking-wider text-[#0B192C]">
+                      Quadro Estratégico & Resumo Explicativo
+                    </h2>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Síntese operacional e direcionamento tático para a disputa
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border ${resumoEstrategico.urgenciaCor}`}>
+                    <Clock className="w-3 h-3" />
+                    {resumoEstrategico.urgencia}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                    <TrendingUp className="w-3 h-3 text-brand-blue" />
+                    {resumoEstrategico.porteOportunidade}
+                  </span>
+                </div>
+              </div>
+
+              {/* TEXTO EXPLICATIVO SINTÉTICO */}
+              <div className="space-y-1">
+                <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-normal">
+                  <strong className="text-[#0B192C] font-semibold">Resumo do Objeto: </strong>
+                  {objetoCompleto.length > 280 ? `${objetoCompleto.slice(0, 280).trim()}...` : objetoCompleto}
+                </p>
+              </div>
+
+              {/* RECOMENDAÇÃO TÁTICA */}
+              <div className="bg-white/80 rounded-xl p-3 border border-blue-100/80 flex items-start gap-2.5">
+                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed text-slate-600">
+                  <strong className="text-slate-800 font-bold">Diretriz de Disputa: </strong>
+                  Certifique-se de que todas as certidões e declarações obrigatórias da Lei 14.133/2021 estejam válidas. Cadastre a proposta no sistema oficial antes do prazo limite de envio ({formatDataHora(prazoLimiteEnvio)}) e prepare sua planilha de custos para a fase competitiva de lances em {formatDataHora(prazoSessaoDisputa)}.
+                </div>
+              </div>
+            </div>
+
             {/* SEÇÃO 1: IDENTIFICAÇÃO DO CERTAME */}
             <section className="space-y-3">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-2">

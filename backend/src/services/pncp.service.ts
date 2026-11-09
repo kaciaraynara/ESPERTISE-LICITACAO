@@ -12,8 +12,9 @@ const DEFAULT_PNCP_BASE_URL = 'https://pncp.gov.br/api/consulta/v1';
 const DEFAULT_PNCP_API_V1_BASE_URL = 'https://pncp.gov.br/api/pncp/v1';
 const DEFAULT_MODALIDADE = 6; // 6 = Pregão Eletrônico (Lei 14.133/2021)
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 100;
+const PNCP_CHUNK_SIZE = 50;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const PNCP_TIME_ZONE = 'America/Sao_Paulo';
 
@@ -537,8 +538,9 @@ export async function buscarContratacoesPNCP(
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
   );
-  // PNCP API exige tamanhoPagina entre 10 e 50
-  const tamanhoPagina = Math.min(MAX_PAGE_SIZE, Math.max(10, rawTamanho));
+  // Configuração de Lote: se o cliente solicitar > 50 ou padrão (100), busca 2 páginas de 50 em paralelo
+  const deveBuscarEmParalelo = rawTamanho > 50;
+  const tamanhoPorChamada = deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho));
 
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
   const rawModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
@@ -599,42 +601,90 @@ export async function buscarContratacoesPNCP(
     : '/contratacoes/publicacao';
 
   // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
-  const requestParams: Record<string, string | number> = {
+  const baseRequestParams: Record<string, string | number> = {
     ...(dataInicial ? { dataInicial } : {}),
     dataFinal,
     ...(modalidade !== undefined ? { codigoModalidadeContratacao: modalidade } : {}),
     ...(uf ? { uf } : {}),
     ...(cnpj ? { cnpj } : {}),
-    pagina,
-    tamanhoPagina,
+  };
+
+  const executarRequisicao = async (pg: number, size: number) => {
+    try {
+      const response = await axios.get(
+        `${baseUrl}${endpoint}`,
+        {
+          params: {
+            ...baseRequestParams,
+            pagina: pg,
+            tamanhoPagina: size,
+          },
+          timeout: timeoutMs(),
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'EXPERTISE-SaaS/1.0',
+          },
+        },
+      );
+      if (response.status === 204 || !response.data) {
+        return { items: [], total: 0 };
+      }
+      return {
+        items: readRawItems(response.data),
+        total: readTotalRecords(response.data),
+      };
+    } catch (err) {
+      if (axios.isAxiosError(err) && (err.response?.status === 204 || err.response?.status === 404)) {
+        return { items: [], total: 0 };
+      }
+      throw err;
+    }
   };
 
   try {
-    const response = await axios.get(
-      `${baseUrl}${endpoint}`,
-      {
-        params: requestParams,
-        timeout: timeoutMs(),
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'EXPERTISE-SaaS/1.0',
-        },
-      },
-    );
+    let rawCombinedItems: unknown[] = [];
+    let totalOficial: number | null = null;
 
-    if (response.status === 204 || !response.data) {
+    if (deveBuscarEmParalelo) {
+      // Busca 2 páginas de 50 em paralelo (Promise.all) para entregar lote de 100
+      const subPage1 = (pagina - 1) * 2 + 1;
+      const subPage2 = (pagina - 1) * 2 + 2;
+
+      const [res1, res2] = await Promise.all([
+        executarRequisicao(subPage1, 50),
+        executarRequisicao(subPage2, 50),
+      ]);
+
+      rawCombinedItems = [...res1.items, ...res2.items];
+      totalOficial = res1.total ?? res2.total;
+    } else {
+      const res = await executarRequisicao(pagina, tamanhoPorChamada);
+      rawCombinedItems = res.items;
+      totalOficial = res.total;
+    }
+
+    if (rawCombinedItems.length === 0) {
       return {
         data: [],
         totalRegistros: 0,
         pagina,
-        tamanhoPagina,
+        tamanhoPagina: deveBuscarEmParalelo ? 100 : tamanhoPorChamada,
       };
     }
 
-    const mapped = readRawItems(response.data)
+    const mapped = rawCombinedItems
       .map(mapPncpItem)
       .filter((item) => item.numeroControlePNCP.length > 0);
-    const filteredByKeyword = filterByKeyword(mapped, keyword);
+
+    // Deduplicação estrita por numeroControlePNCP
+    const seenControls = new Set<string>();
+    const deduplicated = mapped.filter((item) => {
+      if (seenControls.has(item.numeroControlePNCP)) return false;
+      seenControls.add(item.numeroControlePNCP);
+      return true;
+    });
+
+    const filteredByKeyword = filterByKeyword(deduplicated, keyword);
     const filtered = cnpj
       ? filteredByKeyword.filter((item) => {
           const itemCnpj = String(item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
@@ -644,9 +694,9 @@ export async function buscarContratacoesPNCP(
 
     return {
       data: filtered,
-      totalRegistros: (keyword || cnpj) ? filtered.length : (readTotalRecords(response.data) ?? filtered.length),
+      totalRegistros: (keyword || cnpj) ? filtered.length : (totalOficial ?? filtered.length),
       pagina,
-      tamanhoPagina,
+      tamanhoPagina: deveBuscarEmParalelo ? 100 : tamanhoPorChamada,
     };
   } catch (error) {
     if (error instanceof PncpServiceError) {

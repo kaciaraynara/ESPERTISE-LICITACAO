@@ -278,7 +278,7 @@ export async function consultarRadarPncpTempoReal(
 }> {
   const { prisma } = require('../database/prisma');
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
-  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(50, Number(filtros.tamanhoPagina))) : 20;
+  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(100, Number(filtros.tamanhoPagina))) : 100;
 
   const rawMod = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
   const normalizedMod = String(rawMod ?? '').trim().toLowerCase();
@@ -414,7 +414,7 @@ export async function listarLicitacoes(
   const { prisma } = require('../database/prisma');
 
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
-  const size = filtros.tamanhoPagina ? Math.max(1, Number(filtros.tamanhoPagina)) : 20;
+  const size = filtros.tamanhoPagina ? Math.max(1, Number(filtros.tamanhoPagina)) : 100;
   const tenantRadarProfile = tenantId ? await getTenantRadarProfile(tenantId) : null;
 
   let effectiveFilters: FiltrosBusca = { ...filtros };

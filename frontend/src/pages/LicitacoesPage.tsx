@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import {
@@ -78,6 +78,8 @@ type SearchFilters = {
     uf: string;
     modalidade: string;
 };
+
+export const ITEMS_PER_LOAD = 100;
 
 const FILTROS_RAPIDOS_RADAR = [
     { label: 'Todas', valor: 'Todos' },
@@ -191,7 +193,8 @@ export default function LicitacoesPage({
     const navigate = useNavigate();
     const { selectedCompany } = useCompany();
 
-    const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
+    const [editais, setEditais] = useState<Licitacao[]>([]);
+    const licitacoes = editais;
     const [editalSelecionado, setEditalSelecionado] = useState<QuickViewNotice | null>(null);
     const [editalParaResumo, setEditalParaResumo] = useState<DossieEditalData | null>(null);
     const [editalParaViabilidade, setEditalParaViabilidade] = useState<Licitacao | null>(null);
@@ -202,6 +205,10 @@ export default function LicitacoesPage({
     const [erroDetalhesEdital, setErroDetalhesEdital] = useState<string | null>(null);
     const [meta, setMeta] = useState<Meta | null>(null);
     const [loading, setLoading] = useState(true);
+    const [carregandoMais, setCarregandoMais] = useState(false);
+    const [temMais, setTemMais] = useState(true);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const [busca, setBusca] = useState('');
     const [cnpjFiltro, setCnpjFiltro] = useState('');
@@ -455,8 +462,14 @@ export default function LicitacoesPage({
     };
 
 
-    const buscarLicitacoes = useCallback(async (pg = 1, _sincronizarPncp = false) => {
-        setLoading(true);
+    const buscarLicitacoes = useCallback(async (pg = 1, _sincronizarPncp = false, isReset = true) => {
+        if (isReset || pg === 1) {
+            setLoading(true);
+            setTemMais(true);
+        } else {
+            setCarregandoMais(true);
+        }
+
         const pncpModMap: Record<string, number> = {
             'Pregão Eletrônico': 6,
             'Concorrência': 4,
@@ -492,7 +505,7 @@ export default function LicitacoesPage({
         try {
             const params: Record<string, any> = {
                 pagina: pg,
-                tamanhoPagina: 20,
+                tamanhoPagina: ITEMS_PER_LOAD,
                 dataFinal: dataFinalYYYYMMDD,
                 endpoint: 'proposta',
                 tempoReal: true,
@@ -539,55 +552,125 @@ export default function LicitacoesPage({
                       })
                     : rawItems;
 
-                const total = termoBusca
-                    ? items.length
-                    : ((data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length);
-                const totalPgs = data.meta?.totalPaginas ?? (Math.ceil(total / (data.meta?.tamanhoPagina || 20)) || 1);
+                const totalOficial = Number((data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length);
+                const total = termoBusca ? items.length : totalOficial;
+                const totalPgs = data.meta?.totalPaginas ?? (Math.ceil(total / ITEMS_PER_LOAD) || 1);
 
-                setLicitacoes(items);
+                if (isReset || pg === 1) {
+                    setEditais(items);
+                } else {
+                    setEditais((prev) => {
+                        const existingIds = new Set(prev.map((e) => e.numeroControlePNCP || e.id));
+                        const fresh = items.filter((e) => !existingIds.has(e.numeroControlePNCP || e.id));
+                        return [...prev, ...fresh];
+                    });
+                }
+
+                if (items.length < ITEMS_PER_LOAD || pg >= totalPgs) {
+                    setTemMais(false);
+                } else {
+                    setTemMais(true);
+                }
+
                 setMeta({
                     total,
-                    pagina: data.meta?.pagina || data.pagina || pg,
-                    tamanhoPagina: data.meta?.tamanhoPagina || data.tamanhoPagina || 20,
+                    pagina: pg,
+                    tamanhoPagina: ITEMS_PER_LOAD,
                     totalPaginas: totalPgs,
                     fonte: 'pncp',
                     perfilRadar: data.meta?.perfilRadar ?? data.perfilRadar,
-                    aviso: items.length === 0
+                    aviso: (isReset && items.length === 0)
                         ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
                         : data.meta?.aviso,
                 });
                 setPagina(pg);
                 setUltimaAtualizacao(new Date());
             } else {
-                setLicitacoes([]);
-                setMeta({
-                    total: 0,
-                    pagina: pg,
-                    tamanhoPagina: 20,
-                    totalPaginas: 0,
-                    fonte: 'vazio',
-                    aviso: 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.',
-                });
+                if (isReset || pg === 1) {
+                    setEditais([]);
+                    setMeta({
+                        total: 0,
+                        pagina: pg,
+                        tamanhoPagina: ITEMS_PER_LOAD,
+                        totalPaginas: 0,
+                        fonte: 'vazio',
+                        aviso: 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.',
+                    });
+                }
+                setTemMais(false);
             }
         } catch (err: any) {
             const aviso = err?.response?.data?.message || 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.';
-            setLicitacoes([]);
-            setMeta({
-                total: 0,
-                pagina: pg,
-                tamanhoPagina: 20,
-                totalPaginas: 0,
-                fonte: 'vazio',
-                aviso,
-            });
+            if (isReset || pg === 1) {
+                setEditais([]);
+                setMeta({
+                    total: 0,
+                    pagina: pg,
+                    tamanhoPagina: ITEMS_PER_LOAD,
+                    totalPaginas: 0,
+                    fonte: 'vazio',
+                    aviso,
+                });
+            }
+            setTemMais(false);
         } finally {
             setLoading(false);
+            setCarregandoMais(false);
         }
     }, [filtrosAplicados]);
 
     useEffect(() => {
-        void buscarLicitacoes(1, true);
+        void buscarLicitacoes(1, true, true);
     }, [buscarLicitacoes]);
+
+    // ROLAGEM INFINITA: IntersectionObserver monitorando a sentinela do rodapé
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const first = entries[0];
+                if (first.isIntersecting && !loading && !carregandoMais && temMais) {
+                    setPagina((prev) => {
+                        const proxima = prev + 1;
+                        void buscarLicitacoes(proxima, false, false);
+                        return proxima;
+                    });
+                }
+            },
+            { rootMargin: '300px' }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [loading, carregandoMais, temMais, buscarLicitacoes]);
+
+    // DESTRAVAMENTO DE ROLAGEM POR SETAS (↑ e ↓) NO PRIMEIRO SEGUNDO
+    useEffect(() => {
+        const mainEl = document.getElementById('main-content') || containerRef.current;
+        if (mainEl) {
+            mainEl.focus();
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) {
+                const target = e.target as HTMLElement | null;
+                if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
+                    return;
+                }
+                const scrollTarget = document.getElementById('main-content') || window;
+                const delta = e.key === 'ArrowUp' ? -140 : e.key === 'ArrowDown' ? 140 : e.key === 'PageUp' ? -450 : 450;
+                if ('scrollBy' in scrollTarget) {
+                    scrollTarget.scrollBy({ top: delta, behavior: 'smooth' });
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const handleBuscar = (e: React.FormEvent) => {
         e.preventDefault();
@@ -686,10 +769,10 @@ export default function LicitacoesPage({
             : 'Radar de Editais';
 
     return (
-        <div className="flex flex-col h-full bg-brand-light">
+        <div ref={containerRef} tabIndex={0} className="flex flex-col min-h-screen bg-brand-light focus:outline-none">
 
             {/* HEADER E BUSCA DINÂMICA REAL */}
-            <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 sticky top-0 z-10">
+            <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 sticky top-0 z-10 shadow-2xs">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                         <div>
@@ -698,7 +781,7 @@ export default function LicitacoesPage({
                             <div className="flex flex-wrap items-center gap-3 mt-1.5">
                                 {meta?.total != null ? (
                                     <p className="text-xs font-medium text-slate-500 flex items-center gap-2">
-                                        <span className="font-semibold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais oficiais encontrados
+                                        Exibindo <span className="font-bold text-brand-blue">{editais.length.toLocaleString('pt-BR')}</span> de <span className="font-bold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais encontrados
                                         {ultimaAtualizacao && (
                                             <span className="text-xs text-slate-400">· Sincronizado às {ultimaAtualizacao.toLocaleTimeString('pt-BR')}</span>
                                         )}
@@ -873,7 +956,7 @@ export default function LicitacoesPage({
             </div>
 
             {/* ── CONTEÚDO PRINCIPAL ── */}
-            <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-6">
+            <div className="flex-1 px-6 lg:px-8 py-6">
                 <div className="max-w-7xl mx-auto">
 
                     {/* AVISO DE SINCRONIZAÇÃO */}
@@ -945,9 +1028,9 @@ export default function LicitacoesPage({
 
                     {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP */}
                     {!loading && licitacoes.length > 0 && (
-                        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+                        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs">
                             {/* Indicador consolidado e discreto no topo da tabela */}
-                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                     <span className="text-xs font-medium text-[#334155]">
@@ -955,12 +1038,12 @@ export default function LicitacoesPage({
                                     </span>
                                 </div>
                                 {meta?.total != null && (
-                                    <span className="text-xs text-slate-400">
-                                        {meta.total.toLocaleString('pt-BR')} editais disponíveis
+                                    <span className="text-xs font-semibold text-slate-500">
+                                        Exibindo {editais.length.toLocaleString('pt-BR')} de {meta.total.toLocaleString('pt-BR')} editais encontrados
                                     </span>
                                 )}
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto rounded-b-2xl">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
@@ -1222,28 +1305,20 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* PAGINAÇÃO */}
+                    {/* ROLAGEM INFINITA: SENTINELA E INDICADOR SUAVE DE CARREGAMENTO */}
                     {!loading && licitacoes.length > 0 && (
-                        <div className="mt-6 flex items-center justify-between">
-                            <p className="text-xs text-brand-blue/70 font-medium">
-                                Página {pagina} · {licitacoes.length} resultados exibidos · {meta?.total?.toLocaleString('pt-BR') || '?'} total
-                            </p>
-                            <div className="flex gap-2">
-                                <button
-                                    disabled={pagina <= 1 || loading}
-                                    onClick={() => void buscarLicitacoes(pagina - 1)}
-                                    className="px-4 py-2 bg-white border border-gray-200 text-xs font-bold text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-all"
-                                >
-                                    Anterior
-                                </button>
-                                <button
-                                    disabled={(meta?.totalPaginas || 1) <= pagina || loading}
-                                    onClick={() => void buscarLicitacoes(pagina + 1)}
-                                    className="px-4 py-2 bg-white border border-gray-200 text-xs font-bold text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-40 transition-all"
-                                >
-                                    Próxima
-                                </button>
-                            </div>
+                        <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center gap-2">
+                            {carregandoMais && (
+                                <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-white border border-slate-200 shadow-md text-slate-700 text-xs font-bold animate-pulse">
+                                    <RefreshCw className="w-4 h-4 text-brand-orange animate-spin" />
+                                    <span>Carregando mais 100 editais (página {pagina + 1})...</span>
+                                </div>
+                            )}
+                            {!temMais && (
+                                <p className="text-xs font-semibold text-slate-400">
+                                    Todos os {editais.length.toLocaleString('pt-BR')} editais disponíveis foram carregados ({pagina} {pagina === 1 ? 'página' : 'páginas'}).
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>

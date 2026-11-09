@@ -53,7 +53,8 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       stringParam(source.tamanhoPagina)
       ?? stringParam(source.limite)
       ?? stringParam(source.limit)
-      ?? stringParam(source.size),
+      ?? stringParam(source.size)
+      ?? '100',
     srp: rawSrp === true || rawSrp === 'true',
     endpoint: source.endpoint === 'publicacao' ? 'publicacao' : 'proposta',
     tempoReal: !isLocalOnly,
