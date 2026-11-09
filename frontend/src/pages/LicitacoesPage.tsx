@@ -772,7 +772,7 @@ export default function LicitacoesPage({
         <div ref={containerRef} tabIndex={0} className="flex flex-col min-h-screen bg-brand-light focus:outline-none">
 
             {/* HEADER E BUSCA DINÂMICA REAL */}
-            <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 sticky top-0 z-10 shadow-2xs">
+            <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 relative z-1 shadow-2xs">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                         <div>
@@ -1028,7 +1028,7 @@ export default function LicitacoesPage({
 
                     {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP */}
                     {!loading && licitacoes.length > 0 && (
-                        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs">
+                        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs h-auto overflow-visible">
                             {/* Indicador consolidado e discreto no topo da tabela */}
                             <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -1043,22 +1043,16 @@ export default function LicitacoesPage({
                                     </span>
                                 )}
                             </div>
-                            <div className="overflow-x-auto rounded-b-2xl">
-                                <table className="w-full text-left border-collapse">
+                            <div className="w-full h-auto overflow-visible rounded-b-2xl">
+                                <table className="w-full table-fixed text-left border-collapse h-auto overflow-visible">
                                     <thead>
                                         <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                                            <th className="py-3.5 px-4 whitespace-nowrap">Número do Edital</th>
-                                            <th className="py-3.5 px-4">Órgão</th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap">PRAZO LIMITE / SESSÃO</th>
-                                            <th className="py-3.5 px-4 min-w-[260px]">Objeto</th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap text-right">
-                                                <span className="inline-flex items-center justify-end gap-1">
-                                                    Valor Estimado
-                                                    <InfoTooltip text="Teto máximo de referência definido pelo órgão público no Termo de Referência." />
-                                                </span>
-                                            </th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap">VIABILIDADE PARA VOCÊ</th>
-                                            <th className="py-3.5 px-4 whitespace-nowrap text-center">Ações</th>
+                                            <th className="w-[16%] py-3.5 px-3">Edital / PNCP</th>
+                                            <th className="w-[16%] py-3.5 px-3">Órgão / Município</th>
+                                            <th className="w-[13%] py-3.5 px-3">Prazos</th>
+                                            <th className="w-[25%] py-3.5 px-3">Objeto Completo</th>
+                                            <th className="w-[15%] py-3.5 px-3 text-right">Valor & Viabilidade</th>
+                                            <th className="w-[15%] py-3.5 px-3 text-center">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -1121,14 +1115,14 @@ export default function LicitacoesPage({
                                                     }}
                                                     className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
                                                 >
-                                                    {/* 1. NÚMERO DO EDITAL */}
-                                                    <td className="py-4 px-4 align-top whitespace-nowrap">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="font-mono text-xs font-semibold text-[#0B192C] bg-slate-100 px-2.5 py-1 rounded-md inline-block w-fit">
+                                                    {/* 1. EDITAL / PNCP (16%) */}
+                                                    <td className="py-4 px-3 align-top">
+                                                        <div className="flex flex-col gap-1 w-full">
+                                                            <span className="font-mono text-[11px] font-semibold text-[#0B192C] bg-slate-100 px-2 py-0.5 rounded-md break-all inline-block w-fit max-w-full">
                                                                 {numeroEdital}
                                                             </span>
                                                             {item.numeroEdital && item.numeroEdital !== numeroEdital && (
-                                                                <span className="font-mono text-[10px] text-slate-400">
+                                                                <span className="font-mono text-[10px] text-slate-400 break-all">
                                                                     Compra: {item.numeroEdital}
                                                                 </span>
                                                             )}
@@ -1138,108 +1132,97 @@ export default function LicitacoesPage({
                                                                 rel="noopener noreferrer"
                                                                 onClick={e => e.stopPropagation()}
                                                                 className="btn-auditoria-pncp btn-link-pncp inline-flex items-center gap-1 text-[11px] font-medium text-brand-blue hover:text-blue-800 hover:underline mt-1 w-fit"
-                                                                title="Ver no Portal Oficial do PNCP"
+                                                                title="Ver no Portal Oficial do PNCP ↗"
                                                             >
                                                                 <span>Ver no Portal Oficial do PNCP ↗</span>
                                                             </a>
                                                         </div>
                                                     </td>
 
-                                                    {/* 2. ÓRGÃO COMPRADOR */}
-                                                    <td className="py-4 px-4 align-top max-w-[240px]">
-                                                        <div className="font-semibold text-[#0B192C] text-xs leading-snug line-clamp-2">
+                                                    {/* 2. ÓRGÃO / MUNICÍPIO (16%) */}
+                                                    <td className="py-4 px-3 align-top">
+                                                        <div className="font-semibold text-[#0B192C] text-xs leading-snug break-words">
                                                             {nomeOrgaoExibido}
                                                         </div>
                                                         {item.cnpjOrgao && (
-                                                            <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                                                            <div className="text-[10px] font-mono text-slate-500 mt-0.5 break-all">
                                                                 CNPJ: {item.cnpjOrgao}
                                                             </div>
                                                         )}
                                                         {(item.municipio || item.uf) && (
                                                             <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500 mt-1">
                                                                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" weight="bold" />
-                                                                <span>{[item.municipio, item.uf].filter(Boolean).join(' / ')}</span>
+                                                                <span className="break-words">{[item.municipio, item.uf].filter(Boolean).join(' / ')}</span>
                                                             </div>
                                                         )}
                                                     </td>
 
-                                                    {/* 3. PRAZO LIMITE / SESSÃO */}
-                                                    <td className="py-4 px-4 align-top whitespace-nowrap">
+                                                    {/* 3. PRAZOS (13%) */}
+                                                    <td className="py-4 px-3 align-top">
                                                         <div className="flex flex-col gap-1 text-xs">
-                                                            <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                                            <div className="flex items-center gap-1 font-medium text-slate-700">
                                                                 <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                                                <span>Envio até: {formatDate(dataLimitePropostaExibida)}</span>
+                                                                <span className="text-[11px] break-words">Envio: {formatDate(dataLimitePropostaExibida)}</span>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5 font-semibold text-brand-blue">
+                                                            <div className="flex items-center gap-1 font-semibold text-brand-blue">
                                                                 <Calendar className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
-                                                                <span>Disputa: {formatDate(dataSessaoDisputaExibida)}</span>
+                                                                <span className="text-[11px] break-words">Disputa: {formatDate(dataSessaoDisputaExibida)}</span>
                                                             </div>
                                                         </div>
                                                         {urgente && (
-                                                            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">
-                                                                <Clock className="w-3 h-3" weight="bold" />
+                                                            <span className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider w-fit">
+                                                                <Clock className="w-3 h-3 shrink-0" weight="bold" />
                                                                 {dias === 0 ? 'Encerra Hoje' : `${dias}d restantes`}
                                                             </span>
                                                         )}
                                                     </td>
 
-                                                    {/* 4. OBJETO DA COMPRA */}
-                                                    <td className="py-4 px-4 align-top max-w-md">
+                                                    {/* 4. OBJETO COMPLETO (25%) */}
+                                                    <td className="py-4 px-3 align-top">
                                                         {modalidadeExibida && (
                                                             <div className="mb-1.5">
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wider">
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wider inline-block">
                                                                     {modalidadeExibida}
                                                                 </span>
                                                             </div>
                                                         )}
-                                                        <p className="text-xs font-normal text-[#334155] leading-relaxed line-clamp-3 group-hover:text-brand-blue transition-colors">
+                                                        <p className="whitespace-normal break-words text-xs leading-relaxed font-normal text-[#334155] group-hover:text-brand-blue transition-colors">
                                                             {objetoCompraExibido}
                                                         </p>
                                                     </td>
 
-                                                    {/* 5. VALOR ESTIMADO */}
-                                                    <td className="py-4 px-4 align-top whitespace-nowrap text-right">
-                                                        <span className="text-sm font-semibold text-[#0B192C]">
-                                                            {formatVal(valorExibido)}
-                                                        </span>
-                                                    </td>
-
-                                                    {/* 6. VIABILIDADE PARA VOCÊ */}
-                                                    <td className="py-4 px-4 align-top" onClick={e => e.stopPropagation()}>
-                                                        <div className="flex flex-col gap-1.5 min-w-[210px]">
-                                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${viab.badgeClass}`}>
-                                                                <span className={`w-2 h-2 rounded-full ${
-                                                                    viab.percentual >= 75 ? 'bg-emerald-500' : viab.percentual >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                                                }`} />
-                                                                {viab.texto}
-                                                            </span>
-                                                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className={`h-full ${viab.barClass} rounded-full transition-all`}
-                                                                    style={{ width: `${viab.percentual}%` }}
-                                                                />
+                                                    {/* 5. VALOR & VIABILIDADE (15%) */}
+                                                    <td className="py-4 px-3 align-top text-right" onClick={e => e.stopPropagation()}>
+                                                        <div className="flex flex-col gap-2">
+                                                            <div>
+                                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                                                                    Valor Estimado
+                                                                </span>
+                                                                <span className="text-xs sm:text-sm font-bold text-[#0B192C] break-words">
+                                                                    {formatVal(valorExibido)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex flex-col gap-1 items-end">
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${viab.badgeClass} max-w-full`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                                        viab.percentual >= 75 ? 'bg-emerald-500' : viab.percentual >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                    }`} />
+                                                                    <span className="truncate">{viab.percentual}% • {viab.status}</span>
+                                                                </span>
+                                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full ${viab.barClass} rounded-full transition-all`}
+                                                                        style={{ width: `${viab.percentual}%` }}
+                                                                    />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </td>
 
-                                                    {/* 7. AÇÕES */}
-                                                    <td className="py-4 px-4 align-top whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                                                        <div className="flex flex-col gap-2 items-stretch min-w-[165px]">
-                                                            {/* 1. ACESSAR EDITAL OFICIAL NO PNCP */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    void handleDownloadEdital(item);
-                                                                }}
-                                                                className="btn-download-edital inline-flex items-center justify-center gap-1.5 px-3 py-1.5 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                                                                title="Acessar Edital Oficial no PNCP"
-                                                            >
-                                                                <Download className="w-3.5 h-3.5" weight="bold" />
-                                                                <span>Acessar Edital Oficial no PNCP ↗</span>
-                                                            </button>
-
-                                                            {/* 2. RESUMO DO EDITAL */}
+                                                    {/* 6. AÇÕES (15%) */}
+                                                    <td className="py-4 px-3 align-top text-center" onClick={e => e.stopPropagation()}>
+                                                        <div className="flex flex-col gap-2 w-full">
+                                                            {/* BOTÃO 1: RESUMO DO EDITAL */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => {
@@ -1249,50 +1232,52 @@ export default function LicitacoesPage({
                                                                         downloadUrl,
                                                                     });
                                                                 }}
-                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
-                                                                title="Abrir Resumo com itens, prazos e checklist"
+                                                                className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
+                                                                title="RESUMO DO EDITAL - Abrir com itens, prazos e checklist"
                                                             >
-                                                                <FileText className="w-3.5 h-3.5" weight="bold" />
-                                                                <span>RESUMO DO EDITAL</span>
+                                                                <FileText className="w-3.5 h-3.5 shrink-0 text-brand-blue" weight="bold" />
+                                                                <span className="truncate">Resumo do Edital</span>
                                                             </button>
 
-                                                            {/* 3. ANALISAR VIABILIDADE & PREÇOS */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    setEditalParaViabilidade(item);
-                                                                }}
-                                                                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
-                                                                title="Abrir painel comparativo de Nosso Preço vs. Estimativa do Órgão"
-                                                            >
-                                                                <TrendingUp className="w-3.5 h-3.5" weight="bold" />
-                                                                <span>Analisar Viabilidade & Preços</span>
-                                                            </button>
-
-                                                            {/* 4. SALVAR PARA DISPUTAR */}
+                                                            {/* BOTÃO 2: SALVAR P/ PROPOSTA */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => void handleSalvarParaDisputar(e, item)}
                                                                 disabled={salvosCrmIds.has(item.id) || salvandoId === item.id}
-                                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
+                                                                className={`w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
                                                                     ? 'bg-[#DCFCE7] border-emerald-300 text-[#166534] cursor-default'
                                                                     : 'bg-[#F97316] text-white hover:brightness-95 hover:-translate-y-0.5 border-transparent shadow-xs cursor-pointer'
                                                                     }`}
+                                                                title={salvosCrmIds.has(item.id) ? 'Edital já adicionado' : 'Salvar edital para gerar proposta'}
                                                             >
                                                                 {salvandoId === item.id ? (
-                                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
                                                                 ) : salvosCrmIds.has(item.id) ? (
                                                                     <>
-                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#166534]" weight="bold" />
-                                                                        <span>Salvo ✓</span>
+                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#166534] shrink-0" weight="bold" />
+                                                                        <span className="truncate">Salvo ✓</span>
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        <Plus className="w-3.5 h-3.5" weight="bold" />
-                                                                        <span>Salvar para Disputar</span>
+                                                                        <Plus className="w-3.5 h-3.5 shrink-0" weight="bold" />
+                                                                        <span className="truncate">Salvar p/ Proposta</span>
                                                                     </>
                                                                 )}
+                                                            </button>
+
+                                                            {/* BOTÃO 3: BAIXAR EDITAL */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    void handleDownloadEdital(item);
+                                                                }}
+                                                                className="btn-download-edital w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                                                                title="Acessar Edital Oficial no PNCP ↗"
+                                                            >
+                                                                <Download className="w-3.5 h-3.5 shrink-0" weight="bold" />
+                                                                <span className="truncate">Baixar Edital</span>
+                                                                <span className="sr-only">Acessar Edital Oficial no PNCP ↗</span>
                                                             </button>
                                                         </div>
                                                     </td>
