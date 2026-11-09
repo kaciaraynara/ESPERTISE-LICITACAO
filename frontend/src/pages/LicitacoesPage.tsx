@@ -10,7 +10,7 @@ import {
 import { lexApi, licitacoesApi, crmApi, propostasApi, noticesApi } from '../services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
-import ResumoEstrategicoModal, { type ResumoEditalData } from '@/components/ResumoEstrategicoModal';
+import DossieEditalModal, { type DossieEditalData } from '@/components/DossieEditalModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import { handleDownloadEdital, buildOfficialPncpPortalUrl } from '@/utils/pncp';
 import { InfoTooltip } from '@/components/common/InfoTooltip';
@@ -123,7 +123,7 @@ export default function LicitacoesPage({
 
     const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
     const [editalSelecionado, setEditalSelecionado] = useState<QuickViewNotice | null>(null);
-    const [editalParaResumo, setEditalParaResumo] = useState<ResumoEditalData | null>(null);
+    const [editalParaDossie, setEditalParaDossie] = useState<DossieEditalData | null>(null);
     const [resumoRapido, setResumoRapido] = useState<Record<string, unknown> | null>(null);
     const [gerandoResumo, setGerandoResumo] = useState(false);
     const [criandoProposta, setCriandoProposta] = useState(false);
@@ -306,9 +306,9 @@ export default function LicitacoesPage({
             .catch(() => { });
     }, []);
 
-    const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | ResumoEditalData) => {
+    const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | DossieEditalData) => {
         if (e) e.stopPropagation();
-        const target = item || editalParaResumo;
+        const target = item || editalParaDossie;
         if (!target) return;
 
         if (salvosCrmIds.has(target.id)) {
@@ -1023,7 +1023,7 @@ export default function LicitacoesPage({
                                                 <tr
                                                     key={item.id || i}
                                                     onClick={() => {
-                                                        setEditalParaResumo({
+                                                        setEditalParaDossie({
                                                             ...item,
                                                             downloadUrl,
                                                         });
@@ -1130,21 +1130,21 @@ export default function LicitacoesPage({
                                                                 <span>Acessar Edital Oficial no PNCP ↗</span>
                                                             </button>
 
-                                                            {/* 2. RESUMO RÁPIDO (Botão azul claro - abre modal com pontos-chave) */}
+                                                            {/* 2. DOSSIÊ DO EDITAL (Botão azul claro - abre dossiê estratégico oficial) */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => {
                                                                     e.stopPropagation();
-                                                                    setEditalParaResumo({
+                                                                    setEditalParaDossie({
                                                                         ...item,
                                                                         downloadUrl,
                                                                     });
                                                                 }}
                                                                 className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-semibold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
-                                                                title="Visualizar resumo estratégico com pontos-chave do edital"
+                                                                title="Abrir Dossiê Estratégico completo com itens, prazos e checklist"
                                                             >
                                                                 <FileText className="w-3.5 h-3.5" weight="bold" />
-                                                                <span>Resumo Rápido</span>
+                                                                <span>Dossiê do Edital</span>
                                                             </button>
 
                                                             {/* 3. SALVAR PARA DISPUTAR (Laranja Vibrante #F97316 com hover e leve elevação / Salvo ✓ em verde suave #DCFCE7 / texto #166534) */}
@@ -1209,13 +1209,13 @@ export default function LicitacoesPage({
                 </div>
             </div>
 
-            {/* MODAL RESUMO ESTRATÉGICO DO EDITAL (SEM ALUCINAÇÃO / SEM OMISSÕES) */}
-            <ResumoEstrategicoModal
-                isOpen={Boolean(editalParaResumo)}
-                onClose={() => setEditalParaResumo(null)}
-                edital={editalParaResumo}
-                isSalvo={Boolean(editalParaResumo && salvosCrmIds.has(editalParaResumo.id))}
-                isSalvando={Boolean(editalParaResumo && salvandoId === editalParaResumo.id)}
+            {/* DOSSIÊ ESTRATÉGICO DO EDITAL (ITENS PNCP + CHECKLIST + PASSO A PASSO) */}
+            <DossieEditalModal
+                isOpen={Boolean(editalParaDossie)}
+                onClose={() => setEditalParaDossie(null)}
+                edital={editalParaDossie}
+                isSalvo={Boolean(editalParaDossie && salvosCrmIds.has(editalParaDossie.id))}
+                isSalvando={Boolean(editalParaDossie && salvandoId === editalParaDossie.id)}
                 onSalvar={(target) => void handleSalvarParaDisputar(undefined, target)}
             />
 
