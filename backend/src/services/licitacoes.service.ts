@@ -194,7 +194,7 @@ export function normalizarLicitacaoPNCP(
     item.linkSistemaOrigem,
     item.linkEditalPNCP,
   );
-  const cnpjOrgao = nullableString(item.orgaoEntidade?.cnpj);
+  const cnpjOrgao = nullableString(item.orgaoEntidade?.cnpj) ?? nullableString((item as any).cnpjOrgao);
   const auditParams = extractPncpAuditParams(
     numeroControlePNCP,
     cnpjOrgao,
@@ -206,11 +206,18 @@ export function normalizarLicitacaoPNCP(
     || nullableString(item.linkSistemaOrigem)
     || 'https://pncp.gov.br/app/editais';
 
+  const nomeOrgao = nullableString(item.orgaoEntidade?.razaoSocial) ?? nullableString((item as any).nomeOrgao) ?? '';
+  const objetoCompra = nullableString((item as any).objetoCompra) ?? nullableString(item.objeto) ?? '';
+  const modalidadeNome = nullableString(item.modalidadeNome) ?? nullableString((item as any).nomeModalidade);
+  const valorTotalEstimado = nullableNumber(item.valorTotalEstimado);
+  const dataEncerramentoProposta = nullableString(item.dataEncerramentoProposta);
+
   return {
     id: numeroControlePNCP,
     databaseId: null,
     numeroControlePNCP,
-    orgao: nullableString(item.orgaoEntidade?.razaoSocial) ?? '',
+    nomeOrgao,
+    orgao: nomeOrgao,
     cnpjOrgao,
     anoCompra: auditParams?.anoCompra ?? nullableNumber((item as any).anoCompra) ?? undefined,
     sequencialCompra: auditParams?.sequencialCompra ?? nullableNumber((item as any).sequencialCompra) ?? undefined,
@@ -219,23 +226,29 @@ export function normalizarLicitacaoPNCP(
     unidade: nullableString(item.unidadeOrgao?.nomeUnidade),
     uf: nullableString(item.unidadeOrgao?.ufSigla),
     municipio: nullableString(item.unidadeOrgao?.municipioNome),
-    objeto: nullableString(item.objeto) ?? nullableString((item as any).objetoCompra) ?? '',
+    objetoCompra,
+    objeto: objetoCompra,
+    informacaoComplementar: nullableString(item.informacaoComplementar),
     processo: nullableString(item.processo),
     numeroCompra: nullableString(item.numeroCompra),
     numeroEdital: nullableString(item.numeroCompra) || nullableString(item.processo) || numeroControlePNCP,
-    modalidade: nullableString(item.modalidadeNome),
+    nomeModalidade: modalidadeNome,
+    modalidadeNome,
+    modalidade: modalidadeNome,
     modalidadeId: nullableNumber(item.modalidadeId),
     modoDisputa: nullableString(item.modoDisputaNome),
     criterioJulgamento: nullableString((item as any).criterioJulgamentoNome) || nullableString((item as any).tipoJulgamentoNome) || null,
     situacao: nullableString(item.situacaoCompraNome),
-    valorEstimado: nullableNumber(item.valorTotalEstimado),
-    valor_estimado: nullableNumber(item.valorTotalEstimado),
+    valorTotalEstimado,
+    valorEstimado: valorTotalEstimado,
+    valor_estimado: valorTotalEstimado,
     dataPublicacao: nullableString(item.dataPublicacaoPncp),
     data_publicacao: nullableString(item.dataPublicacaoPncp),
     dataAbertura: nullableString(item.dataAberturaProposta),
     data_abertura: nullableString(item.dataAberturaProposta),
-    dataEncerramento: nullableString(item.dataEncerramentoProposta),
-    data_encerramento: nullableString(item.dataEncerramentoProposta),
+    dataEncerramentoProposta,
+    dataEncerramento: dataEncerramentoProposta,
+    data_encerramento: dataEncerramentoProposta,
     link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP) || urlOficialPncp,
     linkSistemaOrigem: nullableString(item.linkSistemaOrigem),
     documento_url: downloadUrl,
@@ -243,6 +256,132 @@ export function normalizarLicitacaoPNCP(
     srp: item.srp,
     fonte: 'PNCP',
   } as LicitacaoRadarPNCP;
+}
+
+/**
+ * Consulta diretamente o endpoint oficial https://pncp.gov.br/api/consulta/v1/contratacoes/proposta
+ * em tempo real, sem travar por CNAE local ou mocks.
+ */
+export async function consultarRadarPncpTempoReal(
+  filtros: FiltrosBusca = {},
+): Promise<ResultadoRadarPNCP & {
+  totalPaginas: number;
+  perfilRadar: { cnaes: string[]; palavras_chave: string[] } | null;
+  aviso?: string;
+}> {
+  const { prisma } = require('../database/prisma');
+  const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
+  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(50, Number(filtros.tamanhoPagina))) : 20;
+
+  const rawMod = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
+  const normalizedMod = String(rawMod ?? '').trim().toLowerCase();
+  const isAllModalities =
+    !normalizedMod
+    || normalizedMod === 'todos'
+    || normalizedMod === 'todas'
+    || normalizedMod === 'todas as contratacoes'
+    || normalizedMod === 'todas as contratações'
+    || normalizedMod === 'srp'
+    || normalizedMod.includes('registro de precos')
+    || normalizedMod.includes('registro de preços');
+
+  const isSrpFilter =
+    filtros.srp === true
+    || filtros.srp === 'true'
+    || normalizedMod === 'srp'
+    || normalizedMod.includes('registro de precos')
+    || normalizedMod.includes('registro de preços');
+
+  const palavraChave = (
+    filtros.palavraChave
+    || filtros.palavrasChave
+    || filtros.busca
+    || filtros.search
+    || filtros.q
+    || filtros.termo
+  )?.trim() || undefined;
+
+  const rawUf = typeof filtros.uf === 'string' ? filtros.uf.trim().toUpperCase() : undefined;
+  const uf = rawUf && rawUf !== 'TODOS' && rawUf !== 'TODAS' ? rawUf : undefined;
+
+  // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
+  const resultadoPncp = await buscarContratacoesPNCP({
+    endpoint: 'proposta',
+    pagina: page,
+    tamanhoPagina: size,
+    ...(uf ? { uf } : {}),
+    ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
+    ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
+    ...(filtros.cnpj ? { cnpj: filtros.cnpj } : {}),
+    ...(palavraChave ? { palavraChave } : {}),
+  });
+
+  const rawItems = (resultadoPncp.data || []).filter((item) =>
+    item.numeroControlePNCP
+    && (!isSrpFilter || item.srp === true),
+  );
+
+  const normalizedItems = rawItems.map(normalizarLicitacaoPNCP);
+
+  // Persistência assíncrona não bloqueante para suportar abertura de detalhes/CRM/propostas
+  try {
+    const noticeRepo = process.env.DATABASE_URL ? prisma?.procurementNotice : null;
+    if (typeof noticeRepo?.upsert === 'function' && normalizedItems.length > 0) {
+      Promise.allSettled(
+        normalizedItems.map(async (normalizado) => {
+          const upserted = await noticeRepo.upsert({
+            where: { dedupeKey: `pncp-${normalizado.numeroControlePNCP}` },
+            create: {
+              source: 'PNCP',
+              externalId: normalizado.numeroControlePNCP,
+              dedupeKey: `pncp-${normalizado.numeroControlePNCP}`,
+              contentHash: normalizado.numeroControlePNCP,
+              noticeNumber: normalizado.processo || normalizado.numeroCompra || normalizado.numeroControlePNCP,
+              modality: normalizado.modalidade || 'Pregão Eletrônico',
+              buyerName: normalizado.orgao || 'Órgão Público',
+              buyerDocument: normalizado.cnpjOrgao,
+              object: normalizado.objeto || 'Objeto não especificado',
+              uf: normalizado.uf || '',
+              municipality: normalizado.municipio || '',
+              estimatedValue: normalizado.valorEstimado,
+              status: normalizado.situacao || 'Publicada',
+              url: normalizado.urlOficialPncp || normalizado.link,
+              srp: Boolean(normalizado.srp),
+              publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : new Date(),
+              openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
+              closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
+            },
+            update: {
+              estimatedValue: normalizado.valorEstimado,
+              status: normalizado.situacao || 'Publicada',
+              url: normalizado.urlOficialPncp || normalizado.link,
+              srp: Boolean(normalizado.srp),
+              closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
+            },
+          });
+          normalizado.databaseId = upserted?.id ?? null;
+        }),
+      ).catch(() => {});
+    }
+  } catch {
+    // Segue sem bloqueio caso o banco local não esteja configurado no ambiente
+  }
+
+  const totalRegistros = isSrpFilter
+    ? normalizedItems.length
+    : (resultadoPncp.totalRegistros ?? normalizedItems.length);
+
+  return {
+    data: normalizedItems,
+    totalRegistros,
+    pagina: page,
+    tamanhoPagina: size,
+    totalPaginas: Math.max(1, Math.ceil(totalRegistros / size)),
+    perfilRadar: null,
+    aviso: normalizedItems.length === 0
+      ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
+      : undefined,
+  };
 }
 
 /**
@@ -257,6 +396,14 @@ export async function listarLicitacoes(
   perfilRadar: { cnaes: string[]; palavras_chave: string[] } | null;
   aviso?: string;
 }> {
+  if (
+    filtros.tempoReal === true
+    || filtros.tempoReal === 'true'
+    || filtros.endpoint === 'proposta'
+  ) {
+    return consultarRadarPncpTempoReal(filtros);
+  }
+
   const { prisma } = require('../database/prisma');
 
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;

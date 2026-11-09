@@ -25,6 +25,7 @@ function stringParam(value: unknown): string | undefined {
 
 function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
   const rawSrp = source.srp;
+  const isLocalOnly = source.local === true || source.local === 'true' || source.tempoReal === false || source.tempoReal === 'false';
   return {
     palavraChave:
       stringParam(source.palavraChave)
@@ -37,10 +38,6 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       stringParam(source.cnpj)
       ?? stringParam(source.cnpjOrgao)
       ?? stringParam(source.cnpj_orgao),
-    cnae:
-      stringParam(source.cnae)
-      ?? stringParam(source.cnaePrincipal)
-      ?? stringParam(source.cnae_principal),
     uf: stringParam(source.uf),
     dataInicial:
       stringParam(source.dataInicial)
@@ -58,6 +55,8 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.limit)
       ?? stringParam(source.size),
     srp: rawSrp === true || rawSrp === 'true',
+    endpoint: source.endpoint === 'publicacao' ? 'publicacao' : 'proposta',
+    tempoReal: !isLocalOnly,
   };
 }
 

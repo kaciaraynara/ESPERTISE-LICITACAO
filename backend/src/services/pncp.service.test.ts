@@ -36,6 +36,72 @@ describe('pncp.service', () => {
     });
   });
 
+  test('consulta /contratacoes/proposta com dataFinal 60 dias a frente, sem cnae e omitindo modalidade em Todas as Contratacoes', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-09T12:00:00.000Z'));
+
+    const response: any = {
+      data: {
+        data: [
+          {
+            numeroControlePNCP: '07954605000160-1-000045/2026',
+            anoCompra: 2026,
+            sequencialCompra: 45,
+            orgaoEntidade: { cnpj: '07954605000160', razaoSocial: 'MUNICIPIO DE FORTALEZA' },
+            unidadeOrgao: { ufSigla: 'CE', municipioNome: 'Fortaleza' },
+            objetoCompra: 'Aquisição de fardamento e vestuário escolar',
+            informacaoComplementar: 'Entrega imediata',
+            dataEncerramentoProposta: '2026-12-11T09:00:00',
+            valorTotalEstimado: 150000,
+            modalidadeId: 6,
+            modalidadeNome: 'Pregão - Eletrônico',
+          },
+        ],
+        totalRegistros: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: { headers: {} },
+    };
+    const getMock = jest.spyOn(axios, 'get').mockResolvedValue(response);
+
+    const res = await buscarContratacoesPNCP({
+      endpoint: 'proposta',
+      uf: 'CE',
+      pagina: 1,
+      tamanhoPagina: 20,
+      modalidade: 'Todas as Contratações',
+      cnae: '6201-5/01',
+      palavraChave: 'vestuario',
+    });
+
+    expect(getMock).toHaveBeenCalledWith(
+      'https://pncp.gov.br/api/consulta/v1/contratacoes/proposta',
+      expect.any(Object),
+    );
+    const sentParams = getMock.mock.calls[0][1]?.params;
+    expect(sentParams).toEqual({
+      dataFinal: '20270108',
+      uf: 'CE',
+      pagina: 1,
+      tamanhoPagina: 20,
+    });
+    expect(sentParams).not.toHaveProperty('cnae');
+    expect(sentParams).not.toHaveProperty('codigoModalidadeContratacao');
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0]).toMatchObject({
+      numeroControlePNCP: '07954605000160-1-000045/2026',
+      nomeOrgao: 'MUNICIPIO DE FORTALEZA',
+      cnpjOrgao: '07954605000160',
+      anoCompra: 2026,
+      sequencialCompra: 45,
+      objetoCompra: 'Aquisição de fardamento e vestuário escolar',
+      dataEncerramentoProposta: '2026-12-11T09:00:00',
+      valorTotalEstimado: 150000,
+      modalidadeNome: 'Pregão - Eletrônico',
+    });
+  });
+
   test('parsePncpControlNumber extrai cnpj, ano e sequencial de formatos oficiais', () => {
     const p1 = parsePncpControlNumber('83102277000152-1-000015/2025');
     expect(p1).toEqual({ cnpj: '83102277000152', ano: '2025', sequencial: 15 });

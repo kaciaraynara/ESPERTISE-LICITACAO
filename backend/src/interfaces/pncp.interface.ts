@@ -21,10 +21,15 @@ export interface FiltrosBusca {
   valorMax?: number;
   srp?: boolean | string;
   endpoint?: 'publicacao' | 'proposta';
+  tempoReal?: boolean | string;
 }
 
 export interface LicitacaoPNCP {
   numeroControlePNCP: string;
+  anoCompra?: number;
+  sequencialCompra?: number;
+  nomeOrgao?: string;
+  cnpjOrgao?: string;
   orgaoEntidade?: {
     razaoSocial?: string;
     cnpj?: string;
@@ -35,6 +40,7 @@ export interface LicitacaoPNCP {
     nomeUnidade?: string;
   };
   objeto?: string;
+  objetoCompra?: string;
   informacaoComplementar?: string;
   processo?: string;
   numeroCompra?: string;
@@ -44,6 +50,7 @@ export interface LicitacaoPNCP {
   dataEncerramentoProposta?: string;
   modalidadeId?: number;
   modalidadeNome?: string;
+  nomeModalidade?: string;
   modoDisputaNome?: string;
   situacaoCompraId?: number;
   situacaoCompraNome?: string;
@@ -57,31 +64,42 @@ export interface LicitacaoRadarPNCP {
   id: string;
   databaseId?: string | null;
   numeroControlePNCP: string;
+  anoCompra?: number;
+  sequencialCompra?: number;
+  nomeOrgao?: string;
   orgao: string;
   cnpjOrgao: string | null;
   unidade: string | null;
   uf: string | null;
   municipio: string | null;
+  objetoCompra?: string;
   objeto: string;
+  informacaoComplementar?: string | null;
   processo: string | null;
   numeroCompra: string | null;
+  nomeModalidade?: string | null;
+  modalidadeNome?: string | null;
   modalidade: string | null;
   modalidadeId: number | null;
   modoDisputa: string | null;
   criterioJulgamento?: string | null;
   situacao: string | null;
+  valorTotalEstimado?: number | null;
   valorEstimado: number | null;
   valor_estimado?: number | null;
   dataPublicacao: string | null;
   data_publicacao?: string | null;
   dataAbertura: string | null;
   data_abertura?: string | null;
+  dataEncerramentoProposta?: string | null;
   dataEncerramento: string | null;
   data_encerramento?: string | null;
   link: string | null;
   linkSistemaOrigem?: string | null;
   documento_url?: string | null;
   linkDownloadEdital?: string | null;
+  urlOficial?: string;
+  urlOficialPncp?: string;
   numeroEdital?: string | null;
   srp?: boolean;
   fonte: 'PNCP';

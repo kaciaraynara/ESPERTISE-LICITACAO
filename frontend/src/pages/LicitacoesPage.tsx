@@ -19,19 +19,28 @@ import toast from 'react-hot-toast';
 type Licitacao = {
     id: string;
     objeto: string;
+    objetoCompra?: string;
+    informacaoComplementar?: string | null;
     orgao: string;
+    nomeOrgao?: string;
     cnpjOrgao?: string | null;
+    anoCompra?: number | string;
+    sequencialCompra?: number | string;
     uf?: string;
     municipio?: string;
     valor_estimado?: number | null;
     valorEstimado?: number | null;
+    valorTotalEstimado?: number | null;
     data_abertura?: string | null;
     dataAbertura?: string | null;
     data_encerramento?: string | null;
     dataEncerramento?: string | null;
+    dataEncerramentoProposta?: string | null;
     data_publicacao?: string | null;
     dataPublicacao?: string | null;
     modalidade?: string;
+    nomeModalidade?: string | null;
+    modalidadeNome?: string | null;
     situacao?: string;
     link?: string;
     linkSistemaOrigem?: string;
@@ -124,7 +133,7 @@ export default function LicitacoesPage({
     const [busca, setBusca] = useState('');
     const [cnpjFiltro, setCnpjFiltro] = useState('');
     const [cnaeFiltro, setCnaeFiltro] = useState('');
-    const [ufSel, setUfSel] = useState('Todos');
+    const [ufSel, setUfSel] = useState('CE');
     const [modalidadeSel, setModalidadeSel] = useState(modalidadeInicial);
     const [abaCategoriaContratacao, setAbaCategoriaContratacao] = useState<'modalidades_art28' | 'procedimentos_art78'>('modalidades_art28');
 
@@ -132,7 +141,7 @@ export default function LicitacoesPage({
         busca: '',
         cnpj: '',
         cnae: '',
-        uf: 'Todos',
+        uf: 'CE',
         modalidade: modalidadeInicial,
     });
 
@@ -374,19 +383,18 @@ export default function LicitacoesPage({
     };
 
 
-    const buscarLicitacoes = useCallback(async (pg = 1, sincronizarPncp = false) => {
+    const buscarLicitacoes = useCallback(async (pg = 1, _sincronizarPncp = false) => {
         setLoading(true);
-        let avisoSincronizacao: string | undefined;
         const pncpModMap: Record<string, number> = {
             'Pregão Eletrônico': 6,
-            'Concorrência': 7,
+            'Concorrência': 4,
             'Dispensa de Licitação': 8,
             'Dispensa Eletrônica': 8,
             'Inexigibilidade': 9,
             'Leilão Eletrônico': 1,
             'Leilão': 1,
-            'Concurso': 2,
-            'Diálogo Competitivo': 14,
+            'Concurso': 3,
+            'Diálogo Competitivo': 2,
             'Credenciamento': 12,
             'Pré-Qualificação Técnica': 13,
             'Pré-Qualificação': 13,
@@ -398,29 +406,22 @@ export default function LicitacoesPage({
         const isSrpFilter =
             filtrosAplicados.modalidade === 'Sistema de Registro de Preços' ||
             filtrosAplicados.modalidade === 'SRP / Registro de Preços';
-        try {
-            if (sincronizarPncp) {
-                try {
-                    await licitacoesApi.sincronizar({
-                        pagina: 1,
-                        tamanhoPagina: 50,
-                        palavraChave: filtrosAplicados.busca || undefined,
-                        cnpj: filtrosAplicados.cnpj || undefined,
-                        cnae: filtrosAplicados.cnae || undefined,
-                        uf: filtrosAplicados.uf !== 'Todos' ? filtrosAplicados.uf : undefined,
-                        modalidade: filtrosAplicados.modalidade !== 'Todos'
-                            ? pncpModMap[filtrosAplicados.modalidade]
-                            : undefined,
-                    });
-                } catch (syncError: any) {
-                    avisoSincronizacao = syncError?.response?.data?.message
-                        || 'Não foi possível atualizar agora os dados oficiais do PNCP. Exibindo os últimos resultados salvos.';
-                }
-            }
 
+        // Calcular dataFinal como 60 dias à frente a partir de hoje no formato estrito 'YYYYMMDD'
+        const futureDate = new Date(Date.now() + 60 * 86_400_000);
+        const dataFinalYYYYMMDD = [
+            futureDate.getFullYear(),
+            String(futureDate.getMonth() + 1).padStart(2, '0'),
+            String(futureDate.getDate()).padStart(2, '0'),
+        ].join('');
+
+        try {
             const params: Record<string, any> = {
                 pagina: pg,
                 tamanhoPagina: 20,
+                dataFinal: dataFinalYYYYMMDD,
+                endpoint: 'proposta',
+                tempoReal: true,
             };
             if (filtrosAplicados.busca.trim()) {
                 params.busca = filtrosAplicados.busca.trim();
@@ -429,25 +430,44 @@ export default function LicitacoesPage({
             if (filtrosAplicados.cnpj.trim()) {
                 params.cnpj = filtrosAplicados.cnpj.trim();
             }
-            if (filtrosAplicados.cnae.trim()) {
-                params.cnae = filtrosAplicados.cnae.trim();
-            }
-            if (filtrosAplicados.uf !== 'Todos') {
+            // REGRA PNCP: Não enviar 'cnae' como parâmetro de query para a API do PNCP.
+            if (filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos') {
                 params.uf = filtrosAplicados.uf;
             }
-            if (filtrosAplicados.modalidade !== 'Todos') {
+            // Enviar codigoModalidadeContratacao SOMENTE se selecionar uma modalidade específica.
+            // Se estiver em "Todas as Contratações" ('Todos'), OMITIR o parâmetro.
+            if (
+                filtrosAplicados.modalidade &&
+                filtrosAplicados.modalidade !== 'Todos' &&
+                filtrosAplicados.modalidade !== 'Todas as Contratações'
+            ) {
                 if (isSrpFilter) {
                     params.srp = true;
                 } else {
-                    params.modalidade = pncpModMap[filtrosAplicados.modalidade] || filtrosAplicados.modalidade;
+                    const modCode = pncpModMap[filtrosAplicados.modalidade];
+                    if (modCode) {
+                        params.codigoModalidadeContratacao = modCode;
+                        params.modalidade = modCode;
+                    }
                 }
             }
 
             const { data } = await licitacoesApi.listar(params);
 
             if (data && (Array.isArray(data.items) || Array.isArray(data.data))) {
-                const items = (Array.isArray(data.items) ? data.items : data.data) || [];
-                const total = (data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length;
+                const rawItems: Licitacao[] = (Array.isArray(data.items) ? data.items : data.data) || [];
+                const termoBusca = filtrosAplicados.busca.trim().toLowerCase();
+                const items = termoBusca
+                    ? rawItems.filter((item) => {
+                          const objText = String(item.objetoCompra || item.objeto || '').toLowerCase();
+                          const infoComp = String(item.informacaoComplementar || '').toLowerCase();
+                          return objText.includes(termoBusca) || infoComp.includes(termoBusca);
+                      })
+                    : rawItems;
+
+                const total = termoBusca
+                    ? items.length
+                    : ((data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length);
                 const totalPgs = data.meta?.totalPaginas ?? (Math.ceil(total / (data.meta?.tamanhoPagina || 20)) || 1);
 
                 setLicitacoes(items);
@@ -456,9 +476,11 @@ export default function LicitacoesPage({
                     pagina: data.meta?.pagina || data.pagina || pg,
                     tamanhoPagina: data.meta?.tamanhoPagina || data.tamanhoPagina || 20,
                     totalPaginas: totalPgs,
-                    fonte: 'cache',
+                    fonte: 'pncp',
                     perfilRadar: data.meta?.perfilRadar ?? data.perfilRadar,
-                    aviso: avisoSincronizacao || data.meta?.aviso,
+                    aviso: items.length === 0
+                        ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
+                        : data.meta?.aviso,
                 });
                 setPagina(pg);
                 setUltimaAtualizacao(new Date());
@@ -470,10 +492,11 @@ export default function LicitacoesPage({
                     tamanhoPagina: 20,
                     totalPaginas: 0,
                     fonte: 'vazio',
+                    aviso: 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.',
                 });
             }
         } catch (err: any) {
-            const aviso = err?.response?.data?.message || 'Nossos servidores estão processando um alto volume de dados do governo. Tente novamente em alguns instantes.';
+            const aviso = err?.response?.data?.message || 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.';
             setLicitacoes([]);
             setMeta({
                 total: 0,
@@ -481,7 +504,7 @@ export default function LicitacoesPage({
                 tamanhoPagina: 20,
                 totalPaginas: 0,
                 fonte: 'vazio',
-                aviso: avisoSincronizacao || aviso,
+                aviso,
             });
         } finally {
             setLoading(false);
@@ -548,13 +571,13 @@ export default function LicitacoesPage({
             busca: '',
             cnpj: '',
             cnae: '',
-            uf: 'Todos',
+            uf: 'CE',
             modalidade: defaultMod,
         };
         setBusca('');
         setCnpjFiltro('');
         setCnaeFiltro('');
-        setUfSel('Todos');
+        setUfSel('CE');
         setModalidadeSel(defaultMod);
         if (
             nextFilters.busca === filtrosAplicados.busca
@@ -886,10 +909,10 @@ export default function LicitacoesPage({
 
                             <div className="space-y-1.5">
                                 <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                                    Nenhum edital encontrado para os filtros informados.
+                                    Nenhuma contratação encontrada diretamente no PNCP para estes filtros.
                                 </h3>
                                 <p className="text-xs text-slate-500 leading-relaxed max-w-md">
-                                    A consulta é realizada diretamente na API oficial do PNCP. Ajuste os parâmetros de CNPJ, CNAE, Palavras-chave ou UF e clique em Sincronizar PNCP.
+                                    A consulta é realizada em tempo real na API oficial do PNCP. Ajuste os parâmetros de Palavras-chave, UF ou Modalidade e clique em Sincronizar PNCP.
                                 </p>
                             </div>
 
@@ -949,24 +972,43 @@ export default function LicitacoesPage({
                                     <tbody className="divide-y divide-slate-100 text-sm">
                                         {licitacoes.map((item, i) => {
                                             const numeroEdital =
+                                                item.numeroControlePNCP ||
                                                 item.numeroEdital ||
                                                 item.numeroCompra ||
                                                 item.processo ||
-                                                item.numeroControlePNCP ||
                                                 item.id;
-                                            const dataAberturaExibida =
+                                            const nomeOrgaoExibido =
+                                                item.nomeOrgao ||
+                                                item.orgao ||
+                                                'Órgão Público';
+                                            const objetoCompraExibido =
+                                                item.objetoCompra ||
+                                                item.objeto ||
+                                                '';
+                                            const modalidadeExibida =
+                                                item.nomeModalidade ||
+                                                item.modalidadeNome ||
+                                                item.modalidade;
+                                            const dataEncerramentoOuAbertura =
+                                                item.dataEncerramentoProposta ||
+                                                item.dataEncerramento ||
+                                                item.data_encerramento ||
                                                 item.dataAbertura ||
                                                 item.data_abertura ||
                                                 item.dataPublicacao ||
                                                 item.data_publicacao;
-                                            const dataRef =
-                                                item.dataEncerramento ||
-                                                item.data_encerramento ||
-                                                dataAberturaExibida;
-                                            const dias = diasRestantes(dataRef);
+                                            const dias = diasRestantes(dataEncerramentoOuAbertura);
                                             const urgente = dias !== null && dias >= 0 && dias <= 3;
-                                            const valorExibido = item.valorEstimado ?? item.valor_estimado;
+                                            const valorExibido =
+                                                item.valorTotalEstimado ??
+                                                item.valorEstimado ??
+                                                item.valor_estimado;
                                             const downloadUrl = resolveEditalDownloadUrl(item);
+                                            const cleanCnpjAudit = item.cnpjOrgao?.replace(/\D/g, '');
+                                            const auditPortalHref =
+                                                cleanCnpjAudit && item.anoCompra && item.sequencialCompra
+                                                    ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${item.anoCompra}/${item.sequencialCompra}`
+                                                    : buildOfficialPncpPortalUrl(item);
 
                                             return (
                                                 <tr
@@ -985,17 +1027,17 @@ export default function LicitacoesPage({
                                                             <span className="font-mono text-xs font-semibold text-[#0B192C] bg-slate-100 px-2.5 py-1 rounded-md inline-block w-fit">
                                                                 {numeroEdital}
                                                             </span>
-                                                            {item.numeroControlePNCP && item.numeroControlePNCP !== numeroEdital && (
+                                                            {item.numeroEdital && item.numeroEdital !== numeroEdital && (
                                                                 <span className="font-mono text-[10px] text-slate-400">
-                                                                    PNCP: {item.numeroControlePNCP}
+                                                                    Compra: {item.numeroEdital}
                                                                 </span>
                                                             )}
                                                             <a
-                                                                href={buildOfficialPncpPortalUrl(item)}
+                                                                href={auditPortalHref}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 onClick={e => e.stopPropagation()}
-                                                                className="btn-link-pncp inline-flex items-center gap-1 text-[11px] font-medium text-brand-blue hover:text-blue-800 hover:underline mt-1 w-fit"
+                                                                className="btn-auditoria-pncp btn-link-pncp inline-flex items-center gap-1 text-[11px] font-medium text-brand-blue hover:text-blue-800 hover:underline mt-1 w-fit"
                                                                 title="Ver no Portal Oficial do PNCP"
                                                             >
                                                                 <span>Ver no Portal Oficial do PNCP ↗</span>
@@ -1003,10 +1045,10 @@ export default function LicitacoesPage({
                                                         </div>
                                                     </td>
 
-                                                    {/* 2. ÓRGÃO */}
+                                                    {/* 2. ÓRGÃO COMPRADOR */}
                                                     <td className="py-4 px-4 align-top max-w-[240px]">
                                                         <div className="font-semibold text-[#0B192C] text-xs leading-snug line-clamp-2">
-                                                            {item.orgao || 'Órgão Público'}
+                                                            {nomeOrgaoExibido}
                                                         </div>
                                                         {item.cnpjOrgao && (
                                                             <div className="text-[11px] font-mono text-slate-500 mt-0.5">
@@ -1021,31 +1063,31 @@ export default function LicitacoesPage({
                                                         )}
                                                     </td>
 
-                                                    {/* 3. DATA DE ABERTURA */}
+                                                    {/* 3. ENCERRAMENTO / ABERTURA */}
                                                     <td className="py-4 px-4 align-top whitespace-nowrap">
                                                         <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0B192C]">
                                                             <Calendar className="w-4 h-4 text-brand-blue shrink-0" weight="bold" />
-                                                            <span>{formatDate(dataAberturaExibida)}</span>
+                                                            <span>{formatDate(dataEncerramentoOuAbertura)}</span>
                                                         </div>
                                                         {urgente && (
                                                             <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider">
                                                                 <Clock className="w-3 h-3" weight="bold" />
-                                                                {dias === 0 ? 'Abre Hoje' : `${dias}d restantes`}
+                                                                {dias === 0 ? 'Encerra Hoje' : `${dias}d restantes`}
                                                             </span>
                                                         )}
                                                     </td>
 
-                                                    {/* 4. OBJETO */}
+                                                    {/* 4. OBJETO DA COMPRA */}
                                                     <td className="py-4 px-4 align-top max-w-md">
-                                                        {item.modalidade && (
+                                                        {modalidadeExibida && (
                                                             <div className="mb-1.5">
                                                                 <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wider">
-                                                                    {item.modalidade}
+                                                                    {modalidadeExibida}
                                                                 </span>
                                                             </div>
                                                         )}
                                                         <p className="text-xs font-normal text-[#334155] leading-relaxed line-clamp-3 group-hover:text-brand-blue transition-colors">
-                                                            {item.objeto}
+                                                            {objetoCompraExibido}
                                                         </p>
                                                     </td>
 

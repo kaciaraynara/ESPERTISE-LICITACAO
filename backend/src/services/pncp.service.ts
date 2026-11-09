@@ -104,18 +104,28 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     ? `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/1`
     : (firstString(raw.linkEditalPNCP) ?? undefined);
 
+  const razaoSocialOrgao = firstString(orgao.razaoSocial, orgao.razaosocial, raw.nomeOrgao);
+  const cnpjOrgaoRaw = firstString(orgao.cnpj, raw.cnpjOrgao);
+  const objetoTexto = firstString(raw.objetoCompra, raw.objeto);
+  const modalidadeTexto = firstString(raw.modalidadeNome, raw.nomeModalidade);
+
   return {
     numeroControlePNCP: numControle,
+    anoCompra: ano,
+    sequencialCompra: sequencial,
+    nomeOrgao: razaoSocialOrgao,
+    cnpjOrgao: cnpjOrgaoRaw,
     orgaoEntidade: {
-      razaoSocial: firstString(orgao.razaoSocial, orgao.razaosocial),
-      cnpj: firstString(orgao.cnpj),
+      razaoSocial: razaoSocialOrgao,
+      cnpj: cnpjOrgaoRaw,
     },
     unidadeOrgao: {
       ufSigla: firstString(unidade.ufSigla, unidade.uf),
       municipioNome: firstString(unidade.municipioNome, unidade.municipio),
       nomeUnidade: firstString(unidade.nomeUnidade),
     },
-    objeto: firstString(raw.objetoCompra, raw.objeto),
+    objeto: objetoTexto,
+    objetoCompra: objetoTexto,
     informacaoComplementar: firstString(raw.informacaoComplementar, raw.informacao_complementar),
     processo: firstString(raw.processo),
     numeroCompra: firstString(raw.numeroCompra),
@@ -124,7 +134,8 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     dataAberturaProposta: firstString(raw.dataAberturaProposta),
     dataEncerramentoProposta: firstString(raw.dataEncerramentoProposta),
     modalidadeId: optionalNumber(raw.modalidadeId),
-    modalidadeNome: firstString(raw.modalidadeNome),
+    modalidadeNome: modalidadeTexto,
+    nomeModalidade: modalidadeTexto,
     modoDisputaNome: firstString(raw.modoDisputaNome),
     situacaoCompraId: optionalNumber(raw.situacaoCompraId),
     situacaoCompraNome: firstString(raw.situacaoCompraNome),
@@ -240,6 +251,16 @@ function normalizeUf(value: unknown): string | undefined {
   }
 
   const uf = value.trim().toUpperCase();
+  if (
+    !uf
+    || uf === 'TODOS'
+    || uf === 'TODAS'
+    || uf === 'TODAS AS UFS'
+    || uf === 'TODAS AS CONTRATACOES'
+    || uf === 'TODAS AS CONTRATAÇÕES'
+  ) {
+    return undefined;
+  }
 
   if (!/^[A-Z]{2}$/.test(uf)) {
     throw new PncpServiceError(
@@ -250,6 +271,58 @@ function normalizeUf(value: unknown): string | undefined {
   }
 
   return uf;
+}
+
+function resolveOptionalModalityCode(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (typeof value === 'number') {
+    if (Number.isInteger(value) && value >= 1 && value <= 100) {
+      return value;
+    }
+    return undefined;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  const normalized = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (
+    normalized === 'todos'
+    || normalized === 'todas'
+    || normalized === 'todas as contratacoes'
+    || normalized === 'srp'
+    || normalized.includes('registro de precos')
+  ) {
+    return undefined;
+  }
+
+  const numeric = Number(raw);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 100) {
+    return numeric;
+  }
+
+  if (normalized.includes('pregao')) return 6;
+  if (normalized.includes('concorrencia')) return 4;
+  if (normalized.includes('dispensa')) return 8;
+  if (normalized.includes('inexigibilidade')) return 9;
+  if (normalized.includes('leilao')) return 1;
+  if (normalized.includes('concurso')) return 3;
+  if (normalized.includes('dialogo')) return 2;
+  if (normalized.includes('credenciamento')) return 12;
+  if (normalized.includes('pre-qualificacao') || normalized.includes('prequalificacao')) return 13;
+  if (normalized.includes('pmi') || normalized.includes('manifestacao de interesse')) return 15;
+  if (normalized.includes('registro cadastral')) return 16;
+
+  return undefined;
 }
 
 function normalizeKeyword(value: unknown): string | undefined {
@@ -324,7 +397,8 @@ function filterByKeyword(
     return items;
   }
 
-  const tokens = normalizeSearchText(keyword)
+  const normalizedTerm = normalizeSearchText(keyword);
+  const tokens = normalizedTerm
     .split(' ')
     .filter((token) => token.length >= 2);
 
@@ -333,7 +407,20 @@ function filterByKeyword(
   }
 
   return items.filter((item) => {
-    const searchable = normalizeSearchText([
+    const objetoText = normalizeSearchText(item.objetoCompra ?? item.objeto);
+    const infoComplementarText = normalizeSearchText(item.informacaoComplementar);
+    const combinedPrimary = `${objetoText} ${infoComplementarText}`.trim();
+
+    if (
+      objetoText.includes(normalizedTerm)
+      || infoComplementarText.includes(normalizedTerm)
+      || tokens.every((token) => combinedPrimary.includes(token))
+    ) {
+      return true;
+    }
+
+    const fallbackSearchable = normalizeSearchText([
+      item.objetoCompra,
       item.objeto,
       item.informacaoComplementar,
       item.orgaoEntidade?.razaoSocial,
@@ -343,7 +430,7 @@ function filterByKeyword(
       item.numeroCompra,
     ].filter(Boolean).join(' '));
 
-    return tokens.every((token) => searchable.includes(token));
+    return tokens.every((token) => fallbackSearchable.includes(token));
   });
 }
 
@@ -453,31 +540,40 @@ export async function buscarContratacoesPNCP(
   // PNCP API exige tamanhoPagina entre 10 e 50
   const tamanhoPagina = Math.min(MAX_PAGE_SIZE, Math.max(10, rawTamanho));
 
-  const modalidade = positiveInteger(
-    filtros.codigoModalidadeContratacao ?? filtros.modalidade,
-    'codigoModalidadeContratacao',
-    DEFAULT_MODALIDADE,
-    100,
-  );
+  const isPropostaEndpoint = filtros.endpoint === 'proposta';
+  const rawModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
+  const modalidadeOpcional = resolveOptionalModalityCode(rawModInput);
+  const modalidade = isPropostaEndpoint
+    ? modalidadeOpcional
+    : positiveInteger(
+        modalidadeOpcional ?? rawModInput,
+        'codigoModalidadeContratacao',
+        DEFAULT_MODALIDADE,
+        100,
+      );
 
   const hojeStr = formatDate(new Date());
   const dataInicialPadrao = addDays(hojeStr, -15);
+  const dataFinalPropostaPadrao = addDays(hojeStr, 60);
 
-  const rawDataInicial = normalizeDate(
+  const explicitDataInicial = normalizeDate(
     filtros.dataInicial ?? filtros.dataInicio,
     'dataInicial',
-  ) ?? dataInicialPadrao;
+  );
+  const dataInicial = isPropostaEndpoint
+    ? explicitDataInicial
+    : (explicitDataInicial ?? dataInicialPadrao);
 
   let rawDataFinal = normalizeDate(
     filtros.dataFinal ?? filtros.dataFim,
     'dataFinal',
-  ) ?? hojeStr;
+  ) ?? (isPropostaEndpoint ? dataFinalPropostaPadrao : hojeStr);
 
-  // Garante que dataFinal não seja no futuro (o PNCP falha com timeout em datas futuras)
-  if (rawDataFinal > hojeStr) {
+  // Para /contratacoes/publicacao, garante que dataFinal não seja no futuro.
+  // Para /contratacoes/proposta, dataFinal deve ser 60 dias à frente no formato YYYYMMDD.
+  if (!isPropostaEndpoint && rawDataFinal > hojeStr) {
     rawDataFinal = hojeStr;
   }
-  const dataInicial = rawDataInicial;
   const dataFinal = rawDataFinal;
 
   const uf = normalizeUf(filtros.uf);
@@ -491,27 +587,33 @@ export async function buscarContratacoesPNCP(
     ?? filtros.termo,
   );
 
-  const baseUrl = (
-    process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
+  const rawBaseUrl = (
+    process.env.PNCP_CONSULTA_BASE_URL || process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
   ).replace(/\/+$/, '');
+  const baseUrl = rawBaseUrl.includes('/api/pncp/v1')
+    ? rawBaseUrl.replace('/api/pncp/v1', '/api/consulta/v1')
+    : rawBaseUrl;
 
-  const endpoint = filtros.endpoint === 'proposta'
+  const endpoint = isPropostaEndpoint
     ? '/contratacoes/proposta'
     : '/contratacoes/publicacao';
+
+  // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
+  const requestParams: Record<string, string | number> = {
+    ...(dataInicial ? { dataInicial } : {}),
+    dataFinal,
+    ...(modalidade !== undefined ? { codigoModalidadeContratacao: modalidade } : {}),
+    ...(uf ? { uf } : {}),
+    ...(cnpj ? { cnpj } : {}),
+    pagina,
+    tamanhoPagina,
+  };
 
   try {
     const response = await axios.get(
       `${baseUrl}${endpoint}`,
       {
-        params: {
-          dataInicial,
-          dataFinal,
-          codigoModalidadeContratacao: modalidade,
-          ...(uf ? { uf } : {}),
-          ...(cnpj ? { cnpj } : {}),
-          pagina,
-          tamanhoPagina,
-        },
+        params: requestParams,
         timeout: timeoutMs(),
         headers: {
           Accept: 'application/json',
@@ -542,7 +644,7 @@ export async function buscarContratacoesPNCP(
 
     return {
       data: filtered,
-      totalRegistros: (keyword || cnpj) ? null : readTotalRecords(response.data),
+      totalRegistros: (keyword || cnpj) ? filtered.length : (readTotalRecords(response.data) ?? filtered.length),
       pagina,
       tamanhoPagina,
     };
@@ -569,9 +671,12 @@ export async function buscarContratacaoPNCP(
   }
 
   const { cnpj, sequencial, ano } = parsed;
-  const baseUrl = (
-    process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
+  const rawBaseUrl = (
+    process.env.PNCP_CONSULTA_BASE_URL || process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL
   ).replace(/\/+$/, '');
+  const baseUrl = rawBaseUrl.includes('/api/pncp/v1')
+    ? rawBaseUrl.replace('/api/pncp/v1', '/api/consulta/v1')
+    : rawBaseUrl;
 
   try {
     const response = await axios.get(
