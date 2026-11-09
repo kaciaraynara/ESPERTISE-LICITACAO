@@ -226,8 +226,6 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: '/tipos-contratacao', label: 'Tipos de Contratação', icon: Gavel, requiredFeature: 'radar_editais' },
-      { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Termômetro de Oportunidades', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
     ],
   },

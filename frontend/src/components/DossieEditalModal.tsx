@@ -99,6 +99,7 @@ interface DossieEditalModalProps {
   isSalvo?: boolean;
   isSalvando?: boolean;
   onSalvar?: (edital: DossieEditalData) => void;
+  titulo?: string;
 }
 
 const CHECKLIST_HABILITACAO_PADRAO = [
@@ -180,6 +181,7 @@ export default function DossieEditalModal({
   isSalvo = false,
   isSalvando = false,
   onSalvar,
+  titulo,
 }: DossieEditalModalProps) {
   const [carregandoItens, setCarregandoItens] = useState(false);
   const [itens, setItens] = useState<DossieItem[]>([]);
@@ -754,7 +756,7 @@ export default function DossieEditalModal({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 print:border-slate-400 print:text-slate-900">
                   <FileText className="w-3.5 h-3.5" />
-                  Dossiê Estratégico do Edital
+                  {titulo || 'Dossiê Estratégico do Edital'}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
                   Lei 14.133/2021

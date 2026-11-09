@@ -56,9 +56,9 @@ describe('Dossiê Estratégico do Edital (DossieEditalModal.tsx)', () => {
     expect(modalContent).toContain('Acessar sala de lances com antecedência');
   });
 
-  it('7. LicitacoesPage integra DossieEditalModal com acionamento ao clicar na linha ou no botão', () => {
+  it('7. LicitacoesPage integra Resumo do Edital com acionamento ao clicar na linha ou no botão', () => {
     expect(pageContent).toContain('DossieEditalModal');
-    expect(pageContent).toContain('setEditalParaDossie');
-    expect(pageContent).toContain('Dossiê do Edital');
+    expect(pageContent).toContain('setEditalParaResumo');
+    expect(pageContent).toContain('RESUMO DO EDITAL');
   });
 });

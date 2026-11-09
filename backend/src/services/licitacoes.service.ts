@@ -368,7 +368,7 @@ export async function consultarRadarPncpTempoReal(
           });
           normalizado.databaseId = upserted?.id ?? null;
         }),
-      ).catch(() => {});
+      ).catch(() => { });
     }
   } catch {
     // Segue sem bloqueio caso o banco local não esteja configurado no ambiente
@@ -425,21 +425,21 @@ export async function listarLicitacoes(
     const cnpjDigits = rawCnpj.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const companyMatch = typeof prisma?.company?.findFirst === 'function'
       ? await prisma.company
-          .findFirst({
-            where: {
-              OR: [
-                { cnpj: rawCnpj },
-                ...(cnpjDigits ? [{ cnpj: cnpjDigits }] : []),
-              ],
-            },
-            select: {
-              cnaePrincipal: true,
-              palavrasChave: true,
-              nicho: true,
-              uf: true,
-            },
-          })
-          .catch(() => null)
+        .findFirst({
+          where: {
+            OR: [
+              { cnpj: rawCnpj },
+              ...(cnpjDigits ? [{ cnpj: cnpjDigits }] : []),
+            ],
+          },
+          select: {
+            cnaePrincipal: true,
+            palavrasChave: true,
+            nicho: true,
+            uf: true,
+          },
+        })
+        .catch(() => null)
       : null;
 
     if (companyMatch) {
@@ -579,11 +579,11 @@ export async function listarLicitacoes(
 
   const companyProfile = tenantRadarProfile
     ? {
-        cnaeKeywords: tenantRadarProfile.keywords,
-        uf: tenantRadarProfile.uf,
-        valorMin: undefined,
-        valorMax: undefined,
-      }
+      cnaeKeywords: tenantRadarProfile.keywords,
+      uf: tenantRadarProfile.uf,
+      valorMin: undefined,
+      valorMax: undefined,
+    }
     : null;
 
   function calcularScoreItem(r: any, profile: typeof companyProfile) {
@@ -681,9 +681,9 @@ export async function listarLicitacoes(
     totalPaginas: Math.ceil(count / size) || 1,
     perfilRadar: tenantRadarProfile
       ? {
-          cnaes: tenantRadarProfile.cnaes,
-          palavras_chave: tenantRadarProfile.keywords,
-        }
+        cnaes: tenantRadarProfile.cnaes,
+        palavras_chave: tenantRadarProfile.keywords,
+      }
       : null,
     aviso: avisoRadar,
   };
@@ -713,16 +713,16 @@ export async function sincronizarLicitacoesPNCP(
     const digits = rawCnpj.replace(/\D/g, '');
     const companyMatch = typeof prisma?.company?.findFirst === 'function'
       ? await prisma.company
-          .findFirst({
-            where: {
-              OR: [
-                { cnpj: rawCnpj },
-                ...(digits ? [{ cnpj: digits }] : []),
-              ],
-            },
-            select: { id: true },
-          })
-          .catch(() => null)
+        .findFirst({
+          where: {
+            OR: [
+              { cnpj: rawCnpj },
+              ...(digits ? [{ cnpj: digits }] : []),
+            ],
+          },
+          select: { id: true },
+        })
+        .catch(() => null)
       : null;
     if (!companyMatch && digits.length === 14) {
       buyerCnpjForPncp = digits;
