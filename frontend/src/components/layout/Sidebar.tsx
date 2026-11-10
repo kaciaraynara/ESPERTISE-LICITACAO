@@ -239,7 +239,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Envio Automático de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
-      { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Custos', icon: Receipt, requiredFeature: 'catalogo_produtos' },
+      { path: FORNECEDOR_ROUTES.catalogo, label: 'Histórico de Compras', icon: Receipt, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
   },
