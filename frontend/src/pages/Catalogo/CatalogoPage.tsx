@@ -77,28 +77,7 @@ export const CatalogoPage: React.FC = () => {
     } catch {
       // fallback
     }
-    return [
-      {
-        id: '1',
-        data: new Date().toLocaleDateString('pt-BR'),
-        tipo: 'NOTA_PDF',
-        nomeArquivoOuChave: 'NF-e_DistrAlimentos_4590.pdf',
-        descricaoItem: 'Papel Sulfite A4 75g (Resma 500 folhas)',
-        quantidade: 100,
-        valorUnitario: 22.5,
-        fornecedor: 'Distribuidora Papelaria Brasil Ltda',
-      },
-      {
-        id: '2',
-        data: new Date(Date.now() - 86400000 * 2).toLocaleDateString('pt-BR'),
-        tipo: 'QR_CODE',
-        nomeArquivoOuChave: 'NFC-e 35240312345678000199650010001234561000012345',
-        descricaoItem: 'Álcool em Gel 70% 5 Litros',
-        quantidade: 20,
-        valorUnitario: 38.9,
-        fornecedor: 'Química Nacional Distribuição S.A.',
-      },
-    ];
+    return [];
   });
 
   useEffect(() => {
@@ -212,6 +191,9 @@ export const CatalogoPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const valorStr = window.prompt(`Informe o valor unitário real do insumo em "${file.name}" (R$):`, '0.00');
+    const valorUnitario = valorStr ? Math.max(0, parseFloat(valorStr.replace(',', '.')) || 0) : 0;
+
     const novoRegistro: ComprovanteCompra = {
       id: String(Date.now()),
       data: new Date().toLocaleDateString('pt-BR'),
@@ -219,12 +201,12 @@ export const CatalogoPage: React.FC = () => {
       nomeArquivoOuChave: file.name,
       descricaoItem: `Item importado via ${file.name.replace(/\.[^/.]+$/, '')}`,
       quantidade: 1,
-      valorUnitario: Math.floor(Math.random() * 200) + 45,
-      fornecedor: 'Fornecedor Identificado na Nota Fiscal',
+      valorUnitario,
+      fornecedor: 'Fornecedor da Nota Fiscal',
     };
 
     setHistoricoCompras((prev) => [novoRegistro, ...prev]);
-    toast.success(`Nota "${file.name}" processada! Histórico salvo para alimentar a IA nas propostas.`);
+    toast.success(`Nota "${file.name}" registrada! Histórico salvo para alimentar a IA nas propostas.`);
     e.target.value = '';
   };
 
@@ -233,6 +215,9 @@ export const CatalogoPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const valorStr = window.prompt(`Informe o valor unitário real do insumo da foto/cupom (R$):`, '0.00');
+    const valorUnitario = valorStr ? Math.max(0, parseFloat(valorStr.replace(',', '.')) || 0) : 0;
+
     const novoRegistro: ComprovanteCompra = {
       id: String(Date.now()),
       data: new Date().toLocaleDateString('pt-BR'),
@@ -240,12 +225,12 @@ export const CatalogoPage: React.FC = () => {
       nomeArquivoOuChave: file.name,
       descricaoItem: 'Insumo capturado via Câmera/Cupom',
       quantidade: 1,
-      valorUnitario: Math.floor(Math.random() * 150) + 20,
+      valorUnitario,
       fornecedor: 'Cupom Fiscal / Fornecedor Local',
     };
 
     setHistoricoCompras((prev) => [novoRegistro, ...prev]);
-    toast.success('Foto do cupom/recibo processada! Custo computado para cálculo inteligente da IA.');
+    toast.success('Foto do cupom/recibo registrada! Custo computado para cálculo inteligente da IA.');
     e.target.value = '';
   };
 
@@ -259,6 +244,9 @@ export const CatalogoPage: React.FC = () => {
     const chaveLimpa = qrCodeInput.replace(/\D/g, '');
     const chaveCurta = chaveLimpa.length >= 10 ? `${chaveLimpa.slice(0, 4)}...${chaveLimpa.slice(-4)}` : qrCodeInput.trim();
 
+    const valorStr = window.prompt('Informe o valor total do cupom fiscal auditado (R$):', '0.00');
+    const valorUnitario = valorStr ? Math.max(0, parseFloat(valorStr.replace(',', '.')) || 0) : 0;
+
     const novoRegistro: ComprovanteCompra = {
       id: String(Date.now()),
       data: new Date().toLocaleDateString('pt-BR'),
@@ -266,12 +254,12 @@ export const CatalogoPage: React.FC = () => {
       nomeArquivoOuChave: `Chave/QR: ${chaveCurta}`,
       descricaoItem: 'Item auditado via NFC-e SEFAZ',
       quantidade: 1,
-      valorUnitario: Math.floor(Math.random() * 90) + 15,
+      valorUnitario,
       fornecedor: 'Emissor Autorizado SEFAZ',
     };
 
     setHistoricoCompras((prev) => [novoRegistro, ...prev]);
-    toast.success('QR Code de NFC-e decodificado! Preço real arquivado para alimentar a IA.');
+    toast.success('QR Code de NFC-e registrado! Preço real arquivado para alimentar a IA.');
     setQrCodeInput('');
     setIsQrModalOpen(false);
   };

@@ -9,6 +9,7 @@ import {
   buscarContratacaoPNCP,
   buscarContratacoesPNCP,
   buildPncpDownloadUrl,
+  parsePncpDateToIso,
 } from './pncp.service';
 import {
   getTenantRadarProfile,
@@ -223,9 +224,11 @@ export function normalizarLicitacaoPNCP(
   const nomeOrgao = nullableString(item.orgaoEntidade?.razaoSocial) ?? nullableString((item as any).nomeOrgao) ?? '';
   const objetoCompra = nullableString((item as any).objetoCompra) ?? nullableString(item.objeto) ?? '';
   const modalidadeNome = nullableString(item.modalidadeNome) ?? nullableString((item as any).nomeModalidade);
-  const valorTotalEstimado = nullableNumber(item.valorTotalEstimado);
-  const dataEncerramentoProposta = nullableString(item.dataEncerramentoProposta);
-  const dataAberturaProposta = nullableString(item.dataAberturaProposta);
+  const rawVal = nullableNumber(item.valorTotalEstimado);
+  const valorTotalEstimado = rawVal != null && rawVal > 0 ? rawVal : null;
+  const dataEncerramentoProposta = parsePncpDateToIso(item.dataEncerramentoProposta);
+  const dataAberturaProposta = parsePncpDateToIso(item.dataAberturaProposta);
+  const dataPublicacao = parsePncpDateToIso(item.dataPublicacaoPncp);
 
   // No PNCP: dataAberturaProposta = início de acolhimento de propostas
   // dataEncerramentoProposta = encerramento/fim de recebimento de propostas
@@ -270,8 +273,8 @@ export function normalizarLicitacaoPNCP(
     valorTotalEstimado,
     valorEstimado: valorTotalEstimado,
     valor_estimado: valorTotalEstimado,
-    dataPublicacao: nullableString(item.dataPublicacaoPncp),
-    data_publicacao: nullableString(item.dataPublicacaoPncp),
+    dataPublicacao,
+    data_publicacao: dataPublicacao,
     dataAbertura: dataAberturaProposta,
     data_abertura: dataAberturaProposta,
     dataAberturaProposta,
@@ -511,6 +514,7 @@ export async function consultarRadarPncpTempoReal(
               status: normalizado.situacao || 'Publicada',
               url: normalizado.urlOficialPncp || normalizado.link,
               srp: Boolean(normalizado.srp),
+              openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
               closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
             },
           });

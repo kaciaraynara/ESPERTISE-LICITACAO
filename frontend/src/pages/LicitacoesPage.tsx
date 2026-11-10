@@ -12,7 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
 import DossieEditalModal, { type DossieEditalData } from '@/components/DossieEditalModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
-import { handleDownloadEdital, buildOfficialPncpPortalUrl } from '@/utils/pncp';
+import { handleDownloadEdital, buildOfficialPncpPortalUrl, formatPncpDate } from '@/utils/pncp';
 import { InfoTooltip } from '@/components/common/InfoTooltip';
 import toast from 'react-hot-toast';
 
@@ -122,26 +122,53 @@ export interface ViabilidadeCalculada {
 export function calcularViabilidadeEdital(item: Licitacao): ViabilidadeCalculada {
     let score = item.score?.pontuacao;
     if (score == null || typeof score !== 'number' || score <= 0) {
+        let pontos = 0;
+
+        // 1. Critério de Prazo Operacional (até 40 pontos)
         const dataLimite = item.dataLimiteProposta || item.dataEncerramentoProposta || item.dataEncerramento || item.data_encerramento;
         let dias = 15;
         if (dataLimite) {
             dias = Math.ceil((new Date(dataLimite).getTime() - Date.now()) / 86400000);
         }
-        const val = item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? 0;
-
-        let seed = 0;
-        const str = (item.id || item.numeroControlePNCP || 'seed').replace(/\D/g, '');
-        for (let i = 0; i < str.length; i++) {
-            seed = (seed * 31 + str.charCodeAt(i)) % 1000;
+        if (dias >= 10) {
+            pontos += 40;
+        } else if (dias >= 5) {
+            pontos += 30;
+        } else if (dias >= 2) {
+            pontos += 20;
+        } else if (dias >= 0) {
+            pontos += 10;
         }
 
-        if (dias < 3 || val <= 0) {
-            score = 35 + (seed % 15);
-        } else if (dias <= 7) {
-            score = 52 + (seed % 20);
+        // 2. Transparência Orçamentária e Itens (até 30 pontos)
+        const val = item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null;
+        if (val != null && Number(val) > 0) {
+            pontos += 30;
         } else {
-            score = 76 + (seed % 18);
+            pontos += 15; // Orçamento sigiloso no PNCP, exige consulta aos itens do TR
         }
+
+        // 3. Detalhamento e Especificação Técnica do Objeto (até 15 pontos)
+        const objLen = (item.objetoCompra || item.objeto || '').trim().length;
+        if (objLen >= 100) {
+            pontos += 15;
+        } else if (objLen >= 30) {
+            pontos += 10;
+        } else {
+            pontos += 5;
+        }
+
+        // 4. Modalidade e Celeridade do Rito Processual (até 15 pontos)
+        const mod = (item.nomeModalidade || item.modalidadeNome || item.modalidade || '').toLowerCase();
+        if (mod.includes('dispensa') || mod.includes('inexigibilidade')) {
+            pontos += 15;
+        } else if (mod.includes('pregão') || mod.includes('pregao')) {
+            pontos += 15;
+        } else {
+            pontos += 10;
+        }
+
+        score = Math.min(100, Math.max(15, pontos));
     }
 
     if (score >= 75) {
@@ -802,13 +829,15 @@ export default function LicitacoesPage({
         });
     };
 
-    const formatVal = (v?: number | null) =>
-        v != null && Number.isFinite(Number(v))
-            ? `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-            : 'Sigiloso / Não informado';
+    const formatVal = (v?: number | null) => {
+        const num = v != null ? Number(v) : null;
+        return num != null && Number.isFinite(num) && num > 0
+            ? `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : 'Sigiloso / Ver Itens no TR';
+    };
 
     const formatDate = (d?: string | null) =>
-        d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+        formatPncpDate(d);
 
     const diasRestantes = (d?: string | null) => {
         if (!d) return null;

@@ -1,11 +1,17 @@
 /**
+/**
  * Utilitários para resiliência e auditoria oficial de editais do PNCP
+ * Rigorosamente em conformidade com as 5 Regras de Ouro:
+ * 1. Zero mocks ou dados fictícios
+ * 2. NO_DATA != ZERO (ausência de valor nunca é exibida como zero)
+ * 3. Fuso horário oficial America/Sao_Paulo (-03:00) em todas as datas
+ * 4. Parser estrito de identificador PNCP (numeroControlePNCP -> cnpj, ano, sequencial)
  */
 
 export interface PncpUrlParams {
   cnpj: string;
-  anoCompra: number | string;
-  sequencialCompra: number | string;
+  anoCompra: number;
+  sequencialCompra: number;
 }
 
 /**
@@ -22,41 +28,97 @@ export function formatCnpj(rawCnpj?: string | null): string {
 }
 
 /**
+ * Converte qualquer formato de data do PNCP para ISO com timezone correto de Brasília (-03:00)
+ */
+export function parsePncpDateToIso(dateStr: string | null | undefined): string | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  if (/([+-]\d{2}:\d{2}|Z)$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(trimmed)) {
+    const d = new Date(`${trimmed}-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(`${trimmed}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{8}$/.test(trimmed)) {
+    const y = trimmed.slice(0, 4);
+    const m = trimmed.slice(4, 6);
+    const day = trimmed.slice(6, 8);
+    const d = new Date(`${y}-${m}-${day}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Formata data no fuso de Brasília (America/Sao_Paulo) sem sofrer recuo D-1
+ */
+export function formatPncpDate(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  const trimmed = String(dateStr).trim();
+  let date: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    date = new Date(`${trimmed}T12:00:00-03:00`);
+  } else if (!/([+-]\d{2}:\d{2}|Z)$/.test(trimmed) && trimmed.includes('T')) {
+    date = new Date(`${trimmed}-03:00`);
+  } else {
+    date = new Date(trimmed);
+  }
+  if (isNaN(date.getTime())) return trimmed;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
+ * Formata data e hora no fuso de Brasília (America/Sao_Paulo)
+ */
+export function formatPncpDateTime(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  const trimmed = String(dateStr).trim();
+  let date: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    date = new Date(`${trimmed}T12:00:00-03:00`);
+  } else if (!/([+-]\d{2}:\d{2}|Z)$/.test(trimmed) && trimmed.includes('T')) {
+    date = new Date(`${trimmed}-03:00`);
+  } else {
+    date = new Date(trimmed);
+  }
+  if (isNaN(date.getTime())) return trimmed;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+/**
  * Extrai os parâmetros oficiais do PNCP (cnpj, anoCompra, sequencialCompra)
- * a partir de qualquer estrutura de dados de edital (API, CRM, PNCP raw).
+ * Prioridade absoluta ao número de controle PNCP (ex: 43076702000161-1-000055/2026).
+ * REGRA INVIOLÁVEL: JAMAIS usa numeroCompra ou noticeNumber como sequencialCompra.
  */
 export function extractPncpParams(edital: any): PncpUrlParams | null {
   if (!edital) return null;
 
-  // 1. Extração prioritária direta de propriedades individuais
-  const rawCnpj = String(
-    edital.cnpjOrgao ||
-    edital.cnpj ||
-    edital.buyerDocument ||
-    '',
-  ).replace(/\D/g, '');
-
-  const rawAno =
-    edital.anoCompra ||
-    edital.ano ||
-    (edital.dataPublicacao || edital.dataAbertura
-      ? new Date(edital.dataPublicacao || edital.dataAbertura).getFullYear()
-      : null);
-
-  const rawSeq =
-    edital.sequencialCompra ||
-    edital.sequencial ||
-    (edital.numeroCompra ? String(edital.numeroCompra).replace(/\D/g, '') : null);
-
-  if (rawCnpj.length === 14 && rawAno && rawSeq !== undefined && rawSeq !== null && rawSeq !== '') {
-    return {
-      cnpj: rawCnpj,
-      anoCompra: Number(rawAno),
-      sequencialCompra: Number(rawSeq),
-    };
-  }
-
-  // 2. Extração do número de controle PNCP
+  // 1. Extração prioritária a partir do numeroControlePNCP
   const numControle = String(
     edital.numeroControlePNCP ||
     edital.numero_controle_pncp ||
@@ -64,7 +126,7 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     '',
   ).trim().replace(/^pncp-/i, '');
 
-  // Padrão oficial PNCP: CNPJ-1-SEQUENCIAL/ANO ou CNPJ-SEQUENCIAL/ANO ou variações com traço
+  // Padrão oficial PNCP: CNPJ-1-SEQUENCIAL/ANO ou CNPJ-SEQUENCIAL/ANO
   const matchOficial = numControle.match(/^(\d{14})(?:-\d+)?-(\d+)[/-](\d{4})$/);
   if (matchOficial) {
     const [, cnpj, sequencial, ano] = matchOficial;
@@ -86,8 +148,10 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     };
   }
 
-  // 3. Extração de URLs existentes
+  // 2. Extração de URLs de portais existentes
   const candidateUrl = String(
+    edital.urlOficialPncp ||
+    edital.urlOficial ||
     edital.link ||
     edital.linkEditalPNCP ||
     edital.url ||
@@ -106,7 +170,6 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     }
   }
 
-  // Suporte a URLs de API: /orgaos/{cnpj}/compras/{ano}/{sequencial}
   if (candidateUrl.includes('/compras/')) {
     const matchApi = candidateUrl.match(/\/orgaos\/(\d{14})\/compras\/(\d{4})\/(\d+)/);
     if (matchApi) {
@@ -119,6 +182,26 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
     }
   }
 
+  // 3. Fallback estrito: Propriedades explícitas caso sequencialCompra seja numérico e válido
+  // REGRA DE OURO: JAMAIS use numeroCompra ou noticeNumber como sequencialCompra!
+  const rawCnpj = String(
+    edital.cnpjOrgao ||
+    edital.cnpj ||
+    edital.buyerDocument ||
+    '',
+  ).replace(/\D/g, '');
+
+  const rawAno = Number(edital.anoCompra || edital.ano);
+  const rawSeq = Number(edital.sequencialCompra);
+
+  if (rawCnpj.length === 14 && Number.isFinite(rawAno) && rawAno >= 2000 && Number.isFinite(rawSeq) && rawSeq > 0) {
+    return {
+      cnpj: rawCnpj,
+      anoCompra: rawAno,
+      sequencialCompra: rawSeq,
+    };
+  }
+
   return null;
 }
 
@@ -129,25 +212,9 @@ export function extractPncpParams(edital: any): PncpUrlParams | null {
 export function buildOfficialPncpPortalUrl(edital: any): string {
   if (!edital) return 'https://pncp.gov.br/app/editais';
 
-  // 1. Extração direta de propriedades com sanitização do CNPJ
-  const rawCnpj = String(
-    edital.cnpjOrgao ||
-    edital.cnpj ||
-    edital.buyerDocument ||
-    '',
-  ).replace(/\D/g, '');
-
-  const rawAno = edital.anoCompra || edital.ano;
-  const rawSeq = edital.sequencialCompra || edital.sequencial;
-
-  if (rawCnpj.length === 14 && rawAno && rawSeq !== undefined && rawSeq !== null && rawSeq !== '') {
-    return `https://pncp.gov.br/app/editais/${rawCnpj}/${Number(rawAno)}/${Number(rawSeq)}`;
-  }
-
-  // 2. Extração via extractPncpParams (numeroControlePNCP, links, etc.)
   const params = extractPncpParams(edital);
   if (params) {
-    return `https://pncp.gov.br/app/editais/${params.cnpj}/${Number(params.anoCompra)}/${Number(params.sequencialCompra)}`;
+    return `https://pncp.gov.br/app/editais/${params.cnpj}/${params.anoCompra}/${params.sequencialCompra}`;
   }
 
   return 'https://pncp.gov.br/app/editais';

@@ -62,6 +62,53 @@ function optionalNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/**
+ * REGRA DE OURO (NO_DATA != ZERO): Ausência ou valor <= 0 retorna undefined/null, NUNCA zero!
+ */
+function optionalPositiveMoney(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/**
+ * REGRA DE OURO (FUSO AMERICA/SAO_PAULO): Datas sem timezone do PNCP são convertidas com -03:00.
+ */
+export function parsePncpDateToIso(dateStr: string | null | undefined): string | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  if (/([+-]\d{2}:\d{2}|Z)$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(trimmed)) {
+    const d = new Date(`${trimmed}-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(`${trimmed}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  if (/^\d{8}$/.test(trimmed)) {
+    const y = trimmed.slice(0, 4);
+    const m = trimmed.slice(4, 6);
+    const day = trimmed.slice(6, 8);
+    const d = new Date(`${y}-${m}-${day}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 export function parsePncpControlNumber(numeroControlePNCP: string | null | undefined): {
   cnpj: string;
   ano: string;
@@ -130,12 +177,12 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     informacaoComplementar: firstString(raw.informacaoComplementar, raw.informacao_complementar),
     processo: firstString(raw.processo),
     numeroCompra: firstString(raw.numeroCompra),
-    valorTotalEstimado: optionalNumber(raw.valorTotalEstimado),
-    dataPublicacaoPncp: firstString(raw.dataPublicacaoPncp),
-    dataAberturaProposta: firstString(raw.dataAberturaProposta),
-    dataEncerramentoProposta: firstString(raw.dataEncerramentoProposta),
-    dataInicioRecebimento: firstString(raw.dataAberturaProposta),
-    dataFimRecebimento: firstString(raw.dataEncerramentoProposta),
+    valorTotalEstimado: optionalPositiveMoney(raw.valorTotalEstimado),
+    dataPublicacaoPncp: parsePncpDateToIso(firstString(raw.dataPublicacaoPncp)) ?? undefined,
+    dataAberturaProposta: parsePncpDateToIso(firstString(raw.dataAberturaProposta)) ?? undefined,
+    dataEncerramentoProposta: parsePncpDateToIso(firstString(raw.dataEncerramentoProposta)) ?? undefined,
+    dataInicioRecebimento: parsePncpDateToIso(firstString(raw.dataAberturaProposta)) ?? undefined,
+    dataFimRecebimento: parsePncpDateToIso(firstString(raw.dataEncerramentoProposta)) ?? undefined,
     modalidadeId: optionalNumber(raw.modalidadeId),
     modalidadeNome: modalidadeTexto,
     nomeModalidade: modalidadeTexto,

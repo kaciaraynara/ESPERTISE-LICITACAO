@@ -29,6 +29,7 @@ import {
   buildOfficialPncpPortalUrl,
   extractPncpParams,
   formatCnpj,
+  formatPncpDateTime,
 } from '../utils/pncp';
 
 export interface DossieItem {
@@ -144,9 +145,9 @@ const CHECKLIST_HABILITACAO_PADRAO = [
 ] as const;
 
 function formatCurrency(value?: number | string | null): string {
-  if (value === undefined || value === null || value === '') return 'R$ 0,00';
+  if (value === undefined || value === null || value === '') return 'Sigiloso / Ver Itens no TR';
   const num = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-  if (!Number.isFinite(num) || num <= 0) return 'Valor no TR';
+  if (!Number.isFinite(num) || num <= 0) return 'Sigiloso / Ver Itens no TR';
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -155,31 +156,9 @@ function formatCurrency(value?: number | string | null): string {
 
 function formatDataHora(isoString?: string | null): string {
   if (!isoString) return 'Conforme cronograma';
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) {
-    const cleaned = String(isoString).trim();
-    return cleaned || 'Conforme cronograma';
-  }
-  const hasTime =
-    isoString.includes('T') ||
-    isoString.includes(':') ||
-    date.getUTCHours() > 0 ||
-    date.getUTCMinutes() > 0;
-
-  const dataStr = date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-
-  if (hasTime) {
-    const horaStr = date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${dataStr} às ${horaStr}`;
-  }
-  return dataStr;
+  const formatted = formatPncpDateTime(isoString);
+  if (formatted === '—') return 'Conforme cronograma';
+  return formatted.includes(':') ? formatted.replace(' ', ' às ') : formatted;
 }
 
 export default function DossieEditalModal({
@@ -406,6 +385,25 @@ export default function DossieEditalModal({
     edital.valorEstimado ??
     edital.valor_estimado;
 
+  const somaRealItens = useMemo(() => {
+    if (!itens || itens.length === 0) return null;
+    let soma = 0;
+    let hasValidItemValue = false;
+    for (const it of itens) {
+      const v = it.valorTotal ?? (Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || it.valorReferencia || it.precoUnitario || 0));
+      const numV = Number(v);
+      if (Number.isFinite(numV) && numV > 0) {
+        soma += numV;
+        hasValidItemValue = true;
+      }
+    }
+    return hasValidItemValue && soma > 0 ? soma : null;
+  }, [itens]);
+
+  const valorFinal = (valorTotalExibido != null && Number(valorTotalExibido) > 0)
+    ? Number(valorTotalExibido)
+    : somaRealItens;
+
   const localizacaoExibida =
     [edital.municipio, edital.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional';
 
@@ -432,14 +430,14 @@ export default function DossieEditalModal({
       }
     }
 
-    const valor = Number(valorTotalExibido || 0);
+    const valor = Number(valorFinal || 0);
     let porteOportunidade = 'Médio Porte';
     if (valor >= 1_000_000) {
       porteOportunidade = 'Grande Porte (> R$ 1 Mi)';
     } else if (valor > 0 && valor < 100_000) {
       porteOportunidade = 'Pequeno Porte';
     } else if (valor === 0) {
-      porteOportunidade = 'Valor no Termo de Referência';
+      porteOportunidade = 'Sigiloso / Ver Itens no TR';
     }
 
     return {
@@ -448,7 +446,7 @@ export default function DossieEditalModal({
       urgenciaCor,
       porteOportunidade,
     };
-  }, [prazoLimiteEnvio, valorTotalExibido]);
+  }, [prazoLimiteEnvio, valorFinal]);
 
   const handleBaixarPdf = () => {
     try {
@@ -734,7 +732,7 @@ export default function DossieEditalModal({
               </div>
               <div class="card">
                 <div class="card-label">Valor Total Estimado</div>
-                <div class="card-value" style="color: #0B192C; font-size: 12px;">${formatCurrency(valorTotalExibido)}</div>
+                <div class="card-value" style="color: #0B192C; font-size: 12px;">${formatCurrency(valorFinal)}</div>
               </div>
             </div>
 
@@ -1046,10 +1044,10 @@ export default function DossieEditalModal({
                 <div className="bg-gradient-to-r from-blue-50/80 to-slate-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
-                      Valor Total Estimado
+                      Valor Total Estimado {somaRealItens && (!valorTotalExibido || Number(valorTotalExibido) <= 0) ? '(Soma dos Itens)' : ''}
                     </span>
                     <span className="text-base font-black text-brand-blue">
-                      {formatCurrency(valorTotalExibido)}
+                      {formatCurrency(valorFinal)}
                     </span>
                   </div>
                   <DollarSign className="w-5 h-5 text-brand-blue" />
