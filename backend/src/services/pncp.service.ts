@@ -12,10 +12,10 @@ const DEFAULT_PNCP_BASE_URL = 'https://pncp.gov.br/api/consulta/v1';
 const DEFAULT_PNCP_API_V1_BASE_URL = 'https://pncp.gov.br/api/pncp/v1';
 const DEFAULT_MODALIDADE = 6; // 6 = Pregão Eletrônico (Lei 14.133/2021)
 const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const PNCP_CHUNK_SIZE = 50;
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 20_000;
 const PNCP_TIME_ZONE = 'America/Sao_Paulo';
 
 export type PncpErrorCode =
@@ -102,7 +102,7 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
   const sequencial = optionalNumber(raw.sequencialCompra ?? raw.sequencial) || parsedControl?.sequencial;
 
   const officialDownloadUrl = (cnpj && ano && sequencial)
-    ? `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/1`
+    ? `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${Number(ano)}/${Number(sequencial)}/arquivos/1`
     : (firstString(raw.linkEditalPNCP) ?? undefined);
 
   const razaoSocialOrgao = firstString(orgao.razaoSocial, orgao.razaosocial, raw.nomeOrgao);
@@ -134,6 +134,8 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     dataPublicacaoPncp: firstString(raw.dataPublicacaoPncp),
     dataAberturaProposta: firstString(raw.dataAberturaProposta),
     dataEncerramentoProposta: firstString(raw.dataEncerramentoProposta),
+    dataInicioRecebimento: firstString(raw.dataAberturaProposta),
+    dataFimRecebimento: firstString(raw.dataEncerramentoProposta),
     modalidadeId: optionalNumber(raw.modalidadeId),
     modalidadeNome: modalidadeTexto,
     nomeModalidade: modalidadeTexto,
@@ -543,16 +545,20 @@ export async function buscarContratacoesPNCP(
   const tamanhoPorChamada = deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho));
 
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
-  const rawModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
-  const modalidadeOpcional = resolveOptionalModalityCode(rawModInput);
-  const modalidade = isPropostaEndpoint
-    ? modalidadeOpcional
-    : positiveInteger(
+  const uf = normalizeUf(filtros.uf);
+  // Se uf vazio ("Todas"), consulte APENAS modalidade 6 (Pregão) por requisição para evitar timeout 503
+  const rawModInput = !uf ? 6 : (filtros.codigoModalidadeContratacao ?? filtros.modalidade);
+  const modalidadeOpcional = !uf ? 6 : resolveOptionalModalityCode(rawModInput);
+  const modalidade = !uf
+    ? 6
+    : (isPropostaEndpoint
+      ? modalidadeOpcional
+      : positiveInteger(
         modalidadeOpcional ?? rawModInput,
         'codigoModalidadeContratacao',
         DEFAULT_MODALIDADE,
         100,
-      );
+      ));
 
   const hojeStr = formatDate(new Date());
   const dataInicialPadrao = addDays(hojeStr, -15);
@@ -578,7 +584,6 @@ export async function buscarContratacoesPNCP(
   }
   const dataFinal = rawDataFinal;
 
-  const uf = normalizeUf(filtros.uf);
   const cnpj = normalizeCnpj(filtros.cnpj);
   const keyword = normalizeKeyword(
     filtros.palavraChave
@@ -707,9 +712,9 @@ export async function buscarContratacoesPNCP(
     const filteredByKeyword = filterByKeyword(openItems, keyword);
     const filtered = cnpj
       ? filteredByKeyword.filter((item) => {
-          const itemCnpj = String(item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
-          return !itemCnpj || itemCnpj === cnpj;
-        })
+        const itemCnpj = String(item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
+        return !itemCnpj || itemCnpj === cnpj;
+      })
       : filteredByKeyword;
 
     return {

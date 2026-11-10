@@ -48,6 +48,8 @@ export interface LicitacaoPNCP {
   dataPublicacaoPncp?: string;
   dataAberturaProposta?: string;
   dataEncerramentoProposta?: string;
+  dataInicioRecebimento?: string | null;
+  dataFimRecebimento?: string | null;
   modalidadeId?: number;
   modalidadeNome?: string;
   nomeModalidade?: string;
@@ -93,6 +95,8 @@ export interface LicitacaoRadarPNCP {
   data_abertura?: string | null;
   dataAberturaProposta?: string | null;
   dataEncerramentoProposta?: string | null;
+  dataInicioRecebimento?: string | null;
+  dataFimRecebimento?: string | null;
   dataEncerramento: string | null;
   data_encerramento?: string | null;
   dataLimiteProposta?: string | null;

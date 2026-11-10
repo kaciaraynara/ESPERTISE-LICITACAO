@@ -547,10 +547,10 @@ export default function LicitacoesPage({
                 const termoBusca = filtrosAplicados.busca.trim().toLowerCase();
                 const filteredByTerm = termoBusca
                     ? rawItems.filter((item) => {
-                          const objText = String(item.objetoCompra || item.objeto || '').toLowerCase();
-                          const infoComp = String(item.informacaoComplementar || '').toLowerCase();
-                          return objText.includes(termoBusca) || infoComp.includes(termoBusca);
-                      })
+                        const objText = String(item.objetoCompra || item.objeto || '').toLowerCase();
+                        const infoComp = String(item.informacaoComplementar || '').toLowerCase();
+                        return objText.includes(termoBusca) || infoComp.includes(termoBusca);
+                    })
                     : rawItems;
 
                 const now = new Date();
@@ -855,11 +855,10 @@ export default function LicitacoesPage({
                                     key={filtro.label}
                                     type="button"
                                     onClick={() => handleSelecionarModalidadeInstantanea(filtro.valor)}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                                        ativo
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${ativo
                                             ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
                                             : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                    }`}
+                                        }`}
                                 >
                                     {filtro.label}
                                 </button>
@@ -1226,9 +1225,8 @@ export default function LicitacoesPage({
                                                             </div>
                                                             <div className="flex flex-col gap-1 items-end">
                                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${viab.badgeClass} max-w-full`}>
-                                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                                                        viab.percentual >= 75 ? 'bg-emerald-500' : viab.percentual >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                                                    }`} />
+                                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${viab.percentual >= 75 ? 'bg-emerald-500' : viab.percentual >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                        }`} />
                                                                     <span className="truncate">{viab.percentual}% • {viab.status}</span>
                                                                 </span>
                                                                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">

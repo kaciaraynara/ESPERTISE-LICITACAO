@@ -2,6 +2,7 @@ import {
   FiltrosBusca,
   LicitacaoPNCP,
   LicitacaoRadarPNCP,
+  ResultadoConsultaPNCP,
   ResultadoRadarPNCP,
 } from '../interfaces/pncp.interface';
 import {
@@ -275,6 +276,8 @@ export function normalizarLicitacaoPNCP(
     data_abertura: dataAberturaProposta,
     dataAberturaProposta,
     dataEncerramentoProposta,
+    dataInicioRecebimento: dataAberturaProposta,
+    dataFimRecebimento: dataEncerramentoProposta,
     dataEncerramento: dataEncerramentoProposta,
     data_encerramento: dataEncerramentoProposta,
     dataLimiteProposta,
@@ -301,7 +304,7 @@ export async function consultarRadarPncpTempoReal(
 }> {
   const { prisma } = require('../database/prisma');
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
-  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(100, Number(filtros.tamanhoPagina))) : 100;
+  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(100, Number(filtros.tamanhoPagina))) : 50;
 
   const rawMod = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
   const normalizedMod = String(rawMod ?? '').trim().toLowerCase();
@@ -334,19 +337,124 @@ export async function consultarRadarPncpTempoReal(
   const rawUf = typeof filtros.uf === 'string' ? filtros.uf.trim().toUpperCase() : undefined;
   const uf = rawUf && rawUf !== 'TODOS' && rawUf !== 'TODAS' ? rawUf : undefined;
 
-  // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
-  const resultadoPncp = await buscarContratacoesPNCP({
-    endpoint: 'proposta',
-    pagina: page,
-    tamanhoPagina: size,
-    ...(uf ? { uf } : {}),
-    ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
-    ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
-    ...(filtros.cnpj ? { cnpj: filtros.cnpj } : {}),
-    ...(palavraChave ? { palavraChave } : {}),
-  });
+  let resultadoPncp: ResultadoConsultaPNCP;
+  try {
+    // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
+    resultadoPncp = await buscarContratacoesPNCP({
+      endpoint: 'proposta',
+      pagina: page,
+      tamanhoPagina: size,
+      ...(uf ? { uf } : {}),
+      ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
+      ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
+      ...(filtros.cnpj ? { cnpj: filtros.cnpj } : {}),
+      ...(palavraChave ? { palavraChave } : {}),
+    });
+  } catch (apiError: any) {
+    // Fallback: se falhar (503, timeout, etc.), retorne cache do banco local (prisma), NUNCA erro 500 ou array vazio se houver cache.
+    try {
+      const noticeRepo = process.env.DATABASE_URL ? prisma?.procurementNotice : null;
+      if (noticeRepo) {
+        const cached = await noticeRepo.findMany({
+          where: {
+            OR: [
+              { closingAt: { gte: new Date() } },
+              { closingAt: null },
+            ],
+            ...(uf ? { uf: { equals: uf, mode: 'insensitive' } } : {}),
+            ...(palavraChave ? { object: { contains: palavraChave, mode: 'insensitive' } } : {}),
+          },
+          orderBy: [
+            { publishedAt: 'desc' },
+          ],
+          take: size,
+          skip: (page - 1) * size,
+        });
 
-  const rawItems = (resultadoPncp.data || []).filter((item) =>
+        if (cached && cached.length > 0) {
+          const cachedItems: LicitacaoRadarPNCP[] = cached.map((c: any) => {
+            const numControle = c.numeroControlePncp || (c.dedupeKey ? c.dedupeKey.replace(/^pncp-/, '') : c.externalId || '');
+            const parsedAudit = extractPncpAuditParams(numControle, c.buyerDocument);
+            const anoNum = parsedAudit?.anoCompra ?? (c.publishedAt ? new Date(c.publishedAt).getFullYear() : 2026);
+            const seqNum = parsedAudit?.sequencialCompra ?? 1;
+            const urlOficialPncp = parsedAudit?.urlOficialPncp || c.url || 'https://pncp.gov.br/app/editais';
+            const downloadUrl = (parsedAudit && parsedAudit.cnpj)
+              ? `https://pncp.gov.br/api/pncp/v1/orgaos/${parsedAudit.cnpj}/compras/${Number(anoNum)}/${Number(seqNum)}/arquivos/1`
+              : null;
+            const val = c.estimatedValue ? Number(c.estimatedValue) : null;
+            const openStr = c.openingAt ? new Date(c.openingAt).toISOString() : null;
+            const closeStr = c.closingAt ? new Date(c.closingAt).toISOString() : null;
+
+            return {
+              id: numControle || c.id,
+              databaseId: c.id,
+              numeroControlePNCP: numControle,
+              nomeOrgao: c.buyerName || 'Órgão Público',
+              orgao: c.buyerName || 'Órgão Público',
+              cnpjOrgao: c.buyerDocument,
+              anoCompra: anoNum,
+              sequencialCompra: seqNum,
+              urlOficial: urlOficialPncp,
+              urlOficialPncp,
+              unidade: null,
+              uf: c.uf,
+              municipio: c.municipality,
+              objetoCompra: c.object || '',
+              objeto: c.object || '',
+              informacaoComplementar: null,
+              processo: c.processoAdministrativo || c.noticeNumber,
+              numeroCompra: c.noticeNumber,
+              numeroEdital: c.noticeNumber || numControle,
+              nomeModalidade: c.modality || 'Pregão Eletrônico',
+              modalidadeNome: c.modality || 'Pregão Eletrônico',
+              modalidade: c.modality || 'Pregão Eletrônico',
+              modalidadeId: 6,
+              modoDisputa: c.modoDisputa,
+              criterioJulgamento: c.judgmentCriterion,
+              situacao: c.status || 'Publicada',
+              valorTotalEstimado: val,
+              valorEstimado: val,
+              valor_estimado: val,
+              dataPublicacao: c.publishedAt ? new Date(c.publishedAt).toISOString() : null,
+              data_publicacao: c.publishedAt ? new Date(c.publishedAt).toISOString() : null,
+              dataAbertura: openStr,
+              data_abertura: openStr,
+              dataAberturaProposta: openStr,
+              dataEncerramentoProposta: closeStr,
+              dataEncerramento: closeStr,
+              data_encerramento: closeStr,
+              dataInicioRecebimento: openStr,
+              dataFimRecebimento: closeStr,
+              dataLimiteProposta: closeStr,
+              dataSessaoDisputa: closeStr || openStr,
+              link: urlOficialPncp,
+              linkSistemaOrigem: null,
+              documento_url: downloadUrl,
+              linkDownloadEdital: downloadUrl,
+              srp: Boolean(c.srp),
+              fonte: 'PNCP',
+            } as LicitacaoRadarPNCP;
+          });
+
+          return {
+            data: cachedItems,
+            totalRegistros: cachedItems.length,
+            pagina: page,
+            tamanhoPagina: size,
+            totalPaginas: 1,
+            perfilRadar: null,
+            aviso: 'PNCP temporariamente lento. Exibindo editais recentes em cache local.',
+          };
+        }
+      }
+    } catch {
+      // Ignora erro no banco local e repassa o erro da API PNCP
+    }
+
+    throw apiError;
+  }
+
+  const rawItems = (resultadoPncp.data || []).filter((item: LicitacaoPNCP) =>
     item.numeroControlePNCP
     && (!isSrpFilter || item.srp === true),
   );
@@ -355,7 +463,7 @@ export async function consultarRadarPncpTempoReal(
 
   // 1. FILTRO DE VERACIDADE: apenas editais com prazo aberto de verdade hoje
   const now = new Date();
-  const validItems = normalizedItems.filter((item) => {
+  const validItems = normalizedItems.filter((item: LicitacaoRadarPNCP) => {
     const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
     if (!encStr) return true;
     const encDate = new Date(encStr);
@@ -363,7 +471,7 @@ export async function consultarRadarPncpTempoReal(
   });
 
   // 2. ORDENAÇÃO POR EDITAIS NOVOS: decrescente por anoCompra (2026 no topo) e dataPublicacao mais recente
-  validItems.sort((a, b) => {
+  validItems.sort((a: LicitacaoRadarPNCP, b: LicitacaoRadarPNCP) => {
     const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
     const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
     if (anoB !== anoA) {
@@ -379,7 +487,7 @@ export async function consultarRadarPncpTempoReal(
     const noticeRepo = process.env.DATABASE_URL ? prisma?.procurementNotice : null;
     if (typeof noticeRepo?.upsert === 'function' && validItems.length > 0) {
       Promise.allSettled(
-        validItems.map(async (normalizado) => {
+        validItems.map(async (normalizado: LicitacaoRadarPNCP) => {
           const upserted = await noticeRepo.upsert({
             where: { dedupeKey: `pncp-${normalizado.numeroControlePNCP}` },
             create: {
