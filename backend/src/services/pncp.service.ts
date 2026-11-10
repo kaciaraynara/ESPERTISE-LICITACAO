@@ -540,21 +540,22 @@ export async function buscarContratacoesPNCP(
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
   );
-  // Configuração de Lote: se o cliente solicitar > 50 ou padrão (100), busca 2 páginas de 50 em paralelo
-  const deveBuscarEmParalelo = rawTamanho > 50;
-  const tamanhoPorChamada = deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho));
+  const uf = normalizeUf(filtros.uf);
+  const isUfEmpty = !uf;
+  // Quando uf for vazia ("Todas as UFs"), NUNCA faz busca em paralelo (Promise.all). Faz apenas 1 requisição rápida de 50 registros para evitar timeout.
+  const deveBuscarEmParalelo = isUfEmpty ? false : rawTamanho > 50;
+  const tamanhoPorChamada = isUfEmpty ? 50 : (deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho)));
 
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
-  const uf = normalizeUf(filtros.uf);
-  // Se uf vazio ("Todas"), consulte APENAS modalidade 6 (Pregão) por requisição para evitar timeout 503
-  const rawModInput = !uf ? 6 : (filtros.codigoModalidadeContratacao ?? filtros.modalidade);
-  const modalidadeOpcional = !uf ? 6 : resolveOptionalModalityCode(rawModInput);
-  const modalidade = !uf
-    ? 6
+  // Se uf vazio ("Todas"), consulte APENAS modalidade 6 (Pregão) ou a modalidade escolhida pelo usuário
+  const userModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
+  const userModChoice = resolveOptionalModalityCode(userModInput);
+  const modalidade = isUfEmpty
+    ? (userModChoice ?? 6)
     : (isPropostaEndpoint
-      ? modalidadeOpcional
+      ? userModChoice
       : positiveInteger(
-        modalidadeOpcional ?? rawModInput,
+        userModChoice ?? userModInput,
         'codigoModalidadeContratacao',
         DEFAULT_MODALIDADE,
         100,
@@ -562,7 +563,7 @@ export async function buscarContratacoesPNCP(
 
   const hojeStr = formatDate(new Date());
   const dataInicialPadrao = addDays(hojeStr, -15);
-  const dataFinalPropostaPadrao = addDays(hojeStr, 60);
+  const dataFinalPropostaPadrao = addDays(hojeStr, 30); // +30 dias YYYYMMDD
 
   const explicitDataInicial = normalizeDate(
     filtros.dataInicial ?? filtros.dataInicio,
@@ -690,23 +691,20 @@ export async function buscarContratacoesPNCP(
     });
 
     const now = new Date();
-    // 1. Filtro de veracidade: apenas editais com prazo de proposta ainda aberto hoje
+    // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
+    // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
     const openItems = deduplicated.filter((item) => {
-      if (!item.dataEncerramentoProposta) return true;
+      if (!item.dataEncerramentoProposta) return false;
       const closing = new Date(item.dataEncerramentoProposta);
-      return !isNaN(closing.getTime()) ? closing >= now : true;
+      if (isNaN(closing.getTime())) return false;
+      return closing > now;
     });
 
-    // 2. Ordenação decrescente: anoCompra (2026 primeiro) e depois dataPublicacaoPncp mais recente
+    // 2. ORDENAÇÃO RIGOROSA: data de publicação/abertura mais recente garantindo 2026 no topo
     openItems.sort((a, b) => {
-      const anoA = Number(a.anoCompra) || (a.dataPublicacaoPncp ? new Date(a.dataPublicacaoPncp).getFullYear() : 0);
-      const anoB = Number(b.anoCompra) || (b.dataPublicacaoPncp ? new Date(b.dataPublicacaoPncp).getFullYear() : 0);
-      if (anoB !== anoA) {
-        return anoB - anoA;
-      }
-      const pubA = a.dataPublicacaoPncp ? new Date(a.dataPublicacaoPncp).getTime() : 0;
-      const pubB = b.dataPublicacaoPncp ? new Date(b.dataPublicacaoPncp).getTime() : 0;
-      return pubB - pubA;
+      const timeA = new Date(a.dataPublicacaoPncp || a.dataAberturaProposta || 0).getTime();
+      const timeB = new Date(b.dataPublicacaoPncp || b.dataAberturaProposta || 0).getTime();
+      return timeB - timeA;
     });
 
     const filteredByKeyword = filterByKeyword(openItems, keyword);

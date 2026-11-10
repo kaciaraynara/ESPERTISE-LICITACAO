@@ -84,6 +84,8 @@ export interface DossieEditalData {
   linkSistemaOrigem?: string | null;
   downloadUrl?: string | null;
   link?: string | null;
+  urlOficialPncp?: string | null;
+  urlOficial?: string | null;
   itens?: DossieItem[];
   items?: DossieItem[];
   anoCompra?: number | string;
@@ -291,7 +293,7 @@ export default function DossieEditalModal({
         const pncpParams = extractPncpParams(edital);
         if (pncpParams?.cnpj && pncpParams.anoCompra && pncpParams.sequencialCompra) {
           const { cnpj, anoCompra, sequencialCompra } = pncpParams;
-          
+
           // pncp/v1
           try {
             const urlPncpV1 = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${Number(anoCompra)}/${Number(sequencialCompra)}/itens`;
@@ -468,7 +470,7 @@ export default function DossieEditalModal({
 
       const itensRaw = itens.length > 0 ? itens : (edital.itens || edital.items || []);
       const itensParaRender = Array.isArray(itensRaw) ? itensRaw : [];
-      const itensRowsHtml = itensParaRender
+      const itensRowsHtml = (Array.isArray(itensParaRender) ? itensParaRender : [])
         .map((it, idx) => {
           const itemNum = it.numeroItem ?? it.itemNumber ?? it.numero ?? idx + 1;
           const desc = it.descricao ?? it.description ?? 'Item do edital';
@@ -1173,13 +1175,12 @@ export default function DossieEditalModal({
               {/* BARRA DE PROGRESSO DO CHECKLIST */}
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden print:hidden">
                 <div
-                  className={`h-full transition-all duration-300 rounded-full ${
-                    checklistPorcentagem === 100
+                  className={`h-full transition-all duration-300 rounded-full ${checklistPorcentagem === 100
                       ? 'bg-emerald-500'
                       : checklistPorcentagem > 50
                         ? 'bg-blue-600'
                         : 'bg-brand-orange'
-                  }`}
+                    }`}
                   style={{ width: `${checklistPorcentagem}%` }}
                 />
               </div>
@@ -1194,11 +1195,10 @@ export default function DossieEditalModal({
                       key={item.id}
                       type="button"
                       onClick={() => toggleChecklistItem(item.id)}
-                      className={`text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer select-none ${
-                        isChecked
+                      className={`text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer select-none ${isChecked
                           ? 'bg-emerald-50/60 border-emerald-300 text-emerald-950 shadow-2xs'
                           : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                      }`}
+                        }`}
                     >
                       <div className="shrink-0 mt-0.5">
                         {isChecked ? (
@@ -1321,11 +1321,10 @@ export default function DossieEditalModal({
                     type="button"
                     onClick={() => onSalvar(edital)}
                     disabled={isSalvo || isSalvando}
-                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${
-                      isSalvo
+                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${isSalvo
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
                         : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
-                    }`}
+                      }`}
                   >
                     {isSalvando ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />

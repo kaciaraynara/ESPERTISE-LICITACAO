@@ -38,13 +38,13 @@ const BRAZIL_UFS = [
 
 export default function RadarPage() {
   const [activeTab, setActiveTab] = useState<'pncp' | 'score'>('pncp');
-  const [uf, setUf] = useState<string>('CE');
+  const [uf, setUf] = useState<string>('TODOS');
   const [busca, setBusca] = useState<string>('');
   const [modalidade, setModalidade] = useState<string>('TODAS');
   const navigate = useNavigate();
 
-  // Calcular dataFinal como 60 dias à frente a partir de hoje no formato estrito 'YYYYMMDD'
-  const futureDate = new Date(Date.now() + 60 * 86_400_000);
+  // Calcular dataFinal como 30 dias à frente a partir de hoje no formato estrito 'YYYYMMDD'
+  const futureDate = new Date(Date.now() + 30 * 86_400_000);
   const dataFinalYYYYMMDD = [
     futureDate.getFullYear(),
     String(futureDate.getMonth() + 1).padStart(2, '0'),

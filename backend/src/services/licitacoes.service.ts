@@ -461,25 +461,21 @@ export async function consultarRadarPncpTempoReal(
 
   const normalizedItems = rawItems.map(normalizarLicitacaoPNCP);
 
-  // 1. FILTRO DE VERACIDADE: apenas editais com prazo aberto de verdade hoje
+  // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
+  // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
   const now = new Date();
   const validItems = normalizedItems.filter((item: LicitacaoRadarPNCP) => {
     const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
-    if (!encStr) return true;
+    if (!encStr) return false;
     const encDate = new Date(encStr);
-    return !isNaN(encDate.getTime()) ? encDate >= now : true;
+    return !isNaN(encDate.getTime()) && encDate > now;
   });
 
-  // 2. ORDENAÇÃO POR EDITAIS NOVOS: decrescente por anoCompra (2026 no topo) e dataPublicacao mais recente
+  // 2. ORDENAÇÃO RIGOROSA: data de publicação/abertura mais recente (2026 no topo)
   validItems.sort((a: LicitacaoRadarPNCP, b: LicitacaoRadarPNCP) => {
-    const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
-    const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
-    if (anoB !== anoA) {
-      return anoB - anoA;
-    }
-    const pubA = a.dataPublicacao ? new Date(a.dataPublicacao).getTime() : 0;
-    const pubB = b.dataPublicacao ? new Date(b.dataPublicacao).getTime() : 0;
-    return pubB - pubA;
+    const timeA = new Date(a.dataPublicacao || a.dataAbertura || a.dataAberturaProposta || 0).getTime();
+    const timeB = new Date(b.dataPublicacao || b.dataAbertura || b.dataAberturaProposta || 0).getTime();
+    return timeB - timeA;
   });
 
   // Persistência assíncrona não bloqueante para suportar abertura de detalhes/CRM/propostas

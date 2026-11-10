@@ -214,14 +214,14 @@ export default function LicitacoesPage({
     const [busca, setBusca] = useState('');
     const [cnpjFiltro, setCnpjFiltro] = useState('');
     const [cnaeFiltro, setCnaeFiltro] = useState('');
-    const [ufSel, setUfSel] = useState('CE');
+    const [ufSel, setUfSel] = useState('');
     const [modalidadeSel, setModalidadeSel] = useState(modalidadeInicial);
 
     const [filtrosAplicados, setFiltrosAplicados] = useState<SearchFilters>({
         busca: '',
         cnpj: '',
         cnae: '',
-        uf: 'CE',
+        uf: '',
         modalidade: modalidadeInicial,
     });
 
@@ -756,13 +756,13 @@ export default function LicitacoesPage({
             busca: '',
             cnpj: '',
             cnae: '',
-            uf: 'CE',
+            uf: '',
             modalidade: defaultMod,
         };
         setBusca('');
         setCnpjFiltro('');
         setCnaeFiltro('');
-        setUfSel('CE');
+        setUfSel('');
         setModalidadeSel(defaultMod);
         if (
             nextFilters.busca === filtrosAplicados.busca
@@ -775,6 +775,31 @@ export default function LicitacoesPage({
             return;
         }
         setFiltrosAplicados(nextFilters);
+    };
+
+    const abrirResumoDoEdital = (item: Licitacao) => {
+        const cleanCnpjAudit = item.cnpjOrgao ? String(item.cnpjOrgao).replace(/\D/g, '') : '';
+        const urlOficialPncp =
+            cleanCnpjAudit.length === 14 && item.anoCompra && item.sequencialCompra
+                ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${Number(item.anoCompra)}/${Number(item.sequencialCompra)}`
+                : buildOfficialPncpPortalUrl(item);
+
+        const downloadUrl = resolveEditalDownloadUrl(item);
+        const dataInicioRecebimento = item.dataAberturaProposta || item.dataAbertura || item.data_abertura || null;
+        const dataFimRecebimento = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento || null;
+
+        setEditalParaResumo({
+            ...item,
+            id: item.id || item.numeroControlePNCP || `edital-${Date.now()}`,
+            orgao: item.nomeOrgao || item.orgao || 'Órgão Licitante',
+            objeto: item.objetoCompra || item.objeto || '',
+            valorTotalEstimado: item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null,
+            dataInicioRecebimento,
+            dataFimRecebimento,
+            urlOficialPncp,
+            downloadUrl,
+            itens: Array.isArray((item as any).itens) ? (item as any).itens : [],
+        });
     };
 
     const formatVal = (v?: number | null) =>
@@ -884,11 +909,18 @@ export default function LicitacoesPage({
                                     id="licitacoes-uf-topo"
                                     aria-label="Filtrar licitações por Estado/UF"
                                     value={ufSel}
-                                    onChange={e => setUfSel(e.target.value)}
+                                    onChange={e => {
+                                        const novaUf = e.target.value === 'Todos' ? '' : e.target.value;
+                                        setUfSel(novaUf);
+                                        setFiltrosAplicados(prev => ({
+                                            ...prev,
+                                            uf: novaUf,
+                                        }));
+                                    }}
                                     className="w-full h-full py-3 px-3 bg-white border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none transition-all cursor-pointer"
                                 >
                                     {UFS.map(u => (
-                                        <option key={u} value={u}>
+                                        <option key={u} value={u === 'Todos' ? '' : u}>
                                             {u === 'Todos' ? 'Todas as UFs (Brasil)' : `Estado: ${u}`}
                                         </option>
                                     ))}
@@ -1118,7 +1150,6 @@ export default function LicitacoesPage({
                                                 item.valorTotalEstimado ??
                                                 item.valorEstimado ??
                                                 item.valor_estimado;
-                                            const downloadUrl = resolveEditalDownloadUrl(item);
                                             const cleanCnpjAudit = item.cnpjOrgao ? String(item.cnpjOrgao).replace(/\D/g, '') : '';
                                             const auditPortalHref =
                                                 cleanCnpjAudit.length === 14 && item.anoCompra && item.sequencialCompra
@@ -1128,12 +1159,7 @@ export default function LicitacoesPage({
                                             return (
                                                 <tr
                                                     key={item.id || i}
-                                                    onClick={() => {
-                                                        setEditalParaResumo({
-                                                            ...item,
-                                                            downloadUrl,
-                                                        });
-                                                    }}
+                                                    onClick={() => abrirResumoDoEdital(item)}
                                                     className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
                                                 >
                                                     {/* 1. EDITAL / PNCP (16%) */}
@@ -1247,10 +1273,7 @@ export default function LicitacoesPage({
                                                                 type="button"
                                                                 onClick={e => {
                                                                     e.stopPropagation();
-                                                                    setEditalParaResumo({
-                                                                        ...item,
-                                                                        downloadUrl,
-                                                                    });
+                                                                    abrirResumoDoEdital(item);
                                                                 }}
                                                                 className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
                                                                 title="RESUMO DO EDITAL - Abrir com itens, prazos e checklist"
