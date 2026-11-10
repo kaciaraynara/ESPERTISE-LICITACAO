@@ -3,6 +3,8 @@ import {
   buildOfficialPncpPortalUrl,
   extractPncpParams,
   handleDownloadEdital,
+  parsePncpDateSafe,
+  formatPncpDateBR,
 } from '../utils/pncp';
 import modalContent from '../components/ResumoEstrategicoModal.tsx?raw';
 import radarContent from '../pages/LicitacoesPage.tsx?raw';
@@ -134,5 +136,38 @@ describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resu
     // Rótulos na coluna de prazos
     expect(radarContent).toContain('Início:');
     expect(radarContent).toContain('Encerramento:');
+  });
+
+  it('7. parsePncpDateSafe e formatPncpDateBR tratam datas sem recuo D-1 em America/Sao_Paulo', () => {
+    // Data pura YYYY-MM-DD
+    const d1 = parsePncpDateSafe('2026-11-10');
+    expect(d1).not.toBeNull();
+    const str1 = formatPncpDateBR('2026-11-10');
+    expect(str1).toBe('10/11/2026');
+
+    // Data com timestamp UTC meia-noite YYYY-MM-DDT00:00:00.000Z não deve recuar para o dia anterior
+    const str2 = formatPncpDateBR('2026-11-10T00:00:00.000Z');
+    expect(str2).toBe('10/11/2026');
+
+    // Timestamp sem offset deve anexar -03:00 e manter o horário correto
+    const d3 = parsePncpDateSafe('2026-11-10T14:30:00');
+    expect(d3).not.toBeNull();
+    const str3 = formatPncpDateBR('2026-11-10T14:30:00', true);
+    expect(str3).toContain('10/11/2026');
+    expect(str3).toContain('14:30');
+  });
+
+  it('8. extractPncpParams prioriza numeroControlePNCP / externalId e descarta numeroCompra como sequencial', () => {
+    const editalComNumeroCompraErroneo = {
+      externalId: '43076702000161-1-000055/2026',
+      numeroCompra: '93002', // Número interno do órgão
+      anoCompra: 2026,
+    };
+    const params = extractPncpParams(editalComNumeroCompraErroneo);
+    expect(params).toEqual({
+      cnpj: '43076702000161',
+      anoCompra: 2026,
+      sequencialCompra: 55, // Sequencial correto do PNCP, NUNCA 93002
+    });
   });
 });

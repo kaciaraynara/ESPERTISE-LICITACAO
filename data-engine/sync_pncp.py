@@ -109,16 +109,31 @@ def create_resilient_session(
 # PARSERS E NORMALIZAÇÃO DE DADOS
 # ---------------------------------------------------------------------------
 def parse_iso_datetime(dt_str: Optional[str]) -> Optional[datetime]:
-    """Converte strings ISO-8601 da API do PNCP para objeto datetime UTC."""
+    """Converte strings ISO-8601 da API do PNCP para objeto datetime com timezone de Brasília (-03:00)."""
     if not dt_str:
         return None
+    str_val = str(dt_str).strip()
+    if not str_val:
+        return None
     try:
-        clean_str = dt_str.replace("Z", "+00:00")
-        return datetime.fromisoformat(clean_str)
+        # Se tiver apenas 10 caracteres (YYYY-MM-DD), anexa T12:00:00-03:00
+        if len(str_val) == 10 and str_val.count("-") == 2:
+            return datetime.fromisoformat(f"{str_val}T12:00:00-03:00")
+
+        # Se já terminar com Z
+        if str_val.endswith("Z"):
+            return datetime.fromisoformat(str_val[:-1] + "+00:00")
+
+        # Se a string ISO não tiver timezone (Z ou +/-HH:MM), anexa -03:00 antes de fromisoformat
+        if not ("+" in str_val[10:] or "-" in str_val[10:]):
+            return datetime.fromisoformat(f"{str_val}-03:00")
+
+        return datetime.fromisoformat(str_val)
     except Exception:
         for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
             try:
-                return datetime.strptime(dt_str[:19], fmt)
+                dt = datetime.strptime(str_val[:19], fmt)
+                return dt.replace(tzinfo=timezone(timedelta(hours=-3)))
             except Exception:
                 pass
     return None
@@ -308,8 +323,8 @@ class PncpIngestionService:
     """Motor de coleta da API oficial de publicação do PNCP."""
 
     # Modalidades padrão da Lei 14.133/2021:
-    # 8 = Pregão Eletrônico | 14 = Dispensa Eletrônica | 6 = Concorrência | 12 = Credenciamento
-    DEFAULT_MODALIDADES = [8, 14, 6]
+    # 6 = Pregão Eletrônico | 8 = Dispensa de Licitação | 4 = Concorrência Eletrônica | 12 = Credenciamento
+    DEFAULT_MODALIDADES = [6, 8, 4, 12]
 
     def __init__(self, session: requests.Session, db_engine: DatabaseEngine):
         self.session = session
@@ -380,10 +395,11 @@ class PncpIngestionService:
             or "Objeto não detalhado pelo órgão no aviso do PNCP"
         ).strip()
 
-        # 3. Valor Estimado
+        # 3. Valor Estimado: se estimated_value <= 0, grava None (NULL no PostgreSQL)
         raw_val = raw.get("valorTotalEstimado")
         try:
-            estimated_value = float(raw_val) if raw_val is not None and str(raw_val).strip() else None
+            val_float = float(raw_val) if raw_val is not None and str(raw_val).strip() else None
+            estimated_value = val_float if val_float is not None and val_float > 0 else None
         except (ValueError, TypeError):
             estimated_value = None
 

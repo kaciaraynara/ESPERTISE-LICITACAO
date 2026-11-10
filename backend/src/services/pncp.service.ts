@@ -75,37 +75,54 @@ function optionalPositiveMoney(value: unknown): number | undefined {
 }
 
 /**
+ * Normaliza datas do PNCP para ISO com timezone correto de Brasília (-03:00).
+ * - Se raw for YYYY-MM-DD, retorna ${raw}T12:00:00-03:00.
+ * - Se raw for timestamp ISO sem offset, retorna ${raw}-03:00.
+ */
+export function normalizePncpIsoDate(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== 'string') {
+    if (raw instanceof Date) {
+      return isNaN(raw.getTime()) ? undefined : raw.toISOString();
+    }
+    return undefined;
+  }
+  const str = raw.trim();
+  if (!str) return undefined;
+
+  // Se já possui indicador de fuso (Z ou +/-HH:MM)
+  if (/([+-]\d{2}:\d{2}|Z)$/.test(str)) {
+    return str;
+  }
+
+  // Se for YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return `${str}T12:00:00-03:00`;
+  }
+
+  // Se for timestamp ISO sem offset
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(str)) {
+    return `${str}-03:00`;
+  }
+
+  // Se for YYYYMMDD
+  if (/^\d{8}$/.test(str)) {
+    const y = str.slice(0, 4);
+    const m = str.slice(4, 6);
+    const day = str.slice(6, 8);
+    return `${y}-${m}-${day}T12:00:00-03:00`;
+  }
+
+  return str;
+}
+
+/**
  * REGRA DE OURO (FUSO AMERICA/SAO_PAULO): Datas sem timezone do PNCP são convertidas com -03:00.
  */
 export function parsePncpDateToIso(dateStr: string | null | undefined): string | null {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const trimmed = dateStr.trim();
-  if (!trimmed) return null;
-
-  if (/([+-]\d{2}:\d{2}|Z)$/.test(trimmed)) {
-    const d = new Date(trimmed);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(trimmed)) {
-    const d = new Date(`${trimmed}-03:00`);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    const d = new Date(`${trimmed}T12:00:00-03:00`);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  }
-
-  if (/^\d{8}$/.test(trimmed)) {
-    const y = trimmed.slice(0, 4);
-    const m = trimmed.slice(4, 6);
-    const day = trimmed.slice(6, 8);
-    const d = new Date(`${y}-${m}-${day}T12:00:00-03:00`);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  }
-
-  const d = new Date(trimmed);
+  const normalized = normalizePncpIsoDate(dateStr);
+  if (!normalized) return null;
+  const d = new Date(normalized);
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
@@ -148,14 +165,17 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
   const ano = optionalNumber(raw.anoCompra ?? raw.ano) || (parsedControl?.ano ? Number(parsedControl.ano) : undefined);
   const sequencial = optionalNumber(raw.sequencialCompra ?? raw.sequencial) || parsedControl?.sequencial;
 
-  const officialDownloadUrl = (cnpj && ano && sequencial)
-    ? `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${Number(ano)}/${Number(sequencial)}/arquivos/1`
+  const linkEditalOficial = (cnpj && ano && sequencial)
+    ? `https://pncp.gov.br/app/editais/${cnpj}/${Number(ano)}/${Number(sequencial)}`
     : (firstString(raw.linkEditalPNCP) ?? undefined);
 
   const razaoSocialOrgao = firstString(orgao.razaoSocial, orgao.razaosocial, raw.nomeOrgao);
   const cnpjOrgaoRaw = firstString(orgao.cnpj, raw.cnpjOrgao);
   const objetoTexto = firstString(raw.objetoCompra, raw.objeto);
   const modalidadeTexto = firstString(raw.modalidadeNome, raw.nomeModalidade);
+
+  const rawValorNum = optionalNumber(raw.valorTotalEstimado ?? raw.valorEstimado);
+  const valorTotalEstimado = (rawValorNum !== undefined && rawValorNum > 0) ? rawValorNum : undefined;
 
   return {
     numeroControlePNCP: numControle,
@@ -177,12 +197,12 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     informacaoComplementar: firstString(raw.informacaoComplementar, raw.informacao_complementar),
     processo: firstString(raw.processo),
     numeroCompra: firstString(raw.numeroCompra),
-    valorTotalEstimado: optionalPositiveMoney(raw.valorTotalEstimado),
-    dataPublicacaoPncp: parsePncpDateToIso(firstString(raw.dataPublicacaoPncp)) ?? undefined,
-    dataAberturaProposta: parsePncpDateToIso(firstString(raw.dataAberturaProposta)) ?? undefined,
-    dataEncerramentoProposta: parsePncpDateToIso(firstString(raw.dataEncerramentoProposta)) ?? undefined,
-    dataInicioRecebimento: parsePncpDateToIso(firstString(raw.dataAberturaProposta)) ?? undefined,
-    dataFimRecebimento: parsePncpDateToIso(firstString(raw.dataEncerramentoProposta)) ?? undefined,
+    valorTotalEstimado,
+    dataPublicacaoPncp: normalizePncpIsoDate(raw.dataPublicacaoPncp),
+    dataAberturaProposta: normalizePncpIsoDate(raw.dataAberturaProposta),
+    dataEncerramentoProposta: normalizePncpIsoDate(raw.dataEncerramentoProposta),
+    dataInicioRecebimento: normalizePncpIsoDate(raw.dataAberturaProposta),
+    dataFimRecebimento: normalizePncpIsoDate(raw.dataEncerramentoProposta),
     modalidadeId: optionalNumber(raw.modalidadeId),
     modalidadeNome: modalidadeTexto,
     nomeModalidade: modalidadeTexto,
@@ -191,7 +211,7 @@ export function mapPncpItem(rawValue: unknown): LicitacaoPNCP {
     situacaoCompraNome: firstString(raw.situacaoCompraNome),
     usuarioNome: firstString(raw.usuarioNome),
     linkSistemaOrigem: firstString(raw.linkSistemaOrigem),
-    linkEditalPNCP: officialDownloadUrl,
+    linkEditalPNCP: linkEditalOficial,
     srp: typeof raw.srp === 'boolean' ? raw.srp : undefined,
   };
 }

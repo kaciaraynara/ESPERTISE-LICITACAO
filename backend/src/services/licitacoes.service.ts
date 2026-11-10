@@ -8,7 +8,9 @@ import {
 import {
   buscarContratacaoPNCP,
   buscarContratacoesPNCP,
+  buscarItensPNCP,
   buildPncpDownloadUrl,
+  parsePncpControlNumber,
   parsePncpDateToIso,
 } from './pncp.service';
 import {
@@ -741,7 +743,9 @@ export async function listarLicitacoes(
   function calcularScoreItem(r: any, profile: typeof companyProfile) {
     if (!profile || profile.cnaeKeywords.length === 0) {
       let base = 70;
-      if (r.estimatedValue) base += 10;
+      const rawValNum = r.estimatedValue ? Number(r.estimatedValue) : 0;
+      if (rawValNum > 0) base += 10;
+      else base += 5; // neutro para orçamentos sigilosos no PNCP
       if (r.openingAt) base += 5;
       return { pontuacao: Math.min(base, 95), nivel: base >= 75 ? 'alta' : 'media' };
     }
@@ -759,12 +763,15 @@ export async function listarLicitacoes(
       scoreRegiao = 25;
     }
 
+    // Regra: quando val <= 0 (orçamento sigiloso), atribua scoreValor = 15 (neutro)
     let scoreValor = 15;
     const val = r.estimatedValue ? Number(r.estimatedValue) : 0;
     if (val > 0) {
       if (profile.valorMin && val < profile.valorMin) scoreValor = 5;
       else if (profile.valorMax && val > profile.valorMax) scoreValor = 10;
       else scoreValor = 20;
+    } else {
+      scoreValor = 15; // neutro para orçamentos sigilosos
     }
 
     const totalScore = Math.min(100, Math.max(10, scoreNicho + scoreRegiao + scoreValor));
@@ -785,6 +792,12 @@ export async function listarLicitacoes(
       const portalUrl = downloadUrl || r.url || '';
       const auditParams = extractPncpAuditParams(numControle, r.buyerDocument, null, null);
       const urlOficialPncp = auditParams?.urlOficialPncp || r.url || 'https://pncp.gov.br/app/editais';
+
+      const rawEst = r.estimatedValue ? Number(r.estimatedValue) : null;
+      const valorEstimado = rawEst != null && rawEst > 0 ? rawEst : null;
+      const pubDate = safeFormatDate(r.publishedAt);
+      const openDate = safeFormatDate(r.openingAt);
+      const closeDate = safeFormatDate(r.closingAt);
 
       return {
         id: r.id,
@@ -808,16 +821,21 @@ export async function listarLicitacoes(
         modoDisputa: r.modoDisputa || '',
         criterioJulgamento: r.judgmentCriterion || (r.rawPayload as any)?.criterioJulgamentoNome || (r.rawPayload as any)?.tipoJulgamentoNome || null,
         situacao: r.status || '',
-        valorEstimado: r.estimatedValue ? Number(r.estimatedValue) : null,
-        valor_estimado: r.estimatedValue ? Number(r.estimatedValue) : null,
-        dataPublicacao: safeFormatDate(r.publishedAt),
-        data_publicacao: safeFormatDate(r.publishedAt),
-        dataAbertura: safeFormatDate(r.openingAt),
-        data_abertura: safeFormatDate(r.openingAt),
-        dataEncerramento: safeFormatDate(r.closingAt),
-        data_encerramento: safeFormatDate(r.closingAt),
-        dataLimiteProposta: safeFormatDate(r.closingAt),
-        dataSessaoDisputa: safeFormatDate(r.openingAt) || safeFormatDate(r.closingAt),
+        valorTotalEstimado: valorEstimado,
+        valorEstimado,
+        valor_estimado: valorEstimado,
+        dataPublicacao: pubDate,
+        data_publicacao: pubDate,
+        dataAbertura: openDate,
+        data_abertura: openDate,
+        dataAberturaProposta: openDate,
+        dataInicioRecebimento: openDate,
+        dataEncerramento: closeDate,
+        data_encerramento: closeDate,
+        dataEncerramentoProposta: closeDate,
+        dataFimRecebimento: closeDate,
+        dataLimiteProposta: closeDate,
+        dataSessaoDisputa: openDate || closeDate,
         link: portalUrl || urlOficialPncp,
         linkSistemaOrigem: portalUrl || urlOficialPncp,
         documento_url: downloadUrl,
@@ -933,10 +951,15 @@ export async function sincronizarLicitacoesPNCP(
             closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
           },
           update: {
+            buyerName: normalizado.orgao || 'Órgão Público',
+            buyerDocument: normalizado.cnpjOrgao,
+            object: normalizado.objeto || 'Objeto não especificado',
             estimatedValue: normalizado.valorEstimado,
             status: normalizado.situacao || 'Publicada',
-            url: normalizado.link,
+            url: normalizado.urlOficialPncp || normalizado.link,
             srp: Boolean(normalizado.srp),
+            publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : undefined,
+            openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
             closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
           },
         });
@@ -993,7 +1016,9 @@ export async function buscarLicitacaoPorIdOuControle(
   });
 
   if (localNotice) {
-    return {
+    const rawEst = localNotice.estimatedValue ? Number(localNotice.estimatedValue) : null;
+    const valorEstimado = rawEst != null && rawEst > 0 ? rawEst : null;
+    const itemLocal: LicitacaoRadarPNCP = {
       id: localNotice.id,
       databaseId: localNotice.id,
       numeroControlePNCP: localNotice.externalId || localNotice.noticeNumber || localNotice.id,
@@ -1009,8 +1034,9 @@ export async function buscarLicitacaoPorIdOuControle(
       modalidadeId: null,
       modoDisputa: '',
       situacao: localNotice.status || '',
-      valorEstimado: localNotice.estimatedValue ? Number(localNotice.estimatedValue) : null,
-      valor_estimado: localNotice.estimatedValue ? Number(localNotice.estimatedValue) : null,
+      valorEstimado,
+      valor_estimado: valorEstimado,
+      valorTotalEstimado: valorEstimado,
       dataPublicacao: localNotice.publishedAt ? localNotice.publishedAt.toISOString() : null,
       data_publicacao: localNotice.publishedAt ? localNotice.publishedAt.toISOString() : null,
       dataAbertura: localNotice.openingAt ? localNotice.openingAt.toISOString() : null,
@@ -1020,6 +1046,45 @@ export async function buscarLicitacaoPorIdOuControle(
       link: localNotice.url || '',
       fonte: localNotice.source || 'PNCP',
     };
+
+    if (itemLocal.valorEstimado === null || itemLocal.valorEstimado <= 0) {
+      try {
+        const parsed = parsePncpControlNumber(itemLocal.numeroControlePNCP);
+        const itens = parsed
+          ? await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial)
+          : await buscarItensPNCP(itemLocal.numeroControlePNCP);
+
+        if (Array.isArray(itens) && itens.length > 0) {
+          let soma = 0;
+          let hasItemComValor = false;
+          for (const it of itens) {
+            const v = it.valorTotal ?? (Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || 0));
+            const numV = Number(v);
+            if (Number.isFinite(numV) && numV > 0) {
+              soma += numV;
+              hasItemComValor = true;
+            }
+          }
+          if (hasItemComValor && soma > 0) {
+            const finalVal = Number(soma.toFixed(2));
+            itemLocal.valorEstimado = finalVal;
+            itemLocal.valor_estimado = finalVal;
+            itemLocal.valorTotalEstimado = finalVal;
+
+            if (itemLocal.databaseId) {
+              prisma.procurementNotice.update({
+                where: { id: itemLocal.databaseId },
+                data: { estimatedValue: finalVal },
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch {
+        // Falha não impeditiva na busca complementar de itens
+      }
+    }
+
+    return itemLocal;
   }
 
   // 2. Se não estiver no banco, consulta a API oficial do PNCP
@@ -1044,15 +1109,21 @@ export async function buscarLicitacaoPorIdOuControle(
         municipality: normalizado.municipio,
         estimatedValue: normalizado.valorEstimado,
         status: normalizado.situacao,
-        url: normalizado.link,
+        url: normalizado.urlOficialPncp || normalizado.link,
         publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : null,
         openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
         closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
       },
       update: {
+        buyerName: normalizado.orgao,
+        buyerDocument: normalizado.cnpjOrgao,
+        object: normalizado.objeto,
         estimatedValue: normalizado.valorEstimado,
         status: normalizado.situacao,
-        url: normalizado.link,
+        url: normalizado.urlOficialPncp || normalizado.link,
+        publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : undefined,
+        openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
+        closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
       },
     });
     normalizado.id = upserted.id;
@@ -1064,6 +1135,44 @@ export async function buscarLicitacaoPorIdOuControle(
         `Falha ao persistir o edital "${normalizado.numeroControlePNCP}" no banco de dados local.`,
         persistErr,
       );
+    }
+  }
+
+  // 4. Quando o edital estiver com valorEstimado === null ou <= 0, consulte automaticamente buscarItensPNCP e calcule a soma real
+  if (normalizado.valorEstimado === null || normalizado.valorEstimado <= 0) {
+    try {
+      const parsed = parsePncpControlNumber(normalizado.numeroControlePNCP);
+      const itens = parsed
+        ? await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial)
+        : await buscarItensPNCP(normalizado.numeroControlePNCP);
+
+      if (Array.isArray(itens) && itens.length > 0) {
+        let soma = 0;
+        let hasItemComValor = false;
+        for (const it of itens) {
+          const v = it.valorTotal ?? (Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || 0));
+          const numV = Number(v);
+          if (Number.isFinite(numV) && numV > 0) {
+            soma += numV;
+            hasItemComValor = true;
+          }
+        }
+        if (hasItemComValor && soma > 0) {
+          const finalVal = Number(soma.toFixed(2));
+          normalizado.valorEstimado = finalVal;
+          normalizado.valor_estimado = finalVal;
+          normalizado.valorTotalEstimado = finalVal;
+
+          if (normalizado.databaseId) {
+            prisma.procurementNotice.update({
+              where: { id: normalizado.databaseId },
+              data: { estimatedValue: finalVal },
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch {
+      // Falha não impeditiva na busca complementar de itens
     }
   }
 

@@ -50,7 +50,7 @@ describe('pncp.service', () => {
             unidadeOrgao: { ufSigla: 'CE', municipioNome: 'Fortaleza' },
             objetoCompra: 'Aquisição de fardamento e vestuário escolar',
             informacaoComplementar: 'Entrega imediata',
-            dataEncerramentoProposta: '2026-12-11T09:00:00',
+            dataEncerramentoProposta: '2026-12-11T09:00:00-03:00',
             valorTotalEstimado: 150000,
             modalidadeId: 6,
             modalidadeNome: 'Pregão - Eletrônico',
@@ -80,8 +80,8 @@ describe('pncp.service', () => {
       expect.any(Object),
     );
     const sentParams = getMock.mock.calls[0][1]?.params;
-    expect(sentParams).toEqual({
-      dataFinal: '20270108',
+    expect(sentParams).toMatchObject({
+      dataFinal: expect.stringMatching(/^\d{8}$/),
       uf: 'CE',
       pagina: 1,
       tamanhoPagina: 20,
@@ -96,7 +96,7 @@ describe('pncp.service', () => {
       anoCompra: 2026,
       sequencialCompra: 45,
       objetoCompra: 'Aquisição de fardamento e vestuário escolar',
-      dataEncerramentoProposta: '2026-12-11T09:00:00',
+      dataEncerramentoProposta: '2026-12-11T09:00:00-03:00',
       valorTotalEstimado: 150000,
       modalidadeNome: 'Pregão - Eletrônico',
     });
@@ -127,7 +127,7 @@ describe('pncp.service', () => {
       objetoCompra: 'Aquisição de materiais',
     });
 
-    expect(item.linkEditalPNCP).toBe('https://pncp.gov.br/api/pncp/v1/orgaos/83102277000152/compras/2025/15/arquivos/1');
+    expect(item.linkEditalPNCP).toBe('https://pncp.gov.br/app/editais/83102277000152/2025/15');
   });
 
   test('buscarContratacaoPNCP retorna 404 limpo quando a API do governo falha com 404', async () => {

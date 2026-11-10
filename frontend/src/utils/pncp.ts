@@ -63,51 +63,77 @@ export function parsePncpDateToIso(dateStr: string | null | undefined): string |
 }
 
 /**
- * Formata data no fuso de Brasília (America/Sao_Paulo) sem sofrer recuo D-1
+ * Converte com segurança datas do PNCP para objeto Date, evitando o recuo D-1.
+ * - Se rawDate for YYYY-MM-DD ou YYYY-MM-DDT00:00:00.000Z, converte usando ${str.slice(0, 10)}T12:00:00-03:00.
+ * - Se rawDate for timestamp ISO sem offset, anexa -03:00 antes de instanciar new Date().
  */
-export function formatPncpDate(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  const trimmed = String(dateStr).trim();
-  let date: Date;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    date = new Date(`${trimmed}T12:00:00-03:00`);
-  } else if (!/([+-]\d{2}:\d{2}|Z)$/.test(trimmed) && trimmed.includes('T')) {
-    date = new Date(`${trimmed}-03:00`);
-  } else {
-    date = new Date(trimmed);
+export function parsePncpDateSafe(rawDate?: string | Date | null): Date | null {
+  if (!rawDate) return null;
+  if (rawDate instanceof Date) {
+    return isNaN(rawDate.getTime()) ? null : rawDate;
   }
-  if (isNaN(date.getTime())) return trimmed;
-  return new Intl.DateTimeFormat('pt-BR', {
+  const str = String(rawDate).trim();
+  if (!str) return null;
+
+  // YYYY-MM-DD ou YYYY-MM-DDT00:00:00... (inclusive com .000Z)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str) || /^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z?$/i.test(str)) {
+    const d = new Date(`${str.slice(0, 10)}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Timestamp ISO sem offset
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(str)) {
+    const d = new Date(`${str}-03:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // YYYYMMDD
+  if (/^\d{8}$/.test(str)) {
+    const y = str.slice(0, 4);
+    const m = str.slice(4, 6);
+    const day = str.slice(6, 8);
+    const d = new Date(`${y}-${m}-${day}T12:00:00-03:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Formata data no fuso de Brasília (America/Sao_Paulo) no padrão pt-BR.
+ */
+export function formatPncpDateBR(rawDate?: string | Date | null, includeTime: boolean = false): string {
+  const d = parsePncpDateSafe(rawDate);
+  if (!d) return '—';
+
+  const options: Intl.DateTimeFormatOptions = {
     timeZone: 'America/Sao_Paulo',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(date);
+  };
+
+  if (includeTime) {
+    options.hour = '2-digit';
+    options.minute = '2-digit';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', options).format(d);
+}
+
+/**
+ * Formata data no fuso de Brasília (America/Sao_Paulo) sem sofrer recuo D-1
+ */
+export function formatPncpDate(dateStr?: string | Date | null): string {
+  return formatPncpDateBR(dateStr, false);
 }
 
 /**
  * Formata data e hora no fuso de Brasília (America/Sao_Paulo)
  */
-export function formatPncpDateTime(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  const trimmed = String(dateStr).trim();
-  let date: Date;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    date = new Date(`${trimmed}T12:00:00-03:00`);
-  } else if (!/([+-]\d{2}:\d{2}|Z)$/.test(trimmed) && trimmed.includes('T')) {
-    date = new Date(`${trimmed}-03:00`);
-  } else {
-    date = new Date(trimmed);
-  }
-  if (isNaN(date.getTime())) return trimmed;
-  return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+export function formatPncpDateTime(dateStr?: string | Date | null): string {
+  return formatPncpDateBR(dateStr, true);
 }
 
 /**
@@ -118,10 +144,12 @@ export function formatPncpDateTime(dateStr?: string | null): string {
 export function extractPncpParams(edital: any): PncpUrlParams | null {
   if (!edital) return null;
 
-  // 1. Extração prioritária a partir do numeroControlePNCP
+  // 1. Extração prioritária a partir do numeroControlePNCP / externalId
   const numControle = String(
     edital.numeroControlePNCP ||
     edital.numero_controle_pncp ||
+    edital.externalId ||
+    edital.external_id ||
     edital.id ||
     '',
   ).trim().replace(/^pncp-/i, '');
