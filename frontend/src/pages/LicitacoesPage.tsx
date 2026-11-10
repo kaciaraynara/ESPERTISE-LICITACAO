@@ -558,6 +558,10 @@ export default function LicitacoesPage({
 
                 if (isReset || pg === 1) {
                     setEditais(items);
+                    const mainEl = document.getElementById('main-content') || window;
+                    if ('scrollTo' in mainEl) {
+                        mainEl.scrollTo({ top: 0, behavior: 'instant' });
+                    }
                 } else {
                     setEditais((prev) => {
                         const existingIds = new Set(prev.map((e) => e.numeroControlePNCP || e.id));
@@ -650,7 +654,7 @@ export default function LicitacoesPage({
     useEffect(() => {
         const mainEl = document.getElementById('main-content') || containerRef.current;
         if (mainEl) {
-            mainEl.focus();
+            mainEl.focus({ preventScroll: true });
         }
     }, []);
 
@@ -769,7 +773,7 @@ export default function LicitacoesPage({
             : 'Radar de Editais';
 
     return (
-        <div ref={containerRef} tabIndex={0} className="flex flex-col min-h-screen bg-brand-light focus:outline-none">
+        <div ref={containerRef} className="flex flex-col w-full h-auto bg-brand-light focus:outline-none">
 
             {/* HEADER E BUSCA DINÂMICA REAL */}
             <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 relative z-1 shadow-2xs">

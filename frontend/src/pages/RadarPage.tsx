@@ -268,7 +268,7 @@ export default function RadarPage() {
 
         {/* TABELA RESPONSIVA DE AUDITORIA */}
         {!isLoading && !error && (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm h-auto overflow-visible">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Terminal className="h-4 w-4 text-brand-orange" />
@@ -281,15 +281,15 @@ export default function RadarPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] border-collapse text-left text-xs">
+            <div className="w-full h-auto overflow-visible">
+              <table className="w-full table-fixed border-collapse text-left text-xs h-auto overflow-visible">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                    <th className="px-4 py-3.5">Data / Hora</th>
-                    <th className="px-4 py-3.5">IP de Origem</th>
-                    <th className="px-4 py-3.5">Ação</th>
-                    <th className="px-4 py-3.5">Usuário</th>
-                    <th className="px-4 py-3.5">Detalhes (Payload)</th>
+                    <th className="w-[18%] px-4 py-3.5">Data / Hora</th>
+                    <th className="w-[16%] px-4 py-3.5">IP de Origem</th>
+                    <th className="w-[18%] px-4 py-3.5">Ação</th>
+                    <th className="w-[18%] px-4 py-3.5">Usuário</th>
+                    <th className="w-[30%] px-4 py-3.5">Detalhes (Payload)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
