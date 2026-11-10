@@ -131,6 +131,19 @@ function extractPncpAuditParams(
     };
   }
 
+  const match2 = cleanControl.match(/^(\d{14})[/-](\d{4})[/-](\d+)$/);
+  if (match2) {
+    const [, cnpj, ano, seq] = match2;
+    const anoNum = Number(ano);
+    const seqNum = Number(seq);
+    return {
+      cnpj,
+      anoCompra: anoNum,
+      sequencialCompra: seqNum,
+      urlOficialPncp: `https://pncp.gov.br/app/editais/${cnpj}/${anoNum}/${seqNum}`,
+    };
+  }
+
   const rawCnpj = String(cnpjOrgao || '').replace(/\D/g, '');
   const rawAno = Number(anoCompra);
   const rawSeq = Number(sequencialCompra);
@@ -213,9 +226,18 @@ export function normalizarLicitacaoPNCP(
   const dataEncerramentoProposta = nullableString(item.dataEncerramentoProposta);
   const dataAberturaProposta = nullableString(item.dataAberturaProposta);
 
-  // Extrair com precisão os dois marcos temporais retornados pelo PNCP
+  // No PNCP: dataAberturaProposta = início de acolhimento de propostas
+  // dataEncerramentoProposta = encerramento/fim de recebimento de propostas
+  // Regra de veracidade: NUNCA exibir uma data de disputa anterior à data de encerramento de envio
   const dataLimiteProposta = dataEncerramentoProposta;
-  const dataSessaoDisputa = dataAberturaProposta || dataEncerramentoProposta;
+  let dataSessaoDisputa: string | null = null;
+  if (dataAberturaProposta && dataEncerramentoProposta) {
+    const dIni = new Date(dataAberturaProposta).getTime();
+    const dFim = new Date(dataEncerramentoProposta).getTime();
+    dataSessaoDisputa = dIni > dFim ? dataAberturaProposta : dataEncerramentoProposta;
+  } else {
+    dataSessaoDisputa = dataEncerramentoProposta || dataAberturaProposta;
+  }
 
   return {
     id: numeroControlePNCP,
@@ -251,12 +273,13 @@ export function normalizarLicitacaoPNCP(
     data_publicacao: nullableString(item.dataPublicacaoPncp),
     dataAbertura: dataAberturaProposta,
     data_abertura: dataAberturaProposta,
+    dataAberturaProposta,
     dataEncerramentoProposta,
     dataEncerramento: dataEncerramentoProposta,
     data_encerramento: dataEncerramentoProposta,
     dataLimiteProposta,
     dataSessaoDisputa,
-    link: nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP) || urlOficialPncp,
+    link: urlOficialPncp || nullableString(item.linkSistemaOrigem) || nullableString(item.linkEditalPNCP),
     linkSistemaOrigem: nullableString(item.linkSistemaOrigem),
     documento_url: downloadUrl,
     linkDownloadEdital: downloadUrl,
@@ -330,12 +353,33 @@ export async function consultarRadarPncpTempoReal(
 
   const normalizedItems = rawItems.map(normalizarLicitacaoPNCP);
 
+  // 1. FILTRO DE VERACIDADE: apenas editais com prazo aberto de verdade hoje
+  const now = new Date();
+  const validItems = normalizedItems.filter((item) => {
+    const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
+    if (!encStr) return true;
+    const encDate = new Date(encStr);
+    return !isNaN(encDate.getTime()) ? encDate >= now : true;
+  });
+
+  // 2. ORDENAÇÃO POR EDITAIS NOVOS: decrescente por anoCompra (2026 no topo) e dataPublicacao mais recente
+  validItems.sort((a, b) => {
+    const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
+    const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
+    if (anoB !== anoA) {
+      return anoB - anoA;
+    }
+    const pubA = a.dataPublicacao ? new Date(a.dataPublicacao).getTime() : 0;
+    const pubB = b.dataPublicacao ? new Date(b.dataPublicacao).getTime() : 0;
+    return pubB - pubA;
+  });
+
   // Persistência assíncrona não bloqueante para suportar abertura de detalhes/CRM/propostas
   try {
     const noticeRepo = process.env.DATABASE_URL ? prisma?.procurementNotice : null;
-    if (typeof noticeRepo?.upsert === 'function' && normalizedItems.length > 0) {
+    if (typeof noticeRepo?.upsert === 'function' && validItems.length > 0) {
       Promise.allSettled(
-        normalizedItems.map(async (normalizado) => {
+        validItems.map(async (normalizado) => {
           const upserted = await noticeRepo.upsert({
             where: { dedupeKey: `pncp-${normalizado.numeroControlePNCP}` },
             create: {
@@ -375,17 +419,17 @@ export async function consultarRadarPncpTempoReal(
   }
 
   const totalRegistros = isSrpFilter
-    ? normalizedItems.length
-    : (resultadoPncp.totalRegistros ?? normalizedItems.length);
+    ? validItems.length
+    : (resultadoPncp.totalRegistros ?? validItems.length);
 
   return {
-    data: normalizedItems,
+    data: validItems,
     totalRegistros,
     pagina: page,
     tamanhoPagina: size,
     totalPaginas: Math.max(1, Math.ceil(totalRegistros / size)),
     perfilRadar: null,
-    aviso: normalizedItems.length === 0
+    aviso: validItems.length === 0
       ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
       : undefined,
   };

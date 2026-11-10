@@ -147,7 +147,7 @@ export function buildOfficialPncpPortalUrl(edital: any): string {
   // 2. Extração via extractPncpParams (numeroControlePNCP, links, etc.)
   const params = extractPncpParams(edital);
   if (params) {
-    return `https://pncp.gov.br/app/editais/${params.cnpj}/${params.anoCompra}/${params.sequencialCompra}`;
+    return `https://pncp.gov.br/app/editais/${params.cnpj}/${Number(params.anoCompra)}/${Number(params.sequencialCompra)}`;
   }
 
   return 'https://pncp.gov.br/app/editais';

@@ -684,7 +684,27 @@ export async function buscarContratacoesPNCP(
       return true;
     });
 
-    const filteredByKeyword = filterByKeyword(deduplicated, keyword);
+    const now = new Date();
+    // 1. Filtro de veracidade: apenas editais com prazo de proposta ainda aberto hoje
+    const openItems = deduplicated.filter((item) => {
+      if (!item.dataEncerramentoProposta) return true;
+      const closing = new Date(item.dataEncerramentoProposta);
+      return !isNaN(closing.getTime()) ? closing >= now : true;
+    });
+
+    // 2. Ordenação decrescente: anoCompra (2026 primeiro) e depois dataPublicacaoPncp mais recente
+    openItems.sort((a, b) => {
+      const anoA = Number(a.anoCompra) || (a.dataPublicacaoPncp ? new Date(a.dataPublicacaoPncp).getFullYear() : 0);
+      const anoB = Number(b.anoCompra) || (b.dataPublicacaoPncp ? new Date(b.dataPublicacaoPncp).getFullYear() : 0);
+      if (anoB !== anoA) {
+        return anoB - anoA;
+      }
+      const pubA = a.dataPublicacaoPncp ? new Date(a.dataPublicacaoPncp).getTime() : 0;
+      const pubB = b.dataPublicacaoPncp ? new Date(b.dataPublicacaoPncp).getTime() : 0;
+      return pubB - pubA;
+    });
+
+    const filteredByKeyword = filterByKeyword(openItems, keyword);
     const filtered = cnpj
       ? filteredByKeyword.filter((item) => {
           const itemCnpj = String(item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');

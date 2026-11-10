@@ -81,7 +81,25 @@ export default function RadarPage() {
     staleTime: 60_000,
   });
 
-  const licitacoes = resp?.data || [];
+  const now = new Date();
+  const rawLicitacoes = resp?.data || [];
+  const licitacoes = rawLicitacoes.filter((item: any) => {
+    const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
+    if (!encStr) return true;
+    const encDate = new Date(encStr);
+    return !isNaN(encDate.getTime()) ? encDate >= now : true;
+  });
+
+  licitacoes.sort((a: any, b: any) => {
+    const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
+    const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
+    if (anoB !== anoA) {
+      return anoB - anoA;
+    }
+    const pubA = a.dataPublicacao ? new Date(a.dataPublicacao).getTime() : 0;
+    const pubB = b.dataPublicacao ? new Date(b.dataPublicacao).getTime() : 0;
+    return pubB - pubA;
+  });
 
   const formatarMoeda = (val: number | null | undefined) => {
     if (val == null || Number.isNaN(Number(val))) return 'Sigiloso / Não informado';
@@ -253,15 +271,13 @@ export default function RadarPage() {
                   const nomeOrgao = licitacao.nomeOrgao || licitacao.orgao || 'Órgão Público';
                   const objetoCompra = licitacao.objetoCompra || licitacao.objeto || 'Objeto não especificado';
                   const modalidadeNome = licitacao.nomeModalidade || licitacao.modalidadeNome || licitacao.modalidade || 'Contratação';
-                  const dataLimiteProposta =
-                    licitacao.dataLimiteProposta ||
-                    licitacao.dataEncerramentoProposta ||
-                    licitacao.dataEncerramento;
-                  const dataSessaoDisputa =
-                    licitacao.dataSessaoDisputa ||
+                  const inicioProposta =
                     licitacao.dataAberturaProposta ||
-                    licitacao.dataAbertura ||
-                    dataLimiteProposta;
+                    licitacao.dataAbertura;
+                  const encerramentoProposta =
+                    licitacao.dataEncerramentoProposta ||
+                    licitacao.dataLimiteProposta ||
+                    licitacao.dataEncerramento;
                   const valor = licitacao.valorTotalEstimado ?? licitacao.valorEstimado;
 
                   return (
@@ -291,13 +307,13 @@ export default function RadarPage() {
 
                       <div className="space-y-3 pt-3 border-t border-slate-100">
                         <div className="flex flex-col gap-1 text-xs">
-                          <div className="text-slate-700 font-medium flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span>Envio até: {formatarData(dataLimiteProposta)}</span>
+                          <div className="text-slate-600 font-medium flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>Início: {formatarData(inicioProposta)}</span>
                           </div>
-                          <div className="text-brand-blue font-semibold flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-brand-blue shrink-0" />
-                            <span>Disputa: {formatarData(dataSessaoDisputa)}</span>
+                          <div className="text-brand-blue font-bold flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+                            <span>Encerramento: {formatarData(encerramentoProposta)}</span>
                           </div>
                         </div>
                         <div className="flex justify-between items-center text-xs">

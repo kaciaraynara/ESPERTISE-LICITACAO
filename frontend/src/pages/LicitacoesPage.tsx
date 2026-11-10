@@ -33,6 +33,7 @@ type Licitacao = {
     valorTotalEstimado?: number | null;
     data_abertura?: string | null;
     dataAbertura?: string | null;
+    dataAberturaProposta?: string | null;
     data_encerramento?: string | null;
     dataEncerramento?: string | null;
     dataEncerramentoProposta?: string | null;
@@ -544,13 +545,36 @@ export default function LicitacoesPage({
             if (data && (Array.isArray(data.items) || Array.isArray(data.data))) {
                 const rawItems: Licitacao[] = (Array.isArray(data.items) ? data.items : data.data) || [];
                 const termoBusca = filtrosAplicados.busca.trim().toLowerCase();
-                const items = termoBusca
+                const filteredByTerm = termoBusca
                     ? rawItems.filter((item) => {
                           const objText = String(item.objetoCompra || item.objeto || '').toLowerCase();
                           const infoComp = String(item.informacaoComplementar || '').toLowerCase();
                           return objText.includes(termoBusca) || infoComp.includes(termoBusca);
                       })
                     : rawItems;
+
+                const now = new Date();
+                // 1. FILTRO DE VERACIDADE: apenas editais com prazo de proposta aberto de verdade hoje
+                const validItems = filteredByTerm.filter((item) => {
+                    const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento;
+                    if (!encStr) return true;
+                    const encDate = new Date(encStr);
+                    return !isNaN(encDate.getTime()) ? encDate >= now : true;
+                });
+
+                // 2. ORDENAÇÃO POR EDITAIS NOVOS: decrescente por anoCompra (2026 no topo) e dataPublicacao mais recente
+                validItems.sort((a, b) => {
+                    const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
+                    const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
+                    if (anoB !== anoA) {
+                        return anoB - anoA;
+                    }
+                    const pubA = (a.dataPublicacao || a.data_publicacao) ? new Date(a.dataPublicacao || a.data_publicacao!).getTime() : 0;
+                    const pubB = (b.dataPublicacao || b.data_publicacao) ? new Date(b.dataPublicacao || b.data_publicacao!).getTime() : 0;
+                    return pubB - pubA;
+                });
+
+                const items = validItems;
 
                 const totalOficial = Number((data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length);
                 const total = termoBusca ? items.length : totalOficial;
@@ -1080,32 +1104,26 @@ export default function LicitacoesPage({
                                                 item.nomeModalidade ||
                                                 item.modalidadeNome ||
                                                 item.modalidade;
-                                            const dataLimitePropostaExibida =
-                                                item.dataLimiteProposta ||
+                                            const inicioPropostaExibido =
+                                                item.dataAberturaProposta ||
+                                                item.dataAbertura ||
+                                                item.data_abertura;
+                                            const encerramentoPropostaExibido =
                                                 item.dataEncerramentoProposta ||
+                                                item.dataLimiteProposta ||
                                                 item.dataEncerramento ||
                                                 item.data_encerramento;
-                                            const dataSessaoDisputaExibida =
-                                                item.dataSessaoDisputa ||
-                                                item.dataAbertura ||
-                                                item.data_abertura ||
-                                                dataLimitePropostaExibida;
-                                            const dataEncerramentoOuAbertura =
-                                                dataLimitePropostaExibida ||
-                                                dataSessaoDisputaExibida ||
-                                                item.dataPublicacao ||
-                                                item.data_publicacao;
-                                            const dias = diasRestantes(dataEncerramentoOuAbertura);
+                                            const dias = diasRestantes(encerramentoPropostaExibido);
                                             const urgente = dias !== null && dias >= 0 && dias <= 3;
                                             const valorExibido =
                                                 item.valorTotalEstimado ??
                                                 item.valorEstimado ??
                                                 item.valor_estimado;
                                             const downloadUrl = resolveEditalDownloadUrl(item);
-                                            const cleanCnpjAudit = item.cnpjOrgao?.replace(/\D/g, '');
+                                            const cleanCnpjAudit = item.cnpjOrgao ? String(item.cnpjOrgao).replace(/\D/g, '') : '';
                                             const auditPortalHref =
-                                                cleanCnpjAudit && item.anoCompra && item.sequencialCompra
-                                                    ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${item.anoCompra}/${item.sequencialCompra}`
+                                                cleanCnpjAudit.length === 14 && item.anoCompra && item.sequencialCompra
+                                                    ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${Number(item.anoCompra)}/${Number(item.sequencialCompra)}`
                                                     : buildOfficialPncpPortalUrl(item);
 
                                             return (
@@ -1164,13 +1182,13 @@ export default function LicitacoesPage({
                                                     {/* 3. PRAZOS (13%) */}
                                                     <td className="py-4 px-3 align-top">
                                                         <div className="flex flex-col gap-1 text-xs">
-                                                            <div className="flex items-center gap-1 font-medium text-slate-700">
-                                                                <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                                                <span className="text-[11px] break-words">Envio: {formatDate(dataLimitePropostaExibida)}</span>
+                                                            <div className="flex items-center gap-1 font-medium text-slate-600">
+                                                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                                <span className="text-[11px] break-words">Início: {formatDate(inicioPropostaExibido)}</span>
                                                             </div>
-                                                            <div className="flex items-center gap-1 font-semibold text-brand-blue">
-                                                                <Calendar className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
-                                                                <span className="text-[11px] break-words">Disputa: {formatDate(dataSessaoDisputaExibida)}</span>
+                                                            <div className="flex items-center gap-1 font-bold text-brand-blue">
+                                                                <Clock className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
+                                                                <span className="text-[11px] break-words">Encerramento: {formatDate(encerramentoPropostaExibido)}</span>
                                                             </div>
                                                         </div>
                                                         {urgente && (
