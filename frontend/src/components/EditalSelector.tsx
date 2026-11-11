@@ -226,6 +226,50 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
         console.error('[EditalSelector] Falha ao carregar propostas.', propErr);
       }
 
+      // 5. Se houver selectedId informado (ex: vindo da URL ?edital=ID do Radar ou CRM)
+      // e ele ainda não estiver na listaFinal, busca o edital diretamente via API
+      if (
+        selectedId &&
+        !listaFinal.some(
+          (x) =>
+            x.id === selectedId ||
+            x.numeroControlePNCP === selectedId ||
+            x.id.toLowerCase() === selectedId.toLowerCase()
+        )
+      ) {
+        try {
+          const resDetalhe = await licitacoesApi.buscarPorId(selectedId).catch(() => null);
+          const rawEd = resDetalhe?.data?.data || resDetalhe?.data;
+          if (rawEd && (rawEd.id || rawEd.numeroControlePNCP)) {
+            const edOpt: EditalOption = {
+              id: rawEd.id || selectedId,
+              numeroEdital:
+                rawEd.numeroEdital ||
+                rawEd.numeroProcesso ||
+                rawEd.numeroControlePNCP ||
+                `Edital #${selectedId.slice(0, 8)}`,
+              numeroControlePNCP: rawEd.numeroControlePNCP,
+              orgao: rawEd.orgao || rawEd.buyerName || 'Órgão Licitante',
+              cnpjOrgao: rawEd.cnpjOrgao || rawEd.buyerDocument,
+              modalidade: rawEd.modalidade || rawEd.modality || 'Pregão Eletrônico',
+              dataCertame: rawEd.dataLimite
+                ? String(rawEd.dataLimite).slice(0, 10)
+                : rawEd.dataAbertura
+                ? String(rawEd.dataAbertura).slice(0, 10)
+                : undefined,
+              objeto: rawEd.objeto || rawEd.object,
+              valorEstimado: rawEd.valorEstimado != null ? Number(rawEd.valorEstimado) : undefined,
+              urlOficialPncp: rawEd.urlOficialPncp,
+              itens: Array.isArray(rawEd.itens) ? rawEd.itens : [],
+              fonte: 'salvo',
+            };
+            listaFinal.unshift(edOpt);
+          }
+        } catch (fetchErr) {
+          console.warn('[EditalSelector] Falha ao carregar edital específico:', fetchErr);
+        }
+      }
+
       if (isMounted) {
         // Ordena para que os editais salvos para disputar apareçam primeiro
         listaFinal.sort((a, b) => {
@@ -238,10 +282,18 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
         setLoadError(failedRequests > 2);
         setLoading(false);
 
-        // Se já houver um ID pré-selecionado, busca ele
-        if (selected) {
-          const match = listaFinal.find((ed) => ed.id === selected || ed.numeroEdital === selected);
+        // Se já houver um ID pré-selecionado (selectedId ou selected), vincula imediatamente
+        const targetPreselect = selectedId || selected;
+        if (targetPreselect) {
+          const match = listaFinal.find(
+            (ed) =>
+              ed.id === targetPreselect ||
+              ed.numeroEdital === targetPreselect ||
+              ed.numeroControlePNCP === targetPreselect ||
+              ed.id.toLowerCase() === targetPreselect.toLowerCase()
+          );
           if (match) {
+            setSelected(match.id);
             setSelectedItem(match);
             onSelectEdital(match);
           }
@@ -259,14 +311,21 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [companyId]);
+  }, [companyId, selectedId]);
 
   useEffect(() => {
-    if (selectedId && selectedId !== selected) {
+    if (selectedId) {
       setSelected(selectedId);
-      const match = editais.find((ed) => ed.id === selectedId || ed.numeroEdital === selectedId);
+      const match = editais.find(
+        (ed) =>
+          ed.id === selectedId ||
+          ed.numeroEdital === selectedId ||
+          ed.numeroControlePNCP === selectedId ||
+          ed.id.toLowerCase() === selectedId.toLowerCase()
+      );
       if (match) {
         setSelectedItem(match);
+        onSelectEdital(match);
       }
     }
   }, [selectedId, editais]);

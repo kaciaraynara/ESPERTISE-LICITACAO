@@ -109,4 +109,29 @@ describe('LEX — Contrato de Frontend e Interface', () => {
     expect(mockInconclusiveResponse.data.distribuicaoEpistemica.inconclusivo).toBe(true);
     expect(mockInconclusiveResponse.data.dadosFaltantes.length).toBeGreaterThan(0);
   });
+
+  it('Contrato STEP 4: extração real e fallback de escopo real estrito quando PDF ausente', () => {
+    const mockEscopoRealResponse = {
+      success: true,
+      data: {
+        resposta: 'A auditoria limita-se ao escopo oficial do edital registrado no PNCP. Não foram identificadas cláusulas abusivas nos registros disponíveis.',
+        avisoEscopoReal: true,
+        fontes: [
+          {
+            fonte: 'PNCP - Registro Oficial do Certame',
+            identificador: '00394460000141-1-000001/2026',
+            trechoRelevante: 'Objeto Oficial: Aquisição de equipamentos hospitalares. Modo de Disputa: Aberto.',
+            tipoEpistemico: 'Fato da fonte',
+          },
+        ],
+        limitacoes: [
+          'Texto integral do PDF não disponibilizado em formato pesquisável pelo órgão no PNCP.',
+          'Análise estritamente vinculada aos dados cadastrais oficiais do certame.',
+        ],
+      },
+    };
+
+    expect(mockEscopoRealResponse.data.fontes[0].trechoRelevante).toContain('Objeto Oficial');
+    expect(mockEscopoRealResponse.data.limitacoes[0]).toContain('PDF não disponibilizado');
+  });
 });

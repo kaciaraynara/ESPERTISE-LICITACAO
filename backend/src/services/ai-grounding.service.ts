@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT_LEX } from './lex-prompt';
 import { LexIntentService, LexClassifiedIntent } from './lex-intent.service';
 import { LexCalculadoraService } from './lex-calculadora.service';
 import { LexMinimizationService } from './lex-minimization.service';
+import { preencherTextoEditalAutomaticamente } from './pncp-parser.service';
 import {
   LexEpistemicCategory,
   LexEvidenceItem,
@@ -498,6 +499,31 @@ export class AiGroundingService {
     let chunks: any[] = notices.length
       ? await this.findChunksByNoticeIds(notices.map((n) => n.id), tenantId)
       : [];
+
+    if (!chunks.length && (requestedNoticeId || notices.length > 0)) {
+      const targetNoticeId = notices[0]?.id || requestedNoticeId;
+      try {
+        const autoText = await preencherTextoEditalAutomaticamente(targetNoticeId);
+        if (notices.length) {
+          chunks = await this.findChunksByNoticeIds(notices.map((n) => n.id), tenantId);
+        }
+        if (!chunks.length && autoText) {
+          chunks = [{
+            id: `auto-${targetNoticeId}`,
+            tenantId,
+            sourceType: 'procurement_notice',
+            sourceId: targetNoticeId,
+            chunkIndex: 0,
+            content: autoText,
+            tokenCount: Math.ceil(autoText.length / 4),
+            metadata: { autoExtracted: true },
+            createdAt: new Date(),
+          }];
+        }
+      } catch (autoErr: any) {
+        console.warn('[AI Grounding] Falha ao extrair texto do edital automaticamente:', autoErr.message);
+      }
+    }
 
     if (!chunks.length && !requestedNoticeId) {
       chunks = await this.findChunksByQuery(keywords, tenantId);

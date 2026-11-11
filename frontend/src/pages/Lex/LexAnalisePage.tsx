@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Sparkles, Download, Loader2, CheckCircle
 } from 'lucide-react';
@@ -8,13 +9,23 @@ import { ChatMessage } from '../../components/ChatMessage';
 import { EditalOption, EditalSelector } from '../../components/EditalSelector';
 
 export const LexAnalisePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const urlEditalId =
+    searchParams.get('edital') ||
+    searchParams.get('editalId') ||
+    searchParams.get('noticeId') ||
+    searchParams.get('id') ||
+    '';
+
   const [editalSelecionado, setEditalSelecionado] = useState<EditalOption | null>(null);
   const [analisando, setAnalisando] = useState(false);
   const [streamingAuditText, setStreamingAuditText] = useState('');
   const [isAuditStreaming, setIsAuditStreaming] = useState(false);
+  const autoTriggeredRef = useRef(false);
 
-  const executarAnaliseIa = async () => {
-    if (!editalSelecionado) {
+  const executarAnaliseIa = async (alvo?: EditalOption) => {
+    const edital = alvo || editalSelecionado;
+    if (!edital) {
       toast.error('Selecione um edital real monitorado ou vinculado a uma proposta.');
       return;
     }
@@ -26,7 +37,7 @@ export const LexAnalisePage: React.FC = () => {
     try {
       await streamAiChat({
         endpoint: '/lex/auditar',
-        noticeId: editalSelecionado.id,
+        noticeId: edital.id,
         pergunta: 'Analise este edital, distinguindo fatos do documento, interpretação jurídica e limitações da análise. Não presuma cláusulas ausentes.',
         onChunk: (_chunk, accumulated) => {
           setStreamingAuditText(accumulated);
@@ -58,6 +69,13 @@ export const LexAnalisePage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (urlEditalId && editalSelecionado && !autoTriggeredRef.current && !analisando) {
+      autoTriggeredRef.current = true;
+      executarAnaliseIa(editalSelecionado);
+    }
+  }, [urlEditalId, editalSelecionado]);
+
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-8">
       
@@ -78,7 +96,7 @@ export const LexAnalisePage: React.FC = () => {
         </div>
 
         <button 
-          onClick={executarAnaliseIa}
+          onClick={() => executarAnaliseIa()}
           disabled={analisando}
           className="px-6 py-3 bg-[#EA580C] hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
         >
@@ -95,6 +113,7 @@ export const LexAnalisePage: React.FC = () => {
           <div className="bg-white p-4 rounded-xl border border-slate-200">
             <EditalSelector
               label="Edital real sob análise"
+              selectedId={urlEditalId}
               onSelectEdital={setEditalSelecionado}
             />
           </div>

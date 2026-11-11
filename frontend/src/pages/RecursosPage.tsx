@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Scale,
   Sparkles,
@@ -14,6 +15,15 @@ import { streamAiChat } from '@/services/aiStream.service';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
 
 export const RecursosPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const urlEditalId =
+    searchParams.get('edital') ||
+    searchParams.get('editalId') ||
+    searchParams.get('noticeId') ||
+    searchParams.get('id') ||
+    '';
+
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string>(urlEditalId);
   const [tipoRecurso, setTipoRecurso] = useState<
     'JULGAMENTO_PROPOSTA' | 'HABILITACAO_INABILITACAO' | 'CONTRARRAZOES' | 'RECONSIDERACAO'
   >('JULGAMENTO_PROPOSTA');
@@ -28,10 +38,16 @@ export const RecursosPage: React.FC = () => {
   const [copiado, setCopiado] = useState(false);
 
   const handleSelectEdital = (ed: EditalOption) => {
+    setSelectedNoticeId(ed.id);
     setEditalNumero(ed.numeroEdital);
     setOrgao(ed.orgao);
     if (ed.modalidade) setModalidade(ed.modalidade);
     if (ed.dataCertame) setDataCertame(ed.dataCertame);
+    if (ed.objeto && !fundamentacao) {
+      setFundamentacao(
+        `Recurso administrativo interposto no âmbito do ${ed.numeroEdital} perante o(a) ${ed.orgao}. Objeto: "${ed.objeto}". A decisão recorrida afronta as disposições da Lei Federal nº 14.133/2021, o instrumento convocatório e precedentes do Tribunal de Contas da União.`
+      );
+    }
     toast.success(`Edital selecionado: Órgão e Modalidade preenchidos automaticamente!`);
   };
 
@@ -89,6 +105,8 @@ ESTRUTURA OBRIGATÓRIA DA PEÇA:
 
     try {
       await streamAiChat({
+        endpoint: '/lex/recurso',
+        noticeId: selectedNoticeId || urlEditalId || undefined,
         pergunta: prompt,
         onChunk: (chunk: string) => {
           setTextoGerado((prev) => prev + chunk);
@@ -210,6 +228,7 @@ ESTRUTURA OBRIGATÓRIA DA PEÇA:
               {/* SELETOR DE EDITAIS MONITORADOS OU PROPOSTAS */}
               <EditalSelector
                 label="Edital / Processo Vinculado"
+                selectedId={urlEditalId}
                 onSelectEdital={handleSelectEdital}
               />
 

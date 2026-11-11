@@ -29,7 +29,11 @@ const stepOrder: Array<{ id: WizardStep; label: string }> = [
   { id: 'peca', label: 'Peça' },
 ];
 
-export default function RecursoFraudeWizard() {
+interface RecursoFraudeWizardProps {
+  initialEditalId?: string;
+}
+
+export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWizardProps = {}) {
   const [step, setStep] = useState<WizardStep>('concorrentes');
   const [cnpjsText, setCnpjsText] = useState('');
   const [dataCertame, setDataCertame] = useState('');
@@ -151,6 +155,24 @@ export default function RecursoFraudeWizard() {
       </div>
 
       <div className="p-8 md:p-12">
+        {initialEditalId && (
+          <div className="mb-6 p-4 bg-orange-50/80 border border-orange-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#EA580C] animate-pulse" />
+              <span>Edital vinculado: <strong className="text-[#0A2540]">{numeroEdital || initialEditalId}</strong> {orgao ? `(${orgao})` : ''}</span>
+            </div>
+            {step === 'concorrentes' && (
+              <button
+                type="button"
+                onClick={() => setStep('dadosPeca')}
+                className="px-3.5 py-1.5 bg-[#0A2540] hover:bg-slate-800 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
+              >
+                Dados da Peça &rarr;
+              </button>
+            )}
+          </div>
+        )}
+
         {step === 'concorrentes' ? (
           <div className="grid gap-8 xl:grid-cols-[0.46fr_0.54fr]">
             <div>
@@ -216,6 +238,7 @@ export default function RecursoFraudeWizard() {
           <div className="space-y-6">
             <EditalSelector
               label="Localizar Edital Monitorado ou Proposta"
+              selectedId={initialEditalId}
               onSelectEdital={handleSelectEdital}
             />
 
