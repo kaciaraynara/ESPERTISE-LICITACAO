@@ -139,3 +139,4 @@ CREATE INDEX "contract_tax_ledgers_company_id_idx" ON "contract_tax_ledgers"("co
 CREATE INDEX "contract_tax_ledgers_contract_id_idx" ON "contract_tax_ledgers"("contract_id");
 CREATE INDEX "contract_tax_ledgers_tax_rule_version_id_idx" ON "contract_tax_ledgers"("tax_rule_version_id");
 CREATE INDEX "contract_tax_ledgers_rebalance_justified_idx" ON "contract_tax_ledgers"("rebalance_justified");
+

@@ -979,6 +979,39 @@ export const propostasApi = {
     }),
 };
 
+// =============================================================================
+// EXPERTISE FISCAL API (MOTOR TRIBUTÁRIO & AUDITORIA DE CRÉDITOS)
+// =============================================================================
+export const expertiseFiscalApi = {
+  importarXml: (formData: FormData) =>
+    api.post<{ success: boolean; data: any; message: string }>('/tax/fiscal/import-xml', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  importarXmlContent: (body: { filename?: string; fileContent: string }) =>
+    api.post<{ success: boolean; data: any; message: string }>('/tax/fiscal/import-xml', body),
+  listarCreditos: (params?: { status?: string; originCategory?: string }) =>
+    api.get<{ success: boolean; data: any[] }>('/tax/fiscal/credits', { params }),
+  listarDocumentos: () =>
+    api.get<{ success: boolean; data: any[] }>('/tax/fiscal/documents'),
+  validarCredito: (id: string, body: {
+    validatedByProfessionalName: string;
+    validatedByRegistryCrcOab: string;
+    perdcompProtocol?: string;
+  }) => api.post<{ success: boolean; data: any; message: string }>(`/tax/fiscal/validate-credit/${encodeURIComponent(id)}`, body),
+  simularReforma: (body: {
+    grossRevenueAnnual?: number;
+    targetCnae?: string;
+    operationType?: string;
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/simulate-reform', body),
+  simularPropostaBdi: (body: {
+    noticeId?: string;
+    directCost: number;
+    operationalExpenses?: number;
+    targetMarginPercent?: number;
+    creditOpportunityIds?: string[];
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/simulate-proposal-bdi', body),
+};
+
 export {
   adminTelemetryApi,
   fetchAdminRadarTelemetry,

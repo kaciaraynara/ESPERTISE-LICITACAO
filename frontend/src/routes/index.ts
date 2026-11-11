@@ -53,6 +53,7 @@ export const FORNECEDOR_ROUTES = {
   crm: `${FORNECEDOR_PREFIX}/disputas`,
   licitacao_detalhe: `${FORNECEDOR_PREFIX}/licitacao/:id`,
   licitacoes_detalhe_alias: `${FORNECEDOR_PREFIX}/licitacoes/:id`,
+  expertise_fiscal: `${FORNECEDOR_PREFIX}/expertise-fiscal`,
 } as const;
 
 export const LEGACY_FORNECEDOR_ROUTES = {

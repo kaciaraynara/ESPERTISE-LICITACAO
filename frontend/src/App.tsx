@@ -96,6 +96,7 @@ const PoliticaPrivacidadePage = React.lazy(() => import('./pages/PoliticaPrivaci
 const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));
 const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
 const RadarPage = React.lazy(() => import('./pages/RadarPage'));
+const ExpertiseFiscalPage = React.lazy(() => import('./pages/ExpertiseFiscalPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -405,6 +406,14 @@ export default function App() {
             <Route
               path={FORNECEDOR_ROUTES.gestao_pos_vitoria}
               element={protectFeature('gestao_contratual', 'Garantias e Gestão Pós-Vitória', <GestaoPosVitoriaPage />)}
+            />
+            <Route
+              path={FORNECEDOR_ROUTES.expertise_fiscal}
+              element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
+            />
+            <Route
+              path="/expertise-fiscal"
+              element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
             />
             <Route path={FORNECEDOR_ROUTES.documentos} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
             <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />
