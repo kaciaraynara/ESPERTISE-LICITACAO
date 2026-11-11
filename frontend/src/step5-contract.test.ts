@@ -40,3 +40,4 @@ describe('STEP 5 — Contrato de Certidões, Robô de Lances e Disputa', () => {
     expect(status).toBe('VENCENDO');
   });
 });
+

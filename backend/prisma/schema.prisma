@@ -131,6 +131,10 @@ model Company {
   contractGuarantees ContractGuarantee[]
   contractEquilibria ContractEquilibrium[]
   garantiasLicitacao GarantiaLicitacao[]
+  addonSubscriptions CompanyAddonSubscription[]
+  fiscalImports      FiscalDocumentImport[]
+  taxCredits         TaxCreditOpportunity[]
+  contractTaxLedgers ContractTaxLedger[]
 
   @@unique([userId, cnpj])
   @@unique([tenantId, cnpj])
@@ -1849,6 +1853,7 @@ model Contract {
   guarantees        Guarantee[]
   contractGuarantees ContractGuarantee[]
   equilibria        ContractEquilibrium[]
+  taxLedgers        ContractTaxLedger[]
 
   @@unique([id, companyId], map: "contracts_id_company_id_key")
   @@index([companyId, status])
@@ -2104,4 +2109,146 @@ model AuditLog {
   @@index([ipAddress])
   @@index([userId, timestamp])
   @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// EXPERTISE FISCAL — MOTOR DE INTELIGÊNCIA TRIBUTÁRIA E ADD-ON R$ 99,99/MÊS
+// -----------------------------------------------------------------------------
+
+model CompanyAddonSubscription {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  addonSlug   String    @default("expertise_fiscal") @map("addon_slug")
+  status      String    @default("ACTIVE") // ACTIVE | TRIAL | CANCELED
+  priceCents  Int       @default(9999) @map("price_cents")
+  activatedAt DateTime  @default(now()) @map("activated_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([companyId, addonSlug])
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([addonSlug])
+  @@index([status])
+  @@map("company_addon_subscriptions")
+}
+
+model TaxRuleVersion {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleCode       String    @map("rule_code") // CBS_PADRAO, IBS_PADRAO, IN1234_BENS, IN1234_SERVICOS, INSS_CESSAO_MAO_OBRA, PIS_COFINS_MONOFASICO
+  taxName        String    @map("tax_name") // CBS, IBS, IRRF, CSLL, PIS, COFINS, INSS, ICMS, ISS
+  taxRegime      String    @map("tax_regime") // SIMPLES_NACIONAL, LUCRO_PRESUMIDO, LUCRO_REAL, ALL
+  operationType  String    @map("operation_type") // FORNECIMENTO_BENS, SERVICOS_CONTINUOS, ENGENHARIA_OBRAS, LOCACAO, SAUDE_EDUCACAO
+  cnaePrefix     String?   @map("cnae_prefix")
+  ncmCode        String?   @map("ncm_code")
+  ratePercent    Decimal   @map("rate_percent") @db.Decimal(8, 4)
+  reducerPercent Decimal   @default(0) @map("reducer_percent") @db.Decimal(8, 4)
+  allowsCredit   Boolean   @default(false) @map("allows_credit")
+  creditRulesJson Json?    @default("{}") @map("credit_rules_json") @db.JsonB
+  legalBasis     String    @map("legal_basis") @db.Text // ex: "IN RFB nº 1.234/2012, Anexo I" ou "LC 214/2025, Art. 12"
+  effectiveFrom  DateTime  @map("effective_from") @db.Timestamptz(6)
+  effectiveTo    DateTime? @map("effective_to") @db.Timestamptz(6)
+  versionNumber  Int       @default(1) @map("version_number")
+  changelog      String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  contractTaxLedgers ContractTaxLedger[]
+
+  @@index([ruleCode])
+  @@index([taxName])
+  @@index([taxRegime])
+  @@index([operationType])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("tax_rule_versions")
+}
+
+model FiscalDocumentImport {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  docType            String   @map("doc_type") // NFE_XML, SPED_FISCAL, EFD_CONTRIBUICOES, PGDAS_D, ECF_ECD, REINF_DCTFWEB
+  accessKeyOrPeriod  String   @map("access_key_or_period")
+  fileHashSha256     String   @map("file_hash_sha256")
+  direction          String   @default("ENTRADA") // ENTRADA | SAIDA | APURACAO
+  issueDate          DateTime @map("issue_date") @db.Timestamptz(6)
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(18, 2)
+  taxesSummaryJson   Json?    @default("{}") @map("taxes_summary_json") @db.JsonB
+  parsedItemsJson    Json?    @default("[]") @map("parsed_items_json") @db.JsonB
+  createdByUserId    String?  @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([docType])
+  @@index([fileHashSha256])
+  @@index([accessKeyOrPeriod])
+  @@map("fiscal_document_imports")
+}
+
+model TaxCreditOpportunity {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                   String    @map("tenant_id") @db.Uuid
+  companyId                  String    @map("company_id") @db.Uuid
+  sourceDocumentId           String?   @map("source_document_id") @db.Uuid
+  taxType                    String    @map("tax_type")
+  originCategory             String    @map("origin_category") // RETENCAO_IN1234, RETENCAO_INSS_11, PIS_COFINS_MONOFASICO, ICMS_ST, CBS_IBS_CREDITO, PAGAMENTO_INDEVIDO
+  status                     String    @default("POTENTIAL") // POTENTIAL | VALIDATED | UTILIZED | REJECTED
+  principalAmount            Decimal   @map("principal_amount") @db.Decimal(18, 2)
+  selicUpdatedAmount         Decimal   @map("selic_updated_amount") @db.Decimal(18, 2)
+  calculationMemoryJson      Json      @map("calculation_memory_json") @db.JsonB // obrigatório
+  legalBasis                 String    @map("legal_basis") @db.Text
+  isDocumented               Boolean   @default(false) @map("is_documented")
+  isLegallyUsable            Boolean   @default(false) @map("is_legally_usable")
+  isAvailableForOffset       Boolean   @default(false) @map("is_available_for_offset")
+  validatedByProfessionalName String?  @map("validated_by_professional_name")
+  validatedByRegistryCrcOab  String?   @map("validated_by_registry_crc_oab")
+  validatedAt                DateTime? @map("validated_at") @db.Timestamptz(6)
+  perdcompProtocol           String?   @map("perdcomp_protocol")
+  usedInProposalId           String?   @map("used_in_proposal_id") @db.Uuid
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company                    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([status])
+  @@index([originCategory])
+  @@index([taxType])
+  @@map("tax_credit_opportunities")
+}
+
+model ContractTaxLedger {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String         @map("tenant_id") @db.Uuid
+  companyId               String         @map("company_id") @db.Uuid
+  contractId              String         @map("contract_id") @db.Uuid
+  proposalId              String?        @map("proposal_id") @db.Uuid
+  baselineTaxLoadPercent  Decimal        @map("baseline_tax_load_percent") @db.Decimal(8, 4)
+  effectiveTaxLoadPercent Decimal        @map("effective_tax_load_percent") @db.Decimal(8, 4)
+  taxRuleVersionId        String         @map("tax_rule_version_id") @db.Uuid
+  financialImpactAmount   Decimal        @map("financial_impact_amount") @db.Decimal(18, 2)
+  rebalanceJustified      Boolean        @default(false) @map("rebalance_justified")
+  technicalReportJson     Json?          @default("{}") @map("technical_report_json") @db.JsonB
+  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company                 Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contract                Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  taxRuleVersion          TaxRuleVersion @relation(fields: [taxRuleVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([contractId])
+  @@index([taxRuleVersionId])
+  @@index([rebalanceJustified])
+  @@map("contract_tax_ledgers")
 }

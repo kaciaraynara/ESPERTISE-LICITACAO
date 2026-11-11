@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ArrowSquareOut,
   ChatCircleDots,
+  Scales,
 } from '@phosphor-icons/react';
 import { pagamentosApi } from '@services/api';
 import toast from 'react-hot-toast';
@@ -678,6 +679,74 @@ export default function PlanosPage() {
           })}
         </div>
       )}
+
+      {/* SEÇÃO ADD-ON OFICIAL: EXPERTISE FISCAL (+R$ 99,99/mês) */}
+      <section className="rounded-3xl border-2 border-indigo-500/30 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 sm:p-10 shadow-2xl relative overflow-hidden">
+        {/* Glow de fundo */}
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+          <div className="max-w-2xl space-y-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-black uppercase tracking-wider">
+              <Scales className="w-4 h-4 text-indigo-400" weight="fill" />
+              Complemento Oficial • Add-on Estratégico
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
+              Expertise Fiscal: Blindagem Tributária de Contratos
+            </h2>
+
+            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed font-medium">
+              Compatível com qualquer plano (Básico, Avançado ou Master). Audite retenções na fonte, recupere créditos fiscais e simule os impactos da Reforma Tributária (CBS/IBS) com alíquotas reais versionadas.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs text-slate-200">
+              <div className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" weight="bold" />
+                <span><strong>Retenções IN 1.234/12 & 2.145/23:</strong> Auditoria de notas fiscais de bens (5,85%) e serviços (9,45%).</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" weight="bold" />
+                <span><strong>INSS 11% / CPRB 3,5%:</strong> Dedução de materiais e cessão de mão de obra (IN RFB nº 2.110/22).</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" weight="bold" />
+                <span><strong>Segregação Monofásica:</strong> Identificação e restituição de PIS/COFINS pago a maior no PGDAS.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" weight="bold" />
+                <span><strong>Reforma Tributária (LC 214/2025):</strong> Simulação de CBS 0,9% + IBS 0,1% e redutores de 60%/30%.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full lg:w-auto shrink-0 flex flex-col items-center lg:items-end justify-center rounded-2xl bg-white/5 border border-white/10 p-6 sm:p-7 backdrop-blur-sm text-center lg:text-right">
+            <span className="text-[11px] font-black uppercase tracking-widest text-indigo-300 block mb-1">
+              Valor Adicional por Empresa
+            </span>
+            <div className="flex items-baseline justify-center lg:justify-end gap-1 mb-2">
+              <span className="text-xs font-black uppercase text-indigo-200">+ R$</span>
+              <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">99,99</span>
+              <span className="text-xs font-bold text-slate-300">/mês</span>
+            </div>
+            <span className="text-[11px] text-slate-400 block mb-5">
+              Sem fidelidade • Adicione ao seu plano a qualquer momento
+            </span>
+
+            <a
+              href={`https://wa.me/${COMMERCIAL_WHATSAPP}?text=${encodeURIComponent(`Olá, desejo contratar o Add-on Expertise Fiscal (+R$ 99,99/mês) na Expertise Licitatória.${user?.email ? ` Minha conta: ${user.email}.` : ''}${user?.company?.razaoSocial ? ` Empresa: ${user.company.razaoSocial}.` : ''}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+            >
+              <WhatsappLogo className="w-4 h-4" weight="fill" />
+              <span>Ativar Add-on Expertise Fiscal</span>
+              <ArrowSquareOut className="w-4 h-4" weight="bold" />
+            </a>
+          </div>
+        </div>
+      </section>
 
       {/* Seção Corporativa de Confiança e Faturamento B2B */}
       <section className="mt-16 rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-sm">

@@ -205,6 +205,51 @@ export const PLAN_FEATURES_CONFIG: Record<CommercialPlanKey, PlanConfiguration> 
 } as const;
 
 /**
+ * 4. Add-on Oficial de Inteligência Tributária: EXPERTISE FISCAL (+R$ 99,99/mês)
+ * Pode ser contratado como complemento por qualquer assinante (Básico, Avançado ou Master).
+ */
+export interface AddonConfiguration {
+  slug: string;
+  nome: string;
+  descricao: string;
+  priceCents: number;
+  features: readonly string[];
+}
+
+export const EXPERTISE_FISCAL_ADDON: AddonConfiguration = {
+  slug: 'expertise_fiscal',
+  nome: 'Expertise Fiscal',
+  descricao: 'Inteligência tributária avançada para licitantes: auditoria de retenções IN 1.234/12, INSS 11%/CPRB, segregação monofásica e simulador Reforma Tributária (CBS/IBS LC 214/2025).',
+  priceCents: 9999, // R$ 99,99/mês
+  features: [
+    'expertise_fiscal.retencoes_in1234',
+    'expertise_fiscal.retencao_inss_cprb',
+    'expertise_fiscal.segregacao_monofasica',
+    'expertise_fiscal.reforma_tributaria_cbs_ibs',
+    'expertise_fiscal.reequilibrio_tributario',
+    'expertise_fiscal.livro_razao_contratual',
+    'expertise_fiscal.recuperacao_creditos',
+  ] as const,
+};
+
+/**
+ * Verifica se a empresa possui assinatura ativa do Add-on (ex: expertise_fiscal).
+ */
+export function hasCompanyAddon(
+  companyAddons: Array<{ addonSlug: string; status: string; expiresAt?: Date | string | null }> | null | undefined,
+  addonSlug: string = 'expertise_fiscal'
+): boolean {
+  if (!companyAddons || !Array.isArray(companyAddons)) return false;
+  const now = new Date();
+  return companyAddons.some((addon) => {
+    if (addon.addonSlug !== addonSlug) return false;
+    if (addon.status !== 'ACTIVE' && addon.status !== 'TRIAL') return false;
+    if (addon.expiresAt && new Date(addon.expiresAt) < now) return false;
+    return true;
+  });
+}
+
+/**
  * Exportação indexada também pelos nomes comerciais, Prisma Enum (BASIC, MEDIUM, MASTER)
  * e slugs legados (basic, avancado, pro, master) para facilitar consumo direto em qualquer camada.
  */
