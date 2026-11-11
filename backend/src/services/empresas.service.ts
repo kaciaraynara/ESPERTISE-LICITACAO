@@ -2,7 +2,7 @@ import axios from 'axios';
 import { prisma } from '../database/prisma';
 import { planGuardService } from './plans/plan-guard.service';
 import { ApiError } from '../shared/errors/ApiError';
-import { consultarCnpjOficial } from './cnpj.service';
+import { consultarCnpjOficial, sincronizarEmpresaComDadosReceita } from './cnpj.service';
 
 export class EmpresasService {
   private async getTenantId(userId: string) {
@@ -72,6 +72,11 @@ export class EmpresasService {
       throw new ApiError('Empresa não encontrada', 404);
     }
     
+    // Se a empresa ainda não tiver cnaePrincipal ou nicho preenchido, sincroniza em background com dados reais da Receita
+    if (!row.cnaePrincipal || !row.nicho || row.nicho.length === 0) {
+      sincronizarEmpresaComDadosReceita(row.id, tenantId).catch(() => {});
+    }
+
     return this.mapCompany(row);
   }
 
@@ -118,6 +123,16 @@ export class EmpresasService {
     });
     await planGuardService.assertCanCreateCompany(userId, currentCompanyCount);
 
+    const nichosManuais = this.stringArray(body.nicho);
+    const nichosOficiais = official.cnaes_secundarios || [];
+    const nichosFinais = Array.from(new Set([...nichosManuais, ...nichosOficiais]));
+
+    const regioesManuais = this.stringArray(body.regioes);
+    const ufOficial = official.uf ? official.uf.slice(0, 2).toUpperCase() : null;
+    const regioesFinais = ufOficial && !regioesManuais.includes(ufOficial)
+      ? [...regioesManuais, ufOficial]
+      : regioesManuais;
+
     const row = await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: {
@@ -128,13 +143,13 @@ export class EmpresasService {
           nomeFantasia: official.nome_fantasia,
           cnaePrincipal: official.cnae_principal,
           municipio: official.municipio,
-          uf: official.uf ? official.uf.slice(0, 2).toUpperCase() : null,
+          uf: ufOficial,
           status: official.status || 'ATIVO',
-          nicho: this.stringArray(body.nicho),
+          nicho: nichosFinais,
           palavrasChave: this.stringArray(body.palavras_chave),
           valorMin: this.numberOrNull(body.valor_min),
           valorMax: this.numberOrNull(body.valor_max),
-          regioes: this.stringArray(body.regioes),
+          regioes: regioesFinais,
           orgaosPreferidos: this.stringArray(body.orgaos_preferidos),
           orgaosBloqueados: this.stringArray(body.orgaos_bloqueados),
         },
@@ -265,6 +280,8 @@ export class EmpresasService {
         razao_social: official.razao_social?.trim() || fallbackRazao,
         nome_fantasia: official.nome_fantasia?.trim() || fallbackFantasia,
         cnae_principal: official.cnae_principal || fallbackData?.cnae_principal || null,
+        cnaes_secundarios: official.cnaes_secundarios || [],
+        qsa: official.qsa || [],
         municipio: official.municipio || fallbackData?.municipio || null,
         uf: (official.uf || fallbackData?.uf || null)?.slice(0, 2).toUpperCase() || null,
         status: official.status || 'ATIVO',
@@ -277,6 +294,8 @@ export class EmpresasService {
         razao_social: fallbackRazao,
         nome_fantasia: fallbackFantasia,
         cnae_principal: fallbackData?.cnae_principal || null,
+        cnaes_secundarios: [],
+        qsa: [],
         municipio: fallbackData?.municipio || null,
         uf: fallbackData?.uf ? fallbackData.uf.slice(0, 2).toUpperCase() : null,
         status: 'ATIVO',

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import {
@@ -9,10 +10,11 @@ import {
   Search,
   RefreshCw,
   MapPin,
+  Lock,
 } from 'lucide-react';
 
 import { useAuthStore } from '@/store/auth.store';
-import { crmApi } from '@/services/api';
+import api, { crmApi } from '@/services/api';
 import { BidRecord } from '@/types/war-room.types';
 
 interface DisputaSalva {
@@ -29,6 +31,11 @@ interface DisputaSalva {
 }
 
 export default function DisputaAoVivoPage() {
+  const [searchParams] = useSearchParams();
+  const noticeIdParam = searchParams.get('id') || searchParams.get('licitacao') || searchParams.get('noticeId');
+  const precoLimiteParam = Number(searchParams.get('precoLimite') || searchParams.get('stopLoss') || searchParams.get('piso') || '0') || 0;
+  const isStopLossLocked = precoLimiteParam > 0;
+
   const { accessToken, user } = useAuthStore();
   const socketRef = useRef<Socket | null>(null);
 
@@ -107,18 +114,60 @@ export default function DisputaAoVivoPage() {
         ];
       }
 
-      setDisputasSalvas(mapped);
-      if (!disputaAtiva && mapped.length > 0) {
+      // Se o usuário navegou com ?id=<noticeId>, localiza ou busca esse edital prioritariamente
+      if (noticeIdParam) {
+        const found = mapped.find(
+          (m) => m.id === noticeIdParam || m.noticeNumber.includes(noticeIdParam),
+        );
+        if (found) {
+          setDisputaAtiva(found);
+        } else {
+          try {
+            const resp = await api.get(`/licitacoes/${encodeURIComponent(noticeIdParam)}`);
+            const n = resp.data?.data || resp.data;
+            if (n) {
+              const noticeItem: DisputaSalva = {
+                id: n.id || noticeIdParam,
+                noticeNumber: n.numeroEdital || n.processo || n.numeroControlePNCP || noticeIdParam,
+                buyerName: n.orgao || n.nomeOrgao || 'Órgão Licitante',
+                buyerDocument: n.cnpjOrgao,
+                object: n.objeto || n.objetoCompra || 'Objeto da contratação',
+                estimatedValue: n.valorEstimado || n.valorTotalEstimado || null,
+                openingAt: n.dataAbertura || n.dataAberturaProposta || null,
+                uf: n.uf,
+                municipality: n.municipio,
+                status: 'Em Disputa',
+              };
+              mapped.unshift(noticeItem);
+              setDisputaAtiva(noticeItem);
+            }
+          } catch {
+            const directItem: DisputaSalva = {
+              id: noticeIdParam,
+              noticeNumber: `Edital ${noticeIdParam}`,
+              buyerName: 'Disputa Selecionada',
+              object: 'Operação vinculada a partir da calculadora de viabilidade/BDI.',
+              estimatedValue: precoLimiteParam ? precoLimiteParam * 1.2 : null,
+              openingAt: new Date().toISOString(),
+              status: 'Em Disputa',
+            };
+            mapped.unshift(directItem);
+            setDisputaAtiva(directItem);
+          }
+        }
+      } else if (!disputaAtiva && mapped.length > 0) {
         setDisputaAtiva(mapped[0]);
       }
+
+      setDisputasSalvas(mapped);
     } catch {
       // Fallback suave
       const fallbackItem: DisputaSalva = {
-        id: 'PREGAO-2026-0842',
-        noticeNumber: 'Pregão Eletrônico nº 042/2026',
+        id: noticeIdParam || 'PREGAO-2026-0842',
+        noticeNumber: noticeIdParam ? `Edital ${noticeIdParam}` : 'Pregão Eletrônico nº 042/2026',
         buyerName: 'Prefeitura Municipal',
         object: 'Contratação de fornecimento para atendimento das demandas públicas.',
-        estimatedValue: 120000,
+        estimatedValue: precoLimiteParam ? precoLimiteParam * 1.2 : 120000,
         openingAt: new Date().toISOString(),
         uf: 'CE',
         status: 'Em Disputa',
@@ -128,7 +177,7 @@ export default function DisputaAoVivoPage() {
     } finally {
       setCarregandoDisputas(false);
     }
-  }, [disputaAtiva]);
+  }, [disputaAtiva, noticeIdParam, precoLimiteParam]);
 
   useEffect(() => {
     void carregarDisputasSalvas();
@@ -188,6 +237,13 @@ export default function DisputaAoVivoPage() {
 
     if (!disputaAtiva) {
       toast.error('Selecione uma disputa para enviar o lance.');
+      return;
+    }
+
+    if (isStopLossLocked && valor < precoLimiteParam) {
+      toast.error(
+        `Lance BLOQUEADO: R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} está abaixo do piso calculado pela precificação/BDI (Stop-Loss Floor: R$ ${precoLimiteParam.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
+      );
       return;
     }
 
@@ -407,6 +463,17 @@ export default function DisputaAoVivoPage() {
               </div>
 
               {/* Disparador Direto de Lances */}
+              {isStopLossLocked && (
+                <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-xs font-bold text-emerald-950 flex items-start gap-2.5 shadow-xs">
+                  <Lock className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black">Piso de Segurança Ativo (Stop-Loss Floor via BDI): </span>
+                    R$ {precoLimiteParam.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.
+                    Lances inferiores a este valor serão estritamente bloqueados pela plataforma para proteger sua margem de lucro.
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">

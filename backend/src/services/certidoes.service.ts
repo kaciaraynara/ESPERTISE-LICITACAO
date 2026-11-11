@@ -99,14 +99,16 @@ function normalizeText(value: string): string {
     .toLowerCase();
 }
 
-function matchesCertidao(value: string, certidao: CertidaoDef): boolean {
+function matchesCertidao(value: string | undefined | null, certidao: CertidaoDef): boolean {
+  if (!value) return false;
   const normalized = normalizeText(value);
   const aliases = [certidao.id, certidao.tipoDb, certidao.nome];
-  if (certidao.id === 'cnd-federal') aliases.push('receita');
-  if (certidao.id === 'cndt-tst') aliases.push('trabalhista');
-  if (certidao.id === 'cnd-falencia') aliases.push('falencia');
-  if (certidao.id === 'cnd-estadual') aliases.push('estadual', 'icms');
-  if (certidao.id === 'cnd-municipal') aliases.push('municipal', 'iss');
+  if (certidao.id === 'cnd-federal') aliases.push('receita', 'pgfn', 'tributos federais', 'divida ativa da uniao', 'uniao', 'federal');
+  if (certidao.id === 'crf-fgts') aliases.push('fgts', 'caixa', 'crf', 'regularidade do fgts');
+  if (certidao.id === 'cndt-tst') aliases.push('trabalhista', 'cndt', 'tst', 'debitos trabalhistas', 'justica do trabalho');
+  if (certidao.id === 'cnd-falencia') aliases.push('falencia', 'concordata', 'recuperacao judicial');
+  if (certidao.id === 'cnd-estadual') aliases.push('estadual', 'icms', 'sefaz', 'divida ativa do estado', 'fazenda estadual');
+  if (certidao.id === 'cnd-municipal') aliases.push('municipal', 'iss', 'prefeitura', 'tributos municipais', 'fazenda municipal');
 
   return aliases.some((alias) => normalized.includes(normalizeText(alias)));
 }
@@ -171,7 +173,12 @@ export class CertidoesService {
     const now = new Date();
     const [docs, certificates] = await Promise.all([
       prisma.document.findMany({
-        where: { userId, companyId: company.id },
+        where: {
+          OR: [
+            { companyId: company.id },
+            { userId, companyId: null },
+          ],
+        },
       }),
       prisma.companyCertificate.findMany({
         where: { companyId: company.id },
@@ -198,6 +205,10 @@ export class CertidoesService {
             ? 'VENCENDO'
             : 'VALIDA';
 
+      const downloadUrl = doc?.id
+        ? `/api/v1/documentos/${doc.id}/download`
+        : doc?.url || (certificate?.documentUrl && isHttpUrl(certificate.documentUrl) ? certificate.documentUrl : `/api/v1/certidoes/${item.id}/download`);
+
       return {
         id: item.id,
         nome: item.nome,
@@ -213,10 +224,11 @@ export class CertidoesService {
           ? null
           : item.urlValidacao,
         documentoId: doc?.id,
-        arquivoUrl: doc?.url || `/api/v1/certidoes/${item.id}/download`,
+        arquivoUrl: downloadUrl,
         regularidade: getOfficialRegularity(certificate?.metadata ?? null),
         temArquivo: Boolean(
-          doc?.storageKey
+          doc?.id
+          || doc?.storageKey
           || isHttpUrl(doc?.url)
           || isHttpUrl(certificate?.documentUrl),
         ),

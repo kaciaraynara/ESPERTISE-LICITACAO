@@ -119,7 +119,9 @@ function mapRemoteLog(log: any): LogEntry {
 
 export default function RoboPage() {
   const [searchParams] = useSearchParams();
-  const licitacaoId = searchParams.get('licitacao') || 'sala-livre';
+  const licitacaoId = searchParams.get('id') || searchParams.get('licitacao') || searchParams.get('noticeId') || 'sala-livre';
+  const precoLimiteQuery = Number(searchParams.get('precoLimite') || searchParams.get('stopLoss') || searchParams.get('piso') || '0') || 0;
+  const isStopLossLocked = precoLimiteQuery > 0;
   const portalQuery = searchParams.get('portal') || '';
   const portalNomeQuery = searchParams.get('portalNome') || '';
   const objetoQuery = searchParams.get('objeto') || '';
@@ -131,8 +133,8 @@ export default function RoboPage() {
   const [isBotActive, setIsBotActive] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentValue, setCurrentValue] = useState(0);
-  const [initialValue, setInitialValue] = useState(50000);
-  const [stopLossValue, setStopLossValue] = useState(38000);
+  const [initialValue, setInitialValue] = useState(precoLimiteQuery > 0 ? Math.round(precoLimiteQuery * 1.15) : 50000);
+  const [stopLossValue, setStopLossValue] = useState(precoLimiteQuery > 0 ? precoLimiteQuery : 38000);
   const [manualLance, setManualLance] = useState('');
   const [decrementoMin, setDecrementoMin] = useState(10);
   const [sessaoNome, setSessaoNome] = useState('Sala de disputa');
@@ -209,10 +211,12 @@ export default function RoboPage() {
       if (configResponse.status === 'fulfilled') {
         const config = (configResponse.value.data?.data ?? null) as RoboConfig | null;
         if (config) {
+          const finalPiso = precoLimiteQuery > 0 ? Math.max(config.precoLimite, precoLimiteQuery) : config.precoLimite;
+          const finalInicial = precoLimiteQuery > 0 ? Math.max(config.precoInicial, Math.round(finalPiso * 1.15)) : config.precoInicial;
           setStrategy(config.estrategia);
-          setInitialValue(config.precoInicial);
-          setCurrentValue(config.precoInicial);
-          setStopLossValue(config.precoLimite);
+          setInitialValue(finalInicial);
+          setCurrentValue(finalInicial);
+          setStopLossValue(finalPiso);
           setDecrementoMin(config.decrementoMinimo);
           setIsBotActive(Boolean(config.ativo));
           if (config.sessao_nome) {
@@ -317,8 +321,8 @@ export default function RoboPage() {
     if (!value || value <= 0) return;
 
     if (value <= stopLossValue) {
-      toast.error('O lance manual viola o piso de segurança definido.');
-      addLog(`Proposta manual de R$ ${value.toLocaleString('pt-BR')} violaria o piso de R$ ${stopLossValue.toLocaleString('pt-BR')}.`, 'alert');
+      toast.error(`Lance BLOQUEADO: R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso de segurança definido (${isStopLossLocked ? 'Travado pela Precificação/BDI' : 'Stop-Loss'}: R$ ${stopLossValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`);
+      addLog(`Proposta manual de R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} rejeitada. Viola o piso de segurança de R$ ${stopLossValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`, 'alert');
       return;
     }
 
@@ -521,6 +525,17 @@ export default function RoboPage() {
                 </div>
               </div>
             </div>
+
+            {isStopLossLocked && (
+              <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-xs text-emerald-950 leading-relaxed shadow-sm flex items-start gap-2.5">
+                <Lock className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Piso de Segurança Travado (Stop-Loss BDI): </span>
+                  R$ {precoLimiteQuery.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.
+                  Este edital possui margem mínima calculada na Precificação/BDI. O robô e validações de lance estão estritamente travados contra ofertas inferiores.
+                </div>
+              </div>
+            )}
 
             <p className="mt-2 text-sm text-brand-blue/70">
               {licitacao?.objeto || objetoQuery || 'Defina sua margem de segurança e acompanhe a disputa pelo portal oficial.'}
@@ -895,14 +910,26 @@ export default function RoboPage() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">Piso de seguranca</label>
+                  <label className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-brand-blue/70">
+                    {isStopLossLocked && <Lock className="h-3 w-3 text-emerald-600 inline" />}
+                    Piso de segurança {isStopLossLocked ? '(Travado pelo BDI)' : ''}
+                  </label>
                   <input
                     type="number"
                     value={stopLossValue}
-                    onChange={(event) => setStopLossValue(Number(event.target.value))}
-                    disabled={isBotActive}
-                    className="w-full rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm font-semibold text-brand-blue outline-none transition focus:border-brand-blue focus:bg-white disabled:opacity-60"
+                    onChange={(event) => {
+                      const val = Number(event.target.value);
+                      setStopLossValue(isStopLossLocked ? Math.max(val, precoLimiteQuery) : val);
+                    }}
+                    disabled={isBotActive || isStopLossLocked}
+                    title={isStopLossLocked ? 'Piso travado pelo cálculo de viabilidade/BDI' : undefined}
+                    className="w-full rounded-lg border border-gray-100 bg-white px-4 py-3 text-sm font-semibold text-brand-blue outline-none transition focus:border-brand-blue focus:bg-white disabled:opacity-60 disabled:bg-slate-50"
                   />
+                  {isStopLossLocked && (
+                    <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                      Piso mínimo travado: R$ {precoLimiteQuery.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  )}
                 </div>
 
                 <div>

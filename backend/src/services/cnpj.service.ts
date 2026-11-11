@@ -8,6 +8,14 @@ export interface CnpjPublicoData {
   municipio: string | null;
   uf: string | null;
   cnae_principal: string | null;
+  cnaes_secundarios?: string[];
+  qsa?: Array<{
+    nome?: string;
+    qual?: string;
+    pais_origem?: string;
+    nome_rep_legal?: string;
+    qual_rep_legal?: string;
+  }>;
   status: string | null;
 }
 
@@ -68,6 +76,20 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
       dbCached.legalName &&
       Date.now() - dbCached.updatedAt.getTime() < DB_CACHE_TTL_MS
     ) {
+      let cachedSecundarios: string[] | undefined;
+      if (dbCached.metadata && typeof dbCached.metadata === 'object') {
+        const meta: any = dbCached.metadata;
+        if (Array.isArray(meta.cnaes_secundarios)) {
+          cachedSecundarios = meta.cnaes_secundarios.map((c: any) =>
+            typeof c === 'object' ? `${c.codigo || ''} - ${c.descricao || ''}`.trim() : String(c)
+          );
+        } else if (Array.isArray(meta.atividades_secundarias)) {
+          cachedSecundarios = meta.atividades_secundarias.map((c: any) =>
+            typeof c === 'object' ? `${c.code || ''} - ${c.text || ''}`.trim() : String(c)
+          );
+        }
+      }
+
       const mapped: CnpjPublicoData = {
         cnpj: cnpjLimpo,
         razao_social: dbCached.legalName,
@@ -75,6 +97,8 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
         municipio: dbCached.municipality || null,
         uf: dbCached.uf || null,
         cnae_principal: dbCached.mainCnae || null,
+        cnaes_secundarios: cachedSecundarios,
+        qsa: Array.isArray(dbCached.partners) ? (dbCached.partners as any) : undefined,
         status: dbCached.status || null,
       };
       memoryCnpjCache.set(cnpjLimpo, {
@@ -99,6 +123,18 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
     const data = response.data;
     if (data?.razao_social) {
       rawMetadata = data;
+      const cnaesSecundarios = Array.isArray(data.cnaes_secundarios)
+        ? data.cnaes_secundarios.map((c: any) => `${c.codigo || ''} - ${c.descricao || ''}`.trim())
+        : [];
+      const qsa = Array.isArray(data.qsa)
+        ? data.qsa.map((s: any) => ({
+            nome: s.nome_socio || s.nome,
+            qual: s.qualificacao_socio || String(s.codigo_qualificacao_socio || ''),
+            nome_rep_legal: s.nome_representante || undefined,
+            qual_rep_legal: s.codigo_qualificacao_representante_legal ? String(s.codigo_qualificacao_representante_legal) : undefined,
+          }))
+        : [];
+
       result = {
         cnpj: cnpjLimpo,
         razao_social: data.razao_social,
@@ -109,6 +145,8 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
           data.cnae_fiscal && data.cnae_fiscal_descricao
             ? `${data.cnae_fiscal} - ${data.cnae_fiscal_descricao}`
             : null,
+        cnaes_secundarios: cnaesSecundarios,
+        qsa,
         status: data.descricao_situacao_cadastral || null,
       };
     }
@@ -125,6 +163,18 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
       const data = response.data;
       if (data?.razao_social) {
         rawMetadata = data;
+        const cnaesSecundarios = Array.isArray(data.cnaes_secundarios)
+          ? data.cnaes_secundarios.map((c: any) => `${c.codigo || ''} - ${c.descricao || ''}`.trim())
+          : [];
+        const qsa = Array.isArray(data.qsa)
+          ? data.qsa.map((s: any) => ({
+              nome: s.nome_socio || s.nome,
+              qual: s.qualificacao_socio || String(s.codigo_qualificacao_socio || ''),
+              nome_rep_legal: s.nome_representante || undefined,
+              qual_rep_legal: s.codigo_qualificacao_representante_legal ? String(s.codigo_qualificacao_representante_legal) : undefined,
+            }))
+          : [];
+
         result = {
           cnpj: cnpjLimpo,
           razao_social: data.razao_social,
@@ -134,6 +184,8 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
           cnae_principal: data.cnae_fiscal
             ? `${data.cnae_fiscal} - ${data.cnae_fiscal_descricao || ''}`
             : null,
+          cnaes_secundarios: cnaesSecundarios,
+          qsa,
           status: data.descricao_situacao_cadastral || null,
         };
       }
@@ -151,6 +203,18 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
       const data = response.data;
       if (data?.nome && data.status !== 'ERROR') {
         rawMetadata = data;
+        const cnaesSecundarios = Array.isArray(data.atividades_secundarias)
+          ? data.atividades_secundarias.map((c: any) => `${c.code || ''} - ${c.text || ''}`.trim())
+          : [];
+        const qsa = Array.isArray(data.qsa)
+          ? data.qsa.map((s: any) => ({
+              nome: s.nome,
+              qual: s.qual,
+              nome_rep_legal: s.nome_rep_legal || undefined,
+              qual_rep_legal: s.qual_rep_legal || undefined,
+            }))
+          : [];
+
         result = {
           cnpj: cnpjLimpo,
           razao_social: data.nome,
@@ -158,6 +222,8 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
           municipio: data.municipio || null,
           uf: data.uf || null,
           cnae_principal: data.atividade_principal?.[0]?.text || null,
+          cnaes_secundarios: cnaesSecundarios,
+          qsa,
           status: data.situacao || null,
         };
       }
@@ -212,4 +278,51 @@ async function consultarCnpjSemCoalescencia(cnpjLimpo: string): Promise<CnpjPubl
   }
 
   return result;
+}
+
+/**
+ * Sincroniza dados cadastrais reais (Razão Social, Nome Fantasia, CNAE Principal,
+ * CNAEs Secundários -> nicho, Município, UF -> regioes) da empresa cadastrada no banco.
+ */
+export async function sincronizarEmpresaComDadosReceita(companyId: string, tenantId?: string) {
+  try {
+    const company = await prisma.company.findFirst({
+      where: {
+        id: companyId,
+        ...(tenantId ? { tenantId } : {}),
+      },
+    });
+
+    if (!company || !company.cnpj) return null;
+
+    const official = await consultarCnpjOficial(company.cnpj);
+    const nichoAtual = Array.isArray(company.nicho) ? company.nicho : [];
+    const novosNichos = Array.isArray(official.cnaes_secundarios) ? official.cnaes_secundarios : [];
+    const nichoCombinado = Array.from(new Set([...nichoAtual, ...novosNichos]));
+
+    const regioesAtuais = Array.isArray(company.regioes) ? company.regioes : [];
+    const ufOficial = official.uf ? official.uf.slice(0, 2).toUpperCase() : null;
+    const regioesCombinadas = ufOficial && !regioesAtuais.includes(ufOficial)
+      ? [...regioesAtuais, ufOficial]
+      : regioesAtuais;
+
+    const updated = await prisma.company.update({
+      where: { id: company.id },
+      data: {
+        razaoSocial: official.razao_social || company.razaoSocial,
+        nomeFantasia: official.nome_fantasia || company.nomeFantasia,
+        cnaePrincipal: official.cnae_principal || company.cnaePrincipal,
+        municipio: official.municipio || company.municipio,
+        uf: ufOficial || company.uf,
+        status: official.status || company.status,
+        nicho: nichoCombinado,
+        regioes: regioesCombinadas,
+      },
+    });
+
+    return updated;
+  } catch (error) {
+    console.warn(`[CNPJ_SYNC] Falha ao sincronizar dados cadastrais da empresa ${companyId}:`, error);
+    return null;
+  }
 }

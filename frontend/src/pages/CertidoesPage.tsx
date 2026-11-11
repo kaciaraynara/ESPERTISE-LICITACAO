@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FileCheck2,
   CheckCircle2,
@@ -7,6 +8,8 @@ import {
   Building2,
   ShieldCheck,
   RefreshCw,
+  UploadCloud,
+  ExternalLink,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -240,18 +243,19 @@ export const CertidoesPage: React.FC = () => {
                   <th className="py-3 px-4">Esfera</th>
                   <th className="py-3 px-4">Validade Oficial</th>
                   <th className="py-3 px-4">Status & Prazo</th>
+                  <th className="py-3 px-4">Comprovante / Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {carregando ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                    <td colSpan={6} className="py-8 text-center text-slate-500">
                       Carregando certidões da empresa...
                     </td>
                   </tr>
                 ) : erroCarregamento ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-red-700">
+                    <td colSpan={6} className="py-8 text-center text-red-700">
                       {erroCarregamento}{' '}
                       <button type="button" onClick={() => void carregarCertidoes(selectedCompany)} className="font-bold underline">
                         Tentar novamente
@@ -260,13 +264,13 @@ export const CertidoesPage: React.FC = () => {
                   </tr>
                 ) : !empresa ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-600">
+                    <td colSpan={6} className="py-8 text-center text-slate-600">
                       Selecione uma empresa para acompanhar as certidões.
                     </td>
                   </tr>
                 ) : certidoes.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-600">
+                    <td colSpan={6} className="py-8 text-center text-slate-600">
                       Nenhuma certidão cadastrada para esta empresa.
                     </td>
                   </tr>
@@ -285,6 +289,38 @@ export const CertidoesPage: React.FC = () => {
                     <td className="py-4 px-4">
                       {getStatusBadge(c.status, c.diasParaVencer)}
                       {getRegularityBadge(c.regularidade)}
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {c.temArquivo ? (
+                          <a
+                            href={c.arquivoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold hover:bg-emerald-100 transition-colors text-[11px]"
+                          >
+                            <FileCheck2 size={13} /> Ver Arquivo
+                          </a>
+                        ) : (
+                          <Link
+                            to={`/fornecedor/cofre?tipo=${encodeURIComponent(c.nome)}&empresa_id=${empresa?.id || ''}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-bold hover:bg-slate-200 transition-colors text-[11px]"
+                          >
+                            <UploadCloud size={13} /> Enviar no Cofre
+                          </Link>
+                        )}
+                        {c.urlEmissao && (
+                          <a
+                            href={c.urlEmissao}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold hover:bg-blue-100 transition-colors text-[11px]"
+                            title="Acessar portal emissor oficial"
+                          >
+                            <ExternalLink size={12} /> Emitir
+                          </a>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

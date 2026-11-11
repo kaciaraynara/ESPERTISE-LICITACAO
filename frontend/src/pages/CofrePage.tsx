@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -158,14 +159,43 @@ function MetricCard({
 }
 
 export default function CofrePage() {
+  const [searchParams] = useSearchParams();
+  const tipoQuery = searchParams.get('tipo') || '';
+  const empresaIdQuery = searchParams.get('empresa_id') || searchParams.get('companyId') || '';
+
+  const matchedTipo = useMemo<DocumentType | ''>(() => {
+    if (!tipoQuery) return '';
+    const norm = tipoQuery.toLowerCase();
+    const found = DOCUMENT_TYPES.find((t) => norm.includes(t.toLowerCase()) || t.toLowerCase().includes(norm));
+    if (found) return found;
+    if (norm.includes('federal') || norm.includes('receita') || norm.includes('pgfn')) return 'CND Federal';
+    if (norm.includes('estadual') || norm.includes('icms')) return 'CND Estadual';
+    if (norm.includes('municipal') || norm.includes('iss')) return 'CND Municipal';
+    if (norm.includes('trabalhista') || norm.includes('tst') || norm.includes('cndt')) return 'CNDT';
+    if (norm.includes('fgts') || norm.includes('crf')) return 'FGTS';
+    return '';
+  }, [tipoQuery]);
+
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<DocumentFilter>('todos');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState<DocumentType | ''>('');
+  const [documentType, setDocumentType] = useState<DocumentType | ''>(matchedTipo);
   const [expiresAt, setExpiresAt] = useState('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState(empresaIdQuery);
+
+  useEffect(() => {
+    if (matchedTipo) {
+      setDocumentType(matchedTipo);
+    }
+  }, [matchedTipo]);
+
+  useEffect(() => {
+    if (empresaIdQuery) {
+      setSelectedCompanyId(empresaIdQuery);
+    }
+  }, [empresaIdQuery]);
 
   const storageQuery = useQuery({
     queryKey: ['documents', 'storage-status'],
