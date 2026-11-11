@@ -14,6 +14,7 @@ jest.mock('../database/prisma', () => ({
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     company: {
       findUnique: jest.fn(),
@@ -204,6 +205,160 @@ describe('ExpertiseFiscalEngineService', () => {
       expect(result.premissas.pisoExequibilidadeLei14133Art59).toBeGreaterThan(11000);
       expect(result.cenarioA_Padrao.precoVenda).toBeGreaterThanOrEqual(result.premissas.pisoExequibilidadeLei14133Art59);
       expect(result.cenarioA_Padrao.statusExequibilidade).toBe('EXEQUIBILIDADE_PLENA');
+    });
+  });
+
+  describe('Módulo 05: runSmartFiscalAudit & Declaração Anexo IV', () => {
+    it('deve identificar retenção indevida do Simples Nacional e CFOP inadequado para órgão público', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Mega Suprimentos Ltda',
+        cnpj: '12345678000195',
+        logradouro: 'Av. Paulista',
+        numero: '1000',
+        bairro: 'Bela Vista',
+        municipio: 'São Paulo',
+        uf: 'SP',
+        cep: '01310-100',
+      });
+
+      (prisma.fiscalDocumentImport.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'doc-1',
+          accessKeyOrPeriod: '35240312345678000195550010000000011234567890',
+          direction: 'SAIDA',
+          totalAmount: 10000,
+          taxesSummaryJson: {
+            emitenteCrt: 1, // Simples Nacional
+            destinatarioRazao: 'PREFEITURA MUNICIPAL DE TESTE',
+            vIrrf: 120,
+            vRetPis: 65,
+            vRetCofins: 300,
+            vRetCsll: 100,
+          },
+          parsedItemsJson: [
+            {
+              nItem: 1,
+              cProd: 'PROD-01',
+              xProd: 'Material de Escritorio',
+              ncm: '00000000', // NCM genérico inválido
+              cfop: '5152', // Transferência (inadequado em venda para governo)
+              qCom: 10,
+              vUnCom: 1000,
+              vProd: 10000,
+              cstOrCsosn: '102',
+            },
+          ],
+        },
+      ]);
+
+      const audit = await expertiseFiscalEngineService.runSmartFiscalAudit({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+        orgaoDestinatarioNome: 'Prefeitura Municipal de Teste',
+      });
+
+      expect(audit.statusAuditoria).toBe('CRITICA');
+      expect(audit.totalDivergencias).toBeGreaterThanOrEqual(2);
+
+      // Divergência de Retenção Indevida
+      const divRetencao = audit.divergencias.find((d) => d.tipo === 'RETENCAO_INDEVIDA_SIMPLES');
+      expect(divRetencao).toBeDefined();
+      expect(divRetencao?.severidade).toBe('ALTA');
+      expect(divRetencao?.impactoFinanceiroEstimado).toBe(585);
+      expect(divRetencao?.riscoNoEmpenho).toContain('glosa na liquidação do empenho');
+
+      // Divergência de CFOP
+      const divCfop = audit.divergencias.find((d) => d.tipo === 'CFOP_INADEQUADO_ORGAO_PUBLICO');
+      expect(divCfop).toBeDefined();
+      expect(divCfop?.severidade).toBe('ALTA');
+
+      // Declaração Anexo IV
+      expect(audit.declaracaoNaoRetencaoAnexoIV).toBeDefined();
+      expect(audit.declaracaoNaoRetencaoAnexoIV.titulo).toContain('Anexo IV da IN RFB nº 1.234/2012');
+      expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('MEGA SUPRIMENTOS LTDA');
+      expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('12.345.678/0001-95');
+      expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('Prefeitura Municipal de Teste');
+      expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('INSTRUÇÃO NORMATIVA RFB Nº 1.234');
+    });
+  });
+
+  describe('Módulo 07: preparePerdcompAndCrossOffset', () => {
+    it('deve exigir CRC ou OAB para validação de crédito e bloquear se ausente', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Empresa Teste',
+        cnpj: '12345678000195',
+      });
+
+      await expect(
+        expertiseFiscalEngineService.preparePerdcompAndCrossOffset({
+          tenantId: 'tenant-1',
+          companyId: 'comp-1',
+          validationPayload: {
+            creditId: 'credit-sem-registro',
+            validatedByProfessionalName: '',
+            validatedByRegistryCrcOab: '',
+          },
+        }),
+      ).rejects.toThrow('É obrigatório informar o Nome Completo e o Registro Profissional');
+    });
+
+    it('deve estruturar o espelho do PER/DCOMP Web e calcular compensação cruzada na DCTFWeb', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Empresa Teste Ltda',
+        cnpj: '12345678000195',
+      });
+
+      (prisma.taxCreditOpportunity.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'cred-1',
+          companyId: 'comp-1',
+          taxType: 'IRRF_CSLL_PIS_COFINS',
+          originCategory: 'RETENCAO_IN1234',
+          status: 'VALIDATED',
+          principalAmount: 5000,
+          legalBasis: 'Art. 4º, XI da IN RFB 1.234/2012',
+          calculationMemoryJson: {
+            chaveAcesso: '35240312345678000195550010000000011234567890',
+            dataEmissao: '2026-02-10T12:00:00Z',
+          },
+          validatedByProfessionalName: 'Dra. Roberta Santos',
+          validatedByRegistryCrcOab: 'OAB/SP 456.789',
+          validatedAt: new Date(),
+          perdcompProtocol: null,
+          isLegallyUsable: true,
+          isAvailableForOffset: true,
+        },
+      ]);
+
+      const result = await expertiseFiscalEngineService.preparePerdcompAndCrossOffset({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+        debitosParaCompensar: [
+          {
+            tipoDebito: 'ESOCIAL_PREVIDENCIARIO',
+            competencia: '03/2026',
+            codigoReceita: '1082-01',
+            valorOriginalDebito: 3000,
+          },
+        ],
+      });
+
+      expect(result.espelhosPerdcompWeb).toHaveLength(1);
+      const espelho = result.espelhosPerdcompWeb[0];
+      expect(espelho.valorPrincipalOriginal).toBe(5000);
+      expect(espelho.valorAtualizadoTotal).toBeGreaterThan(5000); // Com juros SELIC
+      expect(espelho.responsavelTecnicoValidacao.nome).toBe('Dra. Roberta Santos');
+      expect(espelho.responsavelTecnicoValidacao.registroCrcOuOab).toBe('OAB/SP 456.789');
+      expect(espelho.espelhoFormularioEcac.campo01_IdentificacaoContribuinte).toContain('12.345.678/0001-95');
+
+      // Compensação Cruzada: crédito fazendário (5.000 + SELIC) abatendo débito previdenciário (3.000)
+      expect(result.capacidadeAbatimentoCruzadoDctfWeb.creditosFazendariosParaDebitosPrevidenciarios).toBe(3000);
+      expect(result.capacidadeAbatimentoCruzadoDctfWeb.saldoFinalDevedorAposCompensacao).toBe(0);
+      expect(result.capacidadeAbatimentoCruzadoDctfWeb.saldoRestanteCreditosParaFuturasDcomp).toBeGreaterThan(2000);
+      expect(result.fundamentoJuridicoCompensacaoCruzada).toContain('Lei nº 13.670/2018');
     });
   });
 });

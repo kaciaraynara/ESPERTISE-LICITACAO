@@ -1010,6 +1010,36 @@ export const expertiseFiscalApi = {
     targetMarginPercent?: number;
     creditOpportunityIds?: string[];
   }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/simulate-proposal-bdi', body),
+  executarAuditoriaFiscal: (body?: {
+    noticeId?: string;
+    documentId?: string;
+    orgaoDestinatarioNome?: string;
+    orgaoDestinatarioCnpj?: string;
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/audit', body || {}),
+  gerarAnexoIv: (body?: {
+    orgaoDestinatarioNome?: string;
+    orgaoDestinatarioCnpj?: string;
+    cidade?: string;
+    uf?: string;
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/anexo-iv', body || {}),
+  prepararPerdcompCompensacaoCruzada: (body?: {
+    creditIds?: string[];
+    validationPayload?: {
+      creditId: string;
+      validatedByProfessionalName: string;
+      validatedByRegistryCrcOab: string;
+    };
+    debitosParaCompensar?: Array<{
+      tipoDebito: string;
+      competencia: string;
+      codigoReceita: string;
+      valorOriginalDebito: number;
+    }>;
+    protocolosParaRegistrar?: Array<{
+      creditId: string;
+      protocolo: string;
+    }>;
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/perdcomp-cross-offset', body || {}),
 };
 
 export {

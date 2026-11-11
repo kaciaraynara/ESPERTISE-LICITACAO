@@ -311,6 +311,116 @@ export class TaxController {
       });
     }
   };
+
+  /**
+   * POST /api/tax/fiscal/audit
+   * Módulo 05: Executa auditoria fiscal inteligente procurando divergências de NCM, CFOP e retenção
+   */
+  public runSmartFiscalAudit = async (req: AuthRequest, res: Response): Promise<Response> => {
+    try {
+      const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
+      const { noticeId, documentId, orgaoDestinatarioNome, orgaoDestinatarioCnpj } = req.body || {};
+
+      const result = await expertiseFiscalEngineService.runSmartFiscalAudit({
+        tenantId,
+        companyId,
+        noticeId,
+        documentId,
+        orgaoDestinatarioNome,
+        orgaoDestinatarioCnpj,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('[TaxController] Falha na auditoria fiscal inteligente:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao executar auditoria fiscal inteligente.',
+      });
+    }
+  };
+
+  /**
+   * POST /api/tax/fiscal/anexo-iv
+   * Gera o modelo preenchido da Declaração de Não Retenção (Anexo IV da IN RFB 1.234/2012)
+   */
+  public generateAnexoIv = async (req: AuthRequest, res: Response): Promise<Response> => {
+    try {
+      const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
+      const { orgaoDestinatarioNome, orgaoDestinatarioCnpj, cidade, uf } = req.body || {};
+
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+      });
+
+      if (!company) {
+        return res.status(404).json({
+          success: false,
+          message: 'Empresa contratante não encontrada.',
+        });
+      }
+
+      const enderecoCompleto = [company.municipio, company.uf]
+        .filter(Boolean)
+        .join(' - ') || 'Sede da Empresa';
+
+      const declaracao = expertiseFiscalEngineService.generateAnexoIVDeclaration({
+        empresaRazaoSocial: company.razaoSocial,
+        empresaCnpj: company.cnpj,
+        empresaEnderecoCompleto: enderecoCompleto,
+        orgaoDestinatarioNome,
+        orgaoDestinatarioCnpj,
+        cidade: cidade || company.municipio || undefined,
+        uf: uf || company.uf || undefined,
+        dataEmissao: new Date(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: declaracao,
+      });
+    } catch (error: any) {
+      console.error('[TaxController] Falha ao gerar Declaração Anexo IV:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao gerar Declaração Anexo IV da IN RFB 1.234/2012.',
+      });
+    }
+  };
+
+  /**
+   * POST /api/tax/fiscal/perdcomp-cross-offset
+   * Módulo 07: Prepara espelho do PER/DCOMP Web e calcula compensação cruzada na DCTFWeb
+   */
+  public preparePerdcompAndCrossOffset = async (req: AuthRequest, res: Response): Promise<Response> => {
+    try {
+      const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
+      const { creditIds, validationPayload, debitosParaCompensar, protocolosParaRegistrar } = req.body || {};
+
+      const result = await expertiseFiscalEngineService.preparePerdcompAndCrossOffset({
+        tenantId,
+        companyId,
+        creditIds: Array.isArray(creditIds) ? creditIds : undefined,
+        validationPayload,
+        debitosParaCompensar: Array.isArray(debitosParaCompensar) ? debitosParaCompensar : undefined,
+        protocolosParaRegistrar: Array.isArray(protocolosParaRegistrar) ? protocolosParaRegistrar : undefined,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('[TaxController] Falha na preparação do PER/DCOMP e Compensação Cruzada:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao preparar PER/DCOMP e Compensação Cruzada DCTFWeb.',
+      });
+    }
+  };
 }
 
 export const taxController = new TaxController();

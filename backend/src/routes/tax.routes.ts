@@ -60,4 +60,28 @@ router.post(
   taxController.simulateProposalBdi,
 );
 
+// Módulo 05: Auditoria Fiscal Inteligente (NCM, CATMAT, CFOP e Retenções)
+router.post(
+  '/fiscal/audit',
+  authMiddleware,
+  companyContextMiddleware,
+  taxController.runSmartFiscalAudit,
+);
+
+// Geração da Declaração de Não Retenção (Anexo IV da IN RFB nº 1.234/2012)
+router.post(
+  '/fiscal/anexo-iv',
+  authMiddleware,
+  companyContextMiddleware,
+  taxController.generateAnexoIv,
+);
+
+// Módulo 07: Preparação PER/DCOMP Web e Compensação Cruzada DCTFWeb
+router.post(
+  '/fiscal/perdcomp-cross-offset',
+  authMiddleware,
+  companyContextMiddleware,
+  taxController.preparePerdcompAndCrossOffset,
+);
+
 export default router;

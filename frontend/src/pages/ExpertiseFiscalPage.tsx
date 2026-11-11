@@ -18,13 +18,21 @@ import {
   FileCode,
   TrendUp,
   ShieldCheck as ShieldIcon,
+  Copy,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 import { expertiseFiscalApi } from '../services/api';
 import { EditalSelector, EditalOption } from '../components/EditalSelector';
 import { useCompany } from '../contexts/CompanyContext';
 
-type TabKey = 'importacao' | 'creditos' | 'reforma' | 'bdi_proposta';
+type TabKey =
+  | 'importacao'
+  | 'creditos'
+  | 'auditoria_fiscal'
+  | 'perdcomp_compensacao'
+  | 'reforma'
+  | 'bdi_proposta';
 
 interface CreditOpportunity {
   id: string;
@@ -79,6 +87,29 @@ export default function ExpertiseFiscalPage() {
   const [selectedCreditIds, setSelectedCreditIds] = useState<string[]>([]);
   const [simulandoBdi, setSimulandoBdi] = useState(false);
   const [bdiResult, setBdiResult] = useState<any>(null);
+
+  // Estados da Aba 3 (Auditoria Fiscal & Anexo IV - Módulo 05)
+  const [selectedAuditEdital, setSelectedAuditEdital] = useState<EditalOption | null>(null);
+  const [auditOrgaoNome, setAuditOrgaoNome] = useState('');
+  const [auditOrgaoCnpj, setAuditOrgaoCnpj] = useState('');
+  const [executandoAuditoria, setExecutandoAuditoria] = useState(false);
+  const [auditoriaResult, setAuditoriaResult] = useState<any>(null);
+  const [modalAnexoIvOpen, setModalAnexoIvOpen] = useState(false);
+  const [declaracaoAnexoIvTexto, setDeclaracaoAnexoIvTexto] = useState('');
+
+  // Estados da Aba 4 (PER/DCOMP & Compensação Cruzada DCTFWeb - Módulo 07)
+  const [loadingPerdcomp, setLoadingPerdcomp] = useState(false);
+  const [perdcompBatchResult, setPerdcompBatchResult] = useState<any>(null);
+  const [selectedDebitoTipo, setSelectedDebitoTipo] = useState<
+    'ESOCIAL_PREVIDENCIARIO' | 'REINF_RETENCOES' | 'DARF_FAZENDARIO' | 'DAS_SIMPLES'
+  >('ESOCIAL_PREVIDENCIARIO');
+  const [selectedDebitoCompetencia, setSelectedDebitoCompetencia] = useState('10/2026');
+  const [selectedDebitoCodigo, setSelectedDebitoCodigo] = useState('1082-01');
+  const [selectedDebitoValor, setSelectedDebitoValor] = useState<number>(3500);
+  const [debitosList, setDebitosList] = useState<any[]>([]);
+  const [novoProtocoloCreditId, setNovoProtocoloCreditId] = useState('');
+  const [novoProtocoloNumero, setNovoProtocoloNumero] = useState('');
+  const [salvandoProtocolo, setSalvandoProtocolo] = useState(false);
 
   // Carrega créditos e documentos ao montar a página
   useEffect(() => {
@@ -227,6 +258,84 @@ export default function ExpertiseFiscalPage() {
     }
   };
 
+  // Execução de Auditoria Fiscal Inteligente (Módulo 05)
+  const handleExecutarAuditoria = async () => {
+    setExecutandoAuditoria(true);
+    try {
+      const res = await expertiseFiscalApi.executarAuditoriaFiscal({
+        noticeId: selectedAuditEdital?.id || selectedAuditEdital?.numeroControlePNCP,
+        orgaoDestinatarioNome: auditOrgaoNome || undefined,
+        orgaoDestinatarioCnpj: auditOrgaoCnpj || undefined,
+      });
+
+      if (res.data?.success) {
+        setAuditoriaResult(res.data.data);
+        if (res.data.data?.declaracaoNaoRetencaoAnexoIV?.modeloTextoPreenchido) {
+          setDeclaracaoAnexoIvTexto(res.data.data.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido);
+        }
+        toast.success('Auditoria fiscal concluída com sucesso!');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Falha ao executar auditoria fiscal.');
+    } finally {
+      setExecutandoAuditoria(false);
+    }
+  };
+
+  // Preparação de PER/DCOMP e Compensação Cruzada DCTFWeb (Módulo 07)
+  const handleCarregarPerdcomp = async (customDebitos?: any[], customProtocolos?: any[]) => {
+    setLoadingPerdcomp(true);
+    try {
+      const res = await expertiseFiscalApi.prepararPerdcompCompensacaoCruzada({
+        debitosParaCompensar: customDebitos || (debitosList.length > 0 ? debitosList : undefined),
+        protocolosParaRegistrar: customProtocolos,
+      });
+      if (res.data?.success) {
+        setPerdcompBatchResult(res.data.data);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Falha ao processar espelho PER/DCOMP.');
+    } finally {
+      setLoadingPerdcomp(false);
+    }
+  };
+
+  const handleAddDebito = () => {
+    if (selectedDebitoValor <= 0) {
+      toast.error('Informe um valor de débito maior que zero.');
+      return;
+    }
+    const novo = {
+      tipoDebito: selectedDebitoTipo,
+      competencia: selectedDebitoCompetencia,
+      codigoReceita: selectedDebitoCodigo,
+      valorOriginalDebito: selectedDebitoValor,
+    };
+    const updated = [...debitosList, novo];
+    setDebitosList(updated);
+    void handleCarregarPerdcomp(updated);
+    toast.success('Débito adicionado para simulação de compensação cruzada!');
+  };
+
+  const handleSalvarProtocolo = async (creditId: string) => {
+    if (!novoProtocoloNumero.trim()) {
+      toast.error('Informe o número do protocolo do PER/DCOMP gerado no e-CAC.');
+      return;
+    }
+    setSalvandoProtocolo(true);
+    try {
+      await handleCarregarPerdcomp(undefined, [{ creditId, protocolo: novoProtocoloNumero }]);
+      setNovoProtocoloCreditId('');
+      setNovoProtocoloNumero('');
+      void carregarCreditos();
+      toast.success('Protocolo do PER/DCOMP registrado com sucesso!');
+    } catch (err: any) {
+      toast.error('Erro ao salvar protocolo.');
+    } finally {
+      setSalvandoProtocolo(false);
+    }
+  };
+
   // Métricas Consolidadas do Topo
   const totalCreditosPrincipal = credits.reduce((acc, c) => acc + Number(c.principalAmount), 0);
   const totalCreditosSelic = credits.reduce((acc, c) => acc + Number(c.selicUpdatedAmount), 0);
@@ -356,6 +465,38 @@ export default function ExpertiseFiscalPage() {
           <button
             type="button"
             onClick={() => {
+              setActiveTab('auditoria_fiscal');
+              if (!auditoriaResult) void handleExecutarAuditoria();
+            }}
+            className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              activeTab === 'auditoria_fiscal'
+                ? 'bg-brand-blue text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" weight="bold" />
+            <span>3. Auditoria Fiscal & Anexo IV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('perdcomp_compensacao');
+              if (!perdcompBatchResult) void handleCarregarPerdcomp();
+            }}
+            className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              activeTab === 'perdcomp_compensacao'
+                ? 'bg-brand-blue text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <ArrowsLeftRight className="w-4 h-4" weight="bold" />
+            <span>4. PER/DCOMP & DCTFWeb</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
               setActiveTab('reforma');
               if (!reformaResult) void handleSimularReforma();
             }}
@@ -366,7 +507,7 @@ export default function ExpertiseFiscalPage() {
             }`}
           >
             <TrendUp className="w-4 h-4" weight="bold" />
-            <span>3. Reforma Tributária (CBS/IBS)</span>
+            <span>5. Reforma Tributária (CBS/IBS)</span>
           </button>
 
           <button
@@ -379,7 +520,7 @@ export default function ExpertiseFiscalPage() {
             }`}
           >
             <Calculator className="w-4 h-4" weight="bold" />
-            <span>4. BDI & Trava de 5 Etapas</span>
+            <span>6. BDI & Trava de 5 Etapas</span>
           </button>
         </nav>
       </div>
@@ -806,6 +947,546 @@ export default function ExpertiseFiscalPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          ABA 3: AUDITORIA FISCAL INTELIGENTE & DECLARAÇÃO ANEXO IV (MÓDULO 05)
+          ===================================================================== */}
+      {activeTab === 'auditoria_fiscal' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" weight="bold" />
+                  Auditoria Fiscal Inteligente de XMLs & Cruzamento de Editais
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Varredura de divergências fiscais críticas: NCM incompatível com CATMAT, CFOP incorreto em vendas para o poder público e retenções indevidas (IN RFB 1.234/12).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleExecutarAuditoria()}
+                disabled={executandoAuditoria}
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {executandoAuditoria ? <Spinner className="w-4 h-4 animate-spin" /> : <Sparkle className="w-4 h-4" weight="fill" />}
+                <span>{executandoAuditoria ? 'Auditando...' : 'Reauditar Notas'}</span>
+              </button>
+            </div>
+
+            {/* Parâmetros Opcionais de Auditoria */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="md:col-span-1">
+                <label className="block font-bold text-slate-700 mb-1">
+                  Vincular Edital para Cruzamento com CATMAT:
+                </label>
+                <EditalSelector
+                  label="Vincular Edital para Cruzamento com CATMAT:"
+                  selectedId={selectedAuditEdital?.id}
+                  onSelectEdital={(ed: EditalOption) => setSelectedAuditEdital(ed)}
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Órgão Público Destinatário:
+                </label>
+                <input
+                  type="text"
+                  value={auditOrgaoNome}
+                  onChange={(e) => setAuditOrgaoNome(e.target.value)}
+                  placeholder="Ex: Tribunal de Justiça / Prefeitura de Santos"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  CNPJ do Órgão Público (Opcional):
+                </label>
+                <input
+                  type="text"
+                  value={auditOrgaoCnpj}
+                  onChange={(e) => setAuditOrgaoCnpj(e.target.value)}
+                  placeholder="Ex: 00.394.460/0001-41"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Banner da Declaração de Não Retenção (Anexo IV da IN RFB 1.234/2012) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-black uppercase">
+                  <FileText className="w-3.5 h-3.5" weight="bold" /> Modelo Oficial RFB
+                </span>
+                <h4 className="text-sm font-black text-amber-950">
+                  Declaração de Não Retenção do Simples Nacional (Anexo IV da IN RFB 1.234/2012)
+                </h4>
+                <p className="text-xs text-amber-800 max-w-2xl">
+                  Anexe esta declaração preenchida a cada nota fiscal emitida para órgãos públicos para impedir a glosa contábil e retenção indevida de até 5,85% no pagamento do empenho.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setModalAnexoIvOpen(true)}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Visualizar & Copiar Anexo IV</span>
+              </button>
+            </div>
+
+            {/* Resultados da Auditoria */}
+            {executandoAuditoria ? (
+              <div className="flex h-48 items-center justify-center">
+                <Spinner className="w-8 h-8 animate-spin text-brand-blue" />
+              </div>
+            ) : auditoriaResult ? (
+              <div className="space-y-5">
+                {/* Resumo com Status Geral */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Status Geral da Auditoria</span>
+                    <span className={`text-lg font-black block mt-1 ${
+                      auditoriaResult.statusAuditoria === 'CRITICA'
+                        ? 'text-rose-600'
+                        : auditoriaResult.statusAuditoria === 'ATENCAO'
+                        ? 'text-amber-600'
+                        : 'text-emerald-600'
+                    }`}>
+                      {auditoriaResult.statusAuditoria === 'CRITICA'
+                        ? 'CRÍTICA • Risco de Glosa'
+                        : auditoriaResult.statusAuditoria === 'ATENCAO'
+                        ? 'ATENÇÃO • Ajustes Recomendados'
+                        : 'REGULAR • Em Conformidade'}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {auditoriaResult.totalDivergencias} divergência(s) encontrada(s)
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Risco Financeiro de Glosa</span>
+                    <span className="text-lg font-black text-rose-600 block mt-1">
+                      R$ {Number(auditoriaResult.resumoFinanceiro?.impactoFinanceiroRiscoGlosa || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      retenções federais em risco no empenho
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Créditos de Segregação Monofásica</span>
+                    <span className="text-lg font-black text-emerald-600 block mt-1">
+                      R$ {Number(auditoriaResult.resumoFinanceiro?.creditosRecuperaveisIdentificados || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      PIS/COFINS recuperável via DAS
+                    </span>
+                  </div>
+                </div>
+
+                {/* Lista de Divergências */}
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 mb-3">
+                    Relatório Detalhado de Divergências ({auditoriaResult.divergencias?.length || 0})
+                  </h3>
+
+                  {auditoriaResult.divergencias?.length === 0 ? (
+                    <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center text-xs text-emerald-800 font-medium">
+                      Nenhuma divergência tributária ou cadastral encontrada nos documentos auditados.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {auditoriaResult.divergencias.map((div: any) => (
+                        <div
+                          key={div.id}
+                          className={`p-4 rounded-2xl border text-xs space-y-2 ${
+                            div.severidade === 'ALTA'
+                              ? 'bg-rose-50/50 border-rose-200'
+                              : div.severidade === 'MEDIA'
+                              ? 'bg-amber-50/50 border-amber-200'
+                              : 'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 border-slate-200/60">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                div.severidade === 'ALTA'
+                                  ? 'bg-rose-600 text-white'
+                                  : div.severidade === 'MEDIA'
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-slate-600 text-white'
+                              }`}>
+                                {div.severidade}
+                              </span>
+                              <span className="font-mono text-[11px] text-slate-600">{div.chaveAcesso}</span>
+                            </div>
+                            <span className="font-black text-slate-900">
+                              Impacto: R$ {Number(div.impactoFinanceiroEstimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          <p className="font-bold text-slate-900">{div.descricaoDivergencia}</p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                            <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-700">
+                              <strong className="text-rose-700 block mb-0.5">Risco no Empenho / Contrato:</strong>
+                              <span>{div.riscoNoEmpenho}</span>
+                            </div>
+                            <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-700">
+                              <strong className="text-emerald-700 block mb-0.5">Orientação de Correção:</strong>
+                              <span>{div.orientacaoCorrecao}</span>
+                            </div>
+                          </div>
+
+                          <span className="text-[10px] text-slate-400 block pt-1">
+                            <strong>Base Legal:</strong> {div.baseLegal}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Modal da Declaração Anexo IV */}
+          {modalAnexoIvOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+              <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-amber-600" />
+                    Declaração de Não Retenção (Anexo IV da IN RFB nº 1.234/2012)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setModalAnexoIvOpen(false)}
+                    className="p-1 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-600">
+                  Modelo preenchido conforme os dados cadastrais da empresa e do órgão público. Imprima em papel timbrado ou assine digitalmente via Certificado Digital ICP-Brasil / Gov.br.
+                </p>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-[11px] text-slate-800 leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
+                  {declaracaoAnexoIvTexto || 'Carregando declaração...'}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(declaracaoAnexoIvTexto);
+                      toast.success('Texto da Declaração copiado para a área de transferência!');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar Declaração</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalAnexoIvOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          ABA 4: PER/DCOMP WEB & COMPENSAÇÃO CRUZADA DCTFWEB (MÓDULO 07)
+          ===================================================================== */}
+      {activeTab === 'perdcomp_compensacao' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <ArrowsLeftRight className="w-5 h-5 text-indigo-600" weight="bold" />
+                  PER/DCOMP Web & Compensação Cruzada na DCTFWeb
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Espelhos de preenchimento estruturados para o Portal e-CAC com atualização SELIC e abatimento cruzado entre débitos previdenciários (eSocial/Reinf) e créditos fazendários (Lei 13.670/18).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleCarregarPerdcomp()}
+                disabled={loadingPerdcomp}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <Spinner className={`w-3.5 h-3.5 ${loadingPerdcomp ? 'animate-spin' : ''}`} />
+                <span>Recalcular Lote</span>
+              </button>
+            </div>
+
+            {loadingPerdcomp ? (
+              <div className="flex h-48 items-center justify-center">
+                <Spinner className="w-8 h-8 animate-spin text-brand-blue" />
+              </div>
+            ) : perdcompBatchResult ? (
+              <div className="space-y-6">
+                {/* Resumo da Compensação Cruzada */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Créditos Validados</span>
+                    <span className="text-xl font-black text-slate-900 block mt-1">
+                      {perdcompBatchResult.totalCreditosValidadosDisponiveis} créditos
+                    </span>
+                    <span className="text-xs font-bold text-slate-600">
+                      R$ {Number(perdcompBatchResult.totalCreditosValidadosValor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Total com Atualização SELIC</span>
+                    <span className="text-xl font-black text-emerald-600 block mt-1">
+                      R$ {Number(perdcompBatchResult.totalCreditosComSelicValor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-500">Art. 39, § 4º Lei 9.250/95</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Abatimento Cruzado DCTFWeb</span>
+                    <span className="text-xl font-black text-indigo-600 block mt-1">
+                      R$ {Number(perdcompBatchResult.capacidadeAbatimentoCruzadoDctfWeb?.creditosFazendariosParaDebitosPrevidenciarios || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-500">eSocial / Reinf abatidos</span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Saldo Credor Remanescente</span>
+                    <span className="text-xl font-black text-slate-900 block mt-1">
+                      R$ {Number(perdcompBatchResult.capacidadeAbatimentoCruzadoDctfWeb?.saldoRestanteCreditosParaFuturasDcomp || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-500">disponível para futuras DCOMPs</span>
+                  </div>
+                </div>
+
+                {/* Simulador de Batimento de Débitos na DCTFWeb */}
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-indigo-600" />
+                      Simular Batimento de Débitos Previdenciários / Fazendários (DCTFWeb)
+                    </h3>
+                    <span className="text-[11px] text-slate-500 font-medium">Lei nº 13.670/2018</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Tipo do Débito:</label>
+                      <select
+                        value={selectedDebitoTipo}
+                        onChange={(e) => setSelectedDebitoTipo(e.target.value as any)}
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                      >
+                        <option value="ESOCIAL_PREVIDENCIARIO">eSocial (INSS Folha / Patronal)</option>
+                        <option value="REINF_RETENCOES">EFD-Reinf (Retenções de Tomador)</option>
+                        <option value="DARF_FAZENDARIO">DARF Fazendário (IRPJ / CSLL / PIS)</option>
+                        <option value="DAS_SIMPLES">DAS (Simples Nacional)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Competência:</label>
+                      <input
+                        type="text"
+                        value={selectedDebitoCompetencia}
+                        onChange={(e) => setSelectedDebitoCompetencia(e.target.value)}
+                        placeholder="MM/AAAA (ex: 10/2026)"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Código de Receita:</label>
+                      <input
+                        type="text"
+                        value={selectedDebitoCodigo}
+                        onChange={(e) => setSelectedDebitoCodigo(e.target.value)}
+                        placeholder="Ex: 1082-01 ou 0561"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Valor do Débito (R$):</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={selectedDebitoValor}
+                          onChange={(e) => setSelectedDebitoValor(Number(e.target.value))}
+                          className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddDebito}
+                          className="px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer"
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {debitosList.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs space-y-2">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Débitos Inclusos no Batimento:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {debitosList.map((d, idx) => (
+                          <span key={idx} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-medium border border-slate-200">
+                            <strong>{d.tipoDebito}</strong> ({d.competencia} - {d.codigoReceita}): R$ {Number(d.valorOriginalDebito).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Espelhos de Preenchimento para PER/DCOMP Web */}
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 mb-3">
+                    Espelhos Oficiais para o PER/DCOMP Web (Portal e-CAC)
+                  </h3>
+
+                  <div className="space-y-4">
+                    {perdcompBatchResult.espelhosPerdcompWeb?.map((espelho: any) => (
+                      <div key={espelho.creditId} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                          <div>
+                            <span className="font-black text-slate-900 text-sm">
+                              Item #{espelho.numeroOrdem} • {espelho.tipoCreditoEcac}
+                            </span>
+                            <span className="text-xs text-slate-500 block">
+                              Origem: {espelho.chaveAcessoDocumento} • Competência: {espelho.periodoApuracaoCompetencia}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-xs">
+                              R$ {Number(espelho.valorAtualizadoTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (com SELIC)
+                            </span>
+
+                            {espelho.statusTransmitido ? (
+                              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-mono text-[11px] font-bold">
+                                Protocolo: {espelho.protocoloPerdcomp}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setNovoProtocoloCreditId(espelho.creditId)}
+                                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer"
+                              >
+                                Registrar Protocolo e-CAC
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Formulário de registro do protocolo */}
+                        {novoProtocoloCreditId === espelho.creditId && (
+                          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex flex-col sm:flex-row items-center gap-2 text-xs">
+                            <span className="font-bold text-indigo-900 shrink-0">Número do Recibo/Protocolo transmitido no e-CAC:</span>
+                            <input
+                              type="text"
+                              value={novoProtocoloNumero}
+                              onChange={(e) => setNovoProtocoloNumero(e.target.value)}
+                              placeholder="Ex: 12345.67890.123456"
+                              className="w-full sm:w-64 p-2 rounded-lg border border-indigo-300 bg-white"
+                            />
+                            <div className="flex gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleSalvarProtocolo(espelho.creditId)}
+                                disabled={salvandoProtocolo}
+                                className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNovoProtocoloCreditId('')}
+                                className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold cursor-pointer"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grid dos Campos para Cópia no e-CAC */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 01 • Contribuinte</span>
+                            <span className="font-bold text-slate-800">{espelho.espelhoFormularioEcac.campo01_IdentificacaoContribuinte}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 02 • Grupo do Crédito</span>
+                            <span className="font-bold text-slate-800">{espelho.espelhoFormularioEcac.campo02_GrupoCredito}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 05 • Código da Receita DARF/DAS</span>
+                            <span className="font-mono font-bold text-indigo-700">{espelho.espelhoFormularioEcac.campo05_CodigoReceitaPrincipal}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 07 • Valor Original</span>
+                            <span className="font-mono font-bold text-slate-900">{espelho.espelhoFormularioEcac.campo07_ValorOriginal}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 08 • Atualização SELIC Acumulada</span>
+                            <span className="font-mono font-bold text-emerald-700">{espelho.espelhoFormularioEcac.campo08_IndiceSelic}</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Campo 09 • Valor Total Atualizado</span>
+                            <span className="font-mono font-black text-emerald-700">{espelho.espelhoFormularioEcac.campo09_ValorTotalComSelic}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between gap-2">
+                          <span>
+                            <strong>Responsável Técnico pela Validação:</strong> {espelho.responsavelTecnicoValidacao.nome} ({espelho.responsavelTecnicoValidacao.registroCrcOuOab}) em {espelho.responsavelTecnicoValidacao.dataValidacao}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(JSON.stringify(espelho.espelhoFormularioEcac, null, 2));
+                              toast.success('Campos do formulário copiados!');
+                            }}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer shrink-0"
+                          >
+                            <Copy className="w-3.5 h-3.5" /> Copiar Campos
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">
+                Nenhum crédito validado disponível para geração do PER/DCOMP. Valide os créditos identificados na Aba 2 para habilitar a compensação cruzada.
+              </div>
+            )}
+          </div>
         </div>
       )}
 

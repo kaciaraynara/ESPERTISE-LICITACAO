@@ -55,6 +55,124 @@ export interface CreditOffsetValidationResult {
   reason?: string;
 }
 
+export interface FiscalAuditDivergence {
+  id: string;
+  tipo:
+    | 'NCM_INCOMPATIVEL_CATMAT'
+    | 'NCM_GENERICO_INVALIDO'
+    | 'CFOP_INADEQUADO_ORGAO_PUBLICO'
+    | 'RETENCAO_INDEVIDA_SIMPLES'
+    | 'RETENCAO_AUSENTE_REGIME_NORMAL'
+    | 'MONOFASICO_NAO_SEGREGADO';
+  severidade: 'ALTA' | 'MEDIA' | 'BAIXA';
+  chaveAcesso: string;
+  itemNumero?: number;
+  itemDescricao?: string;
+  ncm?: string;
+  cfop?: string;
+  descricaoDivergencia: string;
+  impactoFinanceiroEstimado: number;
+  riscoNoEmpenho: string;
+  orientacaoCorrecao: string;
+  baseLegal: string;
+}
+
+export interface SmartFiscalAuditResult {
+  empresa: {
+    id: string;
+    razaoSocial: string;
+    cnpj: string;
+    crt: number;
+    regimeTributario: string;
+  };
+  editalAuditado?: {
+    id: string;
+    numeroControlePncp: string;
+    objeto: string;
+    itensCount: number;
+  } | null;
+  documentosAnalisadosCount: number;
+  totalDivergencias: number;
+  statusAuditoria: 'CRITICA' | 'ATENCAO' | 'REGULAR';
+  divergencias: FiscalAuditDivergence[];
+  resumoFinanceiro: {
+    valorTotalDocumentosAuditados: number;
+    impactoFinanceiroRiscoGlosa: number;
+    creditosRecuperaveisIdentificados: number;
+  };
+  declaracaoNaoRetencaoAnexoIV: {
+    titulo: string;
+    baseLegal: string;
+    modeloTextoPreenchido: string;
+    instrucoesUso: string;
+  };
+}
+
+export interface PerdcompMirrorItem {
+  creditId: string;
+  numeroOrdem: number;
+  tipoDocumentoDcomp: 'DECLARACAO_COMPENSACAO' | 'PEDIDO_RESTITUICAO';
+  tipoCreditoEcac: string;
+  codigoReceitaDarfOuDas: string;
+  periodoApuracaoCompetencia: string;
+  dataArrecadacaoOuRetencao: string;
+  chaveAcessoDocumento: string;
+  valorPrincipalOriginal: number;
+  taxaSelicAcumuladaPercent: number;
+  valorJurosSelic: number;
+  valorAtualizadoTotal: number;
+  saldoDisponivelCompensacao: number;
+  origemCategoria: string;
+  baseLegal: string;
+  responsavelTecnicoValidacao: {
+    nome: string;
+    registroCrcOuOab: string;
+    dataValidacao: string;
+  };
+  protocoloPerdcomp: string;
+  statusTransmitido: boolean;
+  espelhoFormularioEcac: {
+    campo01_IdentificacaoContribuinte: string;
+    campo02_GrupoCredito: string;
+    campo03_TipoCredito: string;
+    campo04_CompetenciaOuPeriodo: string;
+    campo05_CodigoReceitaPrincipal: string;
+    campo06_DataPagamentoOuRetencao: string;
+    campo07_ValorOriginal: string;
+    campo08_IndiceSelic: string;
+    campo09_ValorTotalComSelic: string;
+    campo10_InformacoesComplementares: string;
+  };
+}
+
+export interface CrossOffsetDebitoItem {
+  tipoDebito: 'ESOCIAL_PREVIDENCIARIO' | 'REINF_RETENCOES' | 'DARF_FAZENDARIO' | 'DAS_SIMPLES';
+  competencia: string;
+  codigoReceita: string;
+  valorOriginalDebito: number;
+}
+
+export interface CrossOffsetBatchResult {
+  empresa: {
+    id: string;
+    razaoSocial: string;
+    cnpj: string;
+  };
+  totalCreditosValidadosDisponiveis: number;
+  totalCreditosValidadosValor: number;
+  totalCreditosComSelicValor: number;
+  totalDebitosSubmetidosValor: number;
+  capacidadeAbatimentoCruzadoDctfWeb: {
+    creditosFazendariosParaDebitosPrevidenciarios: number;
+    creditosPrevidenciariosParaDebitosFazendarios: number;
+    saldoFinalDevedorAposCompensacao: number;
+    saldoRestanteCreditosParaFuturasDcomp: number;
+  };
+  espelhosPerdcompWeb: PerdcompMirrorItem[];
+  fundamentoJuridicoCompensacaoCruzada: string;
+  passoAPassoTransmissaoEcac: string[];
+}
+
 export class ExpertiseFiscalEngineService {
   /**
    * Helper para extrair tags XML simples mesmo com namespaces
@@ -978,6 +1096,17 @@ export class ExpertiseFiscalEngineService {
       perdcompProtocol,
     } = params;
 
+    if (
+      !validatedByProfessionalName ||
+      !validatedByProfessionalName.trim() ||
+      !validatedByRegistryCrcOab ||
+      !validatedByRegistryCrcOab.trim()
+    ) {
+      throw new Error(
+        'É obrigatório informar o Nome Completo e o Registro Profissional (CRC do Contador ou OAB do Advogado Tributarista) para validar o crédito fiscal.',
+      );
+    }
+
     const credit = await prisma.taxCreditOpportunity.findFirst({
       where: {
         id: creditId,
@@ -993,10 +1122,10 @@ export class ExpertiseFiscalEngineService {
       where: { id: creditId },
       data: {
         status: 'VALIDATED',
-        validatedByProfessionalName,
-        validatedByRegistryCrcOab,
+        validatedByProfessionalName: validatedByProfessionalName.trim(),
+        validatedByRegistryCrcOab: validatedByRegistryCrcOab.trim(),
         validatedAt: new Date(),
-        perdcompProtocol: perdcompProtocol || null,
+        perdcompProtocol: perdcompProtocol ? perdcompProtocol.trim() : null,
         isDocumented: true,
         isLegallyUsable: true,
         isAvailableForOffset: true,
@@ -1004,6 +1133,584 @@ export class ExpertiseFiscalEngineService {
     });
 
     return updated;
+  }
+
+  /**
+   * Formata data para o padrão formal brasileiro por extenso
+   */
+  public formatBrazilianDate(date: Date): string {
+    const meses = [
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+    ];
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = meses[date.getMonth()];
+    const ano = date.getFullYear();
+    return `${dia} de ${mes} de ${ano}`;
+  }
+
+  public formatCnpj(cnpj: string): string {
+    const clean = (cnpj || '').replace(/\D/g, '');
+    if (clean.length === 14) {
+      return clean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    }
+    return cnpj || '';
+  }
+
+  /**
+   * Gera o modelo preenchido da Declaração de Não Retenção do Simples Nacional
+   * (Anexo IV da Instrução Normativa RFB nº 1.234/2012)
+   */
+  public generateAnexoIVDeclaration(params: {
+    empresaRazaoSocial: string;
+    empresaCnpj: string;
+    empresaEnderecoCompleto: string;
+    orgaoDestinatarioNome?: string;
+    orgaoDestinatarioCnpj?: string;
+    cidade?: string;
+    uf?: string;
+    dataEmissao?: Date;
+    representanteNome?: string;
+    representanteCpf?: string;
+  }): {
+    titulo: string;
+    baseLegal: string;
+    modeloTextoPreenchido: string;
+    instrucoesUso: string;
+  } {
+    const data = params.dataEmissao || new Date();
+    const dataFormatada = this.formatBrazilianDate(data);
+    const local = `${params.cidade || 'Município Sede'} - ${params.uf || 'UF'}`;
+    const orgaoNome = params.orgaoDestinatarioNome?.trim() || 'ÓRGÃO PÚBLICO CONTRATANTE';
+    const orgaoCnpj = params.orgaoDestinatarioCnpj?.trim() ? ` (CNPJ: ${this.formatCnpj(params.orgaoDestinatarioCnpj)})` : '';
+    const repIdentificacao = params.representanteNome
+      ? `\nRepresentante Legal: ${params.representanteNome}${params.representanteCpf ? ` - CPF: ${params.representanteCpf}` : ''}`
+      : '\n[Assinatura do Representante Legal da Empresa ou Certificado Digital ICP-Brasil / Gov.br]';
+
+    const texto = `DECLARAÇÃO A QUE SE REFERE O INCISO XI DO ART. 4º DA INSTRUÇÃO NORMATIVA RFB Nº 1.234, DE 11 DE JANEIRO DE 2012
+
+Ilmo. Senhor
+Ordenador de Despesas / Responsável Financeiro de ${orgaoNome}${orgaoCnpj}
+
+A empresa ${params.empresaRazaoSocial.toUpperCase()}, inscrita no CNPJ sob o nº ${this.formatCnpj(params.empresaCnpj)}, com sede em ${params.empresaEnderecoCompleto || 'Endereço da sede cadastrada'}, por intermédio de seu representante legal devidamente constituído, DECLARA à ${orgaoNome}, para fins de NÃO INCIDÊNCIA NA FONTE do IRPJ, da CSLL, da COFINS e da contribuição para o PIS/PASEP a que se refere o art. 64 da Lei nº 9.430, de 27 de dezembro de 1996, que é regularmente optante pelo Regime Especial Unificado de Arrecadação de Tributos e Contribuições devidos pelas Microempresas e Empresas de Pequeno Porte (Simples Nacional), de que trata o art. 12 da Lei Complementar nº 123, de 14 de dezembro de 2006.
+
+Para esse efeito, a declarante declara que:
+I - preenche todos os requisitos legais exigidos para a adesão e permanência no Simples Nacional;
+II - está ciente de que a falsidade na prestação destas informações a sujeitará, juntamente com as demais pessoas que para ela concorrerem, às penalidades previstas na legislação criminal e tributária, relativas à falsidade ideológica (art. 299 do Código Penal) e a crime contra a ordem tributária (art. 1º da Lei nº 8.137, de 27 de dezembro de 1990).
+
+O declarante compromete-se a informar imediatamente a esse órgão/entidade qualquer alteração na presente situação, sob pena de responsabilidade administrativa, civil e criminal.
+
+Local e Data: ${local}, ${dataFormatada}.
+
+____________________________________________________________________
+${params.empresaRazaoSocial.toUpperCase()}
+CNPJ: ${this.formatCnpj(params.empresaCnpj)}${repIdentificacao}`;
+
+    return {
+      titulo: 'Declaração de Não Retenção na Fonte - Simples Nacional (Anexo IV da IN RFB nº 1.234/2012)',
+      baseLegal: 'Art. 4º, inciso XI e Anexo IV da Instrução Normativa RFB nº 1.234/2012; Art. 64 da Lei nº 9.430/1996; Art. 12 da Lei Complementar nº 123/2006.',
+      modeloTextoPreenchido: texto,
+      instrucoesUso: 'Imprima esta declaração em papel timbrado da empresa ou assine digitalmente via Certificado Digital ICP-Brasil / Assinatura Eletrônica Gov.br. Ela deve ser anexada obrigatoriamente a cada Nota Fiscal emitida para a Administração Pública para impedir a glosa ou retenção indevida na liquidação da nota de empenho.',
+    };
+  }
+
+  // ===========================================================================
+  // MÓDULO 05: AUDITORIA FISCAL INTELIGENTE E RELATÓRIO DE DIVERGÊNCIAS
+  // ===========================================================================
+  public async runSmartFiscalAudit(params: {
+    tenantId: string;
+    companyId: string;
+    noticeId?: string;
+    documentId?: string;
+    orgaoDestinatarioNome?: string;
+    orgaoDestinatarioCnpj?: string;
+  }): Promise<SmartFiscalAuditResult> {
+    const { tenantId, companyId, noticeId, documentId, orgaoDestinatarioNome, orgaoDestinatarioCnpj } = params;
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new Error('Empresa contratante não encontrada.');
+    }
+
+    const whereDoc: Prisma.FiscalDocumentImportWhereInput = {
+      tenantId,
+      companyId,
+    };
+    if (documentId) {
+      whereDoc.id = documentId;
+    }
+
+    const documents = await prisma.fiscalDocumentImport.findMany({
+      where: whereDoc,
+      orderBy: { issueDate: 'desc' },
+      take: 50,
+    });
+
+    let editalInfo: any = null;
+    let editalItens: any[] = [];
+
+    if (noticeId) {
+      editalInfo = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [{ id: noticeId }, { externalId: noticeId }, { numeroControlePncp: noticeId }],
+        },
+        include: {
+          items: true,
+        },
+      });
+      if (editalInfo && Array.isArray(editalInfo.items)) {
+        editalItens = editalInfo.items;
+      }
+    }
+
+    const divergencias: FiscalAuditDivergence[] = [];
+    let valorTotalDocumentosAuditados = 0;
+    let impactoFinanceiroRiscoGlosa = 0;
+    let creditosRecuperaveisIdentificados = 0;
+
+    const companyCrt = 1; // Padrão Simples Nacional para PMEs
+    const regimeTributarioNome = companyCrt === 1 ? 'Simples Nacional (LC 123/2006)' : 'Regime Normal (Lucro Presumido/Real)';
+
+    for (const doc of documents) {
+      const taxes = (doc.taxesSummaryJson as Record<string, any>) || {};
+      const items = ((doc.parsedItemsJson as unknown) as ParsedFiscalItem[]) || [];
+      const docCrt = taxes.emitenteCrt ?? companyCrt;
+      const docTotal = Number(doc.totalAmount || 0);
+      valorTotalDocumentosAuditados += docTotal;
+
+      const vRetPis = Number(taxes.vRetPis || 0);
+      const vRetCofins = Number(taxes.vRetCofins || 0);
+      const vRetCsll = Number(taxes.vRetCsll || 0);
+      const vIrrf = Number(taxes.vIrrf || 0);
+      const totalRetencaoFederal = vRetPis + vRetCofins + vRetCsll + vIrrf;
+
+      const destRazao = String(taxes.destinatarioRazao || doc.accessKeyOrPeriod || '').toUpperCase();
+      const isVendaPoderPublico =
+        doc.direction === 'SAIDA' ||
+        destRazao.includes('PREFEITURA') ||
+        destRazao.includes('MUNICIPIO') ||
+        destRazao.includes('ESTADO') ||
+        destRazao.includes('SECRETARIA') ||
+        destRazao.includes('MINISTERIO') ||
+        destRazao.includes('HOSPITAL') ||
+        destRazao.includes('AUTARQUIA') ||
+        destRazao.includes('FUNDACAO') ||
+        destRazao.includes('CONSELHO') ||
+        destRazao.includes('CAMARA') ||
+        Boolean(orgaoDestinatarioNome);
+
+      // 1. Auditoria de Retenção da IN RFB 1.234/2012 (Risco de Glosa no Empenho)
+      if (docCrt === 1 && totalRetencaoFederal > 0) {
+        impactoFinanceiroRiscoGlosa += totalRetencaoFederal;
+        divergencias.push({
+          id: `DIV_RET_${doc.id}_${divergencias.length + 1}`,
+          tipo: 'RETENCAO_INDEVIDA_SIMPLES',
+          severidade: 'ALTA',
+          chaveAcesso: doc.accessKeyOrPeriod,
+          descricaoDivergencia: `NF-e emitida com destaque de retenção federal (R$ ${totalRetencaoFederal.toFixed(2)}) sendo a empresa optante pelo Simples Nacional.`,
+          impactoFinanceiroEstimado: totalRetencaoFederal,
+          riscoNoEmpenho: `Risco iminente de glosa na liquidação do empenho e retenção indevida de tributos federais (IRRF, CSLL, PIS e COFINS). O setor financeiro do órgão reterá R$ ${totalRetencaoFederal.toFixed(2)}, violando o Art. 4º, XI da IN RFB 1.234/2012.`,
+          orientacaoCorrecao: `Emitir Carta de Correção Eletrônica (CC-e) zerando o campo de retenção ou cancelar e reemitir a NF-e sem retenções, anexando a Declaração de Não Retenção (Anexo IV da IN RFB 1.234/2012). Caso o órgão já tenha retido, protocolar PER/DCOMP Web de Pagamento Indevido.`,
+          baseLegal: 'Art. 4º, inciso XI da Instrução Normativa RFB nº 1.234/2012 (Vedação expressa de retenção sobre optantes do Simples Nacional).',
+        });
+      } else if (docCrt === 3 && totalRetencaoFederal === 0 && isVendaPoderPublico && docTotal > 100) {
+        const retencaoEsperada = docTotal * 0.0585;
+        divergencias.push({
+          id: `DIV_RET_NORMAL_${doc.id}_${divergencias.length + 1}`,
+          tipo: 'RETENCAO_AUSENTE_REGIME_NORMAL',
+          severidade: 'MEDIA',
+          chaveAcesso: doc.accessKeyOrPeriod,
+          descricaoDivergencia: `Venda para o poder público sem destaque das retenções federais da IN RFB 1.234/2012 (estimado em R$ ${retencaoEsperada.toFixed(2)}).`,
+          impactoFinanceiroEstimado: retencaoEsperada,
+          riscoNoEmpenho: `O órgão público efetuará a retenção de ofício ao pagar o empenho, gerando divergência contábil entre a NF-e e o valor creditado na conta bancária.`,
+          orientacaoCorrecao: `Destacar os tributos federais retidos (Código 5952 / 1708) conforme tabela do Anexo I da IN RFB 1.234/2012 no corpo da nota e nos campos específicos da NF-e.`,
+          baseLegal: 'Art. 2º e Anexo I da Instrução Normativa RFB nº 1.234/2012.',
+        });
+      }
+
+      // 2. Auditoria de Itens: NCM, CFOP e Cruzamento com CATMAT / Edital
+      for (const item of items) {
+        const cleanNcm = (item.ncm || '').replace(/\D/g, '');
+        const cleanCfop = (item.cfop || '').replace(/\D/g, '');
+
+        if (!cleanNcm || cleanNcm.length !== 8 || cleanNcm === '00000000' || cleanNcm === '99999999') {
+          divergencias.push({
+            id: `DIV_NCM_GEN_${doc.id}_${item.nItem}`,
+            tipo: 'NCM_GENERICO_INVALIDO',
+            severidade: 'MEDIA',
+            chaveAcesso: doc.accessKeyOrPeriod,
+            itemNumero: item.nItem,
+            itemDescricao: item.xProd,
+            ncm: item.ncm,
+            cfop: item.cfop,
+            descricaoDivergencia: `Item ${item.nItem} ("${item.xProd}") possui código NCM "${item.ncm || 'vazio'}" incompleto ou genérico.`,
+            impactoFinanceiroEstimado: item.vProd * 0.05,
+            riscoNoEmpenho: `Recusa do recebimento definitivo pelo fiscal do contrato por divergência cadastral ou autuação por erro na classificação fiscal (Art. 527 do RICMS).`,
+            orientacaoCorrecao: `Classificar a mercadoria na NCM correta de 8 dígitos da Tabela TIPI compatível com o Termo de Referência do edital.`,
+            baseLegal: 'Art. 76 do Decreto nº 7.212/2010 (RIPI) e Resolução Gecex/Camex nº 272/2021.',
+          });
+        }
+
+        if (editalItens.length > 0) {
+          const matchingEditalItem = editalItens.find((ei) => {
+            const descEdital = (ei.description || '').toLowerCase();
+            const descItem = (item.xProd || '').toLowerCase();
+            return descEdital.includes(descItem) || descItem.includes(descEdital) || (ei.itemNumber && String(ei.itemNumber) === String(item.nItem));
+          });
+
+          if (matchingEditalItem && matchingEditalItem.catalogoCodigo) {
+            const catmat = String(matchingEditalItem.catalogoCodigo);
+            if (cleanNcm.startsWith('00') || cleanNcm.length !== 8) {
+              divergencias.push({
+                id: `DIV_CATMAT_${doc.id}_${item.nItem}`,
+                tipo: 'NCM_INCOMPATIVEL_CATMAT',
+                severidade: 'ALTA',
+                chaveAcesso: doc.accessKeyOrPeriod,
+                itemNumero: item.nItem,
+                itemDescricao: item.xProd,
+                ncm: item.ncm,
+                descricaoDivergencia: `NCM "${item.ncm}" incompatível com o código CATMAT/CATSER ${catmat} (${matchingEditalItem.description}) exigido no edital.`,
+                impactoFinanceiroEstimado: item.vProd,
+                riscoNoEmpenho: `Glosa total da fatura e bloqueio da emissão da nota de liquidação no Almoxarifado do órgão licitante.`,
+                orientacaoCorrecao: `Ajustar a NCM do produto para corresponder à subclasse exata do código CATMAT ${catmat} catalogado no Compras.gov.br.`,
+                baseLegal: 'Instrução Normativa SEGES/ME nº 73/2022 e Catálogo Unificado de Materiais do Governo Federal (CATMAT).',
+              });
+            }
+          }
+        }
+
+        if (isVendaPoderPublico && cleanCfop) {
+          const cfopsInvalidosVenda = ['5151', '5152', '6151', '6152', '5201', '5202', '6201', '6202', '5910', '6910', '5556'];
+          if (cfopsInvalidosVenda.includes(cleanCfop)) {
+            divergencias.push({
+              id: `DIV_CFOP_${doc.id}_${item.nItem}`,
+              tipo: 'CFOP_INADEQUADO_ORGAO_PUBLICO',
+              severidade: 'ALTA',
+              chaveAcesso: doc.accessKeyOrPeriod,
+              itemNumero: item.nItem,
+              itemDescricao: item.xProd,
+              cfop: item.cfop,
+              descricaoDivergencia: `Item ${item.nItem} faturado com CFOP ${item.cfop} (operação não comercial ou transferência/devolução) em fornecimento ao poder público.`,
+              impactoFinanceiroEstimado: item.vProd,
+              riscoNoEmpenho: `O setor de liquidação contábil do órgão rejeitará a nota fiscal, impedindo a atestação e o pagamento do contrato.`,
+              orientacaoCorrecao: `Substituir por CFOP de venda comercial compatível: 5.102 (revenda interna), 5.101 (produção interna), 6.102 (revenda interestadual) ou 6.101 (produção interestadual).`,
+              baseLegal: 'Ajuste SINIEF 07/2001 e Tabela CFOP do Convênio S/Nº de 1970.',
+            });
+          }
+        }
+
+        if (docCrt === 1 && this.isMonophasicNcm(cleanNcm) && item.cstOrCsosn && item.cstOrCsosn !== '500') {
+          const pisCofinsBiTributado = item.vProd * 0.0198;
+          creditosRecuperaveisIdentificados += pisCofinsBiTributado;
+          divergencias.push({
+            id: `DIV_MONO_${doc.id}_${item.nItem}`,
+            tipo: 'MONOFASICO_NAO_SEGREGADO',
+            severidade: 'MEDIA',
+            chaveAcesso: doc.accessKeyOrPeriod,
+            itemNumero: item.nItem,
+            itemDescricao: item.xProd,
+            ncm: item.ncm,
+            descricaoDivergencia: `Item ${item.nItem} possui NCM Monofásico (${item.ncm}), mas foi emitido com CSOSN ${item.cstOrCsosn} em vez de CSOSN 500, gerando bitributação de PIS/COFINS no DAS.`,
+            impactoFinanceiroEstimado: pisCofinsBiTributado,
+            riscoNoEmpenho: `A empresa está pagando 1,98% a mais no DAS do Simples Nacional sem necessidade, reduzindo a margem líquida do contrato.`,
+            orientacaoCorrecao: `Segregar a receita desse item na apuração do PGDAS-D como "Receita com Tributação Monofásica de PIS/COFINS", gerando crédito recuperável via restituição eletrônica direta no e-CAC.`,
+            baseLegal: 'Art. 18, § 4º-A, inciso I da Lei Complementar nº 123/2006.',
+          });
+        }
+      }
+    }
+
+    const totalDivergencias = divergencias.length;
+    let statusAuditoria: 'CRITICA' | 'ATENCAO' | 'REGULAR' = 'REGULAR';
+    if (divergencias.some((d) => d.severidade === 'ALTA')) {
+      statusAuditoria = 'CRITICA';
+    } else if (divergencias.some((d) => d.severidade === 'MEDIA')) {
+      statusAuditoria = 'ATENCAO';
+    }
+
+    const enderecoCompleto = [company.municipio, company.uf]
+      .filter(Boolean)
+      .join(' - ') || 'Sede da Empresa';
+
+    const declaracaoAnexoIV = this.generateAnexoIVDeclaration({
+      empresaRazaoSocial: company.razaoSocial,
+      empresaCnpj: company.cnpj,
+      empresaEnderecoCompleto: enderecoCompleto,
+      orgaoDestinatarioNome,
+      orgaoDestinatarioCnpj,
+      cidade: company.municipio || undefined,
+      uf: company.uf || undefined,
+      dataEmissao: new Date(),
+    });
+
+    return {
+      empresa: {
+        id: company.id,
+        razaoSocial: company.razaoSocial,
+        cnpj: company.cnpj,
+        crt: companyCrt,
+        regimeTributario: regimeTributarioNome,
+      },
+      editalAuditado: editalInfo
+        ? {
+            id: editalInfo.id,
+            numeroControlePncp: editalInfo.numeroControlePncp || editalInfo.externalId,
+            objeto: editalInfo.objeto || editalInfo.title,
+            itensCount: editalItens.length,
+          }
+        : null,
+      documentosAnalisadosCount: documents.length,
+      totalDivergencias,
+      statusAuditoria,
+      divergencias,
+      resumoFinanceiro: {
+        valorTotalDocumentosAuditados,
+        impactoFinanceiroRiscoGlosa,
+        creditosRecuperaveisIdentificados,
+      },
+      declaracaoNaoRetencaoAnexoIV: declaracaoAnexoIV,
+    };
+  }
+
+  // ===========================================================================
+  // MÓDULO 07: PREPARAÇÃO PER/DCOMP E COMPENSAÇÃO CRUZADA DCTFWEB
+  // ===========================================================================
+  public async preparePerdcompAndCrossOffset(params: {
+    tenantId: string;
+    companyId: string;
+    creditIds?: string[];
+    validationPayload?: {
+      creditId: string;
+      validatedByProfessionalName: string;
+      validatedByRegistryCrcOab: string;
+    };
+    debitosParaCompensar?: CrossOffsetDebitoItem[];
+    protocolosParaRegistrar?: {
+      creditId: string;
+      protocolo: string;
+    }[];
+  }): Promise<CrossOffsetBatchResult> {
+    const { tenantId, companyId, creditIds, validationPayload, debitosParaCompensar = [], protocolosParaRegistrar = [] } = params;
+
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+    });
+
+    if (!company) {
+      throw new Error('Empresa contratante não encontrada.');
+    }
+
+    // 1. Validação com exigência estrita de Nome e Registro Profissional (CRC / OAB)
+    if (validationPayload) {
+      await this.validateCreditOpportunity({
+        tenantId,
+        companyId,
+        creditId: validationPayload.creditId,
+        validatedByProfessionalName: validationPayload.validatedByProfessionalName,
+        validatedByRegistryCrcOab: validationPayload.validatedByRegistryCrcOab,
+      });
+    }
+
+    // 2. Registro de protocolos PER/DCOMP transmitidos
+    if (protocolosParaRegistrar.length > 0) {
+      for (const item of protocolosParaRegistrar) {
+        if (!item.creditId || !item.protocolo) continue;
+        await prisma.taxCreditOpportunity.updateMany({
+          where: { id: item.creditId, companyId },
+          data: {
+            perdcompProtocol: item.protocolo.trim(),
+            status: 'VALIDATED',
+          },
+        });
+      }
+    }
+
+    // 3. Busca créditos com status VALIDATED elegíveis para PER/DCOMP e Compensação Cruzada
+    const whereCredit: Prisma.TaxCreditOpportunityWhereInput = {
+      tenantId,
+      companyId,
+      status: 'VALIDATED',
+      isLegallyUsable: true,
+      isAvailableForOffset: true,
+    };
+    if (creditIds && creditIds.length > 0) {
+      whereCredit.id = { in: creditIds };
+    }
+
+    const validCredits = await prisma.taxCreditOpportunity.findMany({
+      where: whereCredit,
+      include: {
+        company: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (validCredits.length === 0) {
+      throw new Error(
+        'Nenhum crédito fiscal com status VALIDATED e apto para compensação foi encontrado. Valide os créditos informando o responsável técnico (CRC/OAB) antes de gerar o PER/DCOMP.',
+      );
+    }
+
+    const espelhosPerdcompWeb: PerdcompMirrorItem[] = [];
+    let totalCreditosValidadosValor = 0;
+    let totalCreditosComSelicValor = 0;
+    let saldoFazendarioDisponivel = 0;
+    let saldoPrevidenciarioDisponivel = 0;
+
+    const taxaSelicPadraoPercent = 10.25;
+
+    for (let i = 0; i < validCredits.length; i++) {
+      const credit = validCredits[i];
+      const principal = Number(credit.principalAmount);
+      const jurosSelic = principal * (taxaSelicPadraoPercent / 100);
+      const totalAtualizado = principal + jurosSelic;
+
+      totalCreditosValidadosValor += principal;
+      totalCreditosComSelicValor += totalAtualizado;
+
+      const isPrevidenciario = credit.taxType === 'INSS' || credit.originCategory === 'RETENCAO_INSS_11';
+      if (isPrevidenciario) {
+        saldoPrevidenciarioDisponivel += totalAtualizado;
+      } else {
+        saldoFazendarioDisponivel += totalAtualizado;
+      }
+
+      let codigoReceita = '5952';
+      let tipoCreditoEcac = 'Pagamento Indevido ou a Maior';
+      let tipoDocDcomp: 'DECLARACAO_COMPENSACAO' | 'PEDIDO_RESTITUICAO' = 'DECLARACAO_COMPENSACAO';
+
+      if (credit.originCategory === 'RETENCAO_IN1234') {
+        codigoReceita = '5952 / 1708';
+        tipoCreditoEcac = 'Pagamento Indevido ou a Maior - Tributos Federais Retidos na Fonte (IN RFB 1.234/2012)';
+      } else if (credit.originCategory === 'RETENCAO_INSS_11') {
+        codigoReceita = '2631 (INSS Retenção Lei 9.711/98)';
+        tipoCreditoEcac = 'Retenção de Contribuição Previdenciária sobre Cessão de Mão de Obra (Lei nº 9.711/1998)';
+      } else if (credit.originCategory === 'PIS_COFINS_MONOFASICO') {
+        codigoReceita = '1500 (PGDAS-D Simples Nacional)';
+        tipoCreditoEcac = 'Pagamento Indevido ou a Maior no Simples Nacional (LC 123/2006)';
+        tipoDocDcomp = 'PEDIDO_RESTITUICAO';
+      }
+
+      const memory = (credit.calculationMemoryJson as Record<string, any>) || {};
+      const chaveAcesso = memory.chaveAcesso || credit.sourceDocumentId || 'ORIGEM_DOCUMENTADA';
+      const dataArrecadacao = memory.dataEmissao
+        ? new Date(memory.dataEmissao).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      const competencia = dataArrecadacao.slice(0, 7).split('-').reverse().join('/');
+
+      const respNome = credit.validatedByProfessionalName || 'Responsável Técnico Habilitado';
+      const respReg = credit.validatedByRegistryCrcOab || 'Registro Profissional Homologado';
+      const respData = credit.validatedAt
+        ? credit.validatedAt.toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+
+      const mirror: PerdcompMirrorItem = {
+        creditId: credit.id,
+        numeroOrdem: i + 1,
+        tipoDocumentoDcomp: tipoDocDcomp,
+        tipoCreditoEcac,
+        codigoReceitaDarfOuDas: codigoReceita,
+        periodoApuracaoCompetencia: competencia,
+        dataArrecadacaoOuRetencao: dataArrecadacao,
+        chaveAcessoDocumento: chaveAcesso,
+        valorPrincipalOriginal: principal,
+        taxaSelicAcumuladaPercent: taxaSelicPadraoPercent,
+        valorJurosSelic: jurosSelic,
+        valorAtualizadoTotal: totalAtualizado,
+        saldoDisponivelCompensacao: totalAtualizado,
+        origemCategoria: credit.originCategory,
+        baseLegal: credit.legalBasis,
+        responsavelTecnicoValidacao: {
+          nome: respNome,
+          registroCrcOuOab: respReg,
+          dataValidacao: respData,
+        },
+        protocoloPerdcomp: credit.perdcompProtocol || 'PENDENTE_DE_TRANSMISSAO',
+        statusTransmitido: Boolean(credit.perdcompProtocol),
+        espelhoFormularioEcac: {
+          campo01_IdentificacaoContribuinte: `CNPJ: ${this.formatCnpj(company.cnpj)} - ${company.razaoSocial}`,
+          campo02_GrupoCredito: isPrevidenciario ? 'Créditos da Contribuição Previdenciária (INSS)' : 'Créditos Fazendários Administrados pela RFB',
+          campo03_TipoCredito: tipoCreditoEcac,
+          campo04_CompetenciaOuPeriodo: competencia,
+          campo05_CodigoReceitaPrincipal: codigoReceita,
+          campo06_DataPagamentoOuRetencao: dataArrecadacao,
+          campo07_ValorOriginal: `R$ ${principal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          campo08_IndiceSelic: `${taxaSelicPadraoPercent.toFixed(2)}% (Art. 39, § 4º da Lei 9.250/95)`,
+          campo09_ValorTotalComSelic: `R$ ${totalAtualizado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          campo10_InformacoesComplementares: `Crédito fiscal homologado formalmente por ${respNome} (${respReg}). Chave/Origem: ${chaveAcesso}. Fundamento: ${credit.legalBasis}.`,
+        },
+      };
+
+      espelhosPerdcompWeb.push(mirror);
+    }
+
+    let totalDebitosSubmetidosValor = 0;
+    let debitosPrevidenciariosTotal = 0;
+    let debitosFazendariosTotal = 0;
+
+    for (const deb of debitosParaCompensar) {
+      const val = Number(deb.valorOriginalDebito || 0);
+      totalDebitosSubmetidosValor += val;
+      if (deb.tipoDebito === 'ESOCIAL_PREVIDENCIARIO' || deb.tipoDebito === 'REINF_RETENCOES') {
+        debitosPrevidenciariosTotal += val;
+      } else {
+        debitosFazendariosTotal += val;
+      }
+    }
+
+    const fazendarioAbatePrevidenciario = Math.min(saldoFazendarioDisponivel, debitosPrevidenciariosTotal);
+    const saldoFazendarioRestante = saldoFazendarioDisponivel - fazendarioAbatePrevidenciario;
+    const debitosPrevidenciariosRestantes = debitosPrevidenciariosTotal - fazendarioAbatePrevidenciario;
+
+    const previdenciarioAbateFazendario = Math.min(saldoPrevidenciarioDisponivel, debitosFazendariosTotal);
+    const saldoPrevidenciarioRestante = saldoPrevidenciarioDisponivel - previdenciarioAbateFazendario;
+    const debitosFazendariosRestantes = debitosFazendariosTotal - previdenciarioAbateFazendario;
+
+    const fazendarioAbateFazendario = Math.min(saldoFazendarioRestante, debitosFazendariosRestantes);
+    const previdenciarioAbatePrevidenciario = Math.min(saldoPrevidenciarioRestante, debitosPrevidenciariosRestantes);
+
+    const saldoFinalDevedor =
+      debitosPrevidenciariosRestantes -
+      previdenciarioAbatePrevidenciario +
+      (debitosFazendariosRestantes - fazendarioAbateFazendario);
+
+    const saldoRestanteCreditos =
+      saldoFazendarioRestante -
+      fazendarioAbateFazendario +
+      (saldoPrevidenciarioRestante - previdenciarioAbatePrevidenciario);
+
+    return {
+      empresa: {
+        id: company.id,
+        razaoSocial: company.razaoSocial,
+        cnpj: company.cnpj,
+      },
+      totalCreditosValidadosDisponiveis: validCredits.length,
+      totalCreditosValidadosValor,
+      totalCreditosComSelicValor,
+      totalDebitosSubmetidosValor,
+      capacidadeAbatimentoCruzadoDctfWeb: {
+        creditosFazendariosParaDebitosPrevidenciarios: fazendarioAbatePrevidenciario,
+        creditosPrevidenciariosParaDebitosFazendarios: previdenciarioAbateFazendario,
+        saldoFinalDevedorAposCompensacao: Math.max(0, saldoFinalDevedor),
+        saldoRestanteCreditosParaFuturasDcomp: Math.max(0, saldoRestanteCreditos),
+      },
+      espelhosPerdcompWeb,
+      fundamentoJuridicoCompensacaoCruzada:
+        'Art. 74 da Lei nº 9.430/1996 com redação dada pela Lei nº 13.670/2018 e Instrução Normativa RFB nº 2.055/2021. Empresas que transmitem a DCTFWeb e eSocial podem compensar débitos previdenciários com créditos fazendários da União e vice-versa.',
+      passoAPassoTransmissaoEcac: [
+        '1. Acesse o Portal e-CAC da Receita Federal (cav.receita.fazenda.gov.br) com Certificado Digital da empresa.',
+        '2. Navegue até o menu "Restituição e Compensação" > "Acessar PER/DCOMP Web".',
+        '3. Clique em "Novo Documento" e selecione "Declaração de Compensação" (ou Pedido de Restituição para o Simples Nacional).',
+        '4. Copie os dados exatos do espelho gerado nesta tela (Grupo de Crédito, Código da Receita, Período de Apuração e Valor Original).',
+        '5. Vincule os débitos declarados na DCTFWeb que deseja abater via Compensação Cruzada.',
+        '6. Transmita a DCOMP e copie o número do recibo/protocolo de transmissão gerado pela Receita Federal.',
+        '7. Registre o número do protocolo no sistema Expertise para blindar a auditoria e acompanhar o processamento.',
+      ],
+    };
   }
 
   public async listCreditOpportunities(params: {
