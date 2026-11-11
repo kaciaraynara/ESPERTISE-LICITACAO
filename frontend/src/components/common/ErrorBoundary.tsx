@@ -72,6 +72,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public override render() {
     if (this.state.hasError) {
+      const errorMessage = this.state.error?.message || this.state.error?.toString?.() || '';
+      const isChunkLoadError =
+        errorMessage.includes('ChunkLoadError') ||
+        errorMessage.includes('Failed to fetch dynamically imported module') ||
+        errorMessage.includes('Importing a module script failed');
+
+      // Se for falha de chunk dinâmico e ainda em processo de recarga única, não exibe tela de erro ao usuário
+      if (isChunkLoadError && typeof window !== 'undefined' && !window.sessionStorage?.getItem('chunk_reload_attempted')) {
+        return null;
+      }
+
       const isDev = Boolean(import.meta.env.DEV);
 
       return (

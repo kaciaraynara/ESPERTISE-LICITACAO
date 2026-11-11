@@ -133,9 +133,9 @@ describe('PNCP Resiliência — URL Auditável, Fallback 503 e Qualidade de Resu
     const url = buildOfficialPncpPortalUrl(editalComZeros);
     expect(url).toBe('https://pncp.gov.br/app/editais/24185794000109/2026/45');
 
-    // Rótulos na coluna de prazos
-    expect(radarContent).toContain('Início:');
-    expect(radarContent).toContain('Encerramento:');
+    // Rótulos na coluna de prazos (Início Propostas / Encerramento Sessão)
+    expect(radarContent).toMatch(/Início:?|Início Propostas/);
+    expect(radarContent).toMatch(/Encerramento:?|Encerramento \/ Sessão/);
   });
 
   it('7. parsePncpDateSafe e formatPncpDateBR tratam datas sem recuo D-1 em America/Sao_Paulo', () => {
