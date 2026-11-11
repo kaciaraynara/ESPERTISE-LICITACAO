@@ -19,6 +19,7 @@ import {
   buildOfficialPncpPortalUrl,
   handleDownloadEdital,
   formatCnpj,
+  formatPncpDateBR,
 } from '../utils/pncp';
 
 export interface ResumoEditalItem {
@@ -44,12 +45,19 @@ export interface ResumoEditalData {
   municipio?: string | null;
   valorEstimado?: number | null;
   valor_estimado?: number | null;
+  valorTotalEstimado?: number | null;
   dataAbertura?: string | null;
   data_abertura?: string | null;
+  dataAberturaProposta?: string | null;
+  dataInicioRecebimento?: string | null;
   dataEncerramento?: string | null;
   data_encerramento?: string | null;
+  dataEncerramentoProposta?: string | null;
+  dataLimiteProposta?: string | null;
+  dataFimRecebimento?: string | null;
   dataPublicacao?: string | null;
   data_publicacao?: string | null;
+  dataPublicacaoPncp?: string | null;
   modalidade?: string | null;
   modoDisputa?: string | null;
   criterioJulgamento?: string | null;
@@ -88,41 +96,7 @@ function formatBRL(valor?: number | null): string {
   }).format(Number(valor));
 }
 
-function formatDataHoraLimite(
-  dataEncerramento?: string | null,
-  dataAbertura?: string | null,
-): string {
-  const raw = dataEncerramento || dataAbertura;
-  if (!raw) return 'Conforme cronograma do certame';
 
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    const cleaned = String(raw).trim();
-    return cleaned.length > 0 ? cleaned : 'Conforme cronograma do certame';
-  }
-
-  const hasTime =
-    raw.includes('T') ||
-    raw.includes(':') ||
-    date.getUTCHours() > 0 ||
-    date.getUTCMinutes() > 0;
-
-  const dataStr = date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-
-  if (hasTime) {
-    const horaStr = date.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return `${dataStr} às ${horaStr}`;
-  }
-
-  return dataStr;
-}
 
 export default function ResumoEstrategicoModal({
   isOpen,
@@ -226,14 +200,59 @@ export default function ResumoEstrategicoModal({
 
   const cnpjFormatado = formatCnpj(edital.cnpjOrgao || edital.cnpj);
 
-  const dataHoraLimite = formatDataHoraLimite(
-    edital.dataEncerramento || edital.data_encerramento,
-    edital.dataAbertura || edital.data_abertura,
-  );
+  const itensExibidos = (edital.itens && edital.itens.length > 0)
+    ? edital.itens
+    : (edital.items && edital.items.length > 0)
+      ? edital.items
+      : itensExtra;
 
-  const valorTotalRef = formatBRL(
-    edital.valorEstimado ?? edital.valor_estimado,
-  );
+  // Calculo automatico da soma dos itens quando valorEstimado for null ou <= 0
+  const totalItensCalculado = itensExibidos.reduce((acc, it) => {
+    const valTotal = Number(it.valorTotal);
+    if (Number.isFinite(valTotal) && valTotal > 0) {
+      return acc + valTotal;
+    }
+    const valUnit = Number(it.valorUnitarioEstimado ?? it.valorReferencia);
+    const qtd = Number(it.quantidade ?? it.quantity);
+    if (Number.isFinite(valUnit) && valUnit > 0 && Number.isFinite(qtd) && qtd > 0) {
+      return acc + (valUnit * qtd);
+    }
+    return acc;
+  }, 0);
+
+  const valorEstimadoBase = edital.valorTotalEstimado ?? edital.valorEstimado ?? edital.valor_estimado;
+  const temValorEstimadoBase = valorEstimadoBase !== undefined && valorEstimadoBase !== null && Number.isFinite(Number(valorEstimadoBase)) && Number(valorEstimadoBase) > 0;
+
+  const valorFinal = temValorEstimadoBase
+    ? Number(valorEstimadoBase)
+    : (totalItensCalculado > 0 ? totalItensCalculado : null);
+
+  const valorTotalRef = valorFinal !== null
+    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)
+    : 'Orçamento Sigiloso / Ver Itens no TR';
+
+  // 3 Datas oficiais formatadas com formatPncpDateBR
+  const rawPublicacao =
+    edital.dataPublicacao ||
+    edital.data_publicacao ||
+    edital.dataPublicacaoPncp;
+
+  const rawInicio =
+    edital.dataAberturaProposta ||
+    edital.dataInicioRecebimento ||
+    edital.dataAbertura ||
+    edital.data_abertura;
+
+  const rawEncerramento =
+    edital.dataEncerramentoProposta ||
+    edital.dataLimiteProposta ||
+    edital.dataFimRecebimento ||
+    edital.dataEncerramento ||
+    edital.data_encerramento;
+
+  const dataPublicacaoPncp = rawPublicacao ? formatPncpDateBR(rawPublicacao, false) : '—';
+  const dataInicioPropostas = rawInicio ? formatPncpDateBR(rawInicio, true) : 'Ver no edital';
+  const dataLimiteEnvio = rawEncerramento ? formatPncpDateBR(rawEncerramento, true) : 'Conforme cronograma';
 
   const modoDisputaExibido =
     modoDisputaExtra ||
@@ -245,12 +264,6 @@ export default function ResumoEstrategicoModal({
   const modalidadeExibida = edital.modalidade || 'Pregão Eletrônico';
 
   const localizacaoExibida = [edital.municipio, edital.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional';
-
-  const itensExibidos = (edital.itens && edital.itens.length > 0)
-    ? edital.itens
-    : (edital.items && edital.items.length > 0)
-      ? edital.items
-      : itensExtra;
 
   const dispararDownloadSeguro = () => {
     void handleDownloadEdital(edital);
@@ -381,12 +394,22 @@ export default function ResumoEstrategicoModal({
                       <span className="font-semibold text-slate-800">{modoDisputaExibido}</span>
                     </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Limite de Envio</span>
-                    <span className="font-bold text-slate-900 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-brand-orange shrink-0" />
-                      {dataHoraLimite}
-                    </span>
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Divulgação no PNCP</span>
+                      <span className="font-semibold text-slate-700">{dataPublicacaoPncp}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Início de Recebimento de Propostas</span>
+                      <span className="font-semibold text-slate-800">{dataInicioPropostas}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Limite de Envio / Abertura da Sessão</span>
+                      <span className="font-bold text-brand-blue flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                        {dataLimiteEnvio}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -397,6 +420,9 @@ export default function ResumoEstrategicoModal({
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-0.5">
                   Valor Total de Referência
+                  {!temValorEstimadoBase && totalItensCalculado > 0 && (
+                    <span className="ml-2 text-brand-blue font-bold lowercase">(soma calculada dos itens oficiais)</span>
+                  )}
                 </span>
                 <p className="text-xl font-black text-brand-blue">
                   {valorTotalRef}

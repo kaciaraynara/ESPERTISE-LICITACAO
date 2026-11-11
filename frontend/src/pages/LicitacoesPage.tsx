@@ -12,7 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
 import DossieEditalModal, { type DossieEditalData } from '@/components/DossieEditalModal';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
-import { handleDownloadEdital, buildOfficialPncpPortalUrl, formatPncpDate } from '@/utils/pncp';
+import { handleDownloadEdital, buildOfficialPncpPortalUrl, formatPncpDateBR } from '@/utils/pncp';
 import { InfoTooltip } from '@/components/common/InfoTooltip';
 import toast from 'react-hot-toast';
 
@@ -41,6 +41,7 @@ type Licitacao = {
     dataSessaoDisputa?: string | null;
     data_publicacao?: string | null;
     dataPublicacao?: string | null;
+    dataPublicacaoPncp?: string | null;
     modalidade?: string;
     nomeModalidade?: string | null;
     modalidadeNome?: string | null;
@@ -805,11 +806,7 @@ export default function LicitacoesPage({
     };
 
     const abrirResumoDoEdital = (item: Licitacao) => {
-        const cleanCnpjAudit = item.cnpjOrgao ? String(item.cnpjOrgao).replace(/\D/g, '') : '';
-        const urlOficialPncp =
-            cleanCnpjAudit.length === 14 && item.anoCompra && item.sequencialCompra
-                ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${Number(item.anoCompra)}/${Number(item.sequencialCompra)}`
-                : buildOfficialPncpPortalUrl(item);
+        const urlOficialPncp = buildOfficialPncpPortalUrl(item);
 
         const downloadUrl = resolveEditalDownloadUrl(item);
         const dataInicioRecebimento = item.dataAberturaProposta || item.dataAbertura || item.data_abertura || null;
@@ -831,13 +828,12 @@ export default function LicitacoesPage({
 
     const formatVal = (v?: number | null) => {
         const num = v != null ? Number(v) : null;
-        return num != null && Number.isFinite(num) && num > 0
-            ? `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-            : 'Sigiloso / Ver Itens no TR';
+        if (num != null && Number.isFinite(num) && num > 0) {
+            return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        return 'Orçamento Sigiloso / Ver Itens';
     };
 
-    const formatDate = (d?: string | null) =>
-        formatPncpDate(d);
 
     const diasRestantes = (d?: string | null) => {
         if (!d) return null;
@@ -1165,25 +1161,25 @@ export default function LicitacoesPage({
                                                 item.modalidadeNome ||
                                                 item.modalidade;
                                             const inicioPropostaExibido =
-                                                item.dataAberturaProposta ||
                                                 item.dataAbertura ||
-                                                item.data_abertura;
+                                                item.data_abertura ||
+                                                item.dataAberturaProposta;
                                             const encerramentoPropostaExibido =
-                                                item.dataEncerramentoProposta ||
-                                                item.dataLimiteProposta ||
                                                 item.dataEncerramento ||
-                                                item.data_encerramento;
+                                                item.data_encerramento ||
+                                                item.dataEncerramentoProposta ||
+                                                item.dataLimiteProposta;
+                                            const publicacaoPncpExibida =
+                                                item.dataPublicacao ||
+                                                item.data_publicacao ||
+                                                item.dataPublicacaoPncp;
                                             const dias = diasRestantes(encerramentoPropostaExibido);
                                             const urgente = dias !== null && dias >= 0 && dias <= 3;
                                             const valorExibido =
                                                 item.valorTotalEstimado ??
                                                 item.valorEstimado ??
                                                 item.valor_estimado;
-                                            const cleanCnpjAudit = item.cnpjOrgao ? String(item.cnpjOrgao).replace(/\D/g, '') : '';
-                                            const auditPortalHref =
-                                                cleanCnpjAudit.length === 14 && item.anoCompra && item.sequencialCompra
-                                                    ? `https://pncp.gov.br/app/editais/${cleanCnpjAudit}/${Number(item.anoCompra)}/${Number(item.sequencialCompra)}`
-                                                    : buildOfficialPncpPortalUrl(item);
+                                            const auditPortalHref = buildOfficialPncpPortalUrl(item);
 
                                             return (
                                                 <tr
@@ -1238,11 +1234,20 @@ export default function LicitacoesPage({
                                                         <div className="flex flex-col gap-1 text-xs">
                                                             <div className="flex items-center gap-1 font-medium text-slate-600">
                                                                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                                <span className="text-[11px] break-words">Início: {formatDate(inicioPropostaExibido)}</span>
+                                                                <span className="text-[11px] break-words">
+                                                                    Início: {inicioPropostaExibido ? formatPncpDateBR(inicioPropostaExibido, true) : 'Ver no edital'}
+                                                                </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 font-bold text-brand-blue">
                                                                 <Clock className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
-                                                                <span className="text-[11px] break-words">Encerramento: {formatDate(encerramentoPropostaExibido)}</span>
+                                                                <span className="text-[11px] break-words">
+                                                                    Encerramento: {encerramentoPropostaExibido ? formatPncpDateBR(encerramentoPropostaExibido, true) : 'Ver no edital'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-normal">
+                                                                <span className="break-words">
+                                                                    Divulgação PNCP: {publicacaoPncpExibida ? formatPncpDateBR(publicacaoPncpExibida, false) : '—'}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                         {urgente && (
@@ -1274,9 +1279,15 @@ export default function LicitacoesPage({
                                                                 <span className="text-[10px] uppercase font-bold text-slate-400 block">
                                                                     Valor Estimado
                                                                 </span>
-                                                                <span className="text-xs sm:text-sm font-bold text-[#0B192C] break-words">
-                                                                    {formatVal(valorExibido)}
-                                                                </span>
+                                                                {valorExibido != null && Number.isFinite(Number(valorExibido)) && Number(valorExibido) > 0 ? (
+                                                                    <span className="text-xs sm:text-sm font-bold text-[#0B192C] break-words">
+                                                                        {formatVal(valorExibido)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 break-words mt-0.5">
+                                                                        Orçamento Sigiloso / Ver Itens
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <div className="flex flex-col gap-1 items-end">
                                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${viab.badgeClass} max-w-full`}>
@@ -1348,8 +1359,7 @@ export default function LicitacoesPage({
                                                                 title="Acessar Edital Oficial no PNCP ↗"
                                                             >
                                                                 <Download className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                                                                <span className="truncate">Baixar Edital</span>
-                                                                <span className="sr-only">Acessar Edital Oficial no PNCP ↗</span>
+                                                                <span className="truncate">Acessar Edital Oficial no PNCP ↗</span>
                                                             </button>
                                                         </div>
                                                     </td>

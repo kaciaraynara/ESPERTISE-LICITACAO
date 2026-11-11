@@ -33,12 +33,40 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ errorInfo });
     // Log seguro sem expor credenciais
     console.error('[Enterprise ErrorBoundary] Falha capturada no módulo:', error, errorInfo);
+
+    const errorMessage = error?.message || error?.toString?.() || '';
+    const isChunkLoadError =
+      errorMessage.includes('ChunkLoadError') ||
+      errorMessage.includes('Failed to fetch dynamically imported module') ||
+      errorMessage.includes('Importing a module script failed');
+
+    if (isChunkLoadError && typeof window !== 'undefined') {
+      const alreadyAttempted = window.sessionStorage?.getItem('chunk_reload_attempted');
+      if (!alreadyAttempted) {
+        window.sessionStorage?.setItem('chunk_reload_attempted', 'true');
+        window.location.reload();
+        return;
+      }
+    }
   }
 
   public handleRetry = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
     if (this.props.onReset) {
-      this.props.onReset();
+      try {
+        this.props.onReset();
+      } catch {
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      }
+    }
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        if (this.state.hasError) {
+          window.location.reload();
+        }
+      }, 100);
     }
   };
 
