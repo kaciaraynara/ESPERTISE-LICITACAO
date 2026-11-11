@@ -831,7 +831,7 @@ export default function LicitacoesPage({
         if (num != null && Number.isFinite(num) && num > 0) {
             return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
-        return 'Orçamento Sigiloso / Ver Itens';
+        return 'Sigiloso / Ver Itens no TR';
     };
 
 
@@ -1285,7 +1285,7 @@ export default function LicitacoesPage({
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 break-words mt-0.5">
-                                                                        Orçamento Sigiloso / Ver Itens
+                                                                        Sigiloso / Ver Itens no TR
                                                                     </span>
                                                                 )}
                                                             </div>

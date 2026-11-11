@@ -229,7 +229,7 @@ export default function ResumoEstrategicoModal({
 
   const valorTotalRef = valorFinal !== null
     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorFinal)
-    : 'Orçamento Sigiloso / Ver Itens no TR';
+    : 'Sigiloso / Ver Itens no TR';
 
   // 3 Datas oficiais formatadas com formatPncpDateBR
   const rawPublicacao =
