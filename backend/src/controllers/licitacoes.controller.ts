@@ -14,6 +14,7 @@ import {
   parsePncpControlNumber,
 } from '../services/pncp.service';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
+import { proposalAutomationService } from '../services/proposal-automation.service';
 
 function stringParam(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -221,21 +222,45 @@ export class LicitacoesController {
         return res.status(400).json({ success: false, message: 'ID do edital obrigatório' });
       }
 
-      const licitacao = await buscarLicitacaoPorNumeroControle(id);
-      const parsed = parsePncpControlNumber(licitacao?.numeroControlePNCP || id);
+      const companyId = stringParam(req.query.companyId) || req.companyId;
+      const tenantId = req.user?.tenantId;
 
-      let itens: any[] = [];
-      if (parsed) {
-        itens = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
-      } else if (licitacao?.cnpjOrgao && (licitacao as any).anoCompra && (licitacao as any).sequencialCompra) {
-        itens = await buscarItensPNCP(licitacao.cnpjOrgao, (licitacao as any).anoCompra, (licitacao as any).sequencialCompra);
+      try {
+        const resultado = await proposalAutomationService.syncNoticeItemsWithCatalog(
+          id,
+          companyId,
+          tenantId,
+        );
+
+        return res.json({
+          success: true,
+          data: resultado.items,
+          total: resultado.total,
+          valorTotalItens: resultado.valorTotalItens,
+          totalComMatch: resultado.totalComMatch,
+          notice: resultado.notice,
+        });
+      } catch (syncErr) {
+        console.warn('[LicitacoesController.obterItens] Fallback para consulta direta PNCP:', syncErr);
+        const licitacao = await buscarLicitacaoPorNumeroControle(id);
+        const parsed = parsePncpControlNumber(licitacao?.numeroControlePNCP || id);
+
+        let itens: any[] = [];
+        if (parsed) {
+          itens = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+        } else if (licitacao?.cnpjOrgao && (licitacao as any).anoCompra && (licitacao as any).sequencialCompra) {
+          itens = await buscarItensPNCP(licitacao.cnpjOrgao, (licitacao as any).anoCompra, (licitacao as any).sequencialCompra);
+        }
+
+        const valorTotalItens = itens.reduce((acc: number, it: any) => acc + (Number(it.valorTotal) || 0), 0);
+
+        return res.json({
+          success: true,
+          data: itens,
+          total: itens.length,
+          valorTotalItens,
+        });
       }
-
-      return res.json({
-        success: true,
-        data: itens,
-        total: itens.length,
-      });
     } catch (error) {
       return sendPncpError(res, error);
     }

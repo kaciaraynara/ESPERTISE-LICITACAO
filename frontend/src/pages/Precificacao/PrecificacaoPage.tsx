@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Calculator, Zap, Percent, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { precificacaoApi } from '@services/api';
+import { precificacaoApi, licitacoesApi } from '@services/api';
 
 export const PrecificacaoPage: React.FC = () => {
   const [custos, setCustos] = useState({
@@ -12,6 +13,63 @@ export const PrecificacaoPage: React.FC = () => {
   });
 
   const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(0);
+  const [searchParams] = useSearchParams();
+  const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
+
+  const { data: editalData } = useQuery({
+    queryKey: ['precificacao-edital', noticeId],
+    queryFn: async () => {
+      if (!noticeId) return null;
+      try {
+        const [resNotice, resItens] = await Promise.all([
+          licitacoesApi.buscarPorId(noticeId).catch(() => null),
+          licitacoesApi.obterItens(noticeId).catch(() => null),
+        ]);
+
+        const notice = resNotice?.data?.data || null;
+        const itens = (resItens?.data?.data || []) as any[];
+
+        const somaItens = itens.reduce((acc: number, it: any) => {
+          const vTot = Number(it.valorTotal ?? it.estimatedTotalValue) ||
+            ((Number(it.quantidade ?? it.quantity) || 1) * (Number(it.valorUnitarioEstimado ?? it.estimatedUnitValue) || 0));
+          return acc + vTot;
+        }, 0);
+
+        const rawVal = Number(notice?.valor_estimado ?? notice?.valorEstimado) || 0;
+        const valorFinal = rawVal > 0 ? rawVal : somaItens;
+
+        return {
+          notice,
+          itens,
+          somaItens,
+          valorFinal,
+          isSigiloso: rawVal <= 0 && somaItens > 0,
+        };
+      } catch (err) {
+        console.warn('[PrecificacaoPage] Erro ao carregar dados do edital:', err);
+        return null;
+      }
+    },
+    enabled: Boolean(noticeId),
+  });
+
+  useEffect(() => {
+    if (editalData?.valorFinal && editalData.valorFinal > 0) {
+      setValorMaximoEdital(editalData.valorFinal);
+      setCustos((prev) => {
+        if (prev.custoProdutoServico <= 0) {
+          const custoItens = editalData.itens.reduce((acc: number, it: any) => {
+            const custo = Number(it.custoBase ?? it.unitCost) || 0;
+            const qtd = Number(it.quantidade ?? it.quantity) || 1;
+            return acc + custo * qtd;
+          }, 0);
+          const custoSugerido = custoItens > 0 ? custoItens : Math.round(editalData.valorFinal * 0.65);
+          return { ...prev, custoProdutoServico: custoSugerido };
+        }
+        return prev;
+      });
+    }
+  }, [editalData]);
 
   const { data: resp, isLoading } = useQuery({
     queryKey: ['precificacao', custos],
@@ -73,6 +131,38 @@ export const PrecificacaoPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* BANNER DO EDITAL VINCULADO (QUANDO ABERTO VIA RADAR OU DETALHE) */}
+      {editalData && (
+        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg bg-blue-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  Edital Conectado
+                </span>
+                {editalData.isSigiloso && (
+                  <span className="rounded-lg bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    Orçamento Sigiloso — Teto Calculado pelos Itens do TR
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mt-1 line-clamp-1">
+                {editalData.notice?.objeto || editalData.notice?.object || 'Contratação Pública'}
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {editalData.notice?.orgao || editalData.notice?.buyerName || 'Órgão Licitante'} • {editalData.itens.length} {editalData.itens.length === 1 ? 'item oficial' : 'itens oficiais'} carregados do PNCP
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-[11px] font-bold text-slate-500 uppercase block">Teto Oficial Máximo</span>
+              <span className="text-lg font-black text-brand-blue">
+                {formatarMoeda(editalData.valorFinal)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* GRID PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

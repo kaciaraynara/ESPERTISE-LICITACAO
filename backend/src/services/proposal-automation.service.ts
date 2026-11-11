@@ -1,3 +1,45 @@
+
+export interface EnrichedNoticeItem {
+  id?: string;
+  itemNumber: string;
+  numeroItem: number | string;
+  description: string;
+  descricao: string;
+  quantity: number;
+  quantidade: number;
+  unit: string;
+  unidadeMedida: string;
+  estimatedUnitValue: number | null;
+  valorUnitarioEstimado: number | null;
+  estimatedTotalValue: number | null;
+  valorTotal: number | null;
+  catalogoCodigo?: string | null;
+  matched: boolean;
+  catalogItem?: {
+    id: string;
+    nome: string;
+    sku: string;
+    codigoCatmat?: string | null;
+    custoBase: number;
+    precoMinimoLicitacao?: number | null;
+    unidadeMedida: string;
+  } | null;
+  unitCost: number | null;
+  custoBase: number | null;
+  precoMinimoStopLoss: number | null;
+  precoAlvo: number | null;
+  margemLiquidaPercentual?: number | null;
+  statusMargem?: string | null;
+}
+
+export interface SyncNoticeItemsResult {
+  notice: any;
+  items: EnrichedNoticeItem[];
+  total: number;
+  valorTotalItens: number;
+  totalComMatch: number;
+}
+
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import ExcelJS from 'exceljs';
@@ -18,6 +60,8 @@ import {
 import { prisma } from '../database/prisma';
 import { calcularSimulacaoBdi } from './tax-bdi.service';
 import { resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
+import { buscarItensPNCP, parsePncpControlNumber } from './pncp.service';
+import { buscarLicitacaoPorIdOuControle } from './licitacoes.service';
 
 export type ProposalExportFormat = 'docx' | 'xlsx';
 
@@ -515,6 +559,293 @@ export class ProposalAutomationService {
   /**
    * Gera a Planilha de Custos, BDI e Split Payment (.xlsx) em memória usando ExcelJS.
    */
+
+  /**
+   * Conecta os itens reais do edital no PNCP com a base do sistema,
+   * cruzando com o Catálogo de Produtos da empresa para precificação determinística via BDI.
+   */
+  public async syncNoticeItemsWithCatalog(
+    noticeId: string,
+    companyId?: string,
+    tenantId?: string,
+    options?: {
+      margemLucroDesejada?: number;
+      margemMinimaStopLoss?: number;
+      despesasOperacionais?: number;
+    },
+  ): Promise<SyncNoticeItemsResult> {
+    const cleanId = String(noticeId || '').trim();
+    if (!cleanId) {
+      throw new Error('ID ou Número de Controle do edital obrigatório.');
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+
+    // 1. Busca edital no banco local
+    let notice = await prisma.procurementNotice.findFirst({
+      where: {
+        OR: [
+          ...(isUuid ? [{ id: cleanId }] : []),
+          { externalId: cleanId },
+          { numeroControlePncp: cleanId },
+          { dedupeKey: `pncp-${cleanId}` },
+          { noticeNumber: cleanId },
+        ],
+      },
+      include: {
+        items: {
+          orderBy: { itemNumber: 'asc' },
+        },
+      },
+    });
+
+    // Se não encontrou no banco local, busca e persiste via buscarLicitacaoPorIdOuControle
+    if (!notice) {
+      try {
+        const fetched = await buscarLicitacaoPorIdOuControle(cleanId, { requirePersistence: true });
+        const targetId = fetched?.databaseId || fetched?.id;
+        if (targetId) {
+          notice = await prisma.procurementNotice.findFirst({
+            where: {
+              OR: [
+                { id: targetId },
+                { externalId: fetched.numeroControlePNCP },
+                { dedupeKey: `pncp-${fetched.numeroControlePNCP}` },
+              ],
+            },
+            include: {
+              items: {
+                orderBy: { itemNumber: 'asc' },
+              },
+            },
+          });
+        }
+      } catch (fetchErr) {
+        console.warn('[syncNoticeItemsWithCatalog] Falha ao sincronizar edital remoto:', fetchErr);
+      }
+    }
+
+    const parsed = parsePncpControlNumber(notice?.externalId || notice?.numeroControlePncp || cleanId);
+
+    // 2. Se o edital não tiver itens no banco ou itens vazios, busca na API oficial do PNCP
+    let rawItems: any[] = [];
+    if (notice?.items && notice.items.length > 0) {
+      rawItems = notice.items.map((it) => ({
+        id: it.id,
+        numeroItem: it.itemNumber,
+        descricao: it.description,
+        quantidade: it.quantity ? Number(it.quantity) : 1,
+        unidadeMedida: it.unit || 'UN',
+        valorUnitarioEstimado: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : null,
+        valorTotal: it.estimatedTotalValue ? Number(it.estimatedTotalValue) : null,
+        catalogoCodigo: it.catalogoCodigo || null,
+      }));
+    } else if (parsed) {
+      try {
+        const pncpItems = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+        if (pncpItems && pncpItems.length > 0) {
+          rawItems = pncpItems;
+          // Persiste os itens na tabela ProcurementItem vinculada ao ProcurementNotice
+          if (notice?.id) {
+            for (const it of pncpItems) {
+              const itemNumber = String(it.numeroItem ?? 1);
+              const desc = String(it.descricao ?? 'Item da contratação').trim();
+              const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+              const vUnit = Number(it.valorUnitarioEstimado) > 0 ? Number(it.valorUnitarioEstimado) : null;
+              const vTot = Number(it.valorTotal) > 0 ? Number(it.valorTotal) : (vUnit ? vUnit * qtd : null);
+              const unit = String(it.unidadeMedida ?? 'UN').trim();
+              const catCod = it.codigoItemCatalogo ?? it.catalogoCodigo ?? null;
+
+              await prisma.procurementItem.upsert({
+                where: {
+                  procurementNoticeId_itemNumber: {
+                    procurementNoticeId: notice.id,
+                    itemNumber,
+                  },
+                },
+                create: {
+                  procurementNoticeId: notice.id,
+                  tenantId: tenantId ?? notice.tenantId ?? null,
+                  itemNumber,
+                  description: desc,
+                  quantity: qtd,
+                  unit,
+                  estimatedUnitValue: vUnit,
+                  estimatedTotalValue: vTot,
+                  catalogoCodigo: catCod,
+                  metadata: it,
+                },
+                update: {
+                  description: desc,
+                  quantity: qtd,
+                  unit,
+                  estimatedUnitValue: vUnit,
+                  estimatedTotalValue: vTot,
+                  catalogoCodigo: catCod,
+                  metadata: it,
+                },
+              }).catch(() => null);
+            }
+          }
+        }
+      } catch (pncpErr) {
+        console.warn('[syncNoticeItemsWithCatalog] Falha ao consultar itens no PNCP:', pncpErr);
+      }
+    }
+
+    // 3. Busca catálogo de produtos da empresa ativa
+    let catalogItems: any[] = [];
+    let resolvedCompanyId = companyId;
+
+    if (!resolvedCompanyId && tenantId) {
+      const company = await prisma.company.findFirst({
+        where: { tenantId },
+        select: { id: true },
+      });
+      if (company) resolvedCompanyId = company.id;
+    }
+
+    if (resolvedCompanyId) {
+      catalogItems = await prisma.catalogItem.findMany({
+        where: {
+          companyId: resolvedCompanyId,
+          status: 'ATIVO',
+        },
+      });
+    }
+
+    // 4. Cruzamento inteligente de cada item com o Catálogo da empresa
+    const margemDesejada = options?.margemLucroDesejada ?? 15;
+    const margemMinima = options?.margemMinimaStopLoss ?? 5;
+    let totalComMatch = 0;
+
+    const enrichedItems: EnrichedNoticeItem[] = rawItems.map((it, idx) => {
+      const itemNumber = String(it.numeroItem ?? it.itemNumber ?? idx + 1);
+      const descricao = String(it.descricao ?? it.description ?? 'Item da contratação').trim();
+      const quantidade = Number(it.quantidade ?? it.quantity ?? 1);
+      const unidadeMedida = String(it.unidadeMedida ?? it.unit ?? 'UN').trim();
+      const valorUnitarioEstimado =
+        it.valorUnitarioEstimado != null && Number(it.valorUnitarioEstimado) > 0
+          ? Number(it.valorUnitarioEstimado)
+          : it.estimatedUnitValue != null && Number(it.estimatedUnitValue) > 0
+          ? Number(it.estimatedUnitValue)
+          : null;
+      const valorTotal =
+        it.valorTotal != null && Number(it.valorTotal) > 0
+          ? Number(it.valorTotal)
+          : it.estimatedTotalValue != null && Number(it.estimatedTotalValue) > 0
+          ? Number(it.estimatedTotalValue)
+          : valorUnitarioEstimado != null
+          ? valorUnitarioEstimado * quantidade
+          : null;
+      const catalogoCodigo = it.catalogoCodigo ?? it.codigoItemCatalogo ?? null;
+
+      const itDescLower = descricao.toLowerCase();
+      const itCodeLower = String(catalogoCodigo || '').toLowerCase();
+
+      // Cruzamento por CATMAT/CATSER, SKU ou Similaridade de Descrição
+      const matchedCat = catalogItems.find((cat) => {
+        const catMat = (cat.codigoCatmat || '').toLowerCase();
+        const catSku = (cat.sku || '').toLowerCase();
+        const catNome = (cat.nome || '').toLowerCase();
+
+        if (catMat && itCodeLower && itCodeLower.includes(catMat)) return true;
+        if (catMat && itDescLower.includes(catMat)) return true;
+        if (catSku && itDescLower.includes(catSku)) return true;
+        if (catNome.length >= 3 && (itDescLower.includes(catNome) || catNome.includes(itDescLower))) return true;
+        return false;
+      });
+
+      let unitCost: number | null = null;
+      let precoMinimoStopLoss: number | null = null;
+      let precoAlvo: number | null = null;
+      let margemLiquidaPercentual: number | null = null;
+      let statusMargem: string | null = null;
+
+      if (matchedCat) {
+        totalComMatch++;
+        unitCost =
+          matchedCat.custoBase != null && Number(matchedCat.custoBase) > 0
+            ? Number(matchedCat.custoBase)
+            : matchedCat.precoMinimoLicitacao != null && Number(matchedCat.precoMinimoLicitacao) > 0
+            ? Number(matchedCat.precoMinimoLicitacao)
+            : null;
+
+        if (unitCost != null && unitCost > 0) {
+          const bdi = calcularSimulacaoBdi({
+            custoInsumos: unitCost,
+            despesasOperacionais: options?.despesasOperacionais,
+            margemLucroDesejada: margemDesejada,
+            margemMinimaStopLoss: margemMinima,
+          });
+          precoMinimoStopLoss = bdi.precoMinimoStopLoss;
+          precoAlvo = bdi.precoSugeridoVenda;
+          margemLiquidaPercentual = bdi.margemLiquidaPercentual;
+          statusMargem = bdi.statusMargem;
+        }
+      } else if (valorUnitarioEstimado != null && valorUnitarioEstimado > 0) {
+        precoAlvo = valorUnitarioEstimado;
+      }
+
+      return {
+        id: it.id,
+        itemNumber,
+        numeroItem: Number(itemNumber) || itemNumber,
+        description: descricao,
+        descricao,
+        quantity: quantidade,
+        quantidade,
+        unit: unidadeMedida,
+        unidadeMedida,
+        estimatedUnitValue: valorUnitarioEstimado,
+        valorUnitarioEstimado,
+        estimatedTotalValue: valorTotal,
+        valorTotal,
+        catalogoCodigo,
+        matched: Boolean(matchedCat),
+        catalogItem: matchedCat
+          ? {
+              id: matchedCat.id,
+              nome: matchedCat.nome,
+              sku: matchedCat.sku,
+              codigoCatmat: matchedCat.codigoCatmat,
+              custoBase: Number(matchedCat.custoBase) || 0,
+              precoMinimoLicitacao: matchedCat.precoMinimoLicitacao ? Number(matchedCat.precoMinimoLicitacao) : null,
+              unidadeMedida: matchedCat.unidadeMedida,
+            }
+          : null,
+        unitCost,
+        custoBase: unitCost,
+        precoMinimoStopLoss,
+        precoAlvo,
+        margemLiquidaPercentual,
+        statusMargem,
+      };
+    });
+
+    const valorTotalItens = enrichedItems.reduce(
+      (acc, it) => acc + (it.valorTotal || (it.valorUnitarioEstimado ? it.valorUnitarioEstimado * it.quantidade : 0)),
+      0,
+    );
+
+    // Se o edital estava sem valor estimado global (sigiloso) e obtivemos o total dos itens, atualiza o edital
+    if (notice?.id && (!notice.estimatedValue || Number(notice.estimatedValue) <= 0) && valorTotalItens > 0) {
+      await prisma.procurementNotice.update({
+        where: { id: notice.id },
+        data: { estimatedValue: valorTotalItens },
+      }).catch(() => null);
+      (notice as any).estimatedValue = valorTotalItens;
+    }
+
+    return {
+      notice,
+      items: enrichedItems,
+      total: enrichedItems.length,
+      valorTotalItens,
+      totalComMatch,
+    };
+  }
+
   private async buildHydratedXlsxBuffer(
     vars: Record<string, string>,
     bdi: ReturnType<typeof calcularSimulacaoBdi>,

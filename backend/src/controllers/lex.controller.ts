@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../database/prisma';
 import { AiGroundingService, AiGroundedResponse } from '../services/ai-grounding.service';
 import { calcularViabilidadeAutentica } from '../services/viabilidade.service';
+import { calcularSimulacaoBdi } from '../services/tax-bdi.service';
 import { parecerJuridicoPdfService } from '../services/parecer-juridico-pdf.service';
 import { buscarLicitacaoPorIdOuControle } from '../services/licitacoes.service';
 import {
@@ -627,7 +628,28 @@ ${chunksText}
           }
         }
 
-        const qtd = Number(it.quantidade);
+        const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+
+        let precoUnitarioCalculado: number | null = null;
+        let bdiCalculado: ReturnType<typeof calcularSimulacaoBdi> | null = null;
+
+        if (custoDireto && custoDireto > 0) {
+          bdiCalculado = calcularSimulacaoBdi({
+            custoInsumos: custoDireto,
+            margemLucroDesejada: 15,
+            margemMinimaStopLoss: 5,
+          });
+          precoUnitarioCalculado = bdiCalculado.precoSugeridoVenda;
+        } else if (precoCatalogo && precoCatalogo > 0) {
+          precoUnitarioCalculado = precoCatalogo;
+        } else if (valEst && valEst > 0) {
+          precoUnitarioCalculado = valEst;
+        }
+
+        const precoTotalCalculado = precoUnitarioCalculado != null
+          ? Math.round(precoUnitarioCalculado * qtd * 100) / 100
+          : null;
+
         const createdItem = await prisma.proposalItem.create({
           data: {
             proposalId: proposal.id,
@@ -640,15 +662,16 @@ ${chunksText}
             modelo,
             custoDireto,
             custoUnitario: custoDireto,
-            precoUnitarioProposto: null,
-            precoTotalProposto: null,
+            precoUnitarioProposto: precoUnitarioCalculado,
+            precoTotalProposto: precoTotalCalculado,
             catalogoPrecoReferencia: precoCatalogo ?? valEst,
-            margemLucroPercentual: null,
+            bdiPercentual: bdiCalculado ? bdiCalculado.aliquotas.ivaDualTotalPercentual : 11.4,
+            margemLucroPercentual: bdiCalculado ? bdiCalculado.margemLiquidaPercentual : (custoDireto && precoUnitarioCalculado && precoUnitarioCalculado > custoDireto ? Math.round(((precoUnitarioCalculado - custoDireto) / precoUnitarioCalculado) * 100 * 10) / 10 : 15),
             inexequivel: false,
             observacoes: precoCatalogo
-              ? 'Preço inicial do catálogo da empresa. Revise custos e condições do edital antes de enviar.'
+              ? 'Preço inicial do catálogo da empresa (BDI e margem calculados).'
               : valEst
-                ? 'Preço estimado do PNCP usado como referência inicial. Revise custos e defina seu preço antes de enviar.'
+                ? 'Preço estimado do PNCP usado como referência inicial.'
                 : null,
           },
         });

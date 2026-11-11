@@ -25,7 +25,7 @@ import {
 } from '@components/icons/phosphor-compat';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '@/utils';
-import { lexApi, licitacoesApi, empresasApi, crmApi } from '@services/api';
+import { lexApi, licitacoesApi, empresasApi, crmApi, propostasApi } from '@services/api';
 import { useAuthStore } from '@/store/auth.store';
 import { isUserFreePlan } from '@/components/monetization/PremiumFeatureGuard';
 import { PaywallModal } from '@/components/monetization/PaywallModal';
@@ -235,6 +235,48 @@ export default function LicitacaoDetalhePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const itensQuery = useQuery({
+    queryKey: ['licitacao-itens', licitacaoId],
+    queryFn: async () => {
+      try {
+        const response = await licitacoesApi.obterItens(licitacaoId);
+        return (response.data?.data ?? []) as any[];
+      } catch (err) {
+        console.warn('[LicitacaoDetalhePage] Erro ao carregar itens do edital:', err);
+        return [];
+      }
+    },
+    enabled: Boolean(licitacaoId),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [gerandoPropostaComercial, setGerandoPropostaComercial] = useState(false);
+
+  const handleGerarPropostaComercial = async () => {
+    setGerandoPropostaComercial(true);
+    try {
+      const selectedCompanyId = empresaQuery.data?.[0]?.id;
+      const res = await propostasApi.preencherPropostaViaLex({
+        noticeId: licitacaoId,
+        companyId: selectedCompanyId,
+        autoCreate: true,
+      });
+
+      const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
+      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e BDI!');
+      if (proposalId) {
+        navigate(`/fornecedor/propostas/${proposalId}`);
+      } else {
+        navigate('/fornecedor/propostas');
+      }
+    } catch (err: any) {
+      console.error('[LicitacaoDetalhePage] Erro ao gerar proposta comercial:', err);
+      toast.error(err?.response?.data?.message || 'Falha ao gerar proposta comercial a partir dos itens.');
+    } finally {
+      setGerandoPropostaComercial(false);
+    }
+  };
+
   const nomeEmpresa = empresaQuery.data?.[0]?.razao_social || 'Empresa Licitante';
 
   const handleInvestigarHistoricoOrgao = () => {
@@ -351,7 +393,21 @@ export default function LicitacaoDetalhePage() {
   if (!licitacaoId) return null;
 
   const lic = licitacaoQuery.data;
-  const valorEdital = Number(lic?.valor_estimado ?? (lic as any)?.valorEstimado) || 0;
+  const itensEdital = itensQuery.data ?? [];
+  const somaValorItens = itensEdital.reduce(
+    (acc: number, it: any) =>
+      acc +
+      (Number(
+        it.valorTotal ??
+          it.estimatedTotalValue ??
+          ((Number(it.quantidade ?? it.quantity) || 1) *
+            (Number(it.valorUnitarioEstimado ?? it.estimatedUnitValue) || 0)),
+      ) || 0),
+    0,
+  );
+  const rawValorEdital = Number(lic?.valor_estimado ?? (lic as any)?.valorEstimado) || 0;
+  const isValorSigiloso = rawValorEdital <= 0 && somaValorItens > 0;
+  const valorEdital = rawValorEdital > 0 ? rawValorEdital : somaValorItens;
 
   // Parâmetros de custos interativos com defaults baseados no edital
   const custoProduto = custoProdutoCustom ?? Math.round(valorEdital * 0.65);
@@ -469,7 +525,14 @@ export default function LicitacaoDetalhePage() {
                   <DollarSign className="h-4 w-4 text-brand-blue" />
                   <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-brand-blue">Valor estimado</p>
                 </div>
-                <p className="text-lg font-bold text-brand-blue">{formatCurrency(valorEdital)}</p>
+                <p className="text-lg font-bold text-brand-blue">
+                  {formatCurrency(valorEdital)}
+                  {isValorSigiloso && (
+                    <span className="block text-[10px] font-bold text-amber-700 mt-0.5">
+                      (Soma Real dos Itens do TR)
+                    </span>
+                  )}
+                </p>
               </div>
 
               <div className={`rounded-[24px] border p-5 ${viabilidadeStatus.badgeClass}`}>
@@ -845,8 +908,129 @@ export default function LicitacaoDetalhePage() {
                         Disputar / Adicionar à Esteira
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      id="btn-gerar-proposta-comercial-viabilidade"
+                      onClick={handleGerarPropostaComercial}
+                      disabled={gerandoPropostaComercial}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer"
+                    >
+                      {gerandoPropostaComercial ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      Gerar Proposta Comercial com Estes Preços
+                    </button>
                   </div>
                 </div>
+              </div>
+
+              {/* TABELA DE ITENS REAIS DO PNCP & PRECIFICAÇÃO DETERMINÍSTICA */}
+              <div className="space-y-4 pt-6 border-t border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-black text-brand-blue flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-emerald-600" />
+                      Itens Oficiais da Contratação (PNCP) & Formação de Preço
+                    </h3>
+                    <p className="text-xs text-brand-blue/70">
+                      Itens extraídos em tempo real do portal governamental e precificados com BDI, Split Payment e Stop-Loss.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-slate-500 block">Total de Itens</span>
+                    <span className="text-sm font-black text-brand-blue">
+                      {itensEdital.length} {itensEdital.length === 1 ? 'item' : 'itens'} ({formatCurrency(somaValorItens || valorEdital)})
+                    </span>
+                  </div>
+                </div>
+
+                {itensQuery.isLoading ? (
+                  <div className="rounded-2xl border border-gray-100 bg-slate-50/50 p-8 text-center">
+                    <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-brand-blue" />
+                    <p className="text-xs font-bold text-slate-500">Consultando itens oficiais no PNCP...</p>
+                  </div>
+                ) : itensEdital.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-slate-50/50 p-6 text-center text-xs text-slate-500">
+                    Nenhum item unitário individualizado retornado pelo PNCP. Consulte os anexos e o Termo de Referência.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-gray-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        <tr>
+                          <th className="py-3 px-3 w-12 text-center">#</th>
+                          <th className="py-3 px-4 min-w-[220px]">Descrição do Item</th>
+                          <th className="py-3 px-3 text-center w-24">Qtd / Un</th>
+                          <th className="py-3 px-3 text-right w-28">Ref. PNCP</th>
+                          <th className="py-3 px-3 text-right w-28">Total PNCP</th>
+                          <th className="py-3 px-3 text-right w-28">Custo Base</th>
+                          <th className="py-3 px-3 text-right w-28 text-rose-700">Stop-Loss</th>
+                          <th className="py-3 px-3 text-right w-28 text-emerald-700">Preço Alvo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {itensEdital.map((it: any, idx: number) => {
+                          const num = it.itemNumber || it.numeroItem || idx + 1;
+                          const desc = it.descricao || it.description || 'Item da contratação';
+                          const qtd = Number(it.quantidade ?? it.quantity ?? 1);
+                          const un = it.unidadeMedida || it.unit || 'UN';
+                          const vUnit = Number(it.valorUnitarioEstimado ?? it.estimatedUnitValue) || 0;
+                          const vTot = Number(it.valorTotal ?? it.estimatedTotalValue) || (vUnit * qtd);
+                          const custoBase = it.custoBase != null ? Number(it.custoBase) : (it.unitCost != null ? Number(it.unitCost) : null);
+                          const stopLoss = it.precoMinimoStopLoss != null ? Number(it.precoMinimoStopLoss) : null;
+                          const precoAlvo = it.precoAlvo != null ? Number(it.precoAlvo) : (vUnit > 0 ? vUnit : null);
+                          const hasMatch = Boolean(it.matched);
+
+                          return (
+                            <tr key={it.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3 font-mono font-bold text-slate-500 text-center">{num}</td>
+                              <td className="py-3 px-4">
+                                <div className="font-semibold text-slate-900 leading-snug">{desc}</div>
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  {hasMatch ? (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      Match: {it.catalogItem?.nome || 'Catálogo Ativo'}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                      Item do Edital
+                                    </span>
+                                  )}
+                                  {it.catalogoCodigo && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-50 text-blue-700">
+                                      CAT: {it.catalogoCodigo}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center font-bold text-slate-700">
+                                {qtd} <span className="text-[10px] text-slate-400 font-semibold">{un}</span>
+                              </td>
+                              <td className="py-3 px-3 text-right font-semibold text-slate-700">
+                                {vUnit > 0 ? formatCurrency(vUnit) : 'Sigiloso'}
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-slate-900">
+                                {vTot > 0 ? formatCurrency(vTot) : 'Sigiloso'}
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-slate-700">
+                                {custoBase != null && custoBase > 0 ? formatCurrency(custoBase) : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="py-3 px-3 text-right font-bold text-rose-600">
+                                {stopLoss != null && stopLoss > 0 ? formatCurrency(stopLoss) : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="py-3 px-3 text-right font-black text-emerald-700">
+                                {precoAlvo != null && precoAlvo > 0 ? formatCurrency(precoAlvo) : <span className="text-slate-400">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </section>
           )}
