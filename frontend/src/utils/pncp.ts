@@ -1,5 +1,4 @@
 /**
-/**
  * Utilitários para resiliência e auditoria oficial de editais do PNCP
  * Rigorosamente em conformidade com as 5 Regras de Ouro:
  * 1. Zero mocks ou dados fictícios

@@ -1018,18 +1018,31 @@ export async function buscarLicitacaoPorIdOuControle(
   if (localNotice) {
     const rawEst = localNotice.estimatedValue ? Number(localNotice.estimatedValue) : null;
     const valorEstimado = rawEst != null && rawEst > 0 ? rawEst : null;
+    const numControle = localNotice.externalId || localNotice.noticeNumber || localNotice.id;
+    const auditParams = extractPncpAuditParams(numControle, localNotice.buyerDocument, null, null);
+    const urlOficialPncp = auditParams?.urlOficialPncp || localNotice.url || 'https://pncp.gov.br/app/editais';
+    const downloadUrl = resolvePncpDownloadUrl(numControle, localNotice.url, null) || localNotice.url || '';
+    const pubDate = localNotice.publishedAt ? localNotice.publishedAt.toISOString() : null;
+    const openDate = localNotice.openingAt ? localNotice.openingAt.toISOString() : null;
+    const closeDate = localNotice.closingAt ? localNotice.closingAt.toISOString() : null;
+
     const itemLocal: LicitacaoRadarPNCP = {
       id: localNotice.id,
       databaseId: localNotice.id,
-      numeroControlePNCP: localNotice.externalId || localNotice.noticeNumber || localNotice.id,
+      numeroControlePNCP: numControle,
       orgao: localNotice.buyerName || '',
       cnpjOrgao: localNotice.buyerDocument || '',
+      anoCompra: auditParams?.anoCompra,
+      sequencialCompra: auditParams?.sequencialCompra,
+      urlOficial: urlOficialPncp,
+      urlOficialPncp,
       unidade: '',
       uf: localNotice.uf || '',
       municipio: localNotice.municipality || '',
       objeto: localNotice.object || '',
       processo: localNotice.noticeNumber || '',
       numeroCompra: localNotice.noticeNumber || '',
+      numeroEdital: localNotice.noticeNumber || numControle || localNotice.id,
       modalidade: localNotice.modality || '',
       modalidadeId: null,
       modoDisputa: '',
@@ -1037,13 +1050,24 @@ export async function buscarLicitacaoPorIdOuControle(
       valorEstimado,
       valor_estimado: valorEstimado,
       valorTotalEstimado: valorEstimado,
-      dataPublicacao: localNotice.publishedAt ? localNotice.publishedAt.toISOString() : null,
-      data_publicacao: localNotice.publishedAt ? localNotice.publishedAt.toISOString() : null,
-      dataAbertura: localNotice.openingAt ? localNotice.openingAt.toISOString() : null,
-      data_abertura: localNotice.openingAt ? localNotice.openingAt.toISOString() : null,
-      dataEncerramento: localNotice.closingAt ? localNotice.closingAt.toISOString() : null,
-      data_encerramento: localNotice.closingAt ? localNotice.closingAt.toISOString() : null,
-      link: localNotice.url || '',
+      dataPublicacao: pubDate,
+      data_publicacao: pubDate,
+      dataPublicacaoPncp: pubDate,
+      dataAbertura: openDate,
+      data_abertura: openDate,
+      dataAberturaProposta: openDate,
+      dataInicioRecebimento: openDate,
+      dataEncerramento: closeDate,
+      data_encerramento: closeDate,
+      dataEncerramentoProposta: closeDate,
+      dataFimRecebimento: closeDate,
+      dataLimiteProposta: closeDate,
+      dataSessaoDisputa: openDate || closeDate,
+      link: urlOficialPncp,
+      linkSistemaOrigem: localNotice.url || urlOficialPncp,
+      documento_url: downloadUrl,
+      linkDownloadEdital: downloadUrl,
+      srp: Boolean(localNotice.srp),
       fonte: localNotice.source || 'PNCP',
     };
 

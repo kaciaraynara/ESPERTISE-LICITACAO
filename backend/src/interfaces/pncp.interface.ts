@@ -91,6 +91,7 @@ export interface LicitacaoRadarPNCP {
   valor_estimado?: number | null;
   dataPublicacao: string | null;
   data_publicacao?: string | null;
+  dataPublicacaoPncp?: string | null;
   dataAbertura: string | null;
   data_abertura?: string | null;
   dataAberturaProposta?: string | null;
