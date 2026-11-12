@@ -244,13 +244,14 @@ export class TaxController {
   public simulateTaxReform = async (req: AuthRequest, res: Response): Promise<Response> => {
     try {
       const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
-      const { grossRevenueAnnual, targetCnae, operationType } = req.body;
+      const { grossRevenueAnnual, targetCnae, taxRegime, operationType } = req.body;
 
       const result = await expertiseFiscalEngineService.simulateTaxReformTransition({
         tenantId,
         companyId,
         grossRevenueAnnual: grossRevenueAnnual ? Number(grossRevenueAnnual) : undefined,
         targetCnae,
+        taxRegime,
         operationType,
       });
 

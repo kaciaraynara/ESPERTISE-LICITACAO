@@ -361,5 +361,149 @@ describe('ExpertiseFiscalEngineService', () => {
       expect(result.fundamentoJuridicoCompensacaoCruzada).toContain('Lei nº 13.670/2018');
     });
   });
+
+  describe('Módulos 01 a 03: NFS-e, Scanner de Créditos e Reforma Tributária', () => {
+    it('deve fazer parse de XML de NFS-e extraindo retenções e serviços', () => {
+      const nfseXml = `
+        <CompNfse>
+          <Nfse>
+            <InfNfse>
+              <Numero>202600045</Numero>
+              <DataEmissao>2026-04-15T10:00:00</DataEmissao>
+              <OptanteSimplesNacional>1</OptanteSimplesNacional>
+              <Servico>
+                <Valores>
+                  <ValorServicos>20000.00</ValorServicos>
+                  <ValorPis>130.00</ValorPis>
+                  <ValorCofins>600.00</ValorCofins>
+                  <ValorIr>300.00</ValorIr>
+                  <ValorCsll>200.00</ValorCsll>
+                  <ValorInss>2200.00</ValorInss>
+                </Valores>
+                <ItemListaServico>07.02</ItemListaServico>
+                <Discriminacao>Servicos de manutencao predial</Discriminacao>
+              </Servico>
+              <PrestadorServico>
+                <Cnpj>12345678000195</Cnpj>
+                <RazaoSocial>SERVICOS EXPERTISE LTDA</RazaoSocial>
+              </PrestadorServico>
+              <TomadorServico>
+                <Cnpj>00394460000141</Cnpj>
+                <RazaoSocial>MINISTERIO DA FAZENDA</RazaoSocial>
+              </TomadorServico>
+            </InfNfse>
+          </Nfse>
+        </CompNfse>
+      `;
+
+      const parsed = expertiseFiscalEngineService.parseNfeXml(nfseXml, '12.345.678/0001-95');
+      expect(parsed.chaveAcesso).toContain('NFSE_202600045');
+      expect(parsed.emitenteCrt).toBe(1);
+      expect(parsed.direction).toBe('SAIDA');
+      expect(parsed.totalAmount).toBe(20000);
+      expect(parsed.vIrrf).toBe(300);
+      expect(parsed.vRetPrev).toBe(2200);
+      expect(parsed.items).toHaveLength(1);
+    });
+
+    it('deve detectar retenção a maior no Regime Normal (CRT=3) e ICMS-ST no Simples Nacional', async () => {
+      (prisma.taxRuleVersion.findMany as jest.Mock).mockResolvedValue([
+        { ruleCode: 'IN1234_BENS_TOTAL', ratePercent: 5.85 },
+      ]);
+      (prisma.fiscalDocumentImport.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'doc-crt3',
+          docType: 'NFE_XML',
+          accessKeyOrPeriod: '35260412345678000195550010000000991234567890',
+          issueDate: new Date('2026-04-10T10:00:00Z'),
+          totalAmount: 10000,
+          taxesSummaryJson: {
+            emitenteCrt: 3,
+            vIrrf: 480,
+            vRetCsll: 100,
+            vRetPis: 65,
+            vRetCofins: 300, // Total = 945 (9.45% cobrado sobre venda de bens cujo limite é 5.85% = 585)
+          },
+          parsedItemsJson: [
+            {
+              nItem: 1,
+              cProd: 'BEM-01',
+              xProd: 'Computador Desktop',
+              ncm: '84715010',
+              cfop: '5102',
+              vProd: 10000,
+              cstOrCsosn: '00',
+            },
+          ],
+        },
+        {
+          id: 'doc-icms-st',
+          docType: 'NFE_XML',
+          accessKeyOrPeriod: '35260412345678000195550010000001001234567890',
+          issueDate: new Date('2026-04-11T10:00:00Z'),
+          totalAmount: 20000,
+          taxesSummaryJson: {
+            emitenteCrt: 1,
+            vIcmsSt: 0,
+          },
+          parsedItemsJson: [
+            {
+              nItem: 1,
+              cProd: 'ST-01',
+              xProd: 'Autopeca com ST',
+              ncm: '87083090',
+              cfop: '5405',
+              vProd: 20000,
+              cstOrCsosn: '500',
+            },
+          ],
+        },
+      ]);
+      (prisma.taxCreditOpportunity.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.taxCreditOpportunity.create as jest.Mock).mockImplementation(({ data }) =>
+        Promise.resolve({ id: 'opp-created', ...data }),
+      );
+
+      const opps = await expertiseFiscalEngineService.scanTaxCreditsAndDebits({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+      });
+
+      const in1234Opp = opps.find((o) => o.originCategory === 'RETENCAO_IN1234');
+      expect(in1234Opp).toBeDefined();
+      expect(Number(in1234Opp.principalAmount)).toBeCloseTo(360, 1); // 945 - 585 = 360
+
+      const icmsStOpp = opps.find((o) => o.originCategory === 'ICMS_ST');
+      expect(icmsStOpp).toBeDefined();
+      expect(Number(icmsStOpp.principalAmount)).toBeGreaterThan(0);
+    });
+
+    it('deve simular transição da Reforma Tributária com redutor de 100% (Cesta Básica) e comparativo de regimes', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Alimentos Brasil Ltda',
+        cnpj: '12345678000195',
+      });
+      (prisma.taxRuleVersion.findMany as jest.Mock).mockResolvedValue([
+        { ruleCode: 'REFORMA_TESTE_2026_CBS', ratePercent: 0.9 },
+        { ruleCode: 'REFORMA_TESTE_2026_IBS', ratePercent: 0.1 },
+        { ruleCode: 'REFORMA_IVA_DUAL_PADRAO', ratePercent: 26.5 },
+      ]);
+
+      const sim = await expertiseFiscalEngineService.simulateTaxReformTransition({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+        grossRevenueAnnual: 1000000,
+        taxRegime: 'LUCRO_PRESUMIDO',
+        operationType: 'CESTA_BASICA_ISENTO',
+      });
+
+      expect(sim.cenarioAtual.regimeTributario).toBe('LUCRO_PRESUMIDO');
+      expect(sim.cenarioAtual.cargaTributariaPercent).toBe(14.25);
+      expect(sim.cenarioPlenoIvaDual.reducerPercent).toBe(100);
+      expect(sim.cenarioPlenoIvaDual.aliquotaEfetivaFinalPercent).toBe(0);
+      expect(sim.cenarioPlenoIvaDual.retencaoSplitPaymentGoverno).toBe(0);
+    });
+  });
 });
 

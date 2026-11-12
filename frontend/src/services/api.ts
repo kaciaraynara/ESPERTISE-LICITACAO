@@ -1002,6 +1002,7 @@ export const expertiseFiscalApi = {
   simularReforma: (body: {
     grossRevenueAnnual?: number;
     targetCnae?: string;
+    taxRegime?: string;
     operationType?: string;
   }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/simulate-reform', body),
   simularPropostaBdi: (body: {

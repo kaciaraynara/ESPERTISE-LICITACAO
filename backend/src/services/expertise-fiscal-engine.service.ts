@@ -229,6 +229,109 @@ export class ExpertiseFiscalEngineService {
    * Faz o parse estruturado de um arquivo XML de NF-e (modelo 55)
    */
   public parseNfeXml(xmlContent: string, companyCnpj: string): ParsedFiscalSummary {
+    const isNfse =
+      /<(?:[a-zA-Z0-9_-]+:)?(?:InfNfse|CompNfse|ConsultarNfseResposta|GerarNfseResposta|Nfse)/i.test(xmlContent) &&
+      !/<(?:[a-zA-Z0-9_-]+:)?infNFe/i.test(xmlContent);
+
+    if (isNfse) {
+      const numeroNfse =
+        this.extractTagValue(xmlContent, 'Numero') ||
+        this.extractTagValue(xmlContent, 'CodigoVerificacao');
+      const hash = crypto.createHash('sha256').update(xmlContent).digest('hex');
+      const chaveAcesso = numeroNfse ? `NFSE_${numeroNfse}_${hash.slice(0, 12)}` : `NFSE_${hash.slice(0, 24)}`;
+
+      const prestadorBlock =
+        this.extractTagValue(xmlContent, 'PrestadorServico') ||
+        this.extractTagValue(xmlContent, 'Prestador');
+      const emitenteCnpj =
+        this.extractTagValue(prestadorBlock, 'Cnpj') ||
+        this.extractTagValue(prestadorBlock, 'CNPJ') ||
+        this.extractTagValue(prestadorBlock, 'Cpf');
+      const emitenteRazao =
+        this.extractTagValue(prestadorBlock, 'RazaoSocial') ||
+        this.extractTagValue(prestadorBlock, 'NomeFantasia') ||
+        'Prestador NFS-e';
+      const optanteSimples = this.extractTagValue(xmlContent, 'OptanteSimplesNacional');
+      const emitenteCrt = optanteSimples === '1' ? 1 : 3;
+
+      const tomadorBlock =
+        this.extractTagValue(xmlContent, 'TomadorServico') ||
+        this.extractTagValue(xmlContent, 'Tomador');
+      const destinatarioCnpj =
+        this.extractTagValue(tomadorBlock, 'Cnpj') ||
+        this.extractTagValue(tomadorBlock, 'CNPJ') ||
+        this.extractTagValue(tomadorBlock, 'Cpf');
+      const destinatarioRazao =
+        this.extractTagValue(tomadorBlock, 'RazaoSocial') || 'Tomador NFS-e';
+
+      const dhEmiRaw =
+        this.extractTagValue(xmlContent, 'DataEmissao') ||
+        this.extractTagValue(xmlContent, 'Competencia');
+      const issueDate = dhEmiRaw ? new Date(dhEmiRaw) : new Date();
+
+      const cleanCompanyCnpj = (companyCnpj || '').replace(/\D/g, '');
+      const cleanEmitCnpj = (emitenteCnpj || '').replace(/\D/g, '');
+      const direction: 'ENTRADA' | 'SAIDA' = cleanEmitCnpj === cleanCompanyCnpj ? 'SAIDA' : 'ENTRADA';
+
+      const servicoBlock = this.extractTagValue(xmlContent, 'Servico') || xmlContent;
+      const valoresBlock = this.extractTagValue(servicoBlock, 'Valores') || servicoBlock;
+
+      const totalAmount = this.parseXmlNumber(
+        this.extractTagValue(valoresBlock, 'ValorServicos') ||
+          this.extractTagValue(valoresBlock, 'ValorLiquidoNfse'),
+      );
+      const vPis = this.parseXmlNumber(this.extractTagValue(valoresBlock, 'ValorPis'));
+      const vCofins = this.parseXmlNumber(this.extractTagValue(valoresBlock, 'ValorCofins'));
+      const vRetCsll = this.parseXmlNumber(this.extractTagValue(valoresBlock, 'ValorCsll'));
+      const vIrrf = this.parseXmlNumber(this.extractTagValue(valoresBlock, 'ValorIr'));
+      const vRetPrev = this.parseXmlNumber(this.extractTagValue(valoresBlock, 'ValorInss'));
+      const discriminacao =
+        this.extractTagValue(servicoBlock, 'Discriminacao') || 'Prestação de Serviços (NFS-e)';
+      const itemListaServico =
+        this.extractTagValue(servicoBlock, 'ItemListaServico') || 'SERV-01';
+
+      return {
+        chaveAcesso,
+        emitenteCnpj,
+        emitenteRazao,
+        emitenteCrt,
+        destinatarioCnpj,
+        destinatarioRazao,
+        natOp: 'Prestação de Serviços (NFS-e)',
+        issueDate,
+        totalAmount,
+        direction,
+        vIcms: 0,
+        vIcmsSt: 0,
+        vIpi: 0,
+        vPis,
+        vCofins,
+        vRetPis: vPis,
+        vRetCofins: vCofins,
+        vRetCsll,
+        vIrrf,
+        vRetPrev,
+        items: [
+          {
+            nItem: 1,
+            cProd: itemListaServico,
+            xProd: discriminacao,
+            ncm: '00000000',
+            cfop: '5933',
+            uCom: 'SV',
+            qCom: 1,
+            vUnCom: totalAmount,
+            vProd: totalAmount,
+            cstOrCsosn: emitenteCrt === 1 ? '101' : '00',
+            vIcms: 0,
+            vPis,
+            vCofins,
+            isMonofasico: false,
+          },
+        ],
+      };
+    }
+
     // 1. Chave de acesso (chNFe ou infNFe Id="NFe...")
     let chaveAcesso = this.extractTagValue(xmlContent, 'chNFe');
     if (!chaveAcesso) {
@@ -444,6 +547,9 @@ export class ExpertiseFiscalEngineService {
       };
     } else {
       parsedSummary = this.parseNfeXml(fileContent, company.cnpj);
+      if (parsedSummary.chaveAcesso.startsWith('NFSE_')) {
+        docType = 'NFSE_XML';
+      }
     }
 
     // Persiste registro de importação
@@ -470,7 +576,10 @@ export class ExpertiseFiscalEngineService {
           vRetPrev: parsedSummary.vRetPrev,
           emitenteCrt: parsedSummary.emitenteCrt,
           emitenteCnpj: parsedSummary.emitenteCnpj,
+          emitenteRazao: parsedSummary.emitenteRazao,
           destinatarioCnpj: parsedSummary.destinatarioCnpj,
+          destinatarioRazao: parsedSummary.destinatarioRazao,
+          natOp: parsedSummary.natOp,
         },
         parsedItemsJson: parsedSummary.items as unknown as Prisma.InputJsonValue,
         createdByUserId: userId || null,
@@ -558,12 +667,31 @@ export class ExpertiseFiscalEngineService {
       const taxes = (doc.taxesSummaryJson as Record<string, any>) || {};
       const items = ((doc.parsedItemsJson as unknown) as ParsedFiscalItem[]) || [];
       const emitenteCrt = taxes.emitenteCrt ?? 1;
+      const vIcmsSt = Number(taxes.vIcmsSt || 0);
       const vRetPis = Number(taxes.vRetPis || 0);
       const vRetCofins = Number(taxes.vRetCofins || 0);
       const vRetCsll = Number(taxes.vRetCsll || 0);
       const vIrrf = Number(taxes.vIrrf || 0);
       const vRetPrev = Number(taxes.vRetPrev || 0);
       const totalAmount = Number(doc.totalAmount);
+
+      // Consulta regras vigentes na data de emissão da nota (com fallback seguro)
+      const docIssueDate = doc.issueDate ? new Date(doc.issueDate) : new Date();
+      let activeRulesOnDate: any[] = [];
+      if (prisma.taxRuleVersion?.findMany) {
+        activeRulesOnDate =
+          (await prisma.taxRuleVersion.findMany({
+            where: {
+              effectiveFrom: { lte: docIssueDate },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gte: docIssueDate } }],
+            },
+          })) || [];
+      }
+
+      const ruleBensIn1234 = activeRulesOnDate.find((r) => r.ruleCode === 'IN1234_BENS_TOTAL');
+      const ruleServicosIn1234 = activeRulesOnDate.find((r) => r.ruleCode === 'IN1234_SERVICOS_TOTAL');
+      const legalMaxBensRate = ruleBensIn1234 ? Number(ruleBensIn1234.ratePercent) : 5.85;
+      const legalMaxServicosRate = ruleServicosIn1234 ? Number(ruleServicosIn1234.ratePercent) : 9.45;
 
       // -----------------------------------------------------------------------
       // A) RETENÇÃO NA FONTE IN RFB 1.234/2012 (VEDAÇÃO SIMPLES OU RETENÇÃO A MAIOR)
@@ -604,6 +732,7 @@ export class ExpertiseFiscalEngineService {
                   retencaoPis: vRetPis,
                   retencaoCofins: vRetCofins,
                   totalIndevido: totalRetencaoFederal,
+                  regrasVigentesConsultadas: activeRulesOnDate.length,
                   viaRecuperacao: 'Pedido de Restituição / PER/DCOMP Web na Receita Federal',
                 },
                 isDocumented: true,
@@ -612,6 +741,56 @@ export class ExpertiseFiscalEngineService {
               },
             });
             createdOpportunities.push(opp);
+          }
+        } else if (totalAmount > 0) {
+          // Regime Normal / Presumido (CRT 2 ou 3): verifica se houve retenção acima da alíquota legal do Anexo I da IN RFB 1.234/2012
+          const isServiceInvoice =
+            doc.docType === 'NFSE_XML' ||
+            items.some((it) => ['5933', '6933'].includes((it.cfop || '').replace(/\D/g, '')));
+          const legalRatePercent = isServiceInvoice ? legalMaxServicosRate : legalMaxBensRate;
+          const maxLegalRetentionAmount = totalAmount * (legalRatePercent / 100);
+          const excessRetention = totalRetencaoFederal - maxLegalRetentionAmount;
+
+          if (excessRetention > 1.0) {
+            const existing = await prisma.taxCreditOpportunity.findFirst({
+              where: {
+                companyId,
+                sourceDocumentId: doc.id,
+                originCategory: 'RETENCAO_IN1234',
+              },
+            });
+
+            if (!existing) {
+              const opp = await prisma.taxCreditOpportunity.create({
+                data: {
+                  tenantId,
+                  companyId,
+                  sourceDocumentId: doc.id,
+                  taxType: 'IRRF_CSLL_PIS_COFINS',
+                  originCategory: 'RETENCAO_IN1234',
+                  status: 'POTENTIAL',
+                  principalAmount: new Prisma.Decimal(excessRetention),
+                  selicUpdatedAmount: new Prisma.Decimal(excessRetention * 1.085),
+                  legalBasis: `Art. 2º e Anexo I da Instrução Normativa RFB nº 1.234/2012 (Retenção em vendas para órgãos públicos acima da alíquota legal de ${legalRatePercent.toFixed(2)}%).`,
+                  calculationMemoryJson: {
+                    descricao: `Retenção na fonte acima do limite legal do Anexo I da IN RFB 1.234/2012 (${legalRatePercent.toFixed(2)}%).`,
+                    chaveAcesso: doc.accessKeyOrPeriod,
+                    dataEmissao: doc.issueDate,
+                    valorNota: totalAmount,
+                    aliquotaLegalAnexoI: `${legalRatePercent.toFixed(2)}%`,
+                    retencaoMaximaDevida: Number(maxLegalRetentionAmount.toFixed(2)),
+                    retencaoTotalSofrida: totalRetencaoFederal,
+                    totalIndevido: Number(excessRetention.toFixed(2)),
+                    regrasVigentesConsultadas: activeRulesOnDate.length,
+                    viaRecuperacao: 'Pedido de Restituição / Compensação via PER/DCOMP Web na Receita Federal',
+                  },
+                  isDocumented: true,
+                  isLegallyUsable: true,
+                  isAvailableForOffset: true,
+                },
+              });
+              createdOpportunities.push(opp);
+            }
           }
         }
       }
@@ -723,6 +902,73 @@ export class ExpertiseFiscalEngineService {
             }
           }
         }
+
+        // ---------------------------------------------------------------------
+        // D) SUBSTITUIÇÃO TRIBUTÁRIA DE ICMS (ICMS-ST) NO SIMPLES NACIONAL
+        // ---------------------------------------------------------------------
+        const itensIcmsSt = items.filter((it) => {
+          const cfopClean = (it.cfop || '').replace(/\D/g, '');
+          const csosnClean = (it.cstOrCsosn || '').replace(/\D/g, '');
+          return (
+            ['5405', '5403', '6404', '6403'].includes(cfopClean) ||
+            ['500', '202', '60'].includes(csosnClean)
+          );
+        });
+
+        if (itensIcmsSt.length > 0 || vIcmsSt > 0) {
+          const totalBaseIcmsSt =
+            itensIcmsSt.length > 0
+              ? itensIcmsSt.reduce((acc, it) => acc + (it.vProd || 0), 0)
+              : totalAmount;
+          const icmsPagoIndevidamenteDas = vIcmsSt > 0 ? vIcmsSt : totalBaseIcmsSt * 0.025;
+
+          if (icmsPagoIndevidamenteDas > 5.0) {
+            const existingSt = await prisma.taxCreditOpportunity.findFirst({
+              where: {
+                companyId,
+                sourceDocumentId: doc.id,
+                originCategory: 'ICMS_ST',
+              },
+            });
+
+            if (!existingSt) {
+              const oppSt = await prisma.taxCreditOpportunity.create({
+                data: {
+                  tenantId,
+                  companyId,
+                  sourceDocumentId: doc.id,
+                  taxType: 'ICMS_ST',
+                  originCategory: 'ICMS_ST',
+                  status: 'POTENTIAL',
+                  principalAmount: new Prisma.Decimal(icmsPagoIndevidamenteDas),
+                  selicUpdatedAmount: new Prisma.Decimal(icmsPagoIndevidamenteDas * 1.08),
+                  legalBasis: 'Art. 18, § 4º-A, inciso I da Lei Complementar nº 123/2006 (Segregação de receitas sujeitas à Substituição Tributária de ICMS no PGDAS-D).',
+                  calculationMemoryJson: {
+                    descricao: 'Itens sujeitos à Substituição Tributária de ICMS (ICMS-ST) com tributação cumulativa indevida na parcela do ICMS dentro do Simples Nacional.',
+                    chaveAcesso: doc.accessKeyOrPeriod,
+                    dataEmissao: doc.issueDate,
+                    totalItensIcmsSt: itensIcmsSt.length,
+                    valorBaseIcmsSt: totalBaseIcmsSt,
+                    creditoEstimadoIcmsDas: icmsPagoIndevidamenteDas,
+                    exemplosItens: itensIcmsSt.slice(0, 5).map((m) => ({
+                      cProd: m.cProd,
+                      xProd: m.xProd,
+                      ncm: m.ncm,
+                      cfop: m.cfop,
+                      cstOrCsosn: m.cstOrCsosn,
+                      vProd: m.vProd,
+                    })),
+                    viaRecuperacao: 'Retificação do PGDAS-D com segregação da receita com Substituição Tributária de ICMS',
+                  },
+                  isDocumented: true,
+                  isLegallyUsable: true,
+                  isAvailableForOffset: true,
+                },
+              });
+              createdOpportunities.push(oppSt);
+            }
+          }
+        }
       }
     }
 
@@ -737,9 +983,20 @@ export class ExpertiseFiscalEngineService {
     companyId: string;
     grossRevenueAnnual?: number;
     targetCnae?: string;
-    operationType?: 'FORNECIMENTO_BENS' | 'SERVICOS_CONTINUOS' | 'ENGENHARIA_OBRAS' | 'SAUDE_EDUCACAO';
+    taxRegime?: 'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
+    operationType?:
+      | 'FORNECIMENTO_BENS'
+      | 'SERVICOS_CONTINUOS'
+      | 'ENGENHARIA_OBRAS'
+      | 'SAUDE_EDUCACAO'
+      | 'CESTA_BASICA_ISENTO';
   }) {
-    const { companyId, grossRevenueAnnual = 1200000, operationType = 'FORNECIMENTO_BENS' } = params;
+    const {
+      companyId,
+      grossRevenueAnnual = 1200000,
+      taxRegime = 'SIMPLES_NACIONAL',
+      operationType = 'FORNECIMENTO_BENS',
+    } = params;
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -750,40 +1007,50 @@ export class ExpertiseFiscalEngineService {
     }
 
     // Consulta regras tributárias vigentes e da reforma em TaxRuleVersion
-    const taxRules = await prisma.taxRuleVersion.findMany({
-      where: {
-        taxName: { in: ['CBS', 'IBS', 'PIS', 'COFINS', 'ICMS', 'ISS'] },
-      },
-    });
+    const taxRules =
+      (await prisma.taxRuleVersion.findMany({
+        where: {
+          taxName: { in: ['CBS', 'IBS', 'IVA_DUAL', 'PIS', 'COFINS', 'ICMS', 'ISS'] },
+        },
+      })) || [];
 
-    // 1. Carga Atual Estimada
-    // Simples Nacional: ~8,5% a 10,5%
-    // Lucro Presumido: ~14,25% (PIS 0,65% + COFINS 3% + ICMS 7%-18% ou ISS 2%-5% + IRPJ/CSLL)
-    // Lucro Real: ~24,5%
-    const cargaAtualPercent = 9.5; // Estimativa média ponderada do regime
+    // 1. Carga Atual Estimada por Regime (Simples Nacional, Lucro Presumido ou Lucro Real)
+    const cargaPorRegime: Record<string, number> = {
+      SIMPLES_NACIONAL: 9.5,
+      LUCRO_PRESUMIDO: 14.25,
+      LUCRO_REAL: 21.5,
+    };
+    const cargaAtualPercent = cargaPorRegime[taxRegime] ?? 9.5;
     const valorTributosAtual = grossRevenueAnnual * (cargaAtualPercent / 100);
 
-    // 2. Cenário IVA Dual de Transição 2026 (Alíquota-teste de 1,00%)
-    const cbsTesteRate = 0.9;
-    const ibsTesteRate = 0.1;
+    // 2. Cenário IVA Dual de Transição 2026 (Alíquota-teste de 1,00% - consulta TaxRuleVersion com fallback)
+    const ruleCbs2026 = taxRules.find((r) => r.ruleCode === 'REFORMA_TESTE_2026_CBS');
+    const ruleIbs2026 = taxRules.find((r) => r.ruleCode === 'REFORMA_TESTE_2026_IBS');
+    const cbsTesteRate = ruleCbs2026 ? Number(ruleCbs2026.ratePercent) : 0.9;
+    const ibsTesteRate = ruleIbs2026 ? Number(ruleIbs2026.ratePercent) : 0.1;
     const ivaDual2026Rate = cbsTesteRate + ibsTesteRate;
     const valorIva2026 = grossRevenueAnnual * (ivaDual2026Rate / 100);
 
-    // 3. Cenário Pleno IVA Dual (LC 214/2025)
-    // Alíquota de referência padrão estimada em 26,50% (CBS ~8,80% + IBS ~17,70%)
+    // 3. Cenário Pleno IVA Dual (LC 214/2025) - consulta TaxRuleVersion com fallback
+    const ruleIvaPadrao = taxRules.find((r) => r.ruleCode === 'REFORMA_IVA_DUAL_PADRAO');
     const cbsPadrao = 8.8;
     const ibsPadrao = 17.7;
-    const ivaPadraoTotal = cbsPadrao + ibsPadrao;
+    const ivaPadraoTotal = ruleIvaPadrao ? Number(ruleIvaPadrao.ratePercent) : cbsPadrao + ibsPadrao;
 
-    // Define redutor com base na operação
+    // Define redutor com base na operação (0%, 30%, 60%, 100%)
     let reducerPercent = 0;
     let reducerDescription = 'Regime Geral sem Redutor (Alíquota Plena 26,50%)';
 
-    if (operationType === 'SAUDE_EDUCACAO') {
-      reducerPercent = 60; // Redutor de 60% previsto no Art. 10 da LC 214/2025
+    if (operationType === 'CESTA_BASICA_ISENTO') {
+      reducerPercent = 100; // Redutor de 100% (Alíquota Zero - Cesta Básica Nacional / Medicamentos Críticos)
+      reducerDescription = 'Redutor Legal de 100% — Alíquota Zero (Cesta Básica Nacional / Medicamentos Essenciais: 0,00%)';
+    } else if (operationType === 'SAUDE_EDUCACAO') {
+      const rule60 = taxRules.find((r) => r.ruleCode === 'REFORMA_IVA_DUAL_SAUDE_EDUCACAO_60');
+      reducerPercent = rule60?.reducerPercent ? Number(rule60.reducerPercent) : 60;
       reducerDescription = 'Redutor Legal de 60% para Saúde e Educação (Alíquota Efetiva: 10,60%)';
     } else if (operationType === 'SERVICOS_CONTINUOS') {
-      reducerPercent = 30; // Redutor para serviços de profissões regulamentadas
+      const rule30 = taxRules.find((r) => r.ruleCode === 'REFORMA_IVA_DUAL_PROF_REGULAMENTADA_30');
+      reducerPercent = rule30?.reducerPercent ? Number(rule30.reducerPercent) : 30;
       reducerDescription = 'Redutor Legal de 30% para Serviços Técnicos Profissionais (Alíquota Efetiva: 18,55%)';
     }
 
@@ -808,9 +1075,24 @@ export class ExpertiseFiscalEngineService {
         cnpj: company.cnpj,
       },
       cenarioAtual: {
+        regimeTributario: taxRegime,
         faturamentoAnual: grossRevenueAnnual,
         cargaTributariaPercent: cargaAtualPercent,
         tributosAnuais: valorTributosAtual,
+        comparativoRegimes: {
+          SIMPLES_NACIONAL: {
+            aliquotaMediaPercent: cargaPorRegime.SIMPLES_NACIONAL,
+            tributosAnuais: grossRevenueAnnual * (cargaPorRegime.SIMPLES_NACIONAL / 100),
+          },
+          LUCRO_PRESUMIDO: {
+            aliquotaMediaPercent: cargaPorRegime.LUCRO_PRESUMIDO,
+            tributosAnuais: grossRevenueAnnual * (cargaPorRegime.LUCRO_PRESUMIDO / 100),
+          },
+          LUCRO_REAL: {
+            aliquotaMediaPercent: cargaPorRegime.LUCRO_REAL,
+            tributosAnuais: grossRevenueAnnual * (cargaPorRegime.LUCRO_REAL / 100),
+          },
+        },
       },
       cenarioTransicao2026: {
         aliquotaCbsTestePercent: cbsTesteRate,
@@ -941,14 +1223,18 @@ export class ExpertiseFiscalEngineService {
     }
 
     // Consulta alíquota padrão da operação em TaxRuleVersion
-    const taxRules = await prisma.taxRuleVersion.findMany({
-      where: {
-        effectiveFrom: { lte: new Date() },
-      },
-    });
+    const taxRules =
+      (await prisma.taxRuleVersion.findMany({
+        where: {
+          effectiveFrom: { lte: new Date() },
+        },
+      })) || [];
 
-    // Determina a alíquota tributária padrão da operação
-    const taxPercent = 8.5; // Alíquota tributária efetiva média
+    // Determina a alíquota tributária padrão da operação a partir de TaxRuleVersion (ou 8.5% como padrão seguro)
+    const ruleSimplesOrPadrao = taxRules.find(
+      (r) => r.ruleCode === 'SIMPLES_ANEXO_I_MEDIA' || r.ruleCode === 'CARGA_PADRAO_LICITACAO',
+    );
+    const taxPercent = ruleSimplesOrPadrao ? Number(ruleSimplesOrPadrao.ratePercent) : 8.5;
 
     // Custo Total Base
     const totalCost = directCost + (operationalExpenses || 0);

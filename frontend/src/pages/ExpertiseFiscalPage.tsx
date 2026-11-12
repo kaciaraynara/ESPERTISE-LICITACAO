@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Scales,
   ShieldCheck,
@@ -54,6 +55,9 @@ interface CreditOpportunity {
 
 export default function ExpertiseFiscalPage() {
   const { selectedCompany } = useCompany();
+  const [searchParams] = useSearchParams();
+  const initialNoticeParam =
+    searchParams.get('id') || searchParams.get('licitacao') || searchParams.get('noticeId') || '';
   const [activeTab, setActiveTab] = useState<TabKey>('importacao');
 
   // Estados da Aba 1 (Importação XML)
@@ -75,12 +79,17 @@ export default function ExpertiseFiscalPage() {
 
   // Estados da Aba 3 (Reforma Tributária)
   const [faturamentoAnual, setFaturamentoAnual] = useState<number>(1200000);
-  const [operacaoReforma, setOperacaoReforma] = useState<'FORNECIMENTO_BENS' | 'SERVICOS_CONTINUOS' | 'SAUDE_EDUCACAO'>('FORNECIMENTO_BENS');
+  const [regimeReforma, setRegimeReforma] = useState<'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL'>('SIMPLES_NACIONAL');
+  const [operacaoReforma, setOperacaoReforma] = useState<
+    'FORNECIMENTO_BENS' | 'SERVICOS_CONTINUOS' | 'SAUDE_EDUCACAO' | 'CESTA_BASICA_ISENTO'
+  >('FORNECIMENTO_BENS');
   const [simulandoReforma, setSimulandoReforma] = useState(false);
   const [reformaResult, setReformaResult] = useState<any>(null);
 
   // Estados da Aba 4 (BDI & Trava de 5 Etapas)
-  const [selectedEdital, setSelectedEdital] = useState<EditalOption | null>(null);
+  const [selectedEdital, setSelectedEdital] = useState<EditalOption | null>(
+    initialNoticeParam ? ({ id: initialNoticeParam, numeroControlePNCP: initialNoticeParam, orgao: 'Edital Conectado' } as EditalOption) : null,
+  );
   const [custoDireto, setCustoDireto] = useState<number>(50000);
   const [despesasOperacionais, setDespesasOperacionais] = useState<number>(5000);
   const [margemAlvo, setMargemAlvo] = useState<number>(15);
@@ -89,7 +98,9 @@ export default function ExpertiseFiscalPage() {
   const [bdiResult, setBdiResult] = useState<any>(null);
 
   // Estados da Aba 3 (Auditoria Fiscal & Anexo IV - Módulo 05)
-  const [selectedAuditEdital, setSelectedAuditEdital] = useState<EditalOption | null>(null);
+  const [selectedAuditEdital, setSelectedAuditEdital] = useState<EditalOption | null>(
+    initialNoticeParam ? ({ id: initialNoticeParam, numeroControlePNCP: initialNoticeParam, orgao: 'Edital Conectado' } as EditalOption) : null,
+  );
   const [auditOrgaoNome, setAuditOrgaoNome] = useState('');
   const [auditOrgaoCnpj, setAuditOrgaoCnpj] = useState('');
   const [executandoAuditoria, setExecutandoAuditoria] = useState(false);
@@ -217,6 +228,7 @@ export default function ExpertiseFiscalPage() {
     try {
       const res = await expertiseFiscalApi.simularReforma({
         grossRevenueAnnual: faturamentoAnual,
+        taxRegime: regimeReforma,
         operationType: operacaoReforma,
       });
       if (res.data?.success) {
@@ -987,7 +999,10 @@ export default function ExpertiseFiscalPage() {
                 <EditalSelector
                   label="Vincular Edital para Cruzamento com CATMAT:"
                   selectedId={selectedAuditEdital?.id}
-                  onSelectEdital={(ed: EditalOption) => setSelectedAuditEdital(ed)}
+                  onSelectEdital={(ed: EditalOption) => {
+                    setSelectedAuditEdital(ed);
+                    setSelectedEdital(ed);
+                  }}
                 />
               </div>
 
@@ -1504,7 +1519,7 @@ export default function ExpertiseFiscalPage() {
               Avalie como a substituição de PIS/COFINS/ICMS/ISS pelo IVA Dual (CBS + IBS) e o mecanismo de <strong>Split Payment</strong> afetarão o fluxo de caixa dos seus contratos com o governo.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Faturamento Anual Estimado (R$):
@@ -1519,6 +1534,21 @@ export default function ExpertiseFiscalPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Regime Tributário Atual:
+                </label>
+                <select
+                  value={regimeReforma}
+                  onChange={(e) => setRegimeReforma(e.target.value as any)}
+                  className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 bg-white"
+                >
+                  <option value="SIMPLES_NACIONAL">Simples Nacional (~9,5%)</option>
+                  <option value="LUCRO_PRESUMIDO">Lucro Presumido (~14,25%)</option>
+                  <option value="LUCRO_REAL">Lucro Real (~21,5%)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Tipo de Operação nas Licitações:
                 </label>
                 <select
@@ -1529,6 +1559,7 @@ export default function ExpertiseFiscalPage() {
                   <option value="FORNECIMENTO_BENS">Fornecimento de Bens em Geral (0% redutor)</option>
                   <option value="SERVICOS_CONTINUOS">Serviços Técnicos Regulamentados (30% redutor)</option>
                   <option value="SAUDE_EDUCACAO">Saúde, Medicamentos e Educação (60% redutor)</option>
+                  <option value="CESTA_BASICA_ISENTO">Cesta Básica Nacional / Alíquota Zero (100% redutor)</option>
                 </select>
               </div>
 
@@ -1618,7 +1649,10 @@ export default function ExpertiseFiscalPage() {
                 <EditalSelector
                   label="Conectar Edital Ativo da Plataforma:"
                   selectedId={selectedEdital?.id}
-                  onSelectEdital={(ed) => setSelectedEdital(ed)}
+                  onSelectEdital={(ed) => {
+                    setSelectedEdital(ed);
+                    setSelectedAuditEdital(ed);
+                  }}
                 />
                 {selectedEdital && (
                   <div className="mt-2 text-xs text-slate-600 flex items-center gap-2">
