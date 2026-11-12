@@ -31,6 +31,17 @@ jest.mock('../database/prisma', () => ({
     taxRuleVersion: {
       findMany: jest.fn(),
     },
+    contract: {
+      findMany: jest.fn(),
+    },
+    contractTaxLedger: {
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    auditLog: {
+      create: jest.fn().mockResolvedValue({}),
+      count: jest.fn().mockResolvedValue(0),
+    },
   },
 }));
 
@@ -566,6 +577,129 @@ describe('ExpertiseFiscalEngineService', () => {
       expect(sim.cenarioPlenoIvaDual.reducerPercent).toBe(100);
       expect(sim.cenarioPlenoIvaDual.aliquotaEfetivaFinalPercent).toBe(0);
       expect(sim.cenarioPlenoIvaDual.retencaoSplitPaymentGoverno).toBe(0);
+    });
+  });
+
+  describe('Módulo 06: analyzeContractTaxEquilibrium (Reequilíbrio por Fato do Príncipe)', () => {
+    it('deve vincular contrato ao ContractTaxLedger, calcular diferença tributária sobre o saldo e gerar minuta do Art. 124, II, "d" c/c Art. 134 da Lei 14.133/2021', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Engenharia e Suprimentos Brasil Ltda',
+        cnpj: '12345678000195',
+        municipio: 'Brasília',
+        uf: 'DF',
+      });
+
+      (prisma.contract.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'contract-1',
+          companyId: 'comp-1',
+          proposalId: 'prop-1',
+          numeroContrato: '045/2026',
+          processoAdministrativo: '23000.012345/2026-11',
+          orgao: 'Ministério da Saúde',
+          cnpjOrgao: '00394544000185',
+          objeto: 'Fornecimento contínuo de equipamentos hospitalares',
+          valorInicial: 500000,
+          valorAtual: 400000, // Saldo contratual vigente
+          dataBaseProposta: new Date('2025-10-01T10:00:00Z'),
+          dataAssinatura: new Date('2025-11-15T10:00:00Z'),
+          status: 'ATIVO',
+          proposal: {
+            id: 'prop-1',
+            createdAt: new Date('2025-10-01T10:00:00Z'),
+            items: [{ tributosPercentual: 8.5 }],
+          },
+          taxLedgers: [],
+        },
+      ]);
+
+      (prisma.taxRuleVersion.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: '11111111-1111-1111-1111-111111111111',
+          ruleCode: 'REFORMA_IVA_DUAL_SAUDE_60',
+          taxName: 'IVA_DUAL',
+          versionNumber: 2,
+          ratePercent: 13.5, // Aumento de 8.5% para 13.5% (+5.00 p.p.) após a proposta
+          legalBasis: 'Art. 134 da Lei 14.133/2021 c/c LC 214/2025',
+          effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]);
+
+      (prisma.contractTaxLedger.create as jest.Mock).mockResolvedValue({
+        id: 'ledger-created-1',
+      });
+
+      const res = await expertiseFiscalEngineService.analyzeContractTaxEquilibrium({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+      });
+
+      expect(res.totalContratosAnalisados).toBe(1);
+      expect(res.contratosComDireitoAReequilibrio).toBe(1);
+      // 400.000 * (13.5% - 8.5%) = 20.000
+      expect(res.impactoFinanceiroTotalAcumulado).toBeCloseTo(20000, 2);
+
+      const item = res.contratosAnalisados[0];
+      expect(item.baselineTaxLoadPercent).toBe(8.5);
+      expect(item.effectiveTaxLoadPercent).toBe(13.5);
+      expect(item.custoTributarioOriginalSaldo).toBeCloseTo(34000, 2);
+      expect(item.novoCustoTributarioSaldo).toBeCloseTo(54000, 2);
+      expect(item.impactoFinanceiroDesequilibrio).toBeCloseTo(20000, 2);
+      expect(item.rebalanceJustified).toBe(true);
+      expect(item.ledgerId).toBe('ledger-created-1');
+      expect(item.planilhaDemonstrativaImpacto).toHaveLength(4);
+      expect(item.minutaPedidoReequilibrioTexto).toContain('ART. 124, INCISO II, ALÍNEA "D", C/C ART. 134 DA LEI FEDERAL Nº 14.133/2021');
+      expect(item.minutaPedidoReequilibrioTexto).toContain('045/2026');
+      expect(prisma.contractTaxLedger.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Módulo 08: askGroundedTaxAssistant (Assistente Tributário com IA e Governança LGPD)', () => {
+    it('deve responder citando dispositivo legal, TaxRuleVersion.versionNumber, memória de cálculo e aviso de governança CRC/OAB', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Tech Licitações Ltda',
+        cnpj: '12345678000195',
+      });
+
+      (prisma.taxRuleVersion.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'rule-1234',
+          ruleCode: 'IN1234_SIMPLES_ISENCAO',
+          taxName: 'IRRF_CSLL_PIS_COFINS',
+          versionNumber: 3,
+          ratePercent: 0,
+          legalBasis: 'Art. 4º, inciso XI da IN RFB nº 1.234/2012 c/c LC 123/2006',
+          effectiveFrom: new Date('2024-01-01T00:00:00Z'),
+        },
+      ]);
+
+      (prisma.fiscalDocumentImport.findMany as jest.Mock).mockResolvedValue([
+        { id: 'doc-1', totalAmount: 50000 },
+      ]);
+
+      (prisma.taxCreditOpportunity.findMany as jest.Mock).mockResolvedValue([
+        { id: 'cred-1', status: 'VALIDATED', principalAmount: 2925 },
+      ]);
+
+      const response = await expertiseFiscalEngineService.askGroundedTaxAssistant({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+        userId: 'user-1',
+        question: 'Como funciona a dispensa de retenção da IN 1234 para o Simples Nacional?',
+        exportFormat: 'PARECER_TECNICO',
+      });
+
+      expect(response.regrasAplicadas[0].ruleCode).toBe('IN1234_SIMPLES_ISENCAO');
+      expect(response.regrasAplicadas[0].versionNumber).toBe(3);
+      expect(response.answer).toContain('versionNumber: 3');
+      expect(response.answer).toContain('IN RFB nº 1.234/2012');
+      expect(response.memoriaDeCalculo.documentosFiscaisConsideradosCount).toBe(1);
+      expect(response.memoriaDeCalculo.creditosFiscaisConsideradosCount).toBe(1);
+      expect(response.avisoGovernancaTecnica).toContain('CRC');
+      expect(response.avisoGovernancaTecnica).toContain('OAB');
+      expect(response.lgpdAuditLogRecorded).toBe(true);
     });
   });
 });

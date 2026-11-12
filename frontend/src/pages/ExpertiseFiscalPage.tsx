@@ -33,7 +33,9 @@ type TabKey =
   | 'auditoria_fiscal'
   | 'perdcomp_compensacao'
   | 'reforma'
-  | 'bdi_proposta';
+  | 'bdi_proposta'
+  | 'reequilibrio_contratos'
+  | 'assistente_ia_lgpd';
 
 interface CreditOpportunity {
   id: string;
@@ -348,6 +350,56 @@ export default function ExpertiseFiscalPage() {
     }
   };
 
+  // Estados e Handlers do Módulo 06 (Reequilíbrio Econômico-Financeiro Tributário)
+  const [loadingReequilibrio, setLoadingReequilibrio] = useState(false);
+  const [reequilibrioResult, setReequilibrioResult] = useState<any>(null);
+  const [motivoAlteracaoTributaria, setMotivoAlteracaoTributaria] = useState('');
+
+  const handleAnalisarReequilibrio = async () => {
+    setLoadingReequilibrio(true);
+    try {
+      const res = await expertiseFiscalApi.analisarReequilibrioTributario({
+        motivoAlteracaoTributaria: motivoAlteracaoTributaria || undefined,
+      });
+      if (res.data?.success) {
+        setReequilibrioResult(res.data.data);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Falha ao analisar reequilíbrio tributário.');
+    } finally {
+      setLoadingReequilibrio(false);
+    }
+  };
+
+  // Estados e Handlers do Módulo 08 (Assistente Tributário Grounded IA & LGPD)
+  const [perguntaAssistente, setPerguntaAssistente] = useState(
+    'Como evitar a retenção de 5,85% / 9,45% da IN RFB 1.234/2012 nas notas emitidas para prefeituras e secretarias?',
+  );
+  const [consultandoAssistente, setConsultandoAssistente] = useState(false);
+  const [assistenteResult, setAssistenteResult] = useState<any>(null);
+
+  const handleConsultarAssistente = async (exportFormat: 'JSON' | 'PARECER_TECNICO' = 'JSON') => {
+    if (!perguntaAssistente.trim()) {
+      toast.error('Digite sua dúvida tributária.');
+      return;
+    }
+    setConsultandoAssistente(true);
+    try {
+      const res = await expertiseFiscalApi.consultarAssistenteFiscal({
+        question: perguntaAssistente,
+        exportFormat,
+      });
+      if (res.data?.success) {
+        setAssistenteResult(res.data.data);
+        toast.success('Parecer tributário Grounded emitido e registrado no log LGPD!');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Erro ao consultar Assistente Tributário.');
+    } finally {
+      setConsultandoAssistente(false);
+    }
+  };
+
   // Métricas Consolidadas do Topo
   const totalCreditosPrincipal = credits.reduce((acc, c) => acc + Number(c.principalAmount), 0);
   const totalCreditosSelic = credits.reduce((acc, c) => acc + Number(c.selicUpdatedAmount), 0);
@@ -533,6 +585,35 @@ export default function ExpertiseFiscalPage() {
           >
             <Calculator className="w-4 h-4" weight="bold" />
             <span>6. BDI & Trava de 5 Etapas</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('reequilibrio_contratos');
+              if (!reequilibrioResult) void handleAnalisarReequilibrio();
+            }}
+            className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              activeTab === 'reequilibrio_contratos'
+                ? 'bg-brand-blue text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Scales className="w-4 h-4" weight="bold" />
+            <span>7. Reequilíbrio Fato do Príncipe</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('assistente_ia_lgpd')}
+            className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shrink-0 ${
+              activeTab === 'assistente_ia_lgpd'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Sparkle className="w-4 h-4" weight="fill" />
+            <span>8. Assistente IA & LGPD</span>
           </button>
         </nav>
       </div>
@@ -1886,6 +1967,247 @@ export default function ExpertiseFiscalPage() {
                         Margem Segura para Desconto Competitivo: até R$ {bdiResult.cenarioB_Otimizado?.descontoMaximoSeguro?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} sem gerar prejuízo ou desclassificação por inexequibilidade.
                       </p>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          ABA 7: REEQUILÍBRIO ECONÔMICO-FINANCEIRO TRIBUTÁRIO (MÓDULO 06)
+          ===================================================================== */}
+      {activeTab === 'reequilibrio_contratos' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Scales className="w-5 h-5 text-brand-blue" weight="bold" />
+                  Reequilíbrio Econômico-Financeiro por Fato do Príncipe Tributário (Art. 124, II, &quot;d&quot; e Art. 134 da Lei 14.133/2021)
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Cruza os contratos ativos da Gestão Pós-Vitória com a memória tributária da proposta vencedora (<strong>ContractTaxLedger</strong>) e gera a minuta técnica e planilha demonstrativa em caso de elevação de carga fiscal.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleAnalisarReequilibrio()}
+                disabled={loadingReequilibrio}
+                className="px-4 py-2.5 rounded-xl bg-brand-blue hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {loadingReequilibrio ? <Spinner className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" weight="bold" />}
+                <span>Recalcular Contratos Ativos</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="md:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">
+                  Motivo da Alteração Normativa / Fato do Príncipe (Opcional):
+                </label>
+                <input
+                  type="text"
+                  value={motivoAlteracaoTributaria}
+                  onChange={(e) => setMotivoAlteracaoTributaria(e.target.value)}
+                  placeholder="Ex: Majoração de alíquota efetiva em TaxRuleVersion ou transição do IVA Dual (LC 214/2025)"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => void handleAnalisarReequilibrio()}
+                  disabled={loadingReequilibrio}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer"
+                >
+                  Atualizar Memória & Minuta
+                </button>
+              </div>
+            </div>
+
+            {reequilibrioResult && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <span className="text-[11px] font-bold uppercase text-slate-400 block">Contratos Analisados</span>
+                    <span className="text-2xl font-black text-slate-900">{reequilibrioResult.totalContratosAnalisados}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                    <span className="text-[11px] font-bold uppercase text-amber-700 block">Elegíveis a Reequilíbrio</span>
+                    <span className="text-2xl font-black text-amber-900">{reequilibrioResult.contratosComDireitoAReequilibrio}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[11px] font-bold uppercase text-emerald-700 block">Impacto a Recompor (Art. 134)</span>
+                    <span className="text-2xl font-black text-emerald-700">
+                      R$ {Number(reequilibrioResult.impactoFinanceiroTotalAcumulado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                {Array.isArray(reequilibrioResult.contratosAnalisados) && reequilibrioResult.contratosAnalisados.length === 0 ? (
+                  <p className="text-xs text-slate-500 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                    Nenhum contrato ativo encontrado para esta empresa na Gestão Pós-Vitória.
+                  </p>
+                ) : (
+                  reequilibrioResult.contratosAnalisados?.map((item: any) => (
+                    <div key={item.contractId} className="p-5 rounded-2xl border border-slate-200 bg-white space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                          <span className="text-xs font-black text-brand-blue uppercase">
+                            Contrato nº {item.numeroContrato} — {item.orgao}
+                          </span>
+                          <p className="text-xs text-slate-600 mt-0.5">{item.objeto}</p>
+                        </div>
+                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
+                          Aditivo: + R$ {Number(item.impactoFinanceiroDesequilibrio).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-500">
+                              <th className="py-2 pr-3">Rubrica</th>
+                              <th className="py-2 px-3">Época da Proposta</th>
+                              <th className="py-2 px-3">Pós-Fato do Príncipe</th>
+                              <th className="py-2 pl-3">Diferença Apurada</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {item.planilhaDemonstrativaImpacto?.map((row: any, rIdx: number) => (
+                              <tr key={rIdx} className="border-b border-slate-100">
+                                <td className="py-2 pr-3 font-bold text-slate-800">{row.rubrica}</td>
+                                <td className="py-2 px-3 text-slate-600">{row.cenarioEpocaProposta}</td>
+                                <td className="py-2 px-3 text-slate-900 font-semibold">{row.cenarioPosFatoDoPrincipe}</td>
+                                <td className="py-2 pl-3 font-black text-emerald-700">{row.diferencaApurada}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-700 uppercase">
+                            Minuta Técnica e Jurídica (Art. 124, II, &quot;d&quot; c/c Art. 134 da Lei 14.133/2021)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(item.minutaPedidoReequilibrioTexto);
+                              toast.success('Minuta copiada para a área de transferência!');
+                            }}
+                            className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copiar Minuta</span>
+                          </button>
+                        </div>
+                        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 text-[11px] whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+                          {item.minutaPedidoReequilibrioTexto}
+                        </pre>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          ABA 8: ASSISTENTE TRIBUTÁRIO GROUNDED COM IA & GOVERNANÇA LGPD (MÓDULO 08)
+          ===================================================================== */}
+      {activeTab === 'assistente_ia_lgpd' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs space-y-6">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Sparkle className="w-5 h-5 text-indigo-600" weight="fill" />
+                Assistente Tributário Grounded com IA &amp; Governança LGPD (Módulo 08)
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Consulta exclusivamente as regras versionadas em <strong>TaxRuleVersion</strong>, os documentos fiscais importados pela empresa e a base normativa oficial (Lei 14.133/2021, IN RFB 1.234/2012, IN RFB 2.110/2022, LC 123/2006 e LC 214/2025), registrando trilha de auditoria LGPD no <strong>AuditService</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-700">
+                Sua Consulta Tributária / Licitatória:
+              </label>
+              <textarea
+                rows={3}
+                value={perguntaAssistente}
+                onChange={(e) => setPerguntaAssistente(e.target.value)}
+                className="w-full p-3 rounded-2xl border border-slate-200 text-xs font-medium focus:outline-none focus:border-indigo-600"
+                placeholder="Ex: Qual o impacto da retenção previdenciária de 11% da IN RFB 2.110/2022 em contratos de engenharia com fornecimento de materiais?"
+              />
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleConsultarAssistente('JSON')}
+                  disabled={consultandoAssistente}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-sm"
+                >
+                  {consultandoAssistente ? <Spinner className="w-4 h-4 animate-spin" /> : <Sparkle className="w-4 h-4" weight="fill" />}
+                  <span>Consultar Base Grounded</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConsultarAssistente('PARECER_TECNICO')}
+                  disabled={consultandoAssistente}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Exportar Parecer Auditável (Log LGPD)</span>
+                </button>
+              </div>
+            </div>
+
+            {assistenteResult && (
+              <div className="space-y-4 pt-4 border-t border-slate-200">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+                  <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
+                  <div>
+                    <span className="font-black block uppercase text-[11px]">Aviso Obrigatório de Governança Técnica (CRC / OAB)</span>
+                    <p className="mt-0.5">{assistenteResult.avisoGovernancaTecnica}</p>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-indigo-700 uppercase">Resposta Fundamentada &amp; Memória de Cálculo</span>
+                    {assistenteResult.lgpdAuditLogRecorded && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                        AuditLog LGPD Registrado
+                      </span>
+                    )}
+                  </div>
+                  <pre className="text-xs text-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                    {assistenteResult.answer}
+                  </pre>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-white space-y-2">
+                    <span className="font-black text-slate-900 uppercase block">Regras Aplicadas (TaxRuleVersion)</span>
+                    {assistenteResult.regrasAplicadas?.map((r: any, idx: number) => (
+                      <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="font-bold text-indigo-700">{r.ruleCode} (v{r.versionNumber})</span> — Alíquota: <strong>{r.ratePercent}%</strong>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{r.legalBasis}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-white space-y-2">
+                    <span className="font-black text-slate-900 uppercase block">Memória de Cálculo Auditável</span>
+                    <p className="text-slate-600">{assistenteResult.memoriaDeCalculo?.resumo}</p>
+                    <ul className="text-[11px] text-slate-500 space-y-1">
+                      <li>• Documentos Fiscais Considerados: <strong>{assistenteResult.memoriaDeCalculo?.documentosFiscaisConsideradosCount}</strong></li>
+                      <li>• Créditos Fiscais Considerados: <strong>{assistenteResult.memoriaDeCalculo?.creditosFiscaisConsideradosCount}</strong></li>
+                    </ul>
                   </div>
                 </div>
               </div>

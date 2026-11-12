@@ -1042,6 +1042,16 @@ export const expertiseFiscalApi = {
       protocolo: string;
     }>;
   }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/perdcomp-cross-offset', body || {}),
+  analisarReequilibrioTributario: (body?: {
+    contractId?: string;
+    baselineTaxLoadPercentOverride?: number;
+    effectiveTaxLoadPercentOverride?: number;
+    motivoAlteracaoTributaria?: string;
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/contract-equilibrium', body || {}),
+  consultarAssistenteFiscal: (body: {
+    question: string;
+    exportFormat?: 'JSON' | 'PARECER_TECNICO';
+  }) => api.post<{ success: boolean; data: any }>('/tax/fiscal/assistant', body),
 };
 
 export {

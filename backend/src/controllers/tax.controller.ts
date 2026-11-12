@@ -154,6 +154,9 @@ export class TaxController {
       const credits = await expertiseFiscalEngineService.listCreditOpportunities({
         tenantId,
         companyId,
+        userId: req.user?.id,
+        ipAddress: req.ip || req.socket?.remoteAddress || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || null,
         status,
         originCategory,
       });
@@ -182,6 +185,9 @@ export class TaxController {
       const docs = await expertiseFiscalEngineService.listImportedDocuments({
         tenantId,
         companyId,
+        userId: req.user?.id,
+        ipAddress: req.ip || req.socket?.remoteAddress || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || null,
       });
 
       return res.status(200).json({
@@ -419,6 +425,79 @@ export class TaxController {
       return res.status(400).json({
         success: false,
         message: error.message || 'Erro ao preparar PER/DCOMP e Compensação Cruzada DCTFWeb.',
+      });
+    }
+  };
+
+  /**
+   * POST /api/tax/fiscal/contract-equilibrium
+   * Módulo 06: Analisa contratos ativos e gera minuta de Reequilíbrio por Fato do Príncipe Tributário
+   */
+  public analyzeContractTaxEquilibrium = async (req: AuthRequest, res: Response): Promise<Response> => {
+    try {
+      const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
+      const {
+        contractId,
+        baselineTaxLoadPercentOverride,
+        effectiveTaxLoadPercentOverride,
+        motivoAlteracaoTributaria,
+      } = req.body || {};
+
+      const result = await expertiseFiscalEngineService.analyzeContractTaxEquilibrium({
+        tenantId,
+        companyId,
+        userId: req.user?.id,
+        ipAddress: req.ip || req.socket?.remoteAddress || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || null,
+        contractId,
+        baselineTaxLoadPercentOverride:
+          baselineTaxLoadPercentOverride !== undefined ? Number(baselineTaxLoadPercentOverride) : undefined,
+        effectiveTaxLoadPercentOverride:
+          effectiveTaxLoadPercentOverride !== undefined ? Number(effectiveTaxLoadPercentOverride) : undefined,
+        motivoAlteracaoTributaria,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('[TaxController] Falha na análise de reequilíbrio tributário contratual:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao analisar reequilíbrio tributário dos contratos.',
+      });
+    }
+  };
+
+  /**
+   * POST /api/tax/fiscal/assistant
+   * Módulo 08: Assistente Tributário Grounded com IA e Governança LGPD
+   */
+  public askGroundedTaxAssistant = async (req: AuthRequest, res: Response): Promise<Response> => {
+    try {
+      const { tenantId, companyId } = await this.resolveEffectiveCompany(req);
+      const { question, exportFormat } = req.body || {};
+
+      const result = await expertiseFiscalEngineService.askGroundedTaxAssistant({
+        tenantId,
+        companyId,
+        userId: req.user?.id,
+        ipAddress: req.ip || req.socket?.remoteAddress || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || null,
+        question,
+        exportFormat,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error: any) {
+      console.error('[TaxController] Falha no Assistente Tributário Grounded:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Erro ao consultar o Assistente Tributário Grounded.',
       });
     }
   };

@@ -84,4 +84,20 @@ router.post(
   taxController.preparePerdcompAndCrossOffset,
 );
 
+// Módulo 06: Reequilíbrio Econômico-Financeiro Tributário (Fato do Príncipe - Gestão Pós-Vitória)
+router.post(
+  '/fiscal/contract-equilibrium',
+  authMiddleware,
+  companyContextMiddleware,
+  taxController.analyzeContractTaxEquilibrium,
+);
+
+// Módulo 08: Assistente Tributário Grounded com IA e Governança LGPD
+router.post(
+  '/fiscal/assistant',
+  authMiddleware,
+  companyContextMiddleware,
+  taxController.askGroundedTaxAssistant,
+);
+
 export default router;
