@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -34,7 +34,13 @@ interface RecursoFraudeWizardProps {
 }
 
 export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWizardProps = {}) {
-  const [step, setStep] = useState<WizardStep>('concorrentes');
+  const [step, setStep] = useState<WizardStep>(initialEditalId ? 'dadosPeca' : 'concorrentes');
+
+  useEffect(() => {
+    if (initialEditalId) {
+      setStep('dadosPeca');
+    }
+  }, [initialEditalId]);
   const [cnpjsText, setCnpjsText] = useState('');
   const [dataCertame, setDataCertame] = useState('');
   const [orgao, setOrgao] = useState('');

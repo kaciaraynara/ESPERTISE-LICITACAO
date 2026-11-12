@@ -1,15 +1,62 @@
 import axios from 'axios';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
-import { parsePncpControlNumber } from './pncp.service';
+import { parsePncpControlNumber, buscarItensPNCP } from './pncp.service';
+import { buscarLicitacaoPorIdOuControle } from './licitacoes.service';
 
 /**
- * Monta o texto de escopo real estrito para editais sem PDF ou sem texto extraível no PNCP.
+ * Salva chunks de texto na tabela DocumentChunk vinculados ao edital.
+ */
+async function saveDocumentChunks(
+  sourceId: string,
+  tenantId: string | null | undefined,
+  text: string,
+  metadata: Record<string, any>,
+): Promise<void> {
+  const chunkSize = 1800;
+  const chunkOverlap = 200;
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length && chunks.length < 15; i += (chunkSize - chunkOverlap)) {
+    const part = text.slice(i, i + chunkSize).trim();
+    if (part) chunks.push(part);
+  }
+  if (chunks.length === 0 && text.trim()) {
+    chunks.push(text.trim());
+  }
+
+  try {
+    await prisma.documentChunk.deleteMany({
+      where: {
+        sourceType: 'procurement_notice',
+        sourceId,
+      },
+    });
+
+    await prisma.documentChunk.createMany({
+      data: chunks.map((chunk, index) => ({
+        tenantId: tenantId ?? null,
+        sourceType: 'procurement_notice',
+        sourceId,
+        chunkIndex: index,
+        contentHash: createHash('sha256').update(chunk).digest('hex'),
+        content: chunk,
+        tokenCount: Math.ceil(chunk.length / 4),
+        metadata,
+      })),
+    });
+  } catch (err: any) {
+    console.warn('[PNCP Parser] Falha ao salvar chunks na tabela DocumentChunk:', err.message);
+  }
+}
+
+/**
+ * Monta o texto de escopo real estrito para editais sem PDF ou sem texto extraível no PNCP
+ * contendo {objeto, informacaoComplementar, amparoLegal, modoDisputa, criterioJulgamento, itens}.
  * Proíbe o LLM de presumir ou inventar cláusulas, fixando a auditoria jurídica no registro oficial.
  */
-export function buildFallbackNoticeScope(notice: any): string {
+export function buildFallbackNoticeScope(notice: any, rawItens: any[] = []): string {
   const raw = (notice?.rawPayload || {}) as any;
-  const objeto = notice?.object || raw?.objetoCompra || 'Objeto não especificado no registro do PNCP.';
+  const objeto = notice?.object || raw?.objetoCompra || raw?.objeto || 'Objeto não especificado no registro do PNCP.';
   const informacaoComplementar =
     raw?.informacaoComplementar ||
     notice?.metadata?.informacaoComplementar ||
@@ -24,6 +71,38 @@ export function buildFallbackNoticeScope(notice: any): string {
     raw?.modoDisputaNome ||
     raw?.modoDisputa ||
     'Conforme edital oficial';
+  const criterioJulgamento =
+    notice?.judgmentCriterion ||
+    raw?.criterioJulgamentoNome ||
+    raw?.criterioJulgamento ||
+    'Menor Preço / Maior Desconto';
+
+  const itensList =
+    Array.isArray(rawItens) && rawItens.length > 0
+      ? rawItens
+      : Array.isArray(notice?.items) && notice.items.length > 0
+      ? notice.items
+      : Array.isArray(raw?.itens) && raw.itens.length > 0
+      ? raw.itens
+      : [];
+
+  const itensFormatados =
+    itensList.length > 0
+      ? itensList
+          .map((it: any, idx: number) => {
+            const num = it.itemNumber ?? it.numeroItem ?? idx + 1;
+            const desc = it.description ?? it.descricao ?? 'Item da contratação';
+            const qtd = Number(it.quantity ?? it.quantidade ?? 1);
+            const un = it.unit ?? it.unidadeMedida ?? 'UN';
+            const vUnit = Number(it.estimatedUnitValue ?? it.valorUnitarioEstimado) || null;
+            const vTot =
+              Number(it.estimatedTotalValue ?? it.valorTotal) ||
+              (vUnit ? vUnit * qtd : null);
+            const vTotStr = vTot != null && vTot > 0 ? ` | Valor Estimado: R$ ${vTot.toFixed(2)}` : '';
+            return `• Item ${num}: ${desc} (Qtd: ${qtd} ${un}${vTotStr})`;
+          })
+          .join('\n')
+      : '• Nenhum item individual cadastrado no registro do certame.';
 
   return [
     '================================================================================',
@@ -37,6 +116,10 @@ export function buildFallbackNoticeScope(notice: any): string {
     `• Informação Complementar: ${informacaoComplementar}`,
     `• Amparo Legal: ${amparoLegal}`,
     `• Modo de Disputa: ${modoDisputa}`,
+    `• Critério de Julgamento: ${criterioJulgamento}`,
+    '',
+    '• Itens Registrados no PNCP:',
+    itensFormatados,
   ].join('\n');
 }
 
@@ -58,6 +141,9 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     if (isUuid) {
       notice = await prisma.procurementNotice.findUnique({
         where: { id: cleanId },
+        include: {
+          items: { orderBy: { itemNumber: 'asc' } },
+        },
       });
     }
 
@@ -71,7 +157,33 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
             { noticeNumber: cleanId },
           ],
         },
+        include: {
+          items: { orderBy: { itemNumber: 'asc' } },
+        },
       });
+    }
+
+    if (!notice) {
+      try {
+        const fetched = await buscarLicitacaoPorIdOuControle(cleanId, { requirePersistence: true });
+        const targetId = fetched?.databaseId || fetched?.id;
+        if (targetId) {
+          notice = await prisma.procurementNotice.findFirst({
+            where: {
+              OR: [
+                { id: targetId },
+                { externalId: fetched.numeroControlePNCP },
+                { dedupeKey: `pncp-${fetched.numeroControlePNCP}` },
+              ],
+            },
+            include: {
+              items: { orderBy: { itemNumber: 'asc' } },
+            },
+          });
+        }
+      } catch (fetchErr) {
+        console.warn('[pncp-parser] Falha ao sincronizar edital remoto:', fetchErr);
+      }
     }
 
     const targetNoticeId = notice?.id || cleanId;
@@ -115,7 +227,10 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
 
     // 3. Extrai { cnpj, ano, sequencial } via parsePncpControlNumber
     const rawExternalId = notice?.externalId || (notice?.rawPayload as any)?.numeroControlePNCP || cleanId;
-    const parsed = parsePncpControlNumber(rawExternalId);
+    const parsed =
+      parsePncpControlNumber(notice?.externalId) ||
+      parsePncpControlNumber(rawExternalId) ||
+      parsePncpControlNumber(cleanId);
 
     let cnpj = parsed?.cnpj;
     let ano = parsed?.ano ? String(parsed.ano) : '';
@@ -128,9 +243,76 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       sequencial = String(Number(raw.sequencialCompra || ''));
     }
 
+    // Função interna para gerar e salvar fallback estruturado
+    const buildAndPersistFallback = async (): Promise<string> => {
+      let itensParaEscopo = notice?.items || [];
+      if ((!itensParaEscopo || itensParaEscopo.length === 0) && parsed) {
+        try {
+          const pncpItens = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+          if (pncpItens && pncpItens.length > 0) {
+            itensParaEscopo = pncpItens;
+            if (notice?.id) {
+              for (const it of pncpItens) {
+                const itemNumber = String(it.numeroItem ?? 1);
+                const desc = String(it.descricao ?? 'Item da contratação').trim();
+                const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+                const vUnit = Number(it.valorUnitarioEstimado) > 0 ? Number(it.valorUnitarioEstimado) : null;
+                const vTot = Number(it.valorTotal) > 0 ? Number(it.valorTotal) : (vUnit ? vUnit * qtd : null);
+                const unit = String(it.unidadeMedida ?? 'UN').trim();
+                const catCod = it.codigoItemCatalogo ?? it.catalogoCodigo ?? null;
+
+                await prisma.procurementItem.upsert({
+                  where: {
+                    procurementNoticeId_itemNumber: {
+                      procurementNoticeId: notice.id,
+                      itemNumber,
+                    },
+                  },
+                  create: {
+                    procurementNoticeId: notice.id,
+                    tenantId: notice.tenantId ?? null,
+                    itemNumber,
+                    description: desc,
+                    quantity: qtd,
+                    unit,
+                    estimatedUnitValue: vUnit,
+                    estimatedTotalValue: vTot,
+                    catalogoCodigo: catCod,
+                    metadata: it,
+                  },
+                  update: {
+                    description: desc,
+                    quantity: qtd,
+                    unit,
+                    estimatedUnitValue: vUnit,
+                    estimatedTotalValue: vTot,
+                    catalogoCodigo: catCod,
+                    metadata: it,
+                  },
+                }).catch(() => null);
+              }
+            }
+          }
+        } catch (itemErr: any) {
+          console.warn('[PNCP Parser] Falha ao consultar itens para escopo estruturado:', itemErr.message);
+        }
+      }
+
+      const fallbackText = buildFallbackNoticeScope(notice, itensParaEscopo);
+      await saveDocumentChunks(targetNoticeId, notice?.tenantId, fallbackText, {
+        structuredFallback: true,
+        fallbackReason: 'NO_SEARCHABLE_PDF',
+        cnpj,
+        ano,
+        sequencial,
+      });
+
+      return fallbackText;
+    };
+
     if (!cnpj || !ano || !sequencial || sequencial === 'NaN') {
       console.warn('[PNCP Parser] Não foi possível extrair parâmetros PNCP para:', cleanId);
-      return buildFallbackNoticeScope(notice);
+      return await buildAndPersistFallback();
     }
 
     const PNCP_BASE = process.env.PNCP_FILES_BASE_URL || 'https://pncp.gov.br/api/pncp/v1';
@@ -146,12 +328,12 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       arquivos = Array.isArray(responseLista.data) ? responseLista.data : [];
     } catch (listErr: any) {
       console.warn('[PNCP Parser] Falha ao consultar lista de arquivos no PNCP:', listErr.message);
-      return buildFallbackNoticeScope(notice);
+      return await buildAndPersistFallback();
     }
 
     if (arquivos.length === 0) {
       console.warn('[PNCP Parser] Nenhum arquivo disponível no PNCP para a compra:', cleanId);
-      return buildFallbackNoticeScope(notice);
+      return await buildAndPersistFallback();
     }
 
     // 5. Prioriza o download do arquivo cujo tipoDocumentoNome ou titulo contenha "Edital" ou "Termo de Referência" (ou primeiro ativo)
@@ -182,7 +364,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       docBuffer = Buffer.from(docRes.data);
     } catch (downErr: any) {
       console.warn('[PNCP Parser] Falha ao baixar bytes do arquivo no PNCP:', downErr.message);
-      return buildFallbackNoticeScope(notice);
+      return await buildAndPersistFallback();
     }
 
     // 7. Extrai texto real com pdf-parse
@@ -203,76 +385,45 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
 
     // 8. Caso o órgão não tenha enviado PDF para o PNCP ou o arquivo seja um ZIP/imagem sem texto extraível:
     if (!extractedText || extractedText.length < 50) {
-      console.warn('[PNCP Parser] Arquivo sem texto extraível (ZIP/imagem). Aplicando aviso de escopo real.');
-      return buildFallbackNoticeScope(notice);
+      console.warn('[PNCP Parser] Arquivo sem texto extraível (ZIP/imagem). Aplicando aviso de escopo real estruturado.');
+      return await buildAndPersistFallback();
     }
 
     // 9. Salva os trechos na tabela de contexto/chunks do edital para evitar downloads repetidos
-    const chunkSize = 1800;
-    const chunkOverlap = 200;
-    const chunks: string[] = [];
-    for (let i = 0; i < extractedText.length && chunks.length < 15; i += (chunkSize - chunkOverlap)) {
-      const part = extractedText.slice(i, i + chunkSize).trim();
-      if (part) chunks.push(part);
-    }
+    await saveDocumentChunks(targetNoticeId, notice?.tenantId, extractedText, {
+      fileName: editalArquivo.titulo || 'Edital.pdf',
+      fileUrl: urlArquivoPDF,
+      cnpj,
+      ano,
+      sequencial,
+      sequencialArquivo: seqArquivo,
+    });
 
-    const sourceIdToSave = notice?.id || cleanId;
-    try {
-      await prisma.documentChunk.deleteMany({
+    if (notice?.id) {
+      await prisma.procurementAttachment.upsert({
         where: {
-          sourceType: 'procurement_notice',
-          sourceId: sourceIdToSave,
+          procurementNoticeId_fileUrl: {
+            procurementNoticeId: notice.id,
+            fileUrl: urlArquivoPDF,
+          },
+        },
+        create: {
+          procurementNoticeId: notice.id,
+          tenantId: notice.tenantId ?? null,
+          source: 'pncp',
+          externalId: String(seqArquivo),
+          attachmentType: 'edital',
+          fileName: editalArquivo.titulo || 'Edital.pdf',
+          fileUrl: urlArquivoPDF,
+          mimeType: 'application/pdf',
+          extractedText: extractedText.slice(0, 50000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
+        },
+        update: {
+          extractedText: extractedText.slice(0, 50000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
         },
       });
-
-      await prisma.documentChunk.createMany({
-        data: chunks.map((chunk, index) => ({
-          tenantId: notice?.tenantId ?? null,
-          sourceType: 'procurement_notice',
-          sourceId: sourceIdToSave,
-          chunkIndex: index,
-          contentHash: createHash('sha256').update(chunk).digest('hex'),
-          content: chunk,
-          tokenCount: Math.ceil(chunk.length / 4),
-          metadata: {
-            fileName: editalArquivo.titulo || 'Edital.pdf',
-            fileUrl: urlArquivoPDF,
-            cnpj,
-            ano,
-            sequencial,
-            sequencialArquivo: seqArquivo,
-          },
-        })),
-      });
-
-      if (notice?.id) {
-        await prisma.procurementAttachment.upsert({
-          where: {
-            procurementNoticeId_fileUrl: {
-              procurementNoticeId: notice.id,
-              fileUrl: urlArquivoPDF,
-            },
-          },
-          create: {
-            procurementNoticeId: notice.id,
-            tenantId: notice.tenantId ?? null,
-            source: 'pncp',
-            externalId: String(seqArquivo),
-            attachmentType: 'edital',
-            fileName: editalArquivo.titulo || 'Edital.pdf',
-            fileUrl: urlArquivoPDF,
-            mimeType: 'application/pdf',
-            extractedText: extractedText.slice(0, 50000),
-            contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
-          },
-          update: {
-            extractedText: extractedText.slice(0, 50000),
-            contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
-          },
-        });
-      }
-    } catch (saveErr: any) {
-      console.warn('[PNCP Parser] Falha ao persistir chunks no banco:', saveErr.message);
     }
 
     return extractedText;

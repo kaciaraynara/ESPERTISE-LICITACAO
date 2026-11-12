@@ -504,6 +504,25 @@ export class AiGroundingService {
       const targetNoticeId = notices[0]?.id || requestedNoticeId;
       try {
         const autoText = await preencherTextoEditalAutomaticamente(targetNoticeId);
+        if (!notices.length && requestedNoticeId) {
+          notices = await this.client.procurementNotice.findMany({
+            where: {
+              AND: [
+                tenantVisibilityWhere(tenantId),
+                {
+                  OR: [
+                    { id: targetNoticeId },
+                    { externalId: targetNoticeId },
+                    { dedupeKey: `pncp-${targetNoticeId}` },
+                    { noticeNumber: targetNoticeId },
+                  ],
+                },
+              ],
+            },
+            take: 1,
+            select: retrievalNoticeSelect(),
+          });
+        }
         if (notices.length) {
           chunks = await this.findChunksByNoticeIds(notices.map((n) => n.id), tenantId);
         }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Scale,
@@ -36,6 +36,14 @@ export const RecursosPage: React.FC = () => {
   const [gerando, setGerando] = useState(false);
   const [textoGerado, setTextoGerado] = useState('');
   const [copiado, setCopiado] = useState(false);
+  const autoTriggeredRef = React.useRef(false);
+
+  useEffect(() => {
+    if (urlEditalId && selectedNoticeId && editalNumero && fundamentacao && !autoTriggeredRef.current && !gerando) {
+      autoTriggeredRef.current = true;
+      void handleGerarPeca({ preventDefault: () => {} } as React.FormEvent);
+    }
+  }, [urlEditalId, selectedNoticeId, editalNumero, fundamentacao, gerando]);
 
   const handleSelectEdital = (ed: EditalOption) => {
     setSelectedNoticeId(ed.id);
