@@ -504,23 +504,62 @@ export class ExpertiseFiscalEngineService {
 
     if (isSpedOrTxt) {
       docType = filename.toLowerCase().includes('contrib') ? 'EFD_CONTRIBUICOES' : 'SPED_FISCAL';
-      // Extrai período e totais do SPED
+      // Extrai período, itens (0200 + C170) e totais do SPED Fiscal / EFD-Contribuições
       const lines = fileContent.split('\n');
       let dtIni = '';
       let dtFin = '';
       let totalVnf = 0;
+      const spedCatalog = new Map<string, { descr: string; ncm: string; unid: string }>();
+      const spedItems: ParsedFiscalItem[] = [];
+
       for (const line of lines) {
         const fields = line.split('|');
-        if (fields[1] === '0000' && fields.length > 7) {
+        const reg = fields[1];
+        if (reg === '0000' && fields.length > 7) {
           dtIni = fields[6] || '';
           dtFin = fields[7] || '';
-        }
-        if (fields[1] === 'C100' && fields.length > 12) {
+        } else if (reg === '0200' && fields.length > 8) {
+          const codItem = (fields[2] || '').trim();
+          const descrItem = (fields[3] || '').trim();
+          const unidInv = (fields[6] || 'UN').trim();
+          const codNcm = (fields[8] || '').trim();
+          if (codItem) {
+            spedCatalog.set(codItem, { descr: descrItem, ncm: codNcm, unid: unidInv });
+          }
+        } else if (reg === 'C100' && fields.length > 12) {
           const val = parseFloat(fields[12]?.replace(',', '.') || '0');
           if (!isNaN(val)) totalVnf += val;
+        } else if (reg === 'C170' && fields.length > 11) {
+          const numItem = parseInt(fields[2] || String(spedItems.length + 1), 10) || spedItems.length + 1;
+          const codItem = (fields[3] || '').trim();
+          const descrCompl = (fields[4] || '').trim();
+          const qtd = parseFloat((fields[5] || '1').replace(',', '.')) || 1;
+          const unid = (fields[6] || 'UN').trim();
+          const vlItem = parseFloat((fields[7] || '0').replace(',', '.')) || 0;
+          const cstIcms = (fields[10] || '00').trim();
+          const cfop = (fields[11] || '5102').trim();
+          const catInfo = spedCatalog.get(codItem);
+          const ncm = catInfo?.ncm || '00000000';
+          spedItems.push({
+            nItem: numItem,
+            cProd: codItem || `SPED-${numItem}`,
+            xProd: descrCompl || catInfo?.descr || `Item SPED ${numItem}`,
+            ncm,
+            cfop,
+            uCom: unid || catInfo?.unid || 'UN',
+            qCom: qtd,
+            vUnCom: qtd > 0 ? vlItem / qtd : vlItem,
+            vProd: vlItem,
+            cstOrCsosn: cstIcms,
+            vIcms: 0,
+            vPis: 0,
+            vCofins: 0,
+            isMonofasico: this.isMonophasicNcm(ncm),
+          });
         }
       }
       const period = dtIni && dtFin ? `${dtIni}_${dtFin}` : `SPED_${fileHashSha256.slice(0, 16)}`;
+      const sumSpedItems = spedItems.reduce((acc, it) => acc + it.vProd, 0);
 
       parsedSummary = {
         chaveAcesso: period,
@@ -528,10 +567,10 @@ export class ExpertiseFiscalEngineService {
         emitenteRazao: company.razaoSocial,
         emitenteCrt: 3,
         destinatarioCnpj: '',
-        destinatarioRazao: 'Escrituração Fiscal Digital SPED',
+        destinatarioRazao: 'Escrituração Fiscal Digital SPED - Administração Pública',
         natOp: 'Escrituração Fiscal',
         issueDate: new Date(),
-        totalAmount: totalVnf > 0 ? totalVnf : 1000.0,
+        totalAmount: totalVnf > 0 ? totalVnf : sumSpedItems > 0 ? sumSpedItems : 1000.0,
         direction: 'APURACAO' as any,
         vIcms: 0,
         vIcmsSt: 0,
@@ -543,7 +582,7 @@ export class ExpertiseFiscalEngineService {
         vRetCsll: 0,
         vIrrf: 0,
         vRetPrev: 0,
-        items: [],
+        items: spedItems,
       };
     } else {
       parsedSummary = this.parseNfeXml(fileContent, company.cnpj);
@@ -1644,12 +1683,28 @@ CNPJ: ${this.formatCnpj(params.empresaCnpj)}${repIdentificacao}`;
           const matchingEditalItem = editalItens.find((ei) => {
             const descEdital = (ei.description || '').toLowerCase();
             const descItem = (item.xProd || '').toLowerCase();
-            return descEdital.includes(descItem) || descItem.includes(descEdital) || (ei.itemNumber && String(ei.itemNumber) === String(item.nItem));
+            return (
+              descEdital.includes(descItem) ||
+              descItem.includes(descEdital) ||
+              (ei.itemNumber && String(ei.itemNumber) === String(item.nItem))
+            );
           });
 
-          if (matchingEditalItem && matchingEditalItem.catalogoCodigo) {
-            const catmat = String(matchingEditalItem.catalogoCodigo);
-            if (cleanNcm.startsWith('00') || cleanNcm.length !== 8) {
+          if (matchingEditalItem) {
+            const catmat = String(
+              matchingEditalItem.catalogoCodigo ||
+                matchingEditalItem.codigoItemCatalogo ||
+                matchingEditalItem.catmat ||
+                matchingEditalItem.itemNumber ||
+                '',
+            );
+            const editalNcmPrefix = String(matchingEditalItem.ncm || '').replace(/\D/g, '').slice(0, 4);
+            const isNcmMismatchWithEdital =
+              cleanNcm.startsWith('00') ||
+              cleanNcm.length !== 8 ||
+              (editalNcmPrefix.length === 4 && !cleanNcm.startsWith(editalNcmPrefix));
+
+            if (catmat && isNcmMismatchWithEdital) {
               divergencias.push({
                 id: `DIV_CATMAT_${doc.id}_${item.nItem}`,
                 tipo: 'NCM_INCOMPATIVEL_CATMAT',

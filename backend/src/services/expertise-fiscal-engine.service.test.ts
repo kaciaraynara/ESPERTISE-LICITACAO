@@ -281,6 +281,69 @@ describe('ExpertiseFiscalEngineService', () => {
       expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('Prefeitura Municipal de Teste');
       expect(audit.declaracaoNaoRetencaoAnexoIV.modeloTextoPreenchido).toContain('INSTRUÇÃO NORMATIVA RFB Nº 1.234');
     });
+
+    it('deve detectar NCM incompatível com o código CATMAT do edital e auditar registros SPED (0200/C170)', async () => {
+      (prisma.company.findUnique as jest.Mock).mockResolvedValue({
+        id: 'comp-1',
+        razaoSocial: 'Mega Suprimentos Ltda',
+        cnpj: '12345678000195',
+        municipio: 'São Paulo',
+        uf: 'SP',
+      });
+
+      (prisma.procurementNotice.findFirst as jest.Mock).mockResolvedValue({
+        id: 'notice-catmat-1',
+        numeroControlePncp: '00394460000141-1-000100/2026',
+        objeto: 'Aquisição de equipamentos de informática',
+        items: [
+          {
+            id: 'item-ed-1',
+            itemNumber: 1,
+            description: 'Notebook Corporativo',
+            catalogoCodigo: 'CATMAT-482910',
+            ncm: '84713012',
+          },
+        ],
+      });
+
+      (prisma.fiscalDocumentImport.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: 'doc-sped-1',
+          docType: 'SPED_FISCAL',
+          accessKeyOrPeriod: '01032026_31032026',
+          direction: 'SAIDA',
+          totalAmount: 15000,
+          taxesSummaryJson: {
+            emitenteCrt: 1,
+            destinatarioRazao: 'MINISTERIO DA GESTAO',
+          },
+          parsedItemsJson: [
+            {
+              nItem: 1,
+              cProd: 'NB-01',
+              xProd: 'Notebook Corporativo',
+              ncm: '39269090', // NCM de plástico incompatível com NCM 8471 do CATMAT
+              cfop: '5102',
+              qCom: 3,
+              vUnCom: 5000,
+              vProd: 15000,
+              cstOrCsosn: '102',
+            },
+          ],
+        },
+      ]);
+
+      const audit = await expertiseFiscalEngineService.runSmartFiscalAudit({
+        tenantId: 'tenant-1',
+        companyId: 'comp-1',
+        noticeId: 'notice-catmat-1',
+      });
+
+      const divCatmat = audit.divergencias.find((d) => d.tipo === 'NCM_INCOMPATIVEL_CATMAT');
+      expect(divCatmat).toBeDefined();
+      expect(divCatmat?.severidade).toBe('ALTA');
+      expect(divCatmat?.descricaoDivergencia).toContain('CATMAT-482910');
+    });
   });
 
   describe('Módulo 07: preparePerdcompAndCrossOffset', () => {
