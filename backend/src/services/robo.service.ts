@@ -379,7 +379,7 @@ export class RoboSocketService {
   public iniciar(payload: SetupRoboPayload) {
     const itemNum = payload.itemNumero !== undefined ? Number(payload.itemNumero) : undefined;
     const estrategia = payload.estrategia || this.estrategia;
-    const decremento = payload.decrementoMinimo ?? (this.decrementoMinimo || 1);
+    const decremento = payload.decrementoMinimo ?? (estrategia === 'sniper' ? 5 : (this.decrementoMinimo || 1));
 
     if (itemNum !== undefined) {
       const itemCfg: ItemRoboConfig = {
@@ -463,7 +463,7 @@ export class RoboSocketService {
 
     if (payload.valor <= pisoMinimo) {
       this.emitLog(
-        `[BLOQUEIO DE SEGURANÇA] Lance manual de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso de Stop-Loss de R$ ${pisoMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+        `[BLOQUEIO DE SEGURANÇA] Lance manual de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso estipulado de Stop-Loss de R$ ${pisoMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
         'alert'
       );
       const errorPayload: SocketBidError = {
@@ -485,7 +485,7 @@ export class RoboSocketService {
     if (itemCfg) itemCfg.valorAtualDisputa = payload.valor;
 
     this.emitLog(
-      `[LANCE VALIDADO] Oferta de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} aprovada dentro da margem segura.`,
+      `[LANCE VALIDADO] Oferta de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} aprovada dentro da margem segura. Registre agora no portal oficial da disputa.`,
       'action'
     );
     this.socket.emit('lance_validado', {
@@ -622,7 +622,13 @@ export class RoboSocketService {
       status: 'CONFIRMADO',
     };
 
-    // Emite imediatamente bid_confirmed e lance_validado
+    // Emite imediatamente sugestao_lance, bid_confirmed e lance_validado
+    this.socket.emit('sugestao_lance', {
+      pregaoId: bidRecord.pregaoId,
+      itemNumero,
+      valor: novoLance,
+      bidRecord,
+    });
     this.socket.emit('bid_confirmed', bidRecord);
     this.socket.emit('lance_validado', {
       pregaoId: bidRecord.pregaoId,
@@ -631,11 +637,18 @@ export class RoboSocketService {
       bidRecord,
     });
 
-    this.socket.broadcast.emit('bid_placed', {
-      ...bidRecord,
-      isOwnBid: false,
-      status: 'LIDERANDO',
-    });
+    this.emitLog(
+      '[SUGESTÃO TÁTICA] A submissão deve ser feita manualmente pelo operador no portal oficial da disputa.',
+      'system'
+    );
+
+    if (this.socket.broadcast?.emit) {
+      this.socket.broadcast.emit('bid_placed', {
+        ...bidRecord,
+        isOwnBid: false,
+        status: 'LIDERANDO',
+      });
+    }
 
     this.emitLog(
       `[COBERTURA AUTOMÁTICA] Lance disparado: R$ ${novoLance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${itemNumero !== undefined ? ` (Item #${itemNumero})` : ''} cobrindo menor lance de R$ ${menorLanceConcorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,

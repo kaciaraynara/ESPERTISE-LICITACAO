@@ -61,6 +61,7 @@ describe('licitacoes.service', () => {
         keywords: ['obra', 'construção', 'engenharia'],
         uf: 'SP',
       }),
+      keywordsForCnae: jest.fn().mockReturnValue(['obra', 'construção', 'engenharia']),
     }));
     jest.doMock('./pncp.service', () => ({
       buscarContratacaoPNCP: jest.fn(),
@@ -69,7 +70,7 @@ describe('licitacoes.service', () => {
 
     const { listarLicitacoes } = require('./licitacoes.service');
     const result = await listarLicitacoes(
-      { modalidade: 'Dispensa Eletrônica' },
+      { modalidade: 'Dispensa Eletrônica', cnae: '4120-4/00 - Construção de edifícios' },
       'user-1',
       'tenant-1',
     );
@@ -87,6 +88,37 @@ describe('licitacoes.service', () => {
       cnaes: ['4120-4/00 - Construção de edifícios'],
       palavras_chave: ['obra', 'construção', 'engenharia'],
     });
+  });
+
+  it('retorna busca enxuta sem termos de busca automáticos quando usuário não passa palavra-chave nem CNAE', async () => {
+    jest.resetModules();
+    const mockFindMany = jest.fn().mockResolvedValue([]);
+    const mockCount = jest.fn().mockResolvedValue(0);
+
+    jest.doMock('../database/prisma', () => ({
+      prisma: {
+        $transaction: jest.fn().mockImplementation((queries) => Promise.all(queries)),
+        procurementNotice: {
+          count: mockCount,
+          findMany: mockFindMany,
+        },
+      },
+    }));
+    jest.doMock('./cnae-to-keywords.service', () => ({
+      getTenantRadarProfile: jest.fn().mockResolvedValue({
+        cnaes: ['4120-4/00 - Construção de edifícios'],
+        keywords: ['obra', 'construção', 'engenharia'],
+        uf: 'SP',
+      }),
+    }));
+
+    const { listarLicitacoes } = require('./licitacoes.service');
+    await listarLicitacoes({ modalidade: 'Dispensa Eletrônica' }, 'user-1', 'tenant-1');
+
+    const searchFilters = mockFindMany.mock.calls[0][0].where?.AND?.find(
+      (filter: { OR?: Array<Record<string, { contains?: string }>> }) => Array.isArray(filter.OR),
+    );
+    expect(searchFilters).toBeUndefined();
   });
 
   test('a listagem local nao dispara consultas PNCP implicitamente', async () => {

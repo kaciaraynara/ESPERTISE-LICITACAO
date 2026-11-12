@@ -15,7 +15,7 @@ import { FORNECEDOR_ROUTES } from '../../routes';
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { switchingCompany, selectedCompany, isLoading, isFetching } = useCompany();
+  const { switchingCompany, selectedCompany, isLoading } = useCompany();
   const logout = useLogout();
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
@@ -40,7 +40,7 @@ export default function DashboardLayout() {
   }
 
   // Trava estrutural no DashboardLayout: nunca renderiza o layout ou filhos com dados indefinidos
-  if (isLoading || isFetching || !selectedCompany?.id) {
+  if (isLoading && !selectedCompany?.id) {
     return <LoadingSpinner fullscreen message="Carregando ambiente da empresa..." />;
   }
 

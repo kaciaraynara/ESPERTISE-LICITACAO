@@ -224,8 +224,14 @@ export class NoticesSearchService {
     };
   }
 
-  private async ensureNoticeHydrated(idOrControl: string, tenantId?: string | null) {
+  private async ensureNoticeHydrated(
+    idOrControl: string,
+    tenantId?: string | null,
+    includeRaw = false,
+  ) {
     const cleanId = String(idOrControl || '').trim();
+    const select = noticeSelect(includeRaw, true);
+
     let row: any = await this.client.procurementNotice.findFirst({
       where: {
         AND: [
@@ -233,12 +239,7 @@ export class NoticesSearchService {
           resolveNoticeWhere(cleanId),
         ],
       },
-      include: {
-        items: {
-          take: 200,
-          orderBy: { itemNumber: 'asc' },
-        },
-      },
+      select,
     });
 
     if (!row) {
@@ -247,12 +248,7 @@ export class NoticesSearchService {
         if (fetched?.databaseId) {
           row = await this.client.procurementNotice.findFirst({
             where: { id: fetched.databaseId },
-            include: {
-              items: {
-                take: 200,
-                orderBy: { itemNumber: 'asc' },
-              },
-            },
+            select,
           });
         }
       } catch (err: any) {
@@ -349,7 +345,11 @@ export class NoticesSearchService {
       }, 'procurement_notice', noticeId);
     }
 
-    const row = await this.ensureNoticeHydrated(noticeId, context.tenantId);
+    const row = await this.ensureNoticeHydrated(
+      noticeId,
+      context.tenantId,
+      Boolean(parsed.includeRaw && rawAllowed),
+    );
     if (!row) return null;
 
     const result = mapNotice(row, Boolean(parsed.includeRaw && rawAllowed));
@@ -1290,17 +1290,19 @@ function toIso(value: unknown) {
 
 export function resolveNoticeWhere(idOrControl: string) {
   const clean = String(idOrControl || '').trim();
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
-  const conditions: any[] = [
-    { externalId: clean },
-    { dedupeKey: clean.startsWith('pncp-') ? clean : `pncp-${clean}` },
-    { dedupeKey: clean },
-    { noticeNumber: clean },
-  ];
-  if (isUuid) {
-    conditions.unshift({ id: clean });
+  const isPncpControl = /^\d{14}/.test(clean) || clean.startsWith('pncp-');
+  if (!isPncpControl) {
+    return { id: clean };
   }
-  return { OR: conditions };
+  return {
+    OR: [
+      { id: clean },
+      { externalId: clean },
+      { dedupeKey: clean.startsWith('pncp-') ? clean : `pncp-${clean}` },
+      { dedupeKey: clean },
+      { noticeNumber: clean },
+    ],
+  };
 }
 
 export function buildComprehensiveDescriptiveDossier(

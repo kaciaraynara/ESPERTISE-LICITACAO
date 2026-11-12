@@ -282,6 +282,19 @@ export default function LicitacoesPage({
     const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
     const [salvandoId, setSalvandoId] = useState<string | null>(null);
     const [salvosCrmIds, setSalvosCrmIds] = useState<Set<string>>(new Set());
+    const [sincronizandoManual, setSincronizandoManual] = useState(false);
+
+    // Debounce de 300ms na busca textual
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const trimmed = busca.trim();
+            setFiltrosAplicados((prev) => {
+                if (prev.busca === trimmed) return prev;
+                return { ...prev, busca: trimmed };
+            });
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [busca]);
 
     const explicarEdital = async () => {
         if (!editalSelecionado) return;
@@ -537,7 +550,8 @@ export default function LicitacoesPage({
                 tamanhoPagina: ITEMS_PER_LOAD,
                 dataFinal: dataFinalYYYYMMDD,
                 endpoint: 'proposta',
-                tempoReal: true,
+                tempoReal: _sincronizarPncp,
+                local: !_sincronizarPncp,
             };
             if (filtrosAplicados.busca.trim()) {
                 params.busca = filtrosAplicados.busca.trim();
@@ -545,6 +559,9 @@ export default function LicitacoesPage({
             }
             if (filtrosAplicados.cnpj.trim()) {
                 params.cnpj = filtrosAplicados.cnpj.trim();
+            }
+            if (filtrosAplicados.cnae?.trim()) {
+                params.cnae = filtrosAplicados.cnae.trim();
             }
             // REGRA PNCP: Não enviar 'cnae' como parâmetro de query para a API do PNCP.
             if (filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos') {
@@ -641,6 +658,33 @@ export default function LicitacoesPage({
                 });
                 setPagina(pg);
                 setUltimaAtualizacao(new Date());
+
+                // Sincronização em background silencioso (não-bloqueante a cada 10 min) APÓS dados locais já renderizados
+                const BG_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+                const lastBgSync = Number(sessionStorage.getItem('last_pncp_bg_sync') || '0');
+                if (!_sincronizarPncp && (Date.now() - lastBgSync > BG_SYNC_INTERVAL_MS)) {
+                    sessionStorage.setItem('last_pncp_bg_sync', String(Date.now()));
+                    void (async () => {
+                        try {
+                            await licitacoesApi.sincronizar({
+                                pagina: 1,
+                                uf: params.uf,
+                                modalidade: params.modalidade,
+                                busca: params.busca,
+                                cnpj: params.cnpj,
+                                cnae: params.cnae,
+                            });
+                            const refetch = await licitacoesApi.listar(params);
+                            const fresh = (Array.isArray(refetch?.data?.items) ? refetch.data.items : refetch?.data?.data) || [];
+                            if (fresh.length > 0) {
+                                setEditais(fresh);
+                                setUltimaAtualizacao(new Date());
+                            }
+                        } catch {
+                            // Silencioso em caso de erro na sincronização em background
+                        }
+                    })();
+                }
             } else {
                 if (isReset || pg === 1) {
                     setEditais([]);
@@ -676,7 +720,7 @@ export default function LicitacoesPage({
     }, [filtrosAplicados]);
 
     useEffect(() => {
-        void buscarLicitacoes(1, true, true);
+        void buscarLicitacoes(1, false, true);
     }, [buscarLicitacoes]);
 
     // ROLAGEM INFINITA: IntersectionObserver monitorando a sentinela do rodapé
@@ -748,7 +792,7 @@ export default function LicitacoesPage({
             && nextFilters.uf === filtrosAplicados.uf
             && nextFilters.modalidade === filtrosAplicados.modalidade
         ) {
-            void buscarLicitacoes(1, true);
+            void buscarLicitacoes(1, false, true);
             return;
         }
         setFiltrosAplicados(nextFilters);
@@ -799,10 +843,31 @@ export default function LicitacoesPage({
             && nextFilters.uf === filtrosAplicados.uf
             && nextFilters.modalidade === filtrosAplicados.modalidade
         ) {
-            void buscarLicitacoes(1, true);
+            void buscarLicitacoes(1, false, true);
             return;
         }
         setFiltrosAplicados(nextFilters);
+    };
+
+    const handleSincronizarPncpManual = async () => {
+        setSincronizandoManual(true);
+        try {
+            await licitacoesApi.sincronizar({
+                pagina: 1,
+                uf: filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos' ? filtrosAplicados.uf : undefined,
+                modalidade: filtrosAplicados.modalidade && filtrosAplicados.modalidade !== 'Todos' ? filtrosAplicados.modalidade : undefined,
+                busca: filtrosAplicados.busca || undefined,
+                cnpj: filtrosAplicados.cnpj || undefined,
+                cnae: filtrosAplicados.cnae || undefined,
+            });
+            sessionStorage.setItem('last_pncp_bg_sync', String(Date.now()));
+            toast.success('Sincronização com o PNCP realizada com sucesso!');
+        } catch {
+            toast('Sincronização iniciada. Atualizando dados locais...');
+        } finally {
+            setSincronizandoManual(false);
+            void buscarLicitacoes(1, false, true);
+        }
     };
 
     const abrirResumoDoEdital = (item: Licitacao) => {
@@ -884,12 +949,12 @@ export default function LicitacoesPage({
                             )}
                             <button
                                 type="button"
-                                onClick={() => void buscarLicitacoes(1, true)}
-                                disabled={loading}
+                                onClick={handleSincronizarPncpManual}
+                                disabled={loading || sincronizandoManual}
                                 className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
                             >
-                                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} weight="bold" />
-                                Sincronizar PNCP
+                                <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoManual ? 'animate-spin' : ''}`} weight="bold" />
+                                {sincronizandoManual ? 'Sincronizando...' : 'Sincronizar PNCP'}
                             </button>
                         </div>
                     </div>
@@ -1061,8 +1126,8 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* LOADING */}
-                    {loading && (
+                    {/* LOADING INICIAL (Apenas quando não há dados anteriores em tela) */}
+                    {loading && licitacoes.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-24 gap-4">
                             <div className="relative">
                                 <div className="w-12 h-12 border-4 border-[#0A2540]/20 rounded-lg" />
@@ -1087,7 +1152,7 @@ export default function LicitacoesPage({
                                     Nenhuma contratação encontrada diretamente no PNCP para estes filtros.
                                 </h3>
                                 <p className="text-xs text-slate-500 leading-relaxed max-w-md">
-                                    A consulta é realizada em tempo real na API oficial do PNCP. Ajuste os parâmetros de Palavras-chave, UF ou Modalidade e clique em Sincronizar PNCP.
+                                    A consulta aos dados locais não retornou registros. Ajuste os filtros de Palavras-chave, UF ou Modalidade e clique em Sincronizar PNCP.
                                 </p>
                             </div>
 
@@ -1101,24 +1166,33 @@ export default function LicitacoesPage({
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => void buscarLicitacoes(1, true)}
-                                    className="px-5 py-2.5 bg-brand-blue hover:bg-blue-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs"
+                                    onClick={handleSincronizarPncpManual}
+                                    disabled={sincronizandoManual}
+                                    className="px-5 py-2.5 bg-brand-blue hover:bg-blue-900 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center gap-2"
                                 >
-                                    Sincronizar PNCP Agora
+                                    <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoManual ? 'animate-spin' : ''}`} weight="bold" />
+                                    {sincronizandoManual ? 'Sincronizando...' : 'Sincronizar PNCP Agora'}
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP */}
-                    {!loading && licitacoes.length > 0 && (
-                        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs h-auto overflow-visible">
+                    {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP (MANTÉM DADOS ANTERIORES VISÍVEIS) */}
+                    {licitacoes.length > 0 && (
+                        <div className={`bg-white border border-slate-200 rounded-2xl shadow-xs h-auto overflow-visible transition-opacity duration-200 ${loading ? 'opacity-85' : 'opacity-100'}`}>
                             {/* Indicador consolidado e discreto no topo da tabela */}
                             <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
                                     <span className="text-xs font-medium text-[#334155]">
-                                        Base PNCP / SICAF: <span className="font-semibold text-emerald-700">Sincronizada</span>
+                                        {loading ? (
+                                            <span className="font-semibold text-amber-700 flex items-center gap-1.5">
+                                                <RefreshCw className="w-3 h-3 animate-spin inline" weight="bold" />
+                                                Atualizando lista de editais...
+                                            </span>
+                                        ) : (
+                                            <>Base PNCP / SICAF: <span className="font-semibold text-emerald-700">Sincronizada</span></>
+                                        )}
                                     </span>
                                 </div>
                                 {meta?.total != null && (

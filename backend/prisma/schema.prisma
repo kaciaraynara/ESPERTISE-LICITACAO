@@ -530,6 +530,10 @@ model ProcurementNotice {
   @@index([uf, publishedAt])
   @@index([modality])
   @@index([contentHash])
+  @@index([publishedAt(sort: Desc)])
+  @@index([uf, modality, publishedAt(sort: Desc)])
+  @@index([externalId])
+  @@index([closingAt])
   @@map("procurement_notices")
 }
 

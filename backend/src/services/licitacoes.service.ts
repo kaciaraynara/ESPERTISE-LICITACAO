@@ -91,7 +91,7 @@ export class NoticePersistenceError extends Error {
 
 function getAutomaticSearchTerms(
   filters: FiltrosBusca,
-  profile: TenantRadarProfile | null,
+  _profile: TenantRadarProfile | null,
 ): string[] {
   const requested = (
     filters.palavraChave
@@ -103,7 +103,8 @@ function getAutomaticSearchTerms(
     || ''
   ).trim();
 
-  const cnaeTerms = expandCnaeFilterTerms(filters.cnae);
+  const hasExplicitCnae = Boolean(filters.cnae && String(filters.cnae).trim().length > 0);
+  const cnaeTerms = hasExplicitCnae ? expandCnaeFilterTerms(filters.cnae).slice(0, 5) : [];
 
   if (requested || cnaeTerms.length > 0) {
     return Array.from(new Set([
@@ -112,8 +113,68 @@ function getAutomaticSearchTerms(
     ]));
   }
 
-  return profile?.keywords.slice(0, AUTOMATIC_RADAR_KEYWORD_LIMIT) ?? [];
+  // Quando usuário NÃO digitar palavra-chave e NÃO ativar explicitamente filtro de CNAE,
+  // retornar [] para evitar 20 termos que geram 60 ILIKE forçando Full Table Scan.
+  return [];
 }
+
+interface LicitacoesCacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const tenantRadarProfileCache = new Map<string, LicitacoesCacheEntry<TenantRadarProfile | null>>();
+const paginationCountCache = new Map<string, LicitacoesCacheEntry<number>>();
+
+function setLicitacoesCache<T>(cache: Map<string, LicitacoesCacheEntry<T>>, key: string, value: T, ttlMs = 60_000) {
+  if (cache.size > 200) {
+    const now = Date.now();
+    for (const [k, v] of cache.entries()) {
+      if (v.expiresAt <= now) {
+        cache.delete(k);
+      }
+    }
+  }
+  cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+async function getCachedTenantRadarProfile(tenantId: string): Promise<TenantRadarProfile | null> {
+  const now = Date.now();
+  const cached = tenantRadarProfileCache.get(tenantId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  try {
+    const profile = await getTenantRadarProfile(tenantId);
+    setLicitacoesCache(tenantRadarProfileCache, tenantId, profile, 60_000);
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+const PROCUREMENT_NOTICE_ENXUTO_SELECT = {
+  id: true,
+  externalId: true,
+  numeroControlePncp: true,
+  noticeNumber: true,
+  url: true,
+  buyerDocument: true,
+  buyerName: true,
+  estimatedValue: true,
+  publishedAt: true,
+  openingAt: true,
+  closingAt: true,
+  uf: true,
+  municipality: true,
+  object: true,
+  modality: true,
+  modoDisputa: true,
+  judgmentCriterion: true,
+  status: true,
+  srp: true,
+  source: true,
+} as const;
 
 export function extractPncpAuditParams(
   numeroControlePNCP?: string | null,
@@ -573,7 +634,7 @@ export async function listarLicitacoes(
 
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
   const size = filtros.tamanhoPagina ? Math.max(1, Number(filtros.tamanhoPagina)) : 100;
-  const tenantRadarProfile = tenantId ? await getTenantRadarProfile(tenantId) : null;
+  const tenantRadarProfile = tenantId ? await getCachedTenantRadarProfile(tenantId) : null;
 
   let effectiveFilters: FiltrosBusca = { ...filtros };
   let buyerCnpjFilter: string | undefined;
@@ -713,26 +774,44 @@ export async function listarLicitacoes(
   let count = 0;
   let rows: any[] = [];
 
-  if (typeof prisma.$transaction === 'function') {
-    const res = await prisma.$transaction([
-      prisma.procurementNotice.count({ where }),
-      prisma.procurementNotice.findMany({
-        where,
-        skip: (page - 1) * size,
-        take: size,
-        orderBy: { publishedAt: 'desc' },
-      }),
-    ]);
-    count = typeof res?.[0] === 'number' ? res[0] : 0;
-    rows = Array.isArray(res?.[1]) ? res[1] : [];
-  } else {
-    count = await prisma.procurementNotice.count({ where });
+  const whereCacheKey = JSON.stringify(where);
+  const cachedCountEntry = paginationCountCache.get(whereCacheKey);
+  const isCountCached = Boolean(cachedCountEntry && cachedCountEntry.expiresAt > Date.now());
+
+  if (isCountCached) {
+    count = cachedCountEntry!.value;
     rows = await prisma.procurementNotice.findMany({
       where,
+      select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
       skip: (page - 1) * size,
       take: size,
       orderBy: { publishedAt: 'desc' },
     });
+  } else {
+    if (typeof prisma.$transaction === 'function') {
+      const res = await prisma.$transaction([
+        prisma.procurementNotice.count({ where }),
+        prisma.procurementNotice.findMany({
+          where,
+          select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
+          skip: (page - 1) * size,
+          take: size,
+          orderBy: { publishedAt: 'desc' },
+        }),
+      ]);
+      count = typeof res?.[0] === 'number' ? res[0] : 0;
+      rows = Array.isArray(res?.[1]) ? res[1] : [];
+    } else {
+      count = await prisma.procurementNotice.count({ where });
+      rows = await prisma.procurementNotice.findMany({
+        where,
+        select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
+        skip: (page - 1) * size,
+        take: size,
+        orderBy: { publishedAt: 'desc' },
+      });
+    }
+    setLicitacoesCache(paginationCountCache, whereCacheKey, count, 60_000);
   }
 
   const companyProfile = tenantRadarProfile
