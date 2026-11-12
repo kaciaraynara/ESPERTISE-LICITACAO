@@ -13,6 +13,16 @@ export interface Company {
   cnpj: string;
   cnaePrincipal?: string | null;
   cnae_principal?: string | null;
+  cnaesSecundarios?: string[];
+  cnaes_secundarios?: string[];
+  nicho?: string[];
+  qsa?: Array<{
+    nome?: string;
+    qual?: string;
+    pais_origem?: string;
+    nome_rep_legal?: string;
+    qual_rep_legal?: string;
+  }>;
   uf?: string | null;
   municipio?: string | null;
 }
@@ -61,6 +71,13 @@ const CompanyContext = createContext<CompanyContextData>(DEFAULT_CONTEXT);
 export function normalizeCompany(raw: any): Company {
   const razao = raw?.razaoSocial || raw?.razao_social || raw?.nomeFantasia || raw?.nome_fantasia || 'Empresa Principal';
   const cnae = raw?.cnaePrincipal || raw?.cnae_principal || null;
+  const cnaesSec = Array.isArray(raw?.cnaesSecundarios)
+    ? raw.cnaesSecundarios
+    : Array.isArray(raw?.cnaes_secundarios)
+      ? raw.cnaes_secundarios
+      : Array.isArray(raw?.nicho)
+        ? raw.nicho
+        : [];
   return {
     id: String(raw?.id || 'default'),
     razaoSocial: razao,
@@ -70,6 +87,10 @@ export function normalizeCompany(raw: any): Company {
     cnpj: String(raw?.cnpj || ''),
     cnaePrincipal: cnae,
     cnae_principal: cnae,
+    cnaesSecundarios: cnaesSec,
+    cnaes_secundarios: cnaesSec,
+    nicho: cnaesSec,
+    qsa: Array.isArray(raw?.qsa) ? raw.qsa : undefined,
     uf: raw?.uf || null,
     municipio: raw?.municipio || null,
   };
@@ -163,6 +184,28 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.dispatchEvent(new Event('companyChanged'));
     }
     setSwitchingCompany(true);
+
+    // Consulta e sincroniza dados cadastrais reais ao selecionar a empresa
+    if (normalized.id && normalized.id !== 'default') {
+      empresasApi.buscarPorId(normalized.id)
+        .then((res) => {
+          const fresh = res.data?.data || res.data;
+          if (fresh) {
+            const fullNormalized = normalizeCompany(fresh);
+            setSelectedCompanyState(fullNormalized);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fullNormalized));
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          setSwitchingCompany(false);
+        });
+    } else {
+      setSwitchingCompany(false);
+    }
+
     void queryClient
       .invalidateQueries({
         queryKey: ['dashboard', 'metrics', normalized.id],
@@ -171,8 +214,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       .catch((error) => {
         console.error('Não foi possível atualizar os dados da empresa selecionada.', error);
-      })
-      .finally(() => setSwitchingCompany(false));
+      });
   }, [queryClient, selectedCompany?.id]);
 
   const setCompanies = useCallback((list: Company[]) => {

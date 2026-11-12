@@ -305,6 +305,107 @@ export default function CofrePage() {
     expired: documents.filter((item) => item.health === 'vencido').length,
   }), [documents]);
 
+  const certidoesStatus = useMemo(() => {
+    const list = [
+      {
+        key: 'cnd-federal',
+        tipoDb: 'CND Federal',
+        nome: 'CND Federal',
+        orgao: 'Receita Federal / PGFN',
+        match: (d: DocumentView) => {
+          const t = (d.tipo || '').toLowerCase();
+          const n = (d.nome || '').toLowerCase();
+          return t.includes('federal') || t.includes('receita') || n.includes('federal') || n.includes('pgfn');
+        },
+      },
+      {
+        key: 'crf-fgts',
+        tipoDb: 'FGTS',
+        nome: 'CRF FGTS',
+        orgao: 'Caixa Econômica',
+        match: (d: DocumentView) => {
+          const t = (d.tipo || '').toLowerCase();
+          const n = (d.nome || '').toLowerCase();
+          return t.includes('fgts') || t.includes('crf') || n.includes('fgts') || n.includes('crf');
+        },
+      },
+      {
+        key: 'cndt-tst',
+        tipoDb: 'CNDT',
+        nome: 'CNDT Trabalhista',
+        orgao: 'TST / CSJT',
+        match: (d: DocumentView) => {
+          const t = (d.tipo || '').toLowerCase();
+          const n = (d.nome || '').toLowerCase();
+          return t.includes('cndt') || t.includes('trabalh') || n.includes('cndt') || n.includes('trabalh');
+        },
+      },
+      {
+        key: 'cnd-estadual',
+        tipoDb: 'CND Estadual',
+        nome: 'CND Estadual',
+        orgao: 'Secretaria da Fazenda / PGE',
+        match: (d: DocumentView) => {
+          const t = (d.tipo || '').toLowerCase();
+          const n = (d.nome || '').toLowerCase();
+          return t.includes('estadual') || t.includes('icms') || n.includes('estadual') || n.includes('sefaz');
+        },
+      },
+      {
+        key: 'cnd-municipal',
+        tipoDb: 'CND Municipal',
+        nome: 'CND Municipal',
+        orgao: 'Prefeitura / Fazenda Mun.',
+        match: (d: DocumentView) => {
+          const t = (d.tipo || '').toLowerCase();
+          const n = (d.nome || '').toLowerCase();
+          return t.includes('municipal') || t.includes('iss') || n.includes('municipal') || n.includes('prefeitura');
+        },
+      },
+    ];
+
+    return list.map((item) => {
+      const matchedDocs = documents.filter(item.match);
+      const doc = matchedDocs.length > 0
+        ? matchedDocs.sort((a, b) => {
+            const timeA = a.validade ? new Date(a.validade).getTime() : 0;
+            const timeB = b.validade ? new Date(b.validade).getTime() : 0;
+            return timeB - timeA;
+          })[0]
+        : null;
+
+      if (!doc) {
+        return {
+          key: item.key,
+          tipoDb: item.tipoDb,
+          nome: item.nome,
+          orgao: item.orgao,
+          documento: null,
+          diasParaVencer: null,
+          status: 'pendente' as const,
+        };
+      }
+
+      const dias = daysUntil(doc.validade);
+      let status: 'valido' | 'atencao' | 'vencido' | 'sem_validade' = 'sem_validade';
+      if (dias !== null) {
+        if (dias < 0) status = 'vencido';
+        else if (dias <= 15) status = 'atencao';
+        else status = 'valido';
+      }
+
+      return {
+        key: item.key,
+        tipoDb: item.tipoDb,
+        nome: item.nome,
+        orgao: item.orgao,
+        documento: doc,
+        diasParaVencer: dias,
+        status,
+      };
+    });
+  }, [documents]);
+
   function chooseFile(file: File | undefined) {
     if (!file) return;
     if (!ACCEPTED_FILE_TYPES.has(file.type)) {
@@ -464,6 +565,99 @@ export default function CofrePage() {
           <MetricCard label="Atenção" value={counters.attention} detail="Vencimento em até 30 dias" />
           <MetricCard label="Vencidos" value={counters.expired} detail="Prazo de validade encerrado" />
         </section>
+
+        {/* SEMÁFORO DAS 5 CERTIDÕES OBRIGATÓRIAS (VINCULADO AO COFRE) */}
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                Semáforo das Certidões Obrigatórias
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Status e dias para vencer calculados a partir da validade real gravada no banco para este CNPJ.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full w-fit">
+              {certidoesStatus.filter((c) => c.status === 'valido').length} de 5 certidões regulares
+            </span>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {certidoesStatus.map((c) => (
+              <div
+                key={c.key}
+                className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                  c.status === 'valido'
+                    ? 'border-emerald-200 bg-emerald-50/50'
+                    : c.status === 'atencao'
+                    ? 'border-amber-200 bg-amber-50/50'
+                    : c.status === 'vencido'
+                    ? 'border-red-200 bg-red-50/50'
+                    : 'border-slate-200 bg-slate-50/70'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-slate-900 line-clamp-1" title={c.nome}>
+                      {c.nome}
+                    </span>
+                    {c.status === 'valido' && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
+                    {c.status === 'atencao' && <Clock3 className="h-4 w-4 text-amber-600 shrink-0" />}
+                    {c.status === 'vencido' && <XCircle className="h-4 w-4 text-red-600 shrink-0" />}
+                    {(c.status === 'sem_validade' || c.status === 'pendente') && (
+                      <AlertTriangle className="h-4 w-4 text-slate-400 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{c.orgao}</p>
+
+                  <div className="mt-2 text-xs">
+                    {c.documento ? (
+                      <div className="space-y-0.5">
+                        <p className="text-[11px] font-bold text-slate-700">
+                          {c.diasParaVencer !== null
+                            ? c.diasParaVencer < 0
+                              ? `Vencida há ${Math.abs(c.diasParaVencer)} d`
+                              : `${c.diasParaVencer} dias para vencer`
+                            : 'Sem validade'}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Até: {formatDate(c.documento.validade)}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] font-bold text-amber-700">Não enviada</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-slate-200/60">
+                  {c.documento ? (
+                    <a
+                      href={c.documento.url || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-brand-blue hover:underline inline-flex items-center gap-1"
+                    >
+                      Ver comprovante <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocumentType(c.tipoDb as any);
+                        fileInputRef.current?.click();
+                      }}
+                      className="text-[10px] font-bold text-brand-orange hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <UploadCloud className="h-3 w-3" /> Enviar agora
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <aside>

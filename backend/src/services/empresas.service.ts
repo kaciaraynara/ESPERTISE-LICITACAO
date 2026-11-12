@@ -25,7 +25,7 @@ export class EmpresasService {
     return user.tenantId;
   }
 
-  public mapCompany(company: any) {
+  public mapCompany(company: any, qsa?: any[]) {
     return {
       id: company.id,
       user_id: company.userId,
@@ -48,8 +48,9 @@ export class EmpresasService {
       regioes: company.regioes,
       orgaos_preferidos: company.orgaosPreferidos,
       orgaos_bloqueados: company.orgaosBloqueados,
-      created_at: company.createdAt.toISOString(),
-      updated_at: company.updatedAt.toISOString(),
+      qsa: qsa || company.qsa || [],
+      created_at: company.createdAt instanceof Date ? company.createdAt.toISOString() : String(company.createdAt),
+      updated_at: company.updatedAt instanceof Date ? company.updatedAt.toISOString() : String(company.updatedAt),
     };
   }
 
@@ -59,25 +60,44 @@ export class EmpresasService {
       where: { tenantId, userId },
       orderBy: { updatedAt: 'desc' },
     });
-    return rows.map(this.mapCompany);
+    return rows.map((r) => this.mapCompany(r));
   }
 
   public async buscarPorId(userId: string, id: string) {
     const tenantId = await this.getTenantId(userId);
-    const row = await prisma.company.findFirst({
+    const existing = await prisma.company.findFirst({
       where: { id, tenantId, userId },
     });
     
-    if (!row) {
+    if (!existing) {
       throw new ApiError('Empresa não encontrada', 404);
     }
     
-    // Se a empresa ainda não tiver cnaePrincipal ou nicho preenchido, sincroniza em background com dados reais da Receita
-    if (!row.cnaePrincipal || !row.nicho || row.nicho.length === 0) {
-      sincronizarEmpresaComDadosReceita(row.id, tenantId).catch(() => {});
+    // Ao buscar/selecionar a empresa, sincroniza com dados cadastrais reais da Receita
+    let targetCompany = existing;
+    let qsaList: any[] = [];
+    try {
+      const synced = await sincronizarEmpresaComDadosReceita(existing.id, tenantId);
+      if (synced) {
+        targetCompany = synced as any;
+        qsaList = (synced as any).qsa || [];
+      }
+    } catch {
+      // continua com dados cadastrados
     }
 
-    return this.mapCompany(row);
+    if (qsaList.length === 0) {
+      const cleanDigits = targetCompany.cnpj.replace(/\D/g, '');
+      const publicComp = await prisma.publicCompany.findFirst({
+        where: { cnpj: cleanDigits },
+        select: { partners: true },
+      }).catch(() => null);
+      if (Array.isArray(publicComp?.partners)) {
+        qsaList = publicComp.partners as any[];
+      }
+    }
+
+    return this.mapCompany(targetCompany, qsaList);
   }
 
   public async criar(userId: string, body: Record<string, unknown>) {

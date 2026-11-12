@@ -228,9 +228,13 @@ export function normalizarLicitacaoPNCP(
   const modalidadeNome = nullableString(item.modalidadeNome) ?? nullableString((item as any).nomeModalidade);
   const rawVal = nullableNumber(item.valorTotalEstimado);
   const valorTotalEstimado = rawVal != null && rawVal > 0 ? rawVal : null;
-  const dataEncerramentoProposta = parsePncpDateToIso(item.dataEncerramentoProposta);
-  const dataAberturaProposta = parsePncpDateToIso(item.dataAberturaProposta);
-  const dataPublicacao = parsePncpDateToIso(item.dataPublicacaoPncp);
+  const safeDateToIso = (d: any) => {
+    if (typeof parsePncpDateToIso === 'function') return parsePncpDateToIso(d);
+    return d || null;
+  };
+  const dataEncerramentoProposta = safeDateToIso(item.dataEncerramentoProposta);
+  const dataAberturaProposta = safeDateToIso(item.dataAberturaProposta);
+  const dataPublicacao = safeDateToIso(item.dataPublicacaoPncp);
 
   // No PNCP: dataAberturaProposta = início de acolhimento de propostas
   // dataEncerramentoProposta = encerramento/fim de recebimento de propostas

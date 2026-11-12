@@ -306,6 +306,16 @@ export async function sincronizarEmpresaComDadosReceita(companyId: string, tenan
       ? [...regioesAtuais, ufOficial]
       : regioesAtuais;
 
+    const palavrasAtuais = Array.isArray(company.palavrasChave) ? company.palavrasChave : [];
+    const novasPalavras: string[] = [];
+    if (official.cnae_principal) {
+      const cnaeText = official.cnae_principal.split('-').slice(1).join(' ').trim();
+      if (cnaeText && !palavrasAtuais.includes(cnaeText)) {
+        novasPalavras.push(cnaeText);
+      }
+    }
+    const palavrasCombinadas = Array.from(new Set([...palavrasAtuais, ...novasPalavras]));
+
     const updated = await prisma.company.update({
       where: { id: company.id },
       data: {
@@ -317,10 +327,15 @@ export async function sincronizarEmpresaComDadosReceita(companyId: string, tenan
         status: official.status || company.status,
         nicho: nichoCombinado,
         regioes: regioesCombinadas,
+        palavrasChave: palavrasCombinadas,
       },
     });
 
-    return updated;
+    return {
+      ...updated,
+      qsa: official.qsa || [],
+      cnaesSecundarios: official.cnaes_secundarios || [],
+    };
   } catch (error) {
     console.warn(`[CNPJ_SYNC] Falha ao sincronizar dados cadastrais da empresa ${companyId}:`, error);
     return null;

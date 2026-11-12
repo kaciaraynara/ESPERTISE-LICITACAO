@@ -52,7 +52,27 @@ export const CertidoesPage: React.FC = () => {
 
       const response = await certidoesApi.listar({ empresa_id: company.id });
       const raw = response.data?.data ?? response.data;
-      const registros = Array.isArray(raw) ? raw : [];
+      const registros = Array.isArray(raw)
+        ? raw.map((item: any) => {
+          let dias = item.diasParaVencer;
+          if (dias === null && item.validade) {
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(item.validade)) {
+              const [d, m, y] = item.validade.split('/').map(Number);
+              const date = new Date(y, m - 1, d);
+              dias = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
+            } else {
+              const date = new Date(item.validade);
+              if (!Number.isNaN(date.getTime())) {
+                dias = Math.ceil((date.getTime() - Date.now()) / 86_400_000);
+              }
+            }
+          }
+          return {
+            ...item,
+            diasParaVencer: dias,
+          };
+        })
+        : [];
       setCertidoes(registros);
     } catch (error) {
       console.error('[Certidões] Falha ao carregar dados reais da empresa.', error);
@@ -168,7 +188,7 @@ export const CertidoesPage: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Validades Vigentes</p>
               <p className="text-xl font-black text-slate-900">
-              {certidoes.filter((c) => c.status === 'VALIDA' && c.regularidade !== 'IRREGULAR').length} de {certidoes.length}
+                {certidoes.filter((c) => c.status === 'VALIDA' && c.regularidade !== 'IRREGULAR').length} de {certidoes.length}
               </p>
               <p className="text-[11px] text-slate-400">Validade registrada</p>
             </div>
@@ -278,6 +298,15 @@ export const CertidoesPage: React.FC = () => {
                   <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-5">
                       <p className="font-black text-slate-900">{c.nome}</p>
+                      {c.temArquivo ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-bold mt-1">
+                          <CheckCircle2 size={11} /> Documento vinculado no Cofre
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-semibold mt-1">
+                          <Clock size={11} /> Pendente de envio no Cofre
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-4 font-bold text-slate-600">{c.orgao}</td>
                     <td className="py-4 px-4">

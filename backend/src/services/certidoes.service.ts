@@ -171,19 +171,23 @@ export class CertidoesService {
     }
 
     const now = new Date();
-    const [docs, certificates] = await Promise.all([
+    const [docsRaw, certificates] = await Promise.all([
       prisma.document.findMany({
         where: {
-          OR: [
-            { companyId: company.id },
-            { userId, companyId: null },
-          ],
+          userId,
+          companyId: company.id,
         },
       }),
       prisma.companyCertificate.findMany({
         where: { companyId: company.id },
       }),
     ]);
+
+    const docs = [...docsRaw].sort((a, b) => {
+      const timeA = a.validade ? new Date(a.validade).getTime() : 0;
+      const timeB = b.validade ? new Date(b.validade).getTime() : 0;
+      return timeB - timeA;
+    });
 
     const today = getCalendarDay(now);
 
@@ -192,7 +196,9 @@ export class CertidoesService {
         matchesCertidao(document.tipo, item) || matchesCertidao(document.nome, item),
       );
       const certificate = certificates.find((entry) => matchesCertidao(entry.type, item));
-      const expirationDate = certificate?.expirationDate ?? doc?.validade ?? null;
+      const expirationDate = doc?.validade && certificate?.expirationDate
+        ? (doc.validade > certificate.expirationDate ? doc.validade : certificate.expirationDate)
+        : (doc?.validade ?? certificate?.expirationDate ?? null);
       const daysRemaining = expirationDate
         ? Math.ceil((getCalendarDay(expirationDate) - today) / 86_400_000)
         : null;
