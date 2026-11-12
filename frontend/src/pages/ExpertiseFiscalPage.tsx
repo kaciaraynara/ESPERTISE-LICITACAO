@@ -413,7 +413,7 @@ export default function ExpertiseFiscalPage() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black uppercase tracking-wider mb-2">
             <Scales className="w-4 h-4 text-indigo-600" weight="fill" />
-            Módulo Estratégico Oficial • Expertise Fiscal (Fase 1)
+            Inteligência Estratégica Oficial • Expertise Fiscal
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Inteligência Tributária & Blindagem Fiscal de Licitações
@@ -2105,7 +2105,7 @@ export default function ExpertiseFiscalPage() {
                             <span>Copiar Minuta</span>
                           </button>
                         </div>
-                        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 text-[11px] whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+                        <pre className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-[11px] whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
                           {item.minutaPedidoReequilibrioTexto}
                         </pre>
                       </div>
@@ -2119,7 +2119,7 @@ export default function ExpertiseFiscalPage() {
       )}
 
       {/* =====================================================================
-          ABA 8: ASSISTENTE TRIBUTÁRIO GROUNDED COM IA & GOVERNANÇA LGPD (MÓDULO 08)
+          ABA 8: ASSISTENTE TRIBUTÁRIO GROUNDED COM IA & GOVERNANÇA LGPD
           ===================================================================== */}
       {activeTab === 'assistente_ia_lgpd' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -2127,10 +2127,10 @@ export default function ExpertiseFiscalPage() {
             <div>
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
                 <Sparkle className="w-5 h-5 text-indigo-600" weight="fill" />
-                Assistente Tributário Grounded com IA &amp; Governança LGPD (Módulo 08)
+                Assistente Tributário Fundamentado &amp; Governança LGPD
               </h2>
               <p className="text-xs text-slate-500 font-medium mt-1">
-                Consulta exclusivamente as regras versionadas em <strong>TaxRuleVersion</strong>, os documentos fiscais importados pela empresa e a base normativa oficial (Lei 14.133/2021, IN RFB 1.234/2012, IN RFB 2.110/2022, LC 123/2006 e LC 214/2025), registrando trilha de auditoria LGPD no <strong>AuditService</strong>.
+                Consulta exclusivamente as regras tributárias vigentes, os documentos fiscais importados pela empresa e a base normativa oficial (Lei 14.133/2021, IN RFB 1.234/2012, IN RFB 2.110/2022, LC 123/2006 e LC 214/2025), registrando trilha de auditoria LGPD.
               </p>
             </div>
 
