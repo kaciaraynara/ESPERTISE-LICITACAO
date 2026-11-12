@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { FileText, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import api, { crmApi, licitacoesApi } from '../services/api';
 import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '../store/auth.store';
@@ -401,7 +401,7 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
               {selectedItem.fonte === 'salvo' ? 'Edital salvo para disputar' : 'Edital real selecionado'}
             </span>
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-              {selectedItem.fonte === 'salvo' && <Sparkles size={11} className="text-brand-orange" />}
+              {selectedItem.fonte === 'salvo' && <ShieldCheck size={11} className="text-emerald-700" />}
               {selectedItem.modalidade}
             </span>
           </div>

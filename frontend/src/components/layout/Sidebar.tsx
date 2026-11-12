@@ -26,6 +26,7 @@ import {
   CaretDown,
   type Icon,
 } from '@phosphor-icons/react';
+import { Pin, PinOff } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,11 +45,47 @@ export const TRIAL_DURATION_DAYS = 15;
 export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
+ * Prefetch Inteligente de Rotas
+ * Ao passar o mouse sobre um item de menu, pré-carrega o módulo correspondente.
+ */
+const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
+  [FORNECEDOR_ROUTES.dashboard]: () => import('@/pages/DashboardPage'),
+  [FORNECEDOR_ROUTES.radar]: () => import('@/pages/RadarPage'),
+  [FORNECEDOR_ROUTES.historico_concorrentes]: () => import('@/pages/HistoricoConcorrentesPage'),
+  [FORNECEDOR_ROUTES.disputa_ao_vivo]: () => import('@/pages/DisputaAoVivoPage'),
+  [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
+  [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
+  [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
+  [FORNECEDOR_ROUTES.catalogo]: () => import('@/pages/Catalogo/CatalogoPage'),
+  [FORNECEDOR_ROUTES.prazos_alertas]: () => import('@/pages/PrazosAlertas/PrazosAlertasPage'),
+  [FORNECEDOR_ROUTES.defesas_recursos]: () => import('@/pages/Contencioso/ContenciosoHubPage'),
+  [FORNECEDOR_ROUTES.lex]: () => import('@/pages/Lex/LexAnalisePage'),
+  [FORNECEDOR_ROUTES.impugnacao]: () => import('@/pages/ImpugnacaoPage'),
+  [FORNECEDOR_ROUTES.recursos]: () => import('@/pages/RecursosPage'),
+  [FORNECEDOR_ROUTES.leitor_editais]: () => import('@/pages/LeitorEditaisPage'),
+  [FORNECEDOR_ROUTES.radar_nulidades]: () => import('@/pages/Nulidades/NulidadesPage'),
+  [FORNECEDOR_ROUTES.academia]: () => import('@/pages/Academia/AcademiaPage'),
+  [FORNECEDOR_ROUTES.gestao_pos_vitoria]: () => import('@/pages/GestaoPosVitoriaPage'),
+  [FORNECEDOR_ROUTES.gestao_contratual]: () => import('@/pages/GestaoContratualPage'),
+  [FORNECEDOR_ROUTES.expertise_fiscal]: () => import('@/pages/ExpertiseFiscalPage'),
+  [FORNECEDOR_ROUTES.cofre]: () => import('@/pages/CofrePage'),
+  [FORNECEDOR_ROUTES.certidoes]: () => import('@/pages/CertidoesPage'),
+  [FORNECEDOR_ROUTES.habilitacao]: () => import('@/pages/HabilitacaoPage'),
+  [FORNECEDOR_ROUTES.srp]: () => import('@/pages/Srp/SrpPage'),
+  [FORNECEDOR_ROUTES.relatorios_estrategicos]: () => import('@/pages/Relatorios/RelatoriosPage'),
+  [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
+  [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
+};
+
+export function prefetchRoute(path: string) {
+  const loader = ROUTE_PREFETCH_MAP[path];
+  if (loader) {
+    loader().catch(() => { });
+  }
+}
+
+/**
  * Verifica se a conta do utilizador está dentro do período de Trial de 15 dias.
- * Considera:
- * 1. Flag explícita `user.isTrialActive === true`
- * 2. Data de expiração `user.trialEndsAt` no futuro
- * 3. Data de criação da conta (`created_at` / `createdAt`) há menos de 15 dias
  */
 export function isUserTrialActive(user?: User | null): boolean {
   const targetUser = user ?? useAuthStore.getState().user;
@@ -78,7 +115,6 @@ export function isUserTrialActive(user?: User | null): boolean {
     }
   }
 
-  // Fallback seguro para sessões recém-criadas sem carimbo de data hidratado
   return targetUser.isTrialActive !== false;
 }
 
@@ -127,7 +163,7 @@ export function hasActivePaidPlan(user?: User | null, activePlanIdOverride?: str
   const access = useAuthStore.getState();
   const effectivePlanRaw = String(
     activePlanIdOverride ??
-      (access.planAccessLoaded ? access.activePlanId : user?.planType || user?.plano || 'free'),
+    (access.planAccessLoaded ? access.activePlanId : user?.planType || user?.plano || 'free'),
   )
     .trim()
     .toLowerCase()
@@ -216,7 +252,6 @@ export interface StrategicHubConfig {
 
 /**
  * AS 4 CENTRAIS ESTRATÉGICAS DA PLATAFORMA
- * Rigorosamente limpas de termos proibidos e jargões técnicos.
  */
 const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
@@ -292,20 +327,18 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
   return (
     <Link
       to={item.path}
+      onMouseEnter={() => prefetchRoute(item.path)}
       aria-current={active ? 'page' : undefined}
       title={isCollapsed ? item.label : undefined}
-      className={`group relative flex items-center ${
-        isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
-      } rounded-lg text-xs font-semibold transition-all duration-150 ${
-        active
+      className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
+        } rounded-lg text-xs font-semibold transition-all duration-150 ${active
           ? 'bg-brand-orange/15 text-white font-bold border-l-2 border-brand-orange'
           : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
-      }`}
+        }`}
     >
       <Icon
-        className={`h-4.5 w-4.5 shrink-0 transition-colors ${
-          active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
-        }`}
+        className={`h-4.5 w-4.5 shrink-0 transition-colors ${active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
+          }`}
         weight={active ? 'fill' : 'regular'}
         aria-hidden="true"
       />
@@ -338,17 +371,17 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
       <button
         type="button"
         onClick={onToggle}
+        onMouseEnter={() => {
+          hub.items.forEach((it) => prefetchRoute(it.path));
+        }}
         title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
-        className={`w-full group relative flex items-center ${
-          isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-        } rounded-xl text-left transition-all duration-200 cursor-pointer ${
-          isAnyChildActive
+        className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+          } rounded-xl text-left transition-all duration-200 cursor-pointer ${isAnyChildActive
             ? 'bg-white/[0.08] text-white border border-brand-blue/30 shadow-sm'
             : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent'
-        }`}
+          }`}
       >
-        {/* Indicador de barra ativa na lateral */}
         {isAnyChildActive && (
           <span
             className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-brand-orange"
@@ -357,11 +390,10 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
         )}
 
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
-            isAnyChildActive
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${isAnyChildActive
               ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
               : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
-          }`}
+            }`}
         >
           <Icon className="h-4.5 w-4.5" weight={isAnyChildActive ? 'bold' : 'regular'} />
         </div>
@@ -379,9 +411,8 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
 
         {!isCollapsed && (
           <CaretDown
-            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
-              isExpanded ? 'rotate-180 text-white' : ''
-            }`}
+            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : ''
+              }`}
             weight="bold"
           />
         )}
@@ -421,36 +452,67 @@ export default function Sidebar() {
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
-  // Estado retrátil automático: hover do mouse expande suavemente com delay de 350ms antes de fechar
+  // Estado Pinned (Persistido no localStorage)
+  const [isPinned, setIsPinned] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('expertise_sidebar_pinned') === 'true';
+  });
+
+  // Estado Hover Inteligente com Abertura e Fechamento Suave Tardio
   const [isHovered, setIsHovered] = useState(false);
-  const isCollapsed = !isHovered;
+  const openTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const isOpen = isPinned || isHovered;
+  const isCollapsed = !isOpen;
+
   const handleMouseEnter = () => {
+    // 1. Cancela imediatamente qualquer fechamento pendente
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
-    setIsHovered(true);
+    if (isPinned || isHovered) return;
+
+    // 2. Aguarda 120ms com intenção de abertura antes de expandir (evita aberturas acidentais)
+    openTimeoutRef.current = setTimeout(() => {
+      setIsHovered(true);
+      openTimeoutRef.current = null;
+    }, 120);
   };
 
   const handleMouseLeave = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
+    // 1. Cancela qualquer abertura pendente
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
     }
+    if (isPinned) return;
+
+    // 2. Aguarda 650ms antes de recolher, garantindo fechamento suave e tolerante a oscilações
     closeTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       closeTimeoutRef.current = null;
-    }, 350);
+    }, 650);
   };
 
   useEffect(() => {
     return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current);
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
+
+  const togglePin = () => {
+    setIsPinned((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('expertise_sidebar_pinned', String(next));
+      }
+      if (next) setIsHovered(true);
+      return next;
+    });
+  };
 
   const expandedHubs = useNavigationStore((state) => state.expandedHubs);
   const toggleHub = useNavigationStore((state) => state.toggleHub);
@@ -475,158 +537,199 @@ export default function Sidebar() {
     location.pathname === '/dashboard';
 
   return (
-    <aside
-      data-tour="sidebar-menu"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onFocus={handleMouseEnter}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) {
-          handleMouseLeave();
-        }
-      }}
-      aria-label="Menu Principal da Plataforma"
-      style={{ transition: 'width 350ms cubic-bezier(0.4, 0, 0.2, 1)' }}
-      className={`relative z-40 flex h-screen shrink-0 flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none ${
-        isHovered ? 'w-72' : 'w-20'
-      }`}
-    >
-      {/* Header com Logo Institucional */}
-      <div className={`border-b border-white/10 py-4 transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-5'}`}>
-        <Link
-          to={FORNECEDOR_ROUTES.dashboard}
-          className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${
-            isCollapsed ? 'justify-center' : 'gap-3'
+    <>
+      {/* ===================================================================
+          ESPAÇADOR FIXO NO FLUXO FLEX (ELIMINA 100% DO LAYOUT SHIFT)
+          Permanece w-16 quando flutuante (!isPinned) para nunca empurrar
+          ou redimensionar tabelas e cards do ERP ao passar o cursor.
+          =================================================================== */}
+      <div
+        className={`shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
           }`}
-          aria-label="EXPERTISE Licitatória — Página Inicial"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5 shadow-md">
-            <BrandLogo imageClassName="h-full w-full object-contain" />
-          </div>
-          {!isCollapsed && (
-            <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
-              <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
-            </div>
-          )}
-        </Link>
-      </div>
+        aria-hidden="true"
+      />
 
-      {/* Perfil & Status do Plano */}
-      <div className={`border-b border-white/10 py-3.5 transition-all duration-300 ${isCollapsed ? 'px-3 flex justify-center' : 'px-5'}`}>
-        <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
-          <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-xs font-black text-white shadow-sm"
-            title={isCollapsed ? displayName : undefined}
-          >
-            {displayName.charAt(0).toUpperCase() || 'E'}
-          </span>
-          {!isCollapsed && (
-            <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
-              <p className="truncate text-xs font-black text-white">{displayName}</p>
-              <p className="truncate text-[10px] font-bold text-brand-orange">
-                {isTrialActive
-                  ? `Teste Gratuito (${trialDaysLeft}d)`
-                  : currentPlanLabel}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Navegação Principal — 4 Centrais Estratégicas */}
-      <nav
-        data-tour="strategic-hubs"
-        className={`flex-1 overflow-y-auto overflow-x-hidden py-3.5 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${
-          isCollapsed ? 'px-2' : 'px-3'
-        }`}
+      {/* ===================================================================
+          BARRA LATERAL CORPORATIVA COM HOVER INTELIGENTE E TRANSIÇÃO SUAVE
+          Renderizada com position: fixed para flutuar sem alterar o grid.
+          =================================================================== */}
+      <aside
+        data-tour="sidebar-menu"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onFocus={handleMouseEnter}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            handleMouseLeave();
+          }
+        }}
+        aria-label="Menu Principal da Plataforma"
+        style={{
+          transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
+        }}
+        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
+          }`}
       >
-        {/* Botão de Atalho para a Página Inicial */}
-        <div className="mb-3">
-          <Link
-            to={FORNECEDOR_ROUTES.dashboard}
-            title={isCollapsed ? 'Página Inicial' : undefined}
-            className={`group relative flex items-center ${
-              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-            } rounded-xl font-bold transition-all duration-150 ${
-              isDashboardActive
-                ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
-                : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+        {/* Header com Logo Institucional e Botão de Fixar */}
+        <div
+          className={`border-b border-white/10 py-3.5 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
             }`}
-          >
-            <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
+        >
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+            <Link
+              to={FORNECEDOR_ROUTES.dashboard}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
+              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-2.5'
+                }`}
+              aria-label="EXPERTISE Licitatória — Página Inicial"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-md">
+                <BrandLogo imageClassName="h-full w-full object-contain" />
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
+                  <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
+                </div>
+              )}
+            </Link>
+
             {!isCollapsed && (
-              <div className="min-w-0 flex-1 transition-opacity duration-300">
-                <span className="block text-xs font-black tracking-tight">Página Inicial</span>
+              <button
+                type="button"
+                onClick={togglePin}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isPinned
+                    ? 'bg-brand-orange text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                title={isPinned ? 'Desafixar menu (recolher automaticamente)' : 'Fixar menu aberto'}
+                aria-label={isPinned ? 'Desafixar menu' : 'Fixar menu'}
+              >
+                {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Perfil & Status do Plano */}
+        <div
+          className={`border-b border-white/10 py-3 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+            }`}
+        >
+          <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-xs font-black text-white shadow-sm"
+              title={isCollapsed ? displayName : undefined}
+            >
+              {displayName.charAt(0).toUpperCase() || 'E'}
+            </span>
+            {!isCollapsed && (
+              <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
+                <p className="truncate text-xs font-black text-white">{displayName}</p>
+                <p className="truncate text-[10px] font-bold text-brand-orange">
+                  {isTrialActive
+                    ? `Teste Gratuito (${trialDaysLeft}d)`
+                    : currentPlanLabel}
+                </p>
               </div>
             )}
-          </Link>
+          </div>
         </div>
 
-        {!isCollapsed && (
-          <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
-            Centrais Estratégicas
-          </p>
-        )}
-
-        {/* 4 Nós Principais / Centrais */}
-        <div className="space-y-1">
-          {visibleHubs.map((hub) => (
-            <StrategicHubNode
-              key={hub.id}
-              hub={hub}
-              isCollapsed={isCollapsed}
-              isExpanded={Boolean(expandedHubs[hub.id])}
-              onToggle={() => toggleHub(hub.id)}
-            />
-          ))}
-        </div>
-
-        {/* Seção Inferior de Gestão e Configurações */}
-        <div className="my-3 border-t border-white/10" />
-
-        <div className="space-y-1">
-          <Link
-            to={FORNECEDOR_ROUTES.planos}
-            title={isCollapsed ? 'Planos & Assinatura' : undefined}
-            className={`flex items-center ${
-              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-            } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-          >
-            <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-            {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
-          </Link>
-
-          <Link
-            to={FORNECEDOR_ROUTES.configuracoes}
-            title={isCollapsed ? 'Configurações' : undefined}
-            className={`flex items-center ${
-              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-            } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-          >
-            <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-            {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
-          </Link>
-        </div>
-      </nav>
-
-      {/* Botão de Logout Seguro */}
-      <div className={`border-t border-white/10 p-3 transition-all duration-300 ${isCollapsed ? 'flex justify-center' : ''}`}>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          title={isCollapsed ? 'Encerrar sessão' : undefined}
-          className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2.5 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${
-            isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
-          }`}
+        {/* Navegação Principal — 4 Centrais Estratégicas */}
+        <nav
+          data-tour="strategic-hubs"
+          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${isCollapsed ? 'px-1.5' : 'px-3'
+            }`}
         >
-          <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
+          {/* Botão de Atalho para a Página Inicial */}
+          <div className="mb-2">
+            <Link
+              to={FORNECEDOR_ROUTES.dashboard}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
+              title={isCollapsed ? 'Página Inicial' : undefined}
+              className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+                } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
+                  ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
+                  : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                }`}
+            >
+              <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
+              {!isCollapsed && (
+                <div className="min-w-0 flex-1 transition-opacity duration-300">
+                  <span className="block text-xs font-black tracking-tight">Página Inicial</span>
+                </div>
+              )}
+            </Link>
+          </div>
+
           {!isCollapsed && (
-            <span className="overflow-hidden whitespace-nowrap transition-opacity duration-300">
-              Encerrar sessão
-            </span>
+            <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
+              Centrais Estratégicas
+            </p>
           )}
-        </button>
-      </div>
-    </aside>
+
+          {/* 4 Nós Principais / Centrais */}
+          <div className="space-y-1">
+            {visibleHubs.map((hub) => (
+              <StrategicHubNode
+                key={hub.id}
+                hub={hub}
+                isCollapsed={isCollapsed}
+                isExpanded={Boolean(expandedHubs[hub.id])}
+                onToggle={() => toggleHub(hub.id)}
+              />
+            ))}
+          </div>
+
+          {/* Seção Inferior de Gestão e Configurações */}
+          <div className="my-2.5 border-t border-white/10" />
+
+          <div className="space-y-1">
+            <Link
+              to={FORNECEDOR_ROUTES.planos}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.planos)}
+              title={isCollapsed ? 'Planos & Assinatura' : undefined}
+              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            >
+              <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+              {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
+            </Link>
+
+            <Link
+              to={FORNECEDOR_ROUTES.configuracoes}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.configuracoes)}
+              title={isCollapsed ? 'Configurações' : undefined}
+              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            >
+              <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+              {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
+            </Link>
+          </div>
+        </nav>
+
+        {/* Botão de Logout Seguro */}
+        <div
+          className={`border-t border-white/10 p-3 transition-all duration-300 ${isCollapsed ? 'flex justify-center' : ''
+            }`}
+        >
+          <button
+            type="button"
+            onClick={() => void logout()}
+            title={isCollapsed ? 'Encerrar sessão' : undefined}
+            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
+              }`}
+          >
+            <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
+            {!isCollapsed && (
+              <span className="overflow-hidden whitespace-nowrap transition-opacity duration-300">
+                Encerrar sessão
+              </span>
+            )}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

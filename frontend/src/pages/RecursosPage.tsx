@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Scale,
-  Sparkles,
+  Gavel,
   FileText,
   Clock,
   CheckCircle2,
@@ -306,7 +306,7 @@ ESTRUTURA OBRIGATÓRIA DA PEÇA:
                   </>
                 ) : (
                   <>
-                    <Sparkles size={18} />
+                    <Gavel size={18} />
                     Preparar recurso
                   </>
                 )}

@@ -13,7 +13,6 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
-  Sparkles,
   ShieldCheck,
   Scale,
   Loader2,
@@ -205,7 +204,7 @@ export function AnaliseViabilidadeDetalhePage() {
             {analisandoLex ? (
               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
             ) : (
-              <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-4 h-4 object-contain shrink-0" />
+              <ShieldCheck className="w-4 h-4 shrink-0" />
             )}
             <span>
               {analisandoLex
@@ -290,11 +289,11 @@ export function AnaliseViabilidadeDetalhePage() {
       {(!data.lexAnalysis && !data.lex && (data.precos.estimativaEdital === 0 || data.score.percentual <= 40)) && (
         <section className="bg-gradient-to-r from-[#0A2540] via-slate-900 to-indigo-950 text-white rounded-2xl p-8 mb-6 shadow-md border border-indigo-900/40 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-            <Sparkles className="w-64 h-64 text-indigo-400" />
+            <ShieldCheck className="w-64 h-64 text-indigo-400" />
           </div>
           <div className="relative z-10 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold mb-3 border border-indigo-400/30">
-              <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-4 h-4 object-contain shrink-0" />
+              <ShieldCheck className="w-4 h-4 shrink-0" />
               Análise da oportunidade
             </div>
             <h3 className="text-xl font-black text-white mb-2 tracking-tight">
@@ -312,7 +311,7 @@ export function AnaliseViabilidadeDetalhePage() {
               {analisandoLex ? (
                 <Loader2 className="w-5 h-5 animate-spin shrink-0" />
               ) : (
-                <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-5 h-5 object-contain shrink-0" />
+                <FileText className="w-5 h-5 shrink-0" />
               )}
               <span>{analisandoLex ? 'Analisando informações...' : 'Iniciar análise'}</span>
             </button>
@@ -325,8 +324,8 @@ export function AnaliseViabilidadeDetalhePage() {
         <section className="bg-white border border-indigo-100 rounded-2xl p-6 mb-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 mb-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 p-1 flex items-center justify-center shrink-0 overflow-hidden">
-                <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-8 h-8 object-contain" />
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 p-1 flex items-center justify-center shrink-0 overflow-hidden text-indigo-600">
+                <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900">

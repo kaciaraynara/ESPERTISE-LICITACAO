@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldAlert, Sparkles, Loader2, CheckCircle, Copy } from 'lucide-react';
+import { ShieldAlert, Gavel, Scale, Loader2, CheckCircle, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EditalSelector, EditalOption } from '@components/EditalSelector';
 import KanbanImpugnacao from '@components/juridico/KanbanImpugnacao';
@@ -106,7 +106,7 @@ export default function ImpugnacaoPage() {
             disabled={analisando || !editalSelecionado}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] hover:bg-orange-600 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-white transition active:scale-95 disabled:opacity-50 shadow-md cursor-pointer"
           >
-            {analisando ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {analisando ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={16} />}
             {analisando ? 'Auditando Edital...' : 'Auditar Impugnação'}
           </button>
         </div>
@@ -123,7 +123,7 @@ export default function ImpugnacaoPage() {
             <div className="flex items-center justify-between border-b border-slate-700 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 bg-slate-800 rounded-lg">
-                  <img src="/assets/mascote-3d.png" alt="Lex" className="w-5 h-5 object-contain" />
+                  <Scale className="w-5 h-5 text-orange-400" />
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-white tracking-wide">

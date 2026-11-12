@@ -651,3 +651,34 @@ button.btn-secondary-navy:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 112, 192, 0.15);
 }
+
+
+/* ==========================================================================
+   PADRONIZAÇÃO ERP CORPORATIVO & ALINHAMENTO TABULAR DE DADOS
+   ========================================================================== */
+.tabular-nums,
+table td,
+table th,
+.font-mono,
+[data-numeric],
+.numeric-data,
+time {
+  font-variant-numeric: tabular-nums lining-nums !important;
+  -webkit-font-feature-settings: "tnum" 1, "lnum" 1 !important;
+  font-feature-settings: "tnum" 1, "lnum" 1 !important;
+}
+
+/* Superfícies Limpas de ERP Corporativo (Zero peso visual de IA) */
+.erp-card,
+.enterprise-card,
+.rounded-3xl {
+  border-radius: 0.75rem !important; /* rounded-xl corporativo */
+}
+
+.shadow-2xl {
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+}
+
+.shadow-xl {
+  box-shadow: 0 6px 18px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.04) !important;
+}

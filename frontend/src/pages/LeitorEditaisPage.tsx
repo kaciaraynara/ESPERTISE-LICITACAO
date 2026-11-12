@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText,
-  Sparkles,
   UploadCloud,
   CheckCircle2,
   Clock,
@@ -579,7 +578,7 @@ ${editalTexto.slice(0, 12000)}`;
                     </>
                   ) : (
                     <>
-                      <Sparkles size={18} />
+                      <ShieldCheck size={18} />
                       Auditar Cláusulas com IA
                     </>
                   )}
@@ -627,7 +626,7 @@ ${editalTexto.slice(0, 12000)}`;
               ) : (
                 <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-8 space-y-3">
                   <div className="p-4 bg-white rounded-full border border-slate-200 shadow-sm text-slate-400">
-                    <Sparkles size={32} className="text-[#EA580C]" />
+                    <FileText size={32} className="text-[#EA580C]" />
                   </div>
                   <h4 className="font-black text-slate-800 text-sm">
                     Aguardando análise de cláusulas

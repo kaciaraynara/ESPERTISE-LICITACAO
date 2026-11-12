@@ -17,7 +17,6 @@ import {
   Search,
   Scale,
   Crosshair,
-  Sparkles,
   FileText,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -488,7 +487,7 @@ export default function CrmKanbanPage() {
                             className="h-8 px-2 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition"
                             title="Gerar proposta comercial"
                           >
-                            <Sparkles className="w-3 h-3 text-amber-500" />
+                            <FileText className="w-3 h-3 text-indigo-600" />
                             <span>Proposta</span>
                           </button>
                         </div>
