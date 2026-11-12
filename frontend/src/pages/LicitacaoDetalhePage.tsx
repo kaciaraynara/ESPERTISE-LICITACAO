@@ -257,7 +257,10 @@ export default function LicitacaoDetalhePage() {
   const handleGerarPropostaComercial = async () => {
     setGerandoPropostaComercial(true);
     try {
-      const selectedCompanyId = selectedCompany?.id || empresaQuery.data?.[0]?.id;
+      const selectedCompanyId =
+        selectedCompany?.id && selectedCompany.id !== 'default'
+          ? selectedCompany.id
+          : empresaQuery.data?.[0]?.id;
       const res = await propostasApi.preencherPropostaViaLex({
         noticeId: licitacaoId,
         companyId: selectedCompanyId,
@@ -405,9 +408,9 @@ export default function LicitacaoDetalhePage() {
       acc +
       (Number(
         it.valorTotal ??
-          it.estimatedTotalValue ??
-          ((Number(it.quantidade ?? it.quantity) || 1) *
-            (Number(it.valorUnitarioEstimado ?? it.estimatedUnitValue) || 0)),
+        it.estimatedTotalValue ??
+        ((Number(it.quantidade ?? it.quantity) || 1) *
+          (Number(it.valorUnitarioEstimado ?? it.estimatedUnitValue) || 0)),
       ) || 0),
     0,
   );
@@ -710,11 +713,10 @@ export default function LicitacaoDetalhePage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as ActiveTab)}
-                  className={`rounded-lg px-4 py-3 text-sm font-bold transition ${
-                    activeTab === tab.id
+                  className={`rounded-lg px-4 py-3 text-sm font-bold transition ${activeTab === tab.id
                       ? tab.color
                       : 'bg-white text-brand-blue/70 hover:bg-white'
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </button>

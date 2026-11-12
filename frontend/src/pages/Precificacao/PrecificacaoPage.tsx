@@ -28,9 +28,13 @@ export const PrecificacaoPage: React.FC = () => {
     }
     setGerandoProposta(true);
     try {
+      const targetCompanyId =
+        selectedCompany?.id && selectedCompany.id !== 'default'
+          ? selectedCompany.id
+          : undefined;
       const res = await propostasApi.preencherPropostaViaLex({
         noticeId,
-        companyId: selectedCompany?.id,
+        companyId: targetCompanyId,
         autoCreate: true,
       });
 
@@ -138,7 +142,7 @@ export const PrecificacaoPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-8">
-      
+
       {/* CABEÇALHO DA PÁGINA */}
       <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -241,7 +245,7 @@ export const PrecificacaoPage: React.FC = () => {
 
       {/* GRID PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         {/* COLUNA ESQUERDA: ENTRADA DE PARÂMETROS */}
         <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
           <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -254,7 +258,7 @@ export const PrecificacaoPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Custo Direto de Aquisição / Produção (R$)
             </label>
-            <input 
+            <input
               type="number"
               value={custos.custoProdutoServico}
               onChange={(e) => setCustos({ ...custos, custoProdutoServico: parseFloat(e.target.value) || 0 })}
@@ -267,7 +271,7 @@ export const PrecificacaoPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Custos Indiretos / Logística / Frete (%)
             </label>
-            <input 
+            <input
               type="number"
               value={custos.custoOperacionalPercentual}
               onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: parseFloat(e.target.value) || 0 })}
@@ -280,7 +284,7 @@ export const PrecificacaoPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Alíquota Efetiva de Impostos (%)
             </label>
-            <input 
+            <input
               type="number"
               value={custos.impostosPercentual}
               onChange={(e) => setCustos({ ...custos, impostosPercentual: parseFloat(e.target.value) || 0 })}
@@ -293,7 +297,7 @@ export const PrecificacaoPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Margem de Lucro Alvo (%)
             </label>
-            <input 
+            <input
               type="number"
               value={custos.margemDesejadaPercentual}
               onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: parseFloat(e.target.value) || 0 })}
@@ -306,7 +310,7 @@ export const PrecificacaoPage: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Valor Máximo / Referência do Edital (R$)
             </label>
-            <input 
+            <input
               type="number"
               value={valorMaximoEdital}
               onChange={(e) => setValorMaximoEdital(parseFloat(e.target.value) || 0)}
@@ -317,7 +321,7 @@ export const PrecificacaoPage: React.FC = () => {
 
         {/* COLUNA DIREITA: DRE SINTÉTICO E SIMULAÇÃO DE LANCE */}
         <div className="lg:col-span-7 space-y-6">
-          
+
           {/* CARD PREÇO SUGERIDO */}
           <div className="bg-gradient-to-br from-[#0B1736] to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
             {isLoading && (
@@ -325,7 +329,7 @@ export const PrecificacaoPage: React.FC = () => {
                 <Loader2 size={32} className="animate-spin text-orange-500" />
               </div>
             )}
-            
+
             <div>
               <span className="text-xs text-orange-400 font-bold uppercase tracking-wider block">
                 Preço Ideal da Proposta Inicial
