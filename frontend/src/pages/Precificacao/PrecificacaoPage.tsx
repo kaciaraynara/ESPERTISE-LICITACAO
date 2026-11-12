@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Calculator, Zap, Percent, Loader2 } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Calculator, Zap, Percent, Loader2, FileText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { precificacaoApi, licitacoesApi } from '@services/api';
+import toast from 'react-hot-toast';
+import { precificacaoApi, licitacoesApi, propostasApi } from '@services/api';
+import { useCompany } from '@/contexts/CompanyContext';
 
 export const PrecificacaoPage: React.FC = () => {
   const [custos, setCustos] = useState({
@@ -14,7 +16,38 @@ export const PrecificacaoPage: React.FC = () => {
 
   const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(0);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { selectedCompany } = useCompany();
+  const [gerandoProposta, setGerandoProposta] = useState(false);
   const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
+
+  const handleGerarProposta = async () => {
+    if (!noticeId) {
+      toast.error('Nenhum edital vinculado para gerar proposta comercial.');
+      return;
+    }
+    setGerandoProposta(true);
+    try {
+      const res = await propostasApi.preencherPropostaViaLex({
+        noticeId,
+        companyId: selectedCompany?.id,
+        autoCreate: true,
+      });
+
+      const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
+      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e BDI!');
+      if (proposalId) {
+        navigate(`/fornecedor/propostas/${proposalId}`);
+      } else {
+        navigate('/fornecedor/propostas');
+      }
+    } catch (err: any) {
+      console.error('[PrecificacaoPage] Erro ao gerar proposta comercial:', err);
+      toast.error(err?.response?.data?.message || 'Falha ao gerar proposta comercial a partir dos itens.');
+    } finally {
+      setGerandoProposta(false);
+    }
+  };
 
   const { data: editalData } = useQuery({
     queryKey: ['precificacao-edital', noticeId],
@@ -129,6 +162,28 @@ export const PrecificacaoPage: React.FC = () => {
               {isLoading ? <Loader2 size={16} className="animate-spin inline text-rose-600" /> : formatarMoeda(calculo.precoBreakeven)}
             </span>
           </div>
+
+          {noticeId && (
+            <button
+              type="button"
+              id="btn-gerar-proposta-precificacao"
+              onClick={handleGerarProposta}
+              disabled={gerandoProposta}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer"
+            >
+              {gerandoProposta ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Gerando Proposta...
+                </>
+              ) : (
+                <>
+                  <FileText size={14} />
+                  Gerar Proposta Comercial com Estes Preços
+                </>
+              )}
+            </button>
+          )}
         </div>
       </header>
 
@@ -154,11 +209,31 @@ export const PrecificacaoPage: React.FC = () => {
                 {editalData.notice?.orgao || editalData.notice?.buyerName || 'Órgão Licitante'} • {editalData.itens.length} {editalData.itens.length === 1 ? 'item oficial' : 'itens oficiais'} carregados do PNCP
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-[11px] font-bold text-slate-500 uppercase block">Teto Oficial Máximo</span>
-              <span className="text-lg font-black text-brand-blue">
-                {formatarMoeda(editalData.valorFinal)}
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <span className="text-[11px] font-bold text-slate-500 uppercase block">Teto Oficial Máximo</span>
+                <span className="text-lg font-black text-brand-blue">
+                  {formatarMoeda(editalData.valorFinal)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleGerarProposta}
+                disabled={gerandoProposta}
+                className="hidden sm:inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer"
+              >
+                {gerandoProposta ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <FileText size={14} />
+                    Gerar Proposta Comercial com Estes Preços
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -314,6 +389,38 @@ export const PrecificacaoPage: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {noticeId && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                  <FileText size={16} className="text-emerald-600" />
+                  Transformar Precificação em Proposta Oficial
+                </h4>
+                <p className="text-xs text-emerald-800 mt-1">
+                  Transfere todos os itens reais do PNCP precificados com o BDI direto para a Fábrica de Propostas.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGerarProposta}
+                disabled={gerandoProposta}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer whitespace-nowrap"
+              >
+                {gerandoProposta ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Gerando Proposta...
+                  </>
+                ) : (
+                  <>
+                    <FileText size={16} />
+                    Gerar Proposta Comercial com Estes Preços
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
         </div>
 

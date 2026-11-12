@@ -27,6 +27,7 @@ import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '@/utils';
 import { lexApi, licitacoesApi, empresasApi, crmApi, propostasApi } from '@services/api';
 import { useAuthStore } from '@/store/auth.store';
+import { useCompany } from '@/contexts/CompanyContext';
 import { isUserFreePlan } from '@/components/monetization/PremiumFeatureGuard';
 import { PaywallModal } from '@/components/monetization/PaywallModal';
 
@@ -198,6 +199,7 @@ export default function LicitacaoDetalhePage() {
   const [impugnacao, setImpugnacao] = useState<ImpugnacaoResult | null>(null);
 
   const user = useAuthStore((state) => state.user);
+  const { selectedCompany } = useCompany();
   const [paywallAberto, setPaywallAberto] = useState(false);
 
   // Estados interativos da calculadora de viabilidade
@@ -255,7 +257,7 @@ export default function LicitacaoDetalhePage() {
   const handleGerarPropostaComercial = async () => {
     setGerandoPropostaComercial(true);
     try {
-      const selectedCompanyId = empresaQuery.data?.[0]?.id;
+      const selectedCompanyId = selectedCompany?.id || empresaQuery.data?.[0]?.id;
       const res = await propostasApi.preencherPropostaViaLex({
         noticeId: licitacaoId,
         companyId: selectedCompanyId,
@@ -277,7 +279,11 @@ export default function LicitacaoDetalhePage() {
     }
   };
 
-  const nomeEmpresa = empresaQuery.data?.[0]?.razao_social || 'Empresa Licitante';
+  const nomeEmpresa =
+    selectedCompany?.razaoSocial ||
+    selectedCompany?.razao_social ||
+    empresaQuery.data?.[0]?.razao_social ||
+    'Empresa Licitante';
 
   const handleInvestigarHistoricoOrgao = () => {
     const isFree = isUserFreePlan(user?.plano);

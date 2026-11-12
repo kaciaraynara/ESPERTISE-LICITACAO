@@ -222,8 +222,14 @@ export class LicitacoesController {
         return res.status(400).json({ success: false, message: 'ID do edital obrigatório' });
       }
 
-      const companyId = stringParam(req.query.companyId) || req.companyId;
+      let companyId = stringParam(req.query.companyId) || req.companyId;
       const tenantId = req.user?.tenantId;
+      if (!companyId && req.user?.id) {
+        try {
+          const authCompany = await resolveAuthorizedCompany(req.user.id, tenantId);
+          if (authCompany?.id) companyId = authCompany.id;
+        } catch {}
+      }
 
       try {
         const resultado = await proposalAutomationService.syncNoticeItemsWithCatalog(

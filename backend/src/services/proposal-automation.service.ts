@@ -625,7 +625,10 @@ export class ProposalAutomationService {
       }
     }
 
-    const parsed = parsePncpControlNumber(notice?.externalId || notice?.numeroControlePncp || cleanId);
+    const parsed =
+      parsePncpControlNumber(notice?.externalId) ||
+      parsePncpControlNumber(notice?.numeroControlePncp) ||
+      parsePncpControlNumber(cleanId);
 
     // 2. Se o edital não tiver itens no banco ou itens vazios, busca na API oficial do PNCP
     let rawItems: any[] = [];
@@ -709,6 +712,14 @@ export class ProposalAutomationService {
       catalogItems = await prisma.catalogItem.findMany({
         where: {
           companyId: resolvedCompanyId,
+          ...(tenantId ? { company: { tenantId } } : {}),
+          status: 'ATIVO',
+        },
+      });
+    } else if (tenantId) {
+      catalogItems = await prisma.catalogItem.findMany({
+        where: {
+          company: { tenantId },
           status: 'ATIVO',
         },
       });
