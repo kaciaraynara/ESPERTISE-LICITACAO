@@ -5,6 +5,8 @@ import { LexIntentService, LexClassifiedIntent } from './lex-intent.service';
 import { LexCalculadoraService } from './lex-calculadora.service';
 import { LexMinimizationService } from './lex-minimization.service';
 import { preencherTextoEditalAutomaticamente } from './pncp-parser.service';
+import { resolveNoticeWhere } from './notices-search.service';
+import { buscarLicitacaoPorIdOuControle } from './licitacoes.service';
 import {
   LexEpistemicCategory,
   LexEvidenceItem,
@@ -105,7 +107,7 @@ const MAX_NOTICES = 3;
 const MAX_CHUNKS = 8;
 const MAX_RULES = 8;
 const MAX_CITATIONS = 10;
-const QUERY_LIMIT = 2000;
+const QUERY_LIMIT = 12000;
 const CONTEXT_QUERY_LIMIT = 1200;
 const EXCERPT_LIMIT = 600;
 
@@ -192,7 +194,7 @@ export class AiGroundingService {
       retrievalSessionId = retrievalSession.id;
 
       const retrieval = await this.retrieve(input, context, intentClassification);
-      const providedDocumentText = safeString(input.providedDocumentText, 8000);
+      const providedDocumentText = safeString(input.providedDocumentText, QUERY_LIMIT);
       if (providedDocumentText) {
         const sourceId = `user-provided-${createHash('sha256')
           .update(providedDocumentText)
@@ -295,6 +297,7 @@ export class AiGroundingService {
         citations,
         calculos,
         input.conversationContext,
+        providedDocumentText,
       );
 
       // Chamada resiliente com timeout e modelo configurável
@@ -453,19 +456,27 @@ export class AiGroundingService {
     // Se o usuário solicitou um edital específico, verifica visibilidade autorizada
     let requestedNoticeWhere: any = null;
     if (requestedNoticeId) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        requestedNoticeId,
-      );
-
-      const noticeMatch = isUuid
-        ? { OR: [{ id: requestedNoticeId }, { externalId: requestedNoticeId }, { noticeNumber: requestedNoticeId }] }
-        : { OR: [{ externalId: requestedNoticeId }, { noticeNumber: requestedNoticeId }] };
+      const noticeMatch = resolveNoticeWhere(requestedNoticeId);
 
       // Verifica se o edital existe em outro tenant
-      const rawNotice = await this.client.procurementNotice.findFirst({
+      let rawNotice = await this.client.procurementNotice.findFirst({
         where: noticeMatch,
         select: { id: true, tenantId: true },
       });
+
+      if (!rawNotice) {
+        try {
+          const fetched = await buscarLicitacaoPorIdOuControle(requestedNoticeId, { requirePersistence: false });
+          if (fetched?.databaseId) {
+            rawNotice = await this.client.procurementNotice.findFirst({
+              where: { id: fetched.databaseId },
+              select: { id: true, tenantId: true },
+            });
+          }
+        } catch {
+          // Ignora erro externo se não encontrado no PNCP
+        }
+      }
 
       if (rawNotice && rawNotice.tenantId && rawNotice.tenantId !== tenantId) {
         // Documento pertence a outro tenant -> ACESSO NÃO AUTORIZADO
@@ -509,14 +520,7 @@ export class AiGroundingService {
             where: {
               AND: [
                 tenantVisibilityWhere(tenantId),
-                {
-                  OR: [
-                    { id: targetNoticeId },
-                    { externalId: targetNoticeId },
-                    { dedupeKey: `pncp-${targetNoticeId}` },
-                    { noticeNumber: targetNoticeId },
-                  ],
-                },
+                resolveNoticeWhere(targetNoticeId),
               ],
             },
             take: 1,
@@ -728,8 +732,53 @@ export class AiGroundingService {
       };
     });
 
+    // Caso o edital não tenha PDF ou os chunks não puderem ser extraídos, construa uma citação verificada estruturada
+    // contendo metadados completos do edital, garantindo citations.length > 0 para eliminar respostas inconclusivas falsas
+    const structuredNoticeCitations: GroundingCitation[] = [];
+    if (chunkCitations.length === 0 && retrieval.notices.length > 0) {
+      for (const notice of retrieval.notices.slice(0, 1)) {
+        const itemsText = Array.isArray(notice.items) && notice.items.length > 0
+          ? `\nItens da Contratação (${notice.items.length}):\n` + notice.items.slice(0, 10).map((it: any) => `- Item ${it.itemNumber}: ${it.description} | Qtd: ${it.quantity} ${it.unit || ''} | Valor Total: ${it.estimatedTotalValue ? 'R$ ' + Number(it.estimatedTotalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'Sigiloso / Ver TR'}`).join('\n')
+          : '';
+
+        const noticeExcerpt = [
+          `Órgão Licitante: ${notice.buyerName || 'Não informado'} (CNPJ: ${notice.buyerDocument || 'Não informado'})`,
+          `Modalidade: ${notice.modality || 'Não informada'} | Modo de Disputa: ${notice.modoDisputa || 'Não informado'} | Critério: ${notice.judgmentCriterion || 'Não informado'}`,
+          `Objeto da Contratação: ${notice.object || 'Não informado'}`,
+          `Data de Divulgação: ${notice.publishedAt ? new Date(notice.publishedAt).toLocaleDateString('pt-BR') : 'Não informada'}`,
+          `Abertura de Propostas: ${notice.openingAt ? new Date(notice.openingAt).toLocaleString('pt-BR') : 'Não informada'}`,
+          `Encerramento / Sessão: ${notice.closingAt ? new Date(notice.closingAt).toLocaleString('pt-BR') : 'Não informada'}`,
+          `Valor Total Estimado: ${notice.estimatedValue ? 'R$ ' + Number(notice.estimatedValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'Sigiloso / Ver Itens no TR'}`,
+          itemsText,
+        ].filter(Boolean).join('\n');
+
+        structuredNoticeCitations.push({
+          sourceType: 'procurement_notice',
+          sourceId: String(notice.id),
+          citationType: 'notice',
+          label: buildNoticeLabel(notice),
+          excerpt: LexMinimizationService.minimizeExcerpt(noticeExcerpt, EXCERPT_LIMIT * 2),
+          confidence: 0.95,
+          tipoEpistemico: 'Fato da fonte',
+          metadata: sanitizeMetadata({
+            buyerName: notice.buyerName,
+            buyerDocument: notice.buyerDocument,
+            modality: notice.modality,
+            modoDisputa: notice.modoDisputa,
+            judgmentCriterion: notice.judgmentCriterion,
+            object: notice.object,
+            publishedAt: notice.publishedAt,
+            openingAt: notice.openingAt,
+            closingAt: notice.closingAt,
+            estimatedValue: notice.estimatedValue,
+            itemsCount: Array.isArray(notice.items) ? notice.items.length : 0,
+          }),
+        });
+      }
+    }
+
     const ruleCitations = retrieval.rules
-      .slice(0, Math.max(0, MAX_CITATIONS - chunkCitations.length))
+      .slice(0, Math.max(0, MAX_CITATIONS - chunkCitations.length - structuredNoticeCitations.length))
       .map((rule): GroundingCitation => ({
         sourceType: 'legal_rule',
         sourceId: String(rule.id),
@@ -764,7 +813,7 @@ export class AiGroundingService {
       }),
     }));
 
-    return [...calculoCitations, ...chunkCitations, ...ruleCitations];
+    return [...calculoCitations, ...chunkCitations, ...structuredNoticeCitations, ...ruleCitations];
   }
 
   private respondUnauthorizedDocument(
@@ -1128,7 +1177,8 @@ function buildGroundedPrompt(
   retrieval: RetrievalResult,
   citations: GroundingCitation[],
   calculos: LexDeterministicCalculation[],
-  conversationContext?: string,
+  conversationContext?: string | null,
+  providedDocumentText?: string | null,
 ) {
   const notices = retrieval.notices
     .map((notice, index) =>
@@ -1177,6 +1227,13 @@ function buildGroundedPrompt(
     '[PERGUNTA DO USUÁRIO]',
     pergunta,
     '',
+    ...(providedDocumentText
+      ? [
+          '[DOCUMENTO ANEXO FORNECIDO PELO USUÁRIO (TEXTO INTEGRAL/PARCIAL DO EDITAL OU TR)]',
+          LexMinimizationService.sanitizeForPrompt(providedDocumentText),
+          '',
+        ]
+      : []),
     ...(conversation
       ? [
           '[HISTÓRICO DA CONVERSA (CONTEXTO INFORMADO PELO CLIENTE)]',
@@ -1240,6 +1297,8 @@ function retrievalNoticeSelect() {
     externalId: true,
     noticeNumber: true,
     modality: true,
+    judgmentCriterion: true,
+    modoDisputa: true,
     buyerName: true,
     buyerDocument: true,
     object: true,
@@ -1255,6 +1314,19 @@ function retrievalNoticeSelect() {
     metadata: true,
     createdAt: true,
     updatedAt: true,
+    items: {
+      take: 50,
+      orderBy: { itemNumber: 'asc' },
+      select: {
+        id: true,
+        itemNumber: true,
+        description: true,
+        quantity: true,
+        unit: true,
+        estimatedUnitValue: true,
+        estimatedTotalValue: true,
+      },
+    },
   };
 }
 

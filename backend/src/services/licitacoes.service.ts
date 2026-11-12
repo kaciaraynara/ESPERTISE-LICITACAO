@@ -115,7 +115,7 @@ function getAutomaticSearchTerms(
   return profile?.keywords.slice(0, AUTOMATIC_RADAR_KEYWORD_LIMIT) ?? [];
 }
 
-function extractPncpAuditParams(
+export function extractPncpAuditParams(
   numeroControlePNCP?: string | null,
   cnpjOrgao?: string | null,
   anoCompra?: number | string | null,

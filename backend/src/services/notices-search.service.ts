@@ -2,6 +2,10 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import { prisma } from '../database/prisma';
 import { RBAC_PERMISSIONS, RbacService } from './rbac.service';
+import { buscarLicitacaoPorIdOuControle, extractPncpAuditParams } from './licitacoes.service';
+import { buscarItensPNCP, buscarArquivosPNCP, parsePncpControlNumber } from './pncp.service';
+import { preencherTextoEditalAutomaticamente } from './pncp-parser.service';
+import { LexCalculadoraService } from './lex-calculadora.service';
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -220,6 +224,119 @@ export class NoticesSearchService {
     };
   }
 
+  private async ensureNoticeHydrated(idOrControl: string, tenantId?: string | null) {
+    const cleanId = String(idOrControl || '').trim();
+    let row: any = await this.client.procurementNotice.findFirst({
+      where: {
+        AND: [
+          tenantVisibilityWhere(tenantId),
+          resolveNoticeWhere(cleanId),
+        ],
+      },
+      include: {
+        items: {
+          take: 200,
+          orderBy: { itemNumber: 'asc' },
+        },
+      },
+    });
+
+    if (!row) {
+      try {
+        const fetched = await buscarLicitacaoPorIdOuControle(cleanId, { requirePersistence: false });
+        if (fetched?.databaseId) {
+          row = await this.client.procurementNotice.findFirst({
+            where: { id: fetched.databaseId },
+            include: {
+              items: {
+                take: 200,
+                orderBy: { itemNumber: 'asc' },
+              },
+            },
+          });
+        }
+      } catch (err: any) {
+        // Ignora falha de busca no PNCP caso não encontrado
+      }
+    }
+
+    if (row && (!row.items || row.items.length === 0)) {
+      try {
+        const parsed = parsePncpControlNumber(row.externalId || cleanId);
+        if (parsed) {
+          const pncpItems = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
+          if (Array.isArray(pncpItems) && pncpItems.length > 0) {
+            let soma = 0;
+            let hasVal = false;
+            for (const it of pncpItems) {
+              const itemNumber = String(it.numeroItem ?? 1);
+              const desc = String(it.descricao ?? 'Item da contratação').trim();
+              const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+              const vUnit = Number(it.valorUnitarioEstimado) > 0 ? Number(it.valorUnitarioEstimado) : null;
+              const vTot = Number(it.valorTotal) > 0 ? Number(it.valorTotal) : (vUnit ? vUnit * qtd : null);
+              const unit = String(it.unidadeMedida ?? 'UN').trim();
+              const catCod = it.codigoItemCatalogo ?? it.catalogoCodigo ?? null;
+
+              if (vTot != null && vTot > 0) {
+                soma += vTot;
+                hasVal = true;
+              }
+
+              await this.client.procurementItem.upsert({
+                where: {
+                  procurementNoticeId_itemNumber: {
+                    procurementNoticeId: row.id,
+                    itemNumber,
+                  },
+                },
+                create: {
+                  procurementNoticeId: row.id,
+                  tenantId: row.tenantId ?? null,
+                  itemNumber,
+                  description: desc,
+                  quantity: qtd,
+                  unit,
+                  estimatedUnitValue: vUnit,
+                  estimatedTotalValue: vTot,
+                  catalogoCodigo: catCod,
+                  metadata: it,
+                },
+                update: {
+                  description: desc,
+                  quantity: qtd,
+                  unit,
+                  estimatedUnitValue: vUnit,
+                  estimatedTotalValue: vTot,
+                  catalogoCodigo: catCod,
+                  metadata: it,
+                },
+              });
+            }
+
+            if ((row.estimatedValue == null || Number(row.estimatedValue) <= 0) && hasVal && soma > 0) {
+              const finalVal = Number(soma.toFixed(2));
+              await this.client.procurementNotice.update({
+                where: { id: row.id },
+                data: { estimatedValue: finalVal },
+              });
+              row.estimatedValue = finalVal;
+            }
+
+            row.items = await this.client.procurementItem.findMany({
+              where: { procurementNoticeId: row.id },
+              take: 200,
+              orderBy: { itemNumber: 'asc' },
+            });
+          }
+        }
+      } catch {
+        // Falha não impeditiva
+      }
+    }
+
+    return row;
+  }
+
   async getNoticeById(id: string, input: unknown = {}, context: NoticesUserContext = {}) {
     const noticeId = requiredId(id);
     const parsed = noticeDetailQuerySchema.parse(input);
@@ -232,24 +349,26 @@ export class NoticesSearchService {
       }, 'procurement_notice', noticeId);
     }
 
-    const row = await this.client.procurementNotice.findFirst({
-      where: {
-        AND: [
-          tenantVisibilityWhere(context.tenantId),
-          { id: noticeId },
-        ],
-      },
-      select: noticeSelect(Boolean(parsed.includeRaw && rawAllowed), true),
-    });
-
+    const row = await this.ensureNoticeHydrated(noticeId, context.tenantId);
     if (!row) return null;
 
     const result = mapNotice(row, Boolean(parsed.includeRaw && rawAllowed));
+
+    let files: any[] = [];
+    const parsedCtrl = parsePncpControlNumber(row.externalId || noticeId);
+    if (parsedCtrl) {
+      try {
+        files = await buscarArquivosPNCP(parsedCtrl.cnpj, parsedCtrl.ano, parsedCtrl.sequencial);
+      } catch {}
+    }
+
+    (result as any).dossier = buildComprehensiveDescriptiveDossier(row, row.items, [], files);
+
     await this.auditNoticeAction('NOTICE_VIEWED', 'success', context, {
       includeRawRequested: Boolean(parsed.includeRaw),
       rawPayloadIncluded: Boolean(parsed.includeRaw && rawAllowed),
-      source: result.source,
-    }, 'procurement_notice', noticeId);
+      source: (result as any).source,
+    }, 'procurement_notice', row.id);
 
     return result;
   }
@@ -258,25 +377,17 @@ export class NoticesSearchService {
     const id = requiredId(noticeId);
     const parsed = noticeChunksQuerySchema.parse(input);
     const pagination = normalizePagination(parsed, DEFAULT_CHUNKS_LIMIT, MAX_CHUNKS_LIMIT);
-    const notice = await this.client.procurementNotice.findFirst({
-      where: {
-        AND: [
-          tenantVisibilityWhere(context.tenantId),
-          { id },
-        ],
-      },
-      select: { id: true, source: true },
-    });
+    const notice = await this.ensureNoticeHydrated(id, context.tenantId);
 
     if (!notice) return null;
 
-    const rows = await this.client.documentChunk.findMany({
+    let rows = await this.client.documentChunk.findMany({
       where: {
         AND: [
           tenantVisibilityWhere(context.tenantId),
           {
             sourceType: 'procurement_notice',
-            sourceId: id,
+            sourceId: notice.id,
           },
         ],
       },
@@ -296,13 +407,44 @@ export class NoticesSearchService {
       },
     });
 
+    if (rows.length === 0 && pagination.offset === 0) {
+      try {
+        await preencherTextoEditalAutomaticamente(notice.id);
+        rows = await this.client.documentChunk.findMany({
+          where: {
+            AND: [
+              tenantVisibilityWhere(context.tenantId),
+              {
+                sourceType: 'procurement_notice',
+                sourceId: notice.id,
+              },
+            ],
+          },
+          orderBy: { chunkIndex: 'asc' },
+          skip: pagination.offset,
+          take: pagination.limit + 1,
+          select: {
+            id: true,
+            tenantId: true,
+            sourceType: true,
+            sourceId: true,
+            chunkIndex: true,
+            content: true,
+            tokenCount: true,
+            metadata: true,
+            createdAt: true,
+          },
+        });
+      } catch {}
+    }
+
     const result = paginate(rows.map(mapChunk), pagination);
 
     await this.auditNoticeAction('NOTICE_CHUNKS_VIEWED', 'success', context, {
       source: notice.source,
       resultCount: result.data.length,
       hasMore: result.pagination.hasMore,
-    }, 'procurement_notice', id);
+    }, 'procurement_notice', notice.id);
 
     return result;
   }
@@ -311,33 +453,7 @@ export class NoticesSearchService {
     const id = requiredId(noticeId);
 
     try {
-      const notice = await this.client.procurementNotice.findFirst({
-        where: {
-          AND: [
-            tenantVisibilityWhere(context.tenantId),
-            { id },
-          ],
-        },
-        select: {
-          id: true,
-          source: true,
-          externalId: true,
-          noticeNumber: true,
-          modality: true,
-    judgmentCriterion: true,
-    modoDisputa: true,
-          buyerName: true,
-          object: true,
-          uf: true,
-          municipality: true,
-          estimatedValue: true,
-          status: true,
-          url: true,
-          publishedAt: true,
-          openingAt: true,
-          closingAt: true,
-        },
-      });
+      const notice = await this.ensureNoticeHydrated(id, context.tenantId);
 
       if (!notice) {
         await this.auditNoticeAction('NOTICE_BASIC_SUMMARY_NOT_FOUND', 'failure', context, {
@@ -346,6 +462,16 @@ export class NoticesSearchService {
 
         return null;
       }
+
+      let files: any[] = [];
+      const parsedCtrl = parsePncpControlNumber(notice.externalId || id);
+      if (parsedCtrl) {
+        try {
+          files = await buscarArquivosPNCP(parsedCtrl.cnpj, parsedCtrl.ano, parsedCtrl.sequencial);
+        } catch {}
+      }
+
+      const dossier = buildComprehensiveDescriptiveDossier(notice, notice.items, [], files);
 
       const summary = {
         id: notice.id,
@@ -357,9 +483,12 @@ export class NoticesSearchService {
         },
         source: notice.source,
         agency: notice.buyerName ?? null,
+        buyerName: notice.buyerName ?? null,
         uf: notice.uf ?? null,
         municipality: notice.municipality ?? null,
         modality: notice.modality ?? null,
+        modoDisputa: notice.modoDisputa ?? null,
+        criterioJulgamento: notice.judgmentCriterion ?? null,
         status: notice.status ?? null,
         object: safeString(notice.object, 2000) ?? null,
         estimatedValue: decimalToNumber(notice.estimatedValue),
@@ -368,6 +497,19 @@ export class NoticesSearchService {
           openingAt: toIso(notice.openingAt),
           closingAt: toIso(notice.closingAt),
         },
+        items: Array.isArray(notice.items)
+          ? notice.items.map((item: any) => ({
+              id: item.id,
+              numero: item.itemNumber,
+              numeroItem: item.itemNumber,
+              descricao: item.description,
+              quantidade: decimalToNumber(item.quantity),
+              unidade: item.unit ?? null,
+              valorEstimadoUnitario: decimalToNumber(item.estimatedUnitValue),
+              valorEstimadoTotal: decimalToNumber(item.estimatedTotalValue),
+            }))
+          : [],
+        dossier,
         method: 'basic_projection_v1',
         generatedAt: new Date().toISOString(),
       };
@@ -376,7 +518,7 @@ export class NoticesSearchService {
         source: notice.source,
         status: notice.status ?? null,
         hasEstimatedValue: notice.estimatedValue != null,
-      }, 'procurement_notice', id);
+      }, 'procurement_notice', notice.id);
 
       return summary;
     } catch (error: any) {
@@ -392,15 +534,7 @@ export class NoticesSearchService {
     const id = requiredId(noticeId);
 
     try {
-      const notice = await this.client.procurementNotice.findFirst({
-        where: {
-          AND: [
-            tenantVisibilityWhere(context.tenantId),
-            { id },
-          ],
-        },
-        select: summaryNoticeSelect(),
-      });
+      const notice = await this.ensureNoticeHydrated(id, context.tenantId);
 
       if (!notice) {
         await this.auditNoticeAction('NOTICE_SUMMARY_NOT_FOUND', 'failure', context, {
@@ -409,13 +543,13 @@ export class NoticesSearchService {
         return null;
       }
 
-      const chunks = await this.client.documentChunk.findMany({
+      let chunks = await this.client.documentChunk.findMany({
         where: {
           AND: [
             tenantVisibilityWhere(context.tenantId),
             {
               sourceType: 'procurement_notice',
-              sourceId: id,
+              sourceId: notice.id,
             },
           ],
         },
@@ -434,16 +568,60 @@ export class NoticesSearchService {
         },
       });
 
+      if (chunks.length === 0) {
+        try {
+          await preencherTextoEditalAutomaticamente(notice.id);
+          chunks = await this.client.documentChunk.findMany({
+            where: {
+              AND: [
+                tenantVisibilityWhere(context.tenantId),
+                {
+                  sourceType: 'procurement_notice',
+                  sourceId: notice.id,
+                },
+              ],
+            },
+            orderBy: { chunkIndex: 'asc' },
+            take: SUMMARY_CHUNKS_LIMIT,
+            select: {
+              id: true,
+              tenantId: true,
+              sourceType: true,
+              sourceId: true,
+              chunkIndex: true,
+              content: true,
+              tokenCount: true,
+              metadata: true,
+              createdAt: true,
+            },
+          });
+        } catch {}
+      }
+
+      let files: any[] = [];
+      const parsedCtrl = parsePncpControlNumber(notice.externalId || id);
+      if (parsedCtrl) {
+        try {
+          files = await buscarArquivosPNCP(parsedCtrl.cnpj, parsedCtrl.ano, parsedCtrl.sequencial);
+        } catch {}
+      }
+
       const summary = buildDeterministicSummary(notice, chunks);
+      const dossier = buildComprehensiveDescriptiveDossier(notice, notice.items, chunks, files);
+
+      const result = {
+        ...summary,
+        dossier,
+      };
 
       await this.auditNoticeAction('NOTICE_SUMMARY_VIEWED', 'success', context, {
         source: notice.source,
         completenessScore: summary.completeness.score,
         chunksUsed: summary.chunksUsed.count,
         alerts: summary.alerts.map((alert) => alert.code),
-      }, 'procurement_notice', id);
+      }, 'procurement_notice', notice.id);
 
-      return summary;
+      return result;
     } catch (error: any) {
       await this.auditNoticeAction('NOTICE_SUMMARY_GENERATION_FAILED', 'failure', context, {
         reason: safeString(error?.message, 300) ?? 'summary_generation_failed',
@@ -1108,4 +1286,277 @@ function toIso(value: unknown) {
   if (value instanceof Date) return value.toISOString();
   const parsed = new Date(String(value));
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export function resolveNoticeWhere(idOrControl: string) {
+  const clean = String(idOrControl || '').trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+  const conditions: any[] = [
+    { externalId: clean },
+    { dedupeKey: clean.startsWith('pncp-') ? clean : `pncp-${clean}` },
+    { dedupeKey: clean },
+    { noticeNumber: clean },
+  ];
+  if (isUuid) {
+    conditions.unshift({ id: clean });
+  }
+  return { OR: conditions };
+}
+
+export function buildComprehensiveDescriptiveDossier(
+  notice: any,
+  items: any[] = [],
+  chunks: any[] = [],
+  files: any[] = [],
+) {
+  const cnpjRaw = notice.buyerDocument || '';
+  const cleanCnpj = cnpjRaw.replace(/\D/g, '');
+  const cnpjFormatado = cleanCnpj.length === 14
+    ? cleanCnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+    : (notice.buyerDocument || 'Não informado');
+
+  const auditParams = extractPncpAuditParams(
+    notice.externalId || notice.noticeNumber || notice.id,
+    notice.buyerDocument,
+    null,
+    null,
+  );
+
+  const urlPncpOficial = auditParams?.urlOficialPncp || notice.url || 'https://pncp.gov.br/app/editais';
+
+  // 1. Ficha Técnica
+  const fichaTecnica = {
+    razaoSocial: notice.buyerName || 'Órgão Licitante Não Informado',
+    cnpjFormatado,
+    cnpj: cleanCnpj || notice.buyerDocument || null,
+    unidadeCompradora: notice.rawPayload?.unidadeOrgao?.nomeUnidade || notice.buyerName || 'Unidade Compradora',
+    municipioUf: [notice.municipality, notice.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional',
+    municipio: notice.municipality || null,
+    uf: notice.uf || null,
+    numeroEdital: notice.noticeNumber || notice.externalId || notice.id,
+    numeroControlePNCP: notice.externalId || null,
+    processo: notice.noticeNumber || null,
+    modalidade: notice.modality || 'Pregão Eletrônico',
+    modoDisputa: notice.modoDisputa || notice.rawPayload?.modoDisputaNome || 'Aberto / Fechado',
+    criterioJulgamento: notice.judgmentCriterion || notice.rawPayload?.criterioJulgamentoNome || 'Menor Preço / Maior Desconto',
+    amparoLegal: notice.rawPayload?.amparoLegal?.nome || 'Lei nº 14.133/2021 (Nova Lei de Licitações)',
+    regimeExecucaoOuSrp: (notice.srp || notice.rawPayload?.srp)
+      ? 'Sistema de Registro de Preços (SRP)'
+      : 'Contratação Direta / Fornecimento Contínuo',
+    valorGlobalEstimado: decimalToNumber(notice.estimatedValue),
+    valorGlobalFormatado: decimalToNumber(notice.estimatedValue) !== null && Number(notice.estimatedValue) > 0
+      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(notice.estimatedValue))
+      : 'Sigiloso / Ver Itens no TR',
+    linkOficialPncp: urlPncpOficial,
+  };
+
+  // 2. Descrição Explicativa do Objeto
+  const descricaoExplicativaObjeto = {
+    objetoIntegral: notice.object ? String(notice.object).trim() : 'Objeto não informado no edital.',
+    informacaoComplementar: notice.rawPayload?.informacaoComplementar || notice.metadata?.informacaoComplementar || null,
+    finalidadeContratacao: `Atendimento às necessidades operacionais e institucionais de ${notice.buyerName || 'Órgão Licitante'}, conforme especificações constantes do Termo de Referência.`,
+    localExecucao: [notice.municipality, notice.uf].filter(Boolean).join(' - ') || 'Conforme estipulado no Termo de Referência e Edital.',
+    resumoExecutivo: notice.object
+      ? String(notice.object).slice(0, 500)
+      : 'Consulte os anexos e o Termo de Referência oficial para especificações técnicas.',
+  };
+
+  // 3. Cronograma e Prazos Fatais
+  const dataPubIso = toIso(notice.publishedAt);
+  const dataAberturaIso = toIso(notice.openingAt);
+  const dataEncerramentoIso = toIso(notice.closingAt);
+
+  let calculoImpugnacao: any = null;
+  if (dataAberturaIso) {
+    try {
+      calculoImpugnacao = LexCalculadoraService.calcularPrazoImpugnacao(dataAberturaIso);
+    } catch {
+      // ignore
+    }
+  }
+
+  const cronogramaPrazosFatais = {
+    publicacao: dataPubIso,
+    inicioPropostas: dataAberturaIso,
+    aberturaSessaoPublica: dataAberturaIso,
+    encerramentoPropostas: dataEncerramentoIso,
+    prazoLimiteImpugnacao: calculoImpugnacao?.resultado?.dataLimite || null,
+    prazoLimiteEsclarecimento: calculoImpugnacao?.resultado?.dataLimite || null,
+    fundamentacaoImpugnacao: 'Art. 164 da Lei 14.133/2021 (até 3 dias úteis anteriores à data de abertura do certame)',
+    diasUteisRestantesImpugnacao: calculoImpugnacao?.resultado?.diasUteisRestantes ?? null,
+    impugnacaoExpirada: calculoImpugnacao?.resultado?.expirado ?? false,
+    diasCorridosAteAbertura: calculoImpugnacao?.resultado?.diasCorridosAteAbertura ?? null,
+  };
+
+  // 4. Quadro de Itens Detalhado
+  const rawItemsList = Array.isArray(items) && items.length > 0 ? items : (notice.items || []);
+  let somaCalculada = 0;
+  let hasValidVal = false;
+  const quadroItensDetalhado = rawItemsList.map((item: any, idx: number) => {
+    const num = item.itemNumber ?? item.numeroItem ?? item.numero ?? idx + 1;
+    const desc = item.description ?? item.descricao ?? 'Item da contratação';
+    const qtd = Number(item.quantity ?? item.quantidade ?? 1);
+    const vUnit = decimalToNumber(item.estimatedUnitValue ?? item.valorUnitarioEstimado ?? item.valorReferencia);
+    const vTot = decimalToNumber(item.estimatedTotalValue ?? item.valorTotalEstimado ?? item.valorTotal) ?? (vUnit != null ? vUnit * qtd : null);
+    if (vTot != null && vTot > 0) {
+      somaCalculada += vTot;
+      hasValidVal = true;
+    }
+    return {
+      numeroItem: num,
+      descricaoCompleta: desc,
+      quantidade: qtd,
+      unidadeMedida: item.unit ?? item.unidadeMedida ?? item.unidade ?? 'UN',
+      valorUnitarioEstimado: vUnit,
+      valorTotalEstimado: vTot,
+      participacao: item.participacao ?? item.tipoParticipacao ?? 'Ampla Concorrência',
+      codigoCatalogo: item.catalogoCodigo ?? item.codigoItemCatalogo ?? null,
+    };
+  });
+
+  const totalizadoresItens = {
+    totalItens: quadroItensDetalhado.length,
+    valorTotalCalculado: hasValidVal ? Number(somaCalculada.toFixed(2)) : null,
+    possuiItensSigilosos: quadroItensDetalhado.some((it: any) => it.valorUnitarioEstimado === null || it.valorUnitarioEstimado <= 0),
+  };
+
+  // 5. Requisitos de Habilitação Detalhados (Arts. 62 a 70 da Lei 14.133/2021)
+  const requisitosHabilitacaoDetalhados = {
+    habilitacaoJuridica: {
+      artigoLei: 'Art. 66 da Lei nº 14.133/2021',
+      descricao: 'Comprovação da existência jurídica e capacidade de representação legal.',
+      documentosExigidos: [
+        'Registro comercial, no caso de empresa individual;',
+        'Ato constitutivo, estatuto ou contrato social em vigor, devidamente registrado;',
+        'Documento de eleição ou posse dos administradores;',
+        'Procuração pública ou particular conferindo poderes ao representante legal para atuar no certame.',
+      ],
+    },
+    regularidadeFiscalTrabalhista: {
+      artigoLei: 'Art. 68 da Lei nº 14.133/2021',
+      descricao: 'Comprovação de regularidade fiscal, social e trabalhista perante os órgãos fazendários.',
+      documentosExigidos: [
+        'Certidão Negativa de Débitos Relativos a Créditos Tributários Federais e à Dívida Ativa da União (CND Federal / PGFN);',
+        'Certificado de Regularidade do FGTS (CRF Caixa Econômica Federal);',
+        'Certidão Negativa de Débitos Trabalhistas (CNDT - Justiça do Trabalho);',
+        'Certidão de Regularidade Fiscal perante a Fazenda Estadual;',
+        'Certidão de Regularidade Fiscal perante a Fazenda Municipal da sede da empresa.',
+      ],
+    },
+    qualificacaoEconomicoFinanceira: {
+      artigoLei: 'Art. 69 da Lei nº 14.133/2021',
+      descricao: 'Demonstração da capacidade financeira para a execução integral do objeto contratado.',
+      documentosExigidos: [
+        'Balanço patrimonial e demonstrações contábeis do último exercício social;',
+        'Comprovação de boa situação financeira com índices de liquidez (LG, SG, LC >= 1,0);',
+        'Certidão Negativa de Falência, Concordata, Recuperação Judicial e Extrajudicial;',
+        'Patrimônio Líquido ou Capital Social mínimo integralizado (limitado ao máximo de 10% do valor estimado da contratação).',
+      ],
+    },
+    qualificacaoTecnica: {
+      artigoLei: 'Art. 67 da Lei nº 14.133/2021',
+      descricao: 'Comprovação de aptidão e capacidade operacional para execução do objeto em prazo e qualidade.',
+      documentosExigidos: [
+        'Atestado(s) de Capacidade Técnica (CAT) emitido(s) por pessoa jurídica de direito público ou privado comprovando fornecimento ou prestação de serviços similares;',
+        'Certidão de Registro ou Inscrição no Conselho Profissional competente (CREA, CRA, CRM, etc.), quando aplicável;',
+        'Indicação das instalações, aparelhamento e pessoal técnico especializado adequados e disponíveis.',
+      ],
+    },
+    declaracoesObrigatorias: [
+      'Declaração de cumprimento do inciso XXXIII do art. 7º da CF (não emprego de menor de idade em trabalho noturno, perigoso ou insalubre);',
+      'Declaração de inexistência de fatos supervenientes impeditivos da habilitação (Art. 63, IV, Lei 14.133/2021);',
+      'Declaração de enquadramento como Microempresa (ME) ou Empresa de Pequeno Porte (EPP), se aplicável para obtenção dos benefícios da LC 123/2006;',
+      'Declaração de elaboração independente de proposta e conduta ética;',
+      'Declaração de atendimento aos requisitos de acessibilidade e sustentabilidade ambiental, quando exigidos no edital.',
+    ],
+  };
+
+  // 6. Roteiro Passo a Passo do Licitante (7 Etapas Obrigatórias)
+  const noticeTargetId = notice.id || notice.externalId || '';
+  const roteiroPassoAPassoLicitante = [
+    {
+      etapa: 1,
+      titulo: 'Etapa 1 - Leitura Crítica e Diagnóstico de Riscos',
+      descricao: 'Examine detalhadamente as regras do edital, termo de referência e exigências editalícias para detectar pontos críticos e cláusulas restritivas.',
+      acaoRecomendada: 'Auditar cláusulas e conformidade no Leitor de Editais.',
+      rotaAcao: `/leitor-editais?edital=${noticeTargetId}`,
+      icone: 'FileText',
+    },
+    {
+      etapa: 2,
+      titulo: 'Etapa 2 - Conferência Documental no Cofre',
+      descricao: 'Verifique se todas as 5 certidões obrigatórias (CND Federal, FGTS, CNDT, Estadual, Municipal) e o Balanço Patrimonial estão válidos no cofre documental.',
+      acaoRecomendada: 'Acessar o Cofre de Documentos e Certidões.',
+      rotaAcao: '/cofre',
+      icone: 'FolderCheck',
+    },
+    {
+      etapa: 3,
+      titulo: 'Etapa 3 - Formulação de Impugnação ou Pedido de Esclarecimento',
+      descricao: 'Caso identifique cláusulas abusivas, restrições à competitividade ou dúvidas técnicas, protocole pedido de esclarecimento ou impugnação até 3 dias úteis antes da abertura.',
+      acaoRecomendada: 'Gerar Minuta de Impugnação / Esclarecimento.',
+      rotaAcao: `/impugnacao?edital=${noticeTargetId}`,
+      icone: 'Scale',
+    },
+    {
+      etapa: 4,
+      titulo: 'Etapa 4 - Formação de Custos e Precificação Estratégica',
+      descricao: 'Cruze os itens do edital com o catálogo da empresa, projete custos de aquisição, frete, impostos (Simples/Lucro Presumido), margem líquida e defina o Preço Stop-Loss (preço mínimo viável).',
+      acaoRecomendada: 'Simular Custos e Precificação Stop-Loss.',
+      rotaAcao: `/precificacao?edital=${noticeTargetId}`,
+      icone: 'Calculator',
+    },
+    {
+      etapa: 5,
+      titulo: 'Etapa 5 - Geração e Validação da Proposta Comercial',
+      descricao: 'Gere a proposta formal em PDF contendo marca, modelo, prazo de validade (mínimo de 60 dias), declarações obrigatórias e valores unitários e totais.',
+      acaoRecomendada: 'Gerar Proposta Comercial Oficial.',
+      rotaAcao: `/propostas/criar?edital=${noticeTargetId}`,
+      icone: 'FileCheck',
+    },
+    {
+      etapa: 6,
+      titulo: 'Etapa 6 - Cadastro da Proposta no Portal Oficial de Disputa',
+      descricao: 'Faça o upload da proposta e documentos de habilitação no sistema eletrônico do certame (Compras.gov.br, Comprasnet, BBMnet, Licitações-e ou portal próprio) antes do horário de corte.',
+      acaoRecomendada: 'Acessar o Portal Oficial do Certame.',
+      rotaAcao: urlPncpOficial,
+      externo: true,
+      icone: 'Send',
+    },
+    {
+      etapa: 7,
+      titulo: 'Etapa 7 - Sessão Pública de Lances e Fase Recursal',
+      descricao: 'Acompanhe a sessão de lances no modo aberto ou fechado, monitore os concorrentes respeitando a margem stop-loss e esteja preparado para interpor intenção de recurso fundamentada.',
+      acaoRecomendada: 'Entrar na Sala de Disputa / Monitor de Lances.',
+      rotaAcao: `/disputa?edital=${noticeTargetId}`,
+      icone: 'Gavel',
+    },
+  ];
+
+  // 7. Arquivos Oficiais do PNCP
+  const arquivosOficiaisPncp = Array.isArray(files) && files.length > 0
+    ? files.map((f: any) => ({
+        titulo: f.titulo || f.documentoNome || f.nomeArquivo || 'Documento Oficial do Certame',
+        tipoDocumentoNome: f.tipoDocumentoNome || f.tipoDocumento || 'Anexo',
+        urlDownload: f.url || f.link || f.uri || '',
+        sequencialDocumento: f.sequencialDocumento ?? undefined,
+      }))
+    : [
+        {
+          titulo: 'Página e Documentos Oficiais no Portal do PNCP',
+          tipoDocumentoNome: 'Portal PNCP',
+          urlDownload: urlPncpOficial,
+        },
+      ];
+
+  return {
+    fichaTecnica,
+    descricaoExplicativaObjeto,
+    cronogramaPrazosFatais,
+    quadroItensDetalhado,
+    totalizadoresItens,
+    requisitosHabilitacaoDetalhados,
+    roteiroPassoAPassoLicitante,
+    arquivosOficiaisPncp,
+  };
 }

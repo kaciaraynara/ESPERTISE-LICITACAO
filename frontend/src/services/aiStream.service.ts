@@ -20,6 +20,7 @@ export interface StreamChatParams {
   licitacaoId?: string;
   edital_id?: string;
   texto_edital?: string;
+  providedDocumentText?: string;
   extraBody?: Record<string, any>;
   onChunk: (chunk: string, accumulated: string) => void;
   onDone?: (fullText: string, metadata?: StreamEventPayload) => void;
@@ -42,6 +43,7 @@ export async function streamAiChat(params: StreamChatParams): Promise<{ fullText
     licitacaoId,
     edital_id,
     texto_edital,
+    providedDocumentText,
     extraBody = {},
     onChunk,
     onDone,
@@ -77,6 +79,7 @@ export async function streamAiChat(params: StreamChatParams): Promise<{ fullText
     ...(licitacaoId ? { licitacaoId } : {}),
     ...(edital_id ? { edital_id } : {}),
     ...(texto_edital ? { texto_edital } : {}),
+    ...(providedDocumentText ? { providedDocumentText } : {}),
     ...extraBody,
   };
 

@@ -425,6 +425,7 @@ export const noticesApi = {
   search: (params: any) => api.get('/notices/search', { params }),
   getById: (id: string) => api.get(`/notices/${encodeURIComponent(id)}`),
   getBasicSummary: (id: string) => api.get(`/notices/${encodeURIComponent(id)}/basic-summary`),
+  getSummary: (id: string) => api.get(`/notices/${encodeURIComponent(id)}/summary`),
   getErrorRadar: (id: string) => api.get(`/notices/${id}/error-radar`),
   getMinutaImpugnacao: (id: string) => api.get(`/notices/${id}/minuta-impugnacao`),
   getOpportunityScore: (id: string) => api.get(`/notices/${id}/opportunity-score`),
