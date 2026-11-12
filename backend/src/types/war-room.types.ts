@@ -41,6 +41,7 @@ export interface SimulateBdiResult {
 
 export interface PlaceBidPayload {
   pregaoId: string;
+  itemNumero?: number;
   bid_amount: number;
   custoInsumos: number;
   despesasOperacionais?: number;
@@ -53,6 +54,7 @@ export interface PlaceBidPayload {
 export interface BidRecord {
   id: string;
   pregaoId: string;
+  itemNumero?: number;
   bid_amount: number;
   licitanteNome: string;
   isOwnBid: boolean;
@@ -69,6 +71,7 @@ export interface SocketBidError {
   error: 'Forbidden';
   code: 'STOP_LOSS_VIOLATION';
   message: string;
+  itemNumero?: number;
   bid_amount: number;
   stop_loss_minimo: number;
   margem_calculada: number;

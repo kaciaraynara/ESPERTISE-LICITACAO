@@ -395,7 +395,7 @@ export default function ResumoEstrategicoModal({
                 className="btn-link-pncp inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B192C] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
                 title="Auditar contratação e autos diretamente no portal oficial do PNCP"
               >
-                <span>Portal PNCP</span>
+                <span>Ver no Portal Oficial do PNCP ↗</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
 
@@ -812,7 +812,7 @@ export default function ResumoEstrategicoModal({
                       <span className="text-[10px] font-bold text-slate-400">Art. 69</span>
                     </div>
                     <ul className="text-xs text-slate-700 space-y-1.5 list-disc pl-4 leading-relaxed">
-                      <li>Balanço Patrimonial e DRE do último exercício social exigível;</li>
+                      <li>Demonstrações Contábeis e DRE do último exercício social exigível;</li>
                       <li>Comprovação de índices contábeis (LG, SG, LC superiores ou iguais a 1,0);</li>
                       <li>Certidão Negativa de Falência e Recuperação Judicial;</li>
                       <li>Patrimônio Líquido mínimo (máximo legal de 10% do valor estimado).</li>
@@ -889,7 +889,7 @@ export default function ResumoEstrategicoModal({
                     {
                       etapa: 2,
                       titulo: 'Etapa 2 - Conferência Documental no Cofre',
-                      desc: 'Confira a validade das 5 certidões obrigatórias e do Balanço Patrimonial antes do credenciamento.',
+                      desc: 'Confira a validade das 5 certidões obrigatórias e das demonstrações contábeis antes do credenciamento.',
                       rota: '/cofre',
                       btnTexto: 'Verificar Certidões no Cofre',
                       icone: FolderCheck,

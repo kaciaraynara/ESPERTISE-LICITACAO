@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { Socket } from 'socket.io';
 import { prisma } from '../database/prisma';
+import { calcularSimulacaoBdi } from './tax-bdi.service';
+import { BidRecord, SocketBidError } from '../types/war-room.types';
 
 export type EstrategiaRobo = 'SNIPER' | 'CONSERVADOR' | 'AGRESSIVO';
 
@@ -343,9 +345,22 @@ export type EstrategiaType = 'sniper' | 'agressivo' | 'conservador';
 
 export interface SetupRoboPayload {
   pregaoId: string;
+  itemNumero?: number;
   valorInicial: number;
   lanceMinimoPermitido: number;
   estrategia?: EstrategiaType;
+  decrementoMinimo?: number;
+  custoInsumos?: number;
+}
+
+export interface ItemRoboConfig {
+  itemNumero: number;
+  ativo: boolean;
+  estrategia: EstrategiaType;
+  lanceMinimoPermitido: number;
+  valorAtualDisputa: number;
+  decrementoMinimo: number;
+  custoInsumos?: number;
 }
 
 export class RoboSocketService {
@@ -354,83 +369,278 @@ export class RoboSocketService {
   private estrategia: EstrategiaType = 'sniper';
   private lanceMinimoPermitido: number = 0;
   private valorAtualDisputa: number = 0;
-  
+  private decrementoMinimo: number = 1;
+  private itemConfigs: Map<number, ItemRoboConfig> = new Map();
+
   constructor(socket: Socket) {
     this.socket = socket;
   }
 
   public iniciar(payload: SetupRoboPayload) {
-    this.lanceMinimoPermitido = payload.lanceMinimoPermitido;
-    this.valorAtualDisputa = payload.valorInicial;
-    if (payload.estrategia) this.estrategia = payload.estrategia;
-    this.isActive = true;
-    
-    this.emitLog(`[CENTRAL DE ESTRATÉGIA] Sessão iniciada. Piso de proteção configurado em R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}. Operação manual assistida.`, 'system');
-    this.socket.emit('robo_status', { ativo: true, estrategia: this.estrategia });
+    const itemNum = payload.itemNumero !== undefined ? Number(payload.itemNumero) : undefined;
+    const estrategia = payload.estrategia || this.estrategia;
+    const decremento = payload.decrementoMinimo ?? (this.decrementoMinimo || 1);
+
+    if (itemNum !== undefined) {
+      const itemCfg: ItemRoboConfig = {
+        itemNumero: itemNum,
+        ativo: true,
+        estrategia,
+        lanceMinimoPermitido: payload.lanceMinimoPermitido,
+        valorAtualDisputa: payload.valorInicial,
+        decrementoMinimo: decremento,
+        custoInsumos: payload.custoInsumos,
+      };
+      this.itemConfigs.set(itemNum, itemCfg);
+      this.emitLog(
+        `[CENTRAL DE ESTRATÉGIA] Robô ativado para o Item #${itemNum}. Piso Stop-Loss: R$ ${payload.lanceMinimoPermitido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Decremento: R$ ${decremento.toFixed(2)}.`,
+        'system'
+      );
+      this.socket.emit('robo_status', { ativo: true, itemNumero: itemNum, estrategia });
+    } else {
+      this.lanceMinimoPermitido = payload.lanceMinimoPermitido;
+      this.valorAtualDisputa = payload.valorInicial;
+      this.estrategia = estrategia;
+      this.decrementoMinimo = decremento;
+      this.isActive = true;
+
+      this.emitLog(
+        `[CENTRAL DE ESTRATÉGIA] Sessão iniciada. Piso de proteção configurado em R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Operação automatizada assistida.`,
+        'system'
+      );
+      this.socket.emit('robo_status', { ativo: true, estrategia: this.estrategia });
+    }
   }
 
-  public pausar() {
-    if (!this.isActive) return;
+  public pausar(itemNumero?: number) {
+    if (itemNumero !== undefined) {
+      const cfg = this.itemConfigs.get(Number(itemNumero));
+      if (cfg) {
+        cfg.ativo = false;
+        this.itemConfigs.set(Number(itemNumero), cfg);
+      }
+      this.emitLog(`[CENTRAL DE ESTRATÉGIA] Automação do Item #${itemNumero} pausada.`, 'alert');
+      this.socket.emit('robo_status', { ativo: false, itemNumero: Number(itemNumero) });
+      return;
+    }
+
+    if (!this.isActive && this.itemConfigs.size === 0) return;
     this.isActive = false;
-    this.emitLog('[CENTRAL DE ESTRATÉGIA] Monitoramento tático pausado.', 'alert');
+    for (const [num, cfg] of this.itemConfigs.entries()) {
+      cfg.ativo = false;
+      this.itemConfigs.set(num, cfg);
+    }
+    this.emitLog('[CENTRAL DE ESTRATÉGIA] Monitoramento tático pausado em todos os itens.', 'alert');
     this.socket.emit('robo_status', { ativo: false });
   }
 
-  public atualizarEstrategia(payload: { estrategia: EstrategiaType }) {
+  public atualizarEstrategia(payload: { estrategia: EstrategiaType; itemNumero?: number }) {
     this.estrategia = payload.estrategia;
-    this.emitLog(`[ESTRATÉGIA] Perfil tático atualizado para: ${this.estrategia.toUpperCase()}.`, 'system');
+    if (payload.itemNumero !== undefined) {
+      const cfg = this.itemConfigs.get(Number(payload.itemNumero));
+      if (cfg) {
+        cfg.estrategia = payload.estrategia;
+        this.itemConfigs.set(Number(payload.itemNumero), cfg);
+      }
+      this.emitLog(`[ESTRATÉGIA] Perfil do Item #${payload.itemNumero} atualizado para: ${this.estrategia.toUpperCase()}.`, 'system');
+      this.socket.emit('robo_status', { ativo: cfg?.ativo ?? true, itemNumero: Number(payload.itemNumero), estrategia: this.estrategia });
+      return;
+    }
+
+    this.emitLog(`[ESTRATÉGIA] Perfil tático geral atualizado para: ${this.estrategia.toUpperCase()}.`, 'system');
     this.socket.emit('robo_status', { ativo: this.isActive, estrategia: this.estrategia });
   }
 
-  public processarLanceManual(payload: { valor: number }) {
-    this.emitLog(`[ANÁLISE DE MARGEM] Avaliando proposta manual de R$ ${payload.valor.toLocaleString('pt-BR')}...`, 'info');
-    
-    if (payload.valor <= this.lanceMinimoPermitido) {
-      this.emitLog(`[BLOQUEIO DE SEGURANÇA] Lance manual de R$ ${payload.valor.toLocaleString('pt-BR')} viola o piso estipulado de R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}.`, 'alert');
+  public processarLanceManual(payload: { valor: number; itemNumero?: number; pregaoId?: string }) {
+    const itemNum = payload.itemNumero !== undefined ? Number(payload.itemNumero) : undefined;
+    const itemCfg = itemNum !== undefined ? this.itemConfigs.get(itemNum) : undefined;
+    const pisoMinimo = itemCfg?.lanceMinimoPermitido ?? this.lanceMinimoPermitido;
+
+    this.emitLog(
+      `[ANÁLISE DE MARGEM] Avaliando proposta manual de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${itemNum ? ` (Item #${itemNum})` : ''}...`,
+      'info'
+    );
+
+    if (payload.valor <= pisoMinimo) {
+      this.emitLog(
+        `[BLOQUEIO DE SEGURANÇA] Lance manual de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso de Stop-Loss de R$ ${pisoMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+        'alert'
+      );
+      const errorPayload: SocketBidError = {
+        statusCode: 403,
+        error: 'Forbidden',
+        code: 'STOP_LOSS_VIOLATION',
+        message: `Lance manual de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso de Stop-Loss (R$ ${pisoMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
+        itemNumero: itemNum,
+        bid_amount: payload.valor,
+        stop_loss_minimo: pisoMinimo,
+        margem_calculada: 0,
+        timestamp: new Date().toISOString(),
+      };
+      this.socket.emit('bid_error', errorPayload);
       return;
     }
 
     this.valorAtualDisputa = payload.valor;
-    this.emitLog(`[LANCE VALIDADO] Oferta de R$ ${payload.valor.toLocaleString('pt-BR')} aprovada dentro da margem segura. Registre este valor no portal oficial da disputa.`, 'action');
-    this.socket.emit('lance_validado', { valor: this.valorAtualDisputa });
+    if (itemCfg) itemCfg.valorAtualDisputa = payload.valor;
+
+    this.emitLog(
+      `[LANCE VALIDADO] Oferta de R$ ${payload.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} aprovada dentro da margem segura.`,
+      'action'
+    );
+    this.socket.emit('lance_validado', {
+      pregaoId: payload.pregaoId || 'arena-geral',
+      itemNumero: itemNum,
+      valor: this.valorAtualDisputa,
+    });
   }
 
-  public processarNovoLanceOponente(valorMercado: number, tempoRestante: number) {
-    if (!this.isActive) return;
+  public processarNovoLanceOponente(
+    valorOuParams:
+      | number
+      | {
+          pregaoId?: string;
+          itemNumero?: number;
+          valor?: number;
+          valorMercado?: number;
+          menorLanceConcorrente?: number;
+          tempoRestante?: number;
+          decrementoMinimo?: number;
+          stopLossMinimo?: number;
+          socketUser?: any;
+        },
+    tempoRestanteFallback?: number
+  ) {
+    let valorMercado = 0;
+    let tempoRestante = 120;
+    let itemNumero: number | undefined;
+    let pregaoId: string | undefined;
+    let decrementoParam: number | undefined;
+    let stopLossParam: number | undefined;
+    let socketUser: any;
 
-    this.emitLog(`[CENÁRIO INFORMADO] Valor concorrente informado: R$ ${valorMercado.toLocaleString('pt-BR')}. Tempo de rodada: ${tempoRestante}s`, 'info');
-    this.valorAtualDisputa = valorMercado;
+    if (typeof valorOuParams === 'number') {
+      valorMercado = valorOuParams;
+      tempoRestante = tempoRestanteFallback ?? 120;
+    } else if (typeof valorOuParams === 'object' && valorOuParams !== null) {
+      valorMercado = Number(
+        valorOuParams.menorLanceConcorrente ?? valorOuParams.valorMercado ?? valorOuParams.valor ?? 0
+      );
+      tempoRestante = Number(valorOuParams.tempoRestante ?? 120);
+      itemNumero = valorOuParams.itemNumero !== undefined ? Number(valorOuParams.itemNumero) : undefined;
+      pregaoId = valorOuParams.pregaoId;
+      decrementoParam = valorOuParams.decrementoMinimo;
+      stopLossParam = valorOuParams.stopLossMinimo;
+      socketUser = valorOuParams.socketUser;
+    }
 
-    if (valorMercado <= this.lanceMinimoPermitido) {
-      this.pausar();
-      this.emitLog(`[ALERTA DE MARGEM] O valor informado (R$ ${valorMercado.toLocaleString('pt-BR')}) atingiu o piso de segurança (R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}). Estratégia recomenda não cobrir para proteger a rentabilidade.`, 'alert');
-      this.socket.emit('margem_atingida', { valorMercado, lanceMinimoPermitido: this.lanceMinimoPermitido });
+    const itemCfg = itemNumero !== undefined ? this.itemConfigs.get(itemNumero) : undefined;
+    const isItemActive = itemCfg ? itemCfg.ativo : this.isActive;
+
+    if (!isItemActive && !this.isActive) return;
+
+    const stopLossMinimo = Number(
+      stopLossParam ?? itemCfg?.lanceMinimoPermitido ?? this.lanceMinimoPermitido ?? 0
+    );
+    const decrementoMinimo = Number(
+      decrementoParam ?? itemCfg?.decrementoMinimo ?? this.decrementoMinimo ?? 1
+    );
+    const menorLanceConcorrente = valorMercado;
+
+    this.emitLog(
+      `[MERCADO] Concorrente cobriu oferta: R$ ${menorLanceConcorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${itemNumero !== undefined ? ` (Item #${itemNumero})` : ''}. Restam ${tempoRestante}s`,
+      'info'
+    );
+
+    // REGRA DE OURO #1: Caso o menor lance do mercado já tenha rompido o piso mínimo da empresa:
+    // Emite bloqueio 403 Stop-Loss e não cobre!
+    if (menorLanceConcorrente <= stopLossMinimo) {
+      if (itemNumero !== undefined) {
+        this.pausar(itemNumero);
+      } else {
+        this.pausar();
+      }
+
+      const errorPayload: SocketBidError = {
+        statusCode: 403,
+        error: 'Forbidden',
+        code: 'STOP_LOSS_VIOLATION',
+        message: `BLOQUEIO DE SEGURANÇA (403 Stop-Loss): O menor lance do mercado (R$ ${menorLanceConcorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) rompeu ou igualou seu piso de Stop-Loss (R$ ${stopLossMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})${itemNumero !== undefined ? ` no Item #${itemNumero}` : ''}. Cobertura bloqueada para proteger a rentabilidade.`,
+        itemNumero,
+        bid_amount: menorLanceConcorrente,
+        stop_loss_minimo: stopLossMinimo,
+        margem_calculada: 0,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.socket.emit('bid_error', errorPayload);
+      this.socket.emit('margem_atingida', {
+        itemNumero,
+        valorMercado: menorLanceConcorrente,
+        lanceMinimoPermitido: stopLossMinimo,
+      });
+
+      this.emitLog(
+        `[BLOQUEIO 403 STOP-LOSS] Menor lance concorrente (R$ ${menorLanceConcorrente.toFixed(2)}) violou o piso mínimo (R$ ${stopLossMinimo.toFixed(2)}). Automação interrompida.`,
+        'alert'
+      );
       return;
     }
 
-    let sugestaoLance = 0;
+    // REGRA DE OURO #2: Cobertura Automática Determinística:
+    // novoLance = Math.max(stopLossMinimo, menorLanceConcorrente - decrementoMinimo)
+    const novoLance = Number(
+      Math.max(stopLossMinimo, menorLanceConcorrente - decrementoMinimo).toFixed(2)
+    );
 
-    switch (this.estrategia) {
-      case 'agressivo':
-        sugestaoLance = valorMercado - 10;
-        break;
-      case 'conservador':
-        sugestaoLance = valorMercado - 0.01;
-        break;
-      case 'sniper':
-        sugestaoLance = valorMercado - 5;
-        break;
-    }
-
-    sugestaoLance = Number(sugestaoLance.toFixed(2));
-
-    if (sugestaoLance <= this.lanceMinimoPermitido) {
-      this.emitLog(`[ALERTA DE MARGEM] Sugestão de lance violaria o piso de segurança (R$ ${this.lanceMinimoPermitido.toLocaleString('pt-BR')}). Intervenção recomendada: manter posição ou avaliar lote.`, 'alert');
+    if (novoLance < stopLossMinimo) {
+      this.emitLog(
+        `[BLOQUEIO 403 STOP-LOSS] Lance calculado violaria o piso de Stop-Loss (R$ ${stopLossMinimo.toFixed(2)}). Operação abortada.`,
+        'alert'
+      );
       return;
     }
 
-    this.emitLog(`[SUGESTÃO TÁTICA (${this.estrategia.toUpperCase()})] Lance recomendado para cobrir: R$ ${sugestaoLance.toLocaleString('pt-BR')}. A submissão deve ser feita manualmente pelo operador no portal oficial.`, 'system');
-    this.socket.emit('sugestao_lance', { valor: sugestaoLance, estrategia: this.estrategia });
+    const simulation = calcularSimulacaoBdi({
+      custoInsumos: itemCfg?.custoInsumos || 0,
+      bidAmount: novoLance,
+      margemMinimaStopLoss: 5,
+    });
+
+    const bidRecord: BidRecord = {
+      id: `bid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      pregaoId: pregaoId || 'arena-geral',
+      itemNumero,
+      bid_amount: novoLance,
+      licitanteNome: socketUser?.nome || 'Minha Empresa (Você - Robô)',
+      isOwnBid: true,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      splitPaymentRetido: simulation.splitPayment.totalRetidoFonte,
+      receitaLiquida: simulation.receitaLiquidaAposSplit,
+      lucroLiquido: simulation.lucroLiquido,
+      margemLiquida: simulation.margemLiquidaPercentual,
+      status: 'CONFIRMADO',
+    };
+
+    // Emite imediatamente bid_confirmed e lance_validado
+    this.socket.emit('bid_confirmed', bidRecord);
+    this.socket.emit('lance_validado', {
+      pregaoId: bidRecord.pregaoId,
+      itemNumero,
+      valor: novoLance,
+      bidRecord,
+    });
+
+    this.socket.broadcast.emit('bid_placed', {
+      ...bidRecord,
+      isOwnBid: false,
+      status: 'LIDERANDO',
+    });
+
+    this.emitLog(
+      `[COBERTURA AUTOMÁTICA] Lance disparado: R$ ${novoLance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${itemNumero !== undefined ? ` (Item #${itemNumero})` : ''} cobrindo menor lance de R$ ${menorLanceConcorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+      'action'
+    );
   }
 
   private emitLog(mensagem: string, type: 'info' | 'system' | 'action' | 'alert' = 'info') {
