@@ -7,6 +7,7 @@
  * Fonte oficial: https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2021/lei/l14133.htm
  */
 
+import 'dotenv/config';
 import { prisma } from '../database/prisma';
 import * as crypto from 'crypto';
 
@@ -174,6 +175,43 @@ I – deverá realizar processo licitatório destinado exclusivamente à partici
 II – poderá, em relação aos processos licitatórios destinados à aquisição de obras e serviços, exigir dos licitantes a subcontratação de microempresa ou empresa de pequeno porte;
 III – deverá estabelecer, em certames para aquisição de bens de natureza divisível, cota de até 25% (vinte e cinco por cento) do objeto para a contratação de microempresas e empresas de pequeno porte.`,
     metadata: { lei: 'LC 123/2006', artigo: 'Art. 48', tema: 'Tratamento Diferenciado ME/EPP' },
+  },
+  // PLAYBOOK TÁTICO DE 40 ANOS DE EXPERIÊNCIA EM LICITAÇÕES (sourceType: 'tactical_playbook')
+  {
+    sourceType: 'tactical_playbook',
+    sourceId: 'PLAYBOOK-NEGOCIACAO-ART61',
+    content: `PLAYBOOK TÁTICO LEX (40 ANOS): Rito de Negociação com o Pregoeiro (Art. 61 da Lei 14.133/2021 e IN SEGES/ME 73/2022).
+Encerrada a fase de lances e definida a primeira colocação, o Pregoeiro abrirá negociação obrigatória no chat (Art. 61 da Lei 14.133/2021).
+1. Psicologia e Tempo de Resposta: Responda ao chamado do Pregoeiro em até 60 segundos com cordialidade institucional ("Bom dia, Sr(a). Pregoeiro(a), empresa conectada e pronta para negociação").
+2. Reserva de Gordura Tática e Stop-Loss: Nunca queime 100% da margem na fase de lances se não houver pressão direta; reserve entre 0,5% e 1,5% acima do seu Stop-Loss (Piso Mínimo Exequível calculado com tributos reais, frete, encargos e taxa financeira) para conceder um desconto simbólico ao Pregoeiro no chat, viabilizando a aceitação imediata da proposta. Caso já esteja no Stop-Loss, decline da redução fundamentando que o valor ofertado já contempla o limite operacional exequível com todos os encargos fiscais e trabalhistas.
+3. Envio da Proposta Readequada: O prazo mínimo para envio da proposta ajustada ao último lance e planilhas de custos é de 2 (duas) horas (Art. 29, § 2º da IN SEGES/ME 73/2022), prorrogável por igual período mediante solicitação motivada no chat ANTES do encerramento do prazo original.`,
+    metadata: { lei: 'Lei 14.133/2021 e IN 73/2022', artigo: 'Art. 61', tema: 'Rito de Negociação com o Pregoeiro e Stop-Loss' },
+  },
+  {
+    sourceType: 'tactical_playbook',
+    sourceId: 'PLAYBOOK-DILIGENCIA-ACORDAO-1211',
+    content: `PLAYBOOK TÁTICO LEX (40 ANOS): Defesa contra Inabilitação Formal (Acórdão 1211/2021-TCU-Plenário e Art. 64 da Lei 14.133/2021).
+1. Regra de Ouro do Formalismo Moderado: Nos termos do Art. 64 da Lei 14.133/2021 e da jurisprudência pacificada do TCU (Acórdão 1211/2021-Plenário, Rel. Min. Walton Alencar Rodrigues; Acórdão 2443/2021-Plenário), a vedação à inclusão de documento novo não alcança documento ausente que comprove condição PREEXISTENTE à abertura da sessão pública.
+2. Tática de Defesa Imediata no Chat e Recurso: Se o Pregoeiro ameaçar inabilitar sua empresa por falha formal no envio de certidão, balanço ou atestado emitido antes da sessão, invoque imediatamente no chat o dever-poder de diligência do Art. 64 da Lei 14.133/2021 c/c Acórdão 1211/2021-TCU-Plenário, pois inabilitar a proposta mais vantajosa por erro sanável configura excesso de formalismo e dano ao erário.`,
+    metadata: { lei: 'Lei 14.133/2021 e Jurisprudência TCU', artigo: 'Art. 64 / Acórdão 1211/2021-TCU', tema: 'Defesa contra Inabilitação Formal e Diligência' },
+  },
+  {
+    sourceType: 'tactical_playbook',
+    sourceId: 'PLAYBOOK-INEXEQUIBILIDADE-SUMULA-262',
+    content: `PLAYBOOK TÁTICO LEX (40 ANOS): Ataque e Defesa de Preço Inexequível (Súmula 262 do TCU e Art. 59, §§ 2º e 4º da Lei 14.133/2021).
+1. Defesa da Própria Proposta: A Súmula 262 do TCU estabelece que o critério de inexequibilidade conduz a uma presunção RELATIVA (juris tantum), devendo a Administração dar oportunidade ao licitante para demonstrar a exequibilidade de sua proposta (Art. 59, § 2º da Lei 14.133/2021). Para defender seu lance, apresente planilha de composição de custos acompanhada de notas fiscais de entrada (XMLs de compra), contratos vigentes, regime tributário real (Simples Nacional, Lucro Presumido ou Créditos de PIS/COFINS/ICMS) e estoque já adquirido.
+2. Ataque Técnico a Concorrente Aventureiro (Mergulho de Preço): Quando o primeiro colocado ofertar preço manifestamente abaixo do custo de matéria-prima ou inferior a 75% do valor orçado em obras e serviços de engenharia (Art. 59, § 4º da Lei 14.133/2021), solicite abertura de diligência para comprovação documental de custos, encargos sociais (CCT), alíquotas tributárias reais e exequibilidade logística.`,
+    metadata: { lei: 'Lei 14.133/2021 e Súmula 262/TCU', artigo: 'Art. 59, §§ 2º e 4º', tema: 'Ataque e Defesa de Preço Inexequível' },
+  },
+  {
+    sourceType: 'tactical_playbook',
+    sourceId: 'PLAYBOOK-MODOS-DISPUTA-IN73',
+    content: `PLAYBOOK TÁTICO LEX (40 ANOS): Estratégia Matemática nos Modos Aberto e Aberto-Fechado (IN SEGES/ME 73/2022, LC 123/2006, Súmulas 247 e 263 do TCU).
+1. Modo Aberto (Art. 23 da IN 73/2022): Etapa de 10 minutos com prorrogação automática de 2 minutos sempre que houver lance nos últimos 2 minutos. Tática: não inicie guerra de preços nos primeiros 8 minutos; utilize lances intermediários para monitorar o ritmo dos concorrentes e posicione-se de forma cirúrgica na prorrogação respeitando seu Stop-Loss.
+2. Modo Aberto-Fechado (Art. 24 da IN 73/2022): Etapa aberta de 15 minutos + tempo aleatório de até 10 minutos. Em seguida, o detentor do melhor lance e todos os licitantes dentro da margem de até 10% superior (ou os 3 melhores lances, caso não haja 3 dentro de 10%) são convocados para dar um ÚNICO LANCE FECHADO E SIGILOSO em até 5 minutos. Tática: na fase aberta, garanta estar rigorosamente dentro da faixa de 10% do líder sem revelar seu preço final; no lance fechado de 5 minutos, aplique seu preço competitivo calculado na calculadora de BDI com centavos quebrados (ex.: R$ 98,43 em vez de R$ 98,50) para evitar empates.
+3. Empate Ficto ME/EPP (Art. 44, § 2º da LC 123/2006): No pregão, se a melhor proposta for de empresa de médio/grande porte e sua ME/EPP estiver até 5% acima, fique atento ao cronômetro: você terá prazo improrrogável de 5 minutos após o encerramento para enviar lance inferior ao líder.
+4. Súmula 247 e Súmula 263 do TCU: Impugne editais que agrupem itens divisíveis em lote único sem justificativa técnica (Súmula 247/TCU e Art. 40, § 2º da Lei 14.133/2021) ou que exijam atestados técnicos superiores a 50% do quantitativo das parcelas de maior relevância (Súmula 263/TCU e Art. 67, § 2º da Lei 14.133/2021).`,
+    metadata: { lei: 'IN SEGES/ME 73/2022, LC 123/2006 e TCU', artigo: 'Arts. 23 e 24 IN 73/2022', tema: 'Tática dos Modos Aberto e Aberto-Fechado' },
   },
 ];
 

@@ -8,6 +8,7 @@
  * Fonte oficial: https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2021/lei/l14133.htm
  */
 
+import 'dotenv/config';
 import { prisma } from '../database/prisma';
 
 interface LegalRuleSeed {

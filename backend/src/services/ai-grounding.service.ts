@@ -668,7 +668,7 @@ export class AiGroundingService {
       where: {
         AND: [
           tenantVisibilityWhere(tenantId),
-          { sourceType: 'procurement_notice' },
+          { sourceType: { in: ['procurement_notice', 'legal_text', 'tactical_playbook'] } },
           {
             OR: keywords.map((keyword) => ({
               content: { contains: keyword, mode: 'insensitive' },
@@ -732,10 +732,10 @@ export class AiGroundingService {
       };
     });
 
-    // Caso o edital não tenha PDF ou os chunks não puderem ser extraídos, construa uma citação verificada estruturada
-    // contendo metadados completos do edital, garantindo citations.length > 0 para eliminar respostas inconclusivas falsas
+    // Inclui sempre uma citação verificada (sourceType: 'procurement_notice') gerada diretamente
+    // dos metadados oficiais do edital (retrieval.notices) para nunca bloquear editais recém-sincronizados
     const structuredNoticeCitations: GroundingCitation[] = [];
-    if (chunkCitations.length === 0 && retrieval.notices.length > 0) {
+    if (retrieval.notices.length > 0) {
       for (const notice of retrieval.notices.slice(0, 1)) {
         const itemsText = Array.isArray(notice.items) && notice.items.length > 0
           ? `\nItens da Contratação (${notice.items.length}):\n` + notice.items.slice(0, 10).map((it: any) => `- Item ${it.itemNumber}: ${it.description} | Qtd: ${it.quantity} ${it.unit || ''} | Valor Total: ${it.estimatedTotalValue ? 'R$ ' + Number(it.estimatedTotalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : 'Sigiloso / Ver TR'}`).join('\n')

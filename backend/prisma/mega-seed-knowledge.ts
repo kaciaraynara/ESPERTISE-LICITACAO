@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { getPrismaClient } from '../src/database/prisma';
 import crypto from 'crypto';
 

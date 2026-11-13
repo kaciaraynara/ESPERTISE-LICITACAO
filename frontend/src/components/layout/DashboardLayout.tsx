@@ -11,6 +11,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { FORNECEDOR_ROUTES } from '../../routes';
+import LexFloatingWidget from '../LexFloatingWidget';
 
 export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -123,7 +124,7 @@ export default function DashboardLayout() {
                 <div className="flex min-h-[400px] w-full items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-orange border-t-transparent" />
-                    <p className="text-xs font-bold text-slate-500">Carregando módulo da plataforma...</p>
+                    <p className="text-xs font-bold text-slate-500">Carregando dados da plataforma...</p>
                   </div>
                 </div>
               }
@@ -140,6 +141,7 @@ export default function DashboardLayout() {
           ) : null}
         </main>
       </div>
+      <LexFloatingWidget />
     </div>
   );
 }
