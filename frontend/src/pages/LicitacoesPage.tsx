@@ -125,7 +125,6 @@ export function calcularViabilidadeEdital(item: Licitacao): ViabilidadeCalculada
     if (score == null || typeof score !== 'number' || score <= 0) {
         let pontos = 0;
 
-        // 1. Critério de Prazo Operacional (até 40 pontos)
         const dataLimite = item.dataLimiteProposta || item.dataEncerramentoProposta || item.dataEncerramento || item.data_encerramento;
         let dias = 15;
         if (dataLimite) {
@@ -141,15 +140,13 @@ export function calcularViabilidadeEdital(item: Licitacao): ViabilidadeCalculada
             pontos += 10;
         }
 
-        // 2. Transparência Orçamentária e Itens (até 30 pontos)
         const val = item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null;
         if (val != null && Number(val) > 0) {
             pontos += 30;
         } else {
-            pontos += 15; // Orçamento sigiloso no PNCP, exige consulta aos itens do TR
+            pontos += 15;
         }
 
-        // 3. Detalhamento e Especificação Técnica do Objeto (até 15 pontos)
         const objLen = (item.objetoCompra || item.objeto || '').trim().length;
         if (objLen >= 100) {
             pontos += 15;
@@ -159,7 +156,6 @@ export function calcularViabilidadeEdital(item: Licitacao): ViabilidadeCalculada
             pontos += 5;
         }
 
-        // 4. Modalidade e Celeridade do Rito Processual (até 15 pontos)
         const mod = (item.nomeModalidade || item.modalidadeNome || item.modalidade || '').toLowerCase();
         if (mod.includes('dispensa') || mod.includes('inexigibilidade')) {
             pontos += 15;
@@ -284,7 +280,6 @@ export default function LicitacoesPage({
     const [salvosCrmIds, setSalvosCrmIds] = useState<Set<string>>(new Set());
     const [sincronizandoManual, setSincronizandoManual] = useState(false);
 
-    // Debounce de 300ms na busca textual
     useEffect(() => {
         const timer = setTimeout(() => {
             const trimmed = busca.trim();
@@ -389,14 +384,13 @@ export default function LicitacoesPage({
         };
     }, [editalSelecionado?.id]);
 
-    // Carrega IDs dos editais salvos vinculados ao usuário
     useEffect(() => {
         try {
             const stored = JSON.parse(localStorage.getItem('expertise_editais_salvos') || '[]');
             if (Array.isArray(stored) && stored.length > 0) {
                 setSalvosCrmIds(new Set(stored));
             }
-        } catch { }
+        } catch {}
 
         crmApi.getOportunidades()
             .then((res) => {
@@ -409,7 +403,7 @@ export default function LicitacoesPage({
                 });
                 setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
             })
-            .catch(() => { });
+            .catch(() => {});
 
         licitacoesApi.listarSalvos()
             .then((res) => {
@@ -422,7 +416,7 @@ export default function LicitacoesPage({
                 });
                 setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
             })
-            .catch(() => { });
+            .catch(() => {});
     }, []);
 
     const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | DossieEditalData) => {
@@ -435,7 +429,6 @@ export default function LicitacoesPage({
             return;
         }
 
-        // Mudar o botão imediatamente para "Salvo ✓" (verde suave #DCFCE7 / texto #166534)
         setSalvosCrmIds((prev) => new Set([...prev, target.id]));
         setSalvandoId(target.id);
 
@@ -443,7 +436,6 @@ export default function LicitacoesPage({
             const anyTarget = target as any;
             const urlOficialPncp = buildOfficialPncpPortalUrl(anyTarget);
 
-            // 1. Persiste na rota dedicada /api/licitacoes/salvar (PostgreSQL + Itens + Pipeline)
             await licitacoesApi.salvar({
                 id: target.id,
                 numeroControlePNCP: anyTarget.numeroControlePNCP || anyTarget.numero_processo || anyTarget.numeroEdital || target.id,
@@ -458,11 +450,9 @@ export default function LicitacoesPage({
                 municipio: anyTarget.municipio,
                 itens: Array.isArray(anyTarget.itens) ? anyTarget.itens : undefined,
             }).catch(() => {
-                // Fallback direto via CRM caso o endpoint alternativo seja usado
                 return crmApi.createOportunidade({ noticeId: target.id });
             });
 
-            // 2. Persiste no cache de editais salvos
             try {
                 const storedKey = 'expertise_editais_salvos';
                 const current: string[] = JSON.parse(localStorage.getItem(storedKey) || '[]');
@@ -488,9 +478,8 @@ export default function LicitacoesPage({
                     });
                     localStorage.setItem(detailsKey, JSON.stringify(currentDetails));
                 }
-            } catch { }
+            } catch {}
 
-            // Notificação rápida obrigatória
             toast.success('Edital adicionado à sua lista de propostas');
         } catch (err: any) {
             if (err?.response?.status === 409) {
@@ -502,7 +491,6 @@ export default function LicitacoesPage({
             setSalvandoId(null);
         }
     };
-
 
     const buscarLicitacoes = useCallback(async (pg = 1, _sincronizarPncp = false, isReset = true) => {
         if (isReset || pg === 1) {
@@ -536,7 +524,6 @@ export default function LicitacoesPage({
             filtrosAplicados.modalidade === 'SRP / Registro de Preços' ||
             filtrosAplicados.modalidade === 'Registro de Preços (SRP)';
 
-        // Calcular dataFinal como 60 dias à frente a partir de hoje no formato estrito 'YYYYMMDD'
         const futureDate = new Date(Date.now() + 60 * 86_400_000);
         const dataFinalYYYYMMDD = [
             futureDate.getFullYear(),
@@ -563,12 +550,9 @@ export default function LicitacoesPage({
             if (filtrosAplicados.cnae?.trim()) {
                 params.cnae = filtrosAplicados.cnae.trim();
             }
-            // REGRA PNCP: Não enviar 'cnae' como parâmetro de query para a API do PNCP.
             if (filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos') {
                 params.uf = filtrosAplicados.uf;
             }
-            // Enviar codigoModalidadeContratacao SOMENTE se selecionar uma modalidade específica.
-            // Se estiver em "Todas as Contratações" ('Todos'), OMITIR o parâmetro.
             if (
                 filtrosAplicados.modalidade &&
                 filtrosAplicados.modalidade !== 'Todos' &&
@@ -599,7 +583,6 @@ export default function LicitacoesPage({
                     : rawItems;
 
                 const now = new Date();
-                // 1. FILTRO DE VERACIDADE: apenas editais com prazo de proposta aberto de verdade hoje
                 const validItems = filteredByTerm.filter((item) => {
                     const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento;
                     if (!encStr) return true;
@@ -607,7 +590,6 @@ export default function LicitacoesPage({
                     return !isNaN(encDate.getTime()) ? encDate >= now : true;
                 });
 
-                // 2. ORDENAÇÃO POR EDITAIS NOVOS: decrescente por anoCompra (2026 no topo) e dataPublicacao mais recente
                 validItems.sort((a, b) => {
                     const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
                     const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
@@ -659,7 +641,6 @@ export default function LicitacoesPage({
                 setPagina(pg);
                 setUltimaAtualizacao(new Date());
 
-                // Sincronização em background silencioso (não-bloqueante a cada 10 min) APÓS dados locais já renderizados
                 const BG_SYNC_INTERVAL_MS = 10 * 60 * 1000;
                 const lastBgSync = Number(sessionStorage.getItem('last_pncp_bg_sync') || '0');
                 if (!_sincronizarPncp && (Date.now() - lastBgSync > BG_SYNC_INTERVAL_MS)) {
@@ -680,9 +661,7 @@ export default function LicitacoesPage({
                                 setEditais(fresh);
                                 setUltimaAtualizacao(new Date());
                             }
-                        } catch {
-                            // Silencioso em caso de erro na sincronização em background
-                        }
+                        } catch {}
                     })();
                 }
             } else {
@@ -723,7 +702,6 @@ export default function LicitacoesPage({
         void buscarLicitacoes(1, false, true);
     }, [buscarLicitacoes]);
 
-    // ROLAGEM INFINITA: IntersectionObserver monitorando a sentinela do rodapé
     useEffect(() => {
         const sentinel = sentinelRef.current;
         if (!sentinel) return;
@@ -746,7 +724,6 @@ export default function LicitacoesPage({
         return () => observer.disconnect();
     }, [loading, carregandoMais, temMais, buscarLicitacoes]);
 
-    // DESTRAVAMENTO DE ROLAGEM POR SETAS (↑ e ↓) NO PRIMEIRO SEGUNDO
     useEffect(() => {
         const mainEl = document.getElementById('main-content') || containerRef.current;
         if (mainEl) {
@@ -872,7 +849,6 @@ export default function LicitacoesPage({
 
     const abrirResumoDoEdital = (item: Licitacao) => {
         const urlOficialPncp = buildOfficialPncpPortalUrl(item);
-
         const downloadUrl = resolveEditalDownloadUrl(item);
         const dataInicioRecebimento = item.dataAberturaProposta || item.dataAbertura || item.data_abertura || null;
         const dataFimRecebimento = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento || null;
@@ -881,7 +857,7 @@ export default function LicitacoesPage({
             ...item,
             id: item.id || item.numeroControlePNCP || `edital-${Date.now()}`,
             orgao: item.nomeOrgao || item.orgao || 'Órgão Licitante',
-            objeto: item.objetoCompra || item.objeto || '',
+            objeto: item.objetoCompra || item.objeto || 'Objeto não informado pelo órgão',
             valorTotalEstimado: item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null,
             dataInicioRecebimento,
             dataFimRecebimento,
@@ -899,7 +875,6 @@ export default function LicitacoesPage({
         return 'Orçamento Sigiloso / Ver Itens';
     };
 
-
     const diasRestantes = (d?: string | null) => {
         if (!d) return null;
         return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
@@ -913,8 +888,6 @@ export default function LicitacoesPage({
 
     return (
         <div ref={containerRef} className="flex flex-col w-full h-auto bg-brand-light focus:outline-none">
-
-            {/* HEADER E BUSCA DINÂMICA REAL */}
             <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 relative z-1 shadow-2xs">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -959,7 +932,6 @@ export default function LicitacoesPage({
                         </div>
                     </div>
 
-                    {/* FILTROS RÁPIDOS LIMPOS E DIRETOS */}
                     <div className="flex flex-wrap items-center gap-2 mb-4">
                         {FILTROS_RAPIDOS_RADAR.map((filtro) => {
                             const ativo =
@@ -981,7 +953,6 @@ export default function LicitacoesPage({
                         })}
                     </div>
 
-                    {/* FORMULÁRIO DE FILTROS DINÂMICOS REAIS */}
                     <form onSubmit={handleBuscar} className="space-y-3">
                         <div className="flex gap-3 flex-wrap">
                             <div className="relative flex-1 min-w-[260px]">
@@ -1104,11 +1075,8 @@ export default function LicitacoesPage({
                 </div>
             </div>
 
-            {/* ── CONTEÚDO PRINCIPAL ── */}
             <div className="flex-1 px-6 lg:px-8 py-6">
                 <div className="max-w-7xl mx-auto">
-
-                    {/* AVISO DE SINCRONIZAÇÃO */}
                     {meta?.aviso && !loading && (
                         <div className={`mb-5 rounded-xl p-4 flex items-start gap-3 animate-in fade-in duration-200 ${meta.fonte === 'cache'
                             ? 'bg-blue-50/40 border border-brand-blue/20'
@@ -1126,7 +1094,6 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* LOADING INICIAL (Apenas quando não há dados anteriores em tela) */}
                     {loading && licitacoes.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-24 gap-4">
                             <div className="relative">
@@ -1140,7 +1107,6 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* EMPTY STATE HONESTO E CORPORATIVO */}
                     {!loading && licitacoes.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-16 px-6 gap-5 text-center max-w-lg mx-auto bg-slate-50/80 rounded-3xl border-2 border-dashed border-slate-200">
                             <div className="relative p-4 rounded-3xl bg-white shadow-md border border-slate-100">
@@ -1177,10 +1143,8 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* TABELA CORPORATIVA LIMPA COM DADOS REAIS DO PNCP (MANTÉM DADOS ANTERIORES VISÍVEIS) */}
                     {licitacoes.length > 0 && (
                         <div className={`bg-white border border-slate-200 rounded-2xl shadow-xs h-auto overflow-visible transition-opacity duration-200 ${loading ? 'opacity-85' : 'opacity-100'}`}>
-                            {/* Indicador consolidado e discreto no topo da tabela */}
                             <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
@@ -1205,12 +1169,12 @@ export default function LicitacoesPage({
                                 <table className="w-full table-fixed text-left border-collapse h-auto overflow-visible">
                                     <thead>
                                         <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                                            <th className="w-[16%] py-3.5 px-3">Edital / PNCP</th>
+                                            <th className="w-[15%] py-3.5 px-3">Edital / PNCP</th>
                                             <th className="w-[16%] py-3.5 px-3">Órgão / Município</th>
-                                            <th className="w-[13%] py-3.5 px-3">Prazos</th>
-                                            <th className="w-[25%] py-3.5 px-3">Objeto Completo</th>
+                                            <th className="w-[14%] py-3.5 px-3">Prazos</th>
+                                            <th className="w-[23%] py-3.5 px-3">Objeto Completo</th>
                                             <th className="w-[15%] py-3.5 px-3 text-right">Valor & Viabilidade</th>
-                                            <th className="w-[15%] py-3.5 px-3 text-center">Ações</th>
+                                            <th className="w-[17%] py-3.5 px-3 text-center">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -1257,7 +1221,6 @@ export default function LicitacoesPage({
                                                     onClick={() => abrirResumoDoEdital(item)}
                                                     className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
                                                 >
-                                                    {/* 1. EDITAL / PNCP (16%) */}
                                                     <td className="py-4 px-3 align-top">
                                                         <div className="flex flex-col gap-1 w-full">
                                                             <span className="font-mono text-[11px] font-semibold text-[#0B192C] bg-slate-100 px-2 py-0.5 rounded-md break-all inline-block w-fit max-w-full">
@@ -1281,7 +1244,6 @@ export default function LicitacoesPage({
                                                         </div>
                                                     </td>
 
-                                                    {/* 2. ÓRGÃO / MUNICÍPIO (16%) */}
                                                     <td className="py-4 px-3 align-top">
                                                         <div className="font-semibold text-[#0B192C] text-xs leading-snug break-words">
                                                             {nomeOrgaoExibido}
@@ -1299,18 +1261,17 @@ export default function LicitacoesPage({
                                                         )}
                                                     </td>
 
-                                                    {/* 3. PRAZOS (13%) */}
                                                     <td className="py-4 px-3 align-top">
                                                         <div className="flex flex-col gap-1 text-xs">
                                                             <div className="flex items-center gap-1 font-medium text-slate-600">
                                                                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                                <span className="text-[11px] break-words" title="Início:">
+                                                                <span className="text-[11px] break-words">
                                                                     Início Propostas: {inicioPropostaExibido ? formatPncpDateBR(inicioPropostaExibido, true) : 'Ver no edital'}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 font-bold text-brand-blue">
                                                                 <Clock className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
-                                                                <span className="text-[11px] break-words" title="Encerramento:">
+                                                                <span className="text-[11px] break-words">
                                                                     Encerramento / Sessão: {encerramentoPropostaExibido ? formatPncpDateBR(encerramentoPropostaExibido, true) : 'Ver no edital'}
                                                                 </span>
                                                             </div>
@@ -1328,7 +1289,6 @@ export default function LicitacoesPage({
                                                         )}
                                                     </td>
 
-                                                    {/* 4. OBJETO COMPLETO (25%) */}
                                                     <td className="py-4 px-3 align-top">
                                                         {modalidadeExibida && (
                                                             <div className="mb-1.5">
@@ -1342,7 +1302,6 @@ export default function LicitacoesPage({
                                                         </p>
                                                     </td>
 
-                                                    {/* 5. VALOR & VIABILIDADE (15%) */}
                                                     <td className="py-4 px-3 align-top text-right" onClick={e => e.stopPropagation()}>
                                                         <div className="flex flex-col gap-2">
                                                             <div>
@@ -1375,10 +1334,8 @@ export default function LicitacoesPage({
                                                         </div>
                                                     </td>
 
-                                                    {/* 6. AÇÕES (15%) */}
                                                     <td className="py-4 px-3 align-top text-center" onClick={e => e.stopPropagation()}>
                                                         <div className="flex flex-col gap-2 w-full">
-                                                            {/* BOTÃO 1: RESUMO DO EDITAL */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => {
@@ -1386,13 +1343,12 @@ export default function LicitacoesPage({
                                                                     abrirResumoDoEdital(item);
                                                                 }}
                                                                 className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
-                                                                title="RESUMO DO EDITAL - Abrir com itens, prazos e checklist"
+                                                                title="Resumo do Edital - Abrir com itens, prazos e checklist"
                                                             >
                                                                 <FileText className="w-3.5 h-3.5 shrink-0 text-brand-blue" weight="bold" />
                                                                 <span className="truncate">Resumo do Edital</span>
                                                             </button>
 
-                                                            {/* BOTÃO 2: SALVAR P/ PROPOSTA */}
                                                             <button
                                                                 type="button"
                                                                 onClick={e => void handleSalvarParaDisputar(e, item)}
@@ -1418,7 +1374,6 @@ export default function LicitacoesPage({
                                                                 )}
                                                             </button>
 
-                                                            {/* BOTÃO 3: ACESSAR EDITAL OFICIAL NO PNCP */}
                                                             <a
                                                                 href={buildOfficialPncpPortalUrl(item)}
                                                                 target="_blank"
@@ -1428,7 +1383,7 @@ export default function LicitacoesPage({
                                                                 title="Acessar Edital Oficial no PNCP ↗"
                                                             >
                                                                 <Download className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                                                                <span className="truncate">Acessar Edital Oficial no PNCP ↗</span>
+                                                                <span className="truncate">Edital no PNCP ↗</span>
                                                             </a>
                                                         </div>
                                                     </td>
@@ -1441,7 +1396,6 @@ export default function LicitacoesPage({
                         </div>
                     )}
 
-                    {/* ROLAGEM INFINITA: SENTINELA E INDICADOR SUAVE DE CARREGAMENTO */}
                     {!loading && licitacoes.length > 0 && (
                         <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center gap-2">
                             {carregandoMais && (
@@ -1460,7 +1414,6 @@ export default function LicitacoesPage({
                 </div>
             </div>
 
-            {/* RESUMO ESTRATÉGICO DO EDITAL (ITENS PNCP + CHECKLIST + PASSO A PASSO) */}
             <DossieEditalModal
                 titulo="Resumo do Edital"
                 isOpen={Boolean(editalParaResumo)}
@@ -1471,7 +1424,6 @@ export default function LicitacoesPage({
                 onSalvar={(target) => void handleSalvarParaDisputar(undefined, target)}
             />
 
-            {/* MODAL: PAINEL DE VIABILIDADE & PREÇOS (COMPARATIVO NOSSO PREÇO VS ESTIMATIVA DO ÓRGÃO) */}
             {editalParaViabilidade && (() => {
                 const viab = calcularViabilidadeEdital(editalParaViabilidade);
                 const valTotal = Number(
@@ -1480,11 +1432,12 @@ export default function LicitacoesPage({
                     editalParaViabilidade.valor_estimado ??
                     0
                 );
-                const estimativaEdital = valTotal > 0 ? valTotal : 150000;
-                const precoMinimoSustentavel = Math.round(estimativaEdital * 0.72);
-                const nossoPreco = Math.round(estimativaEdital * 0.85);
-                const margemBrutaEstimada = nossoPreco - precoMinimoSustentavel;
-                const margemPercentual = Math.round((margemBrutaEstimada / nossoPreco) * 100);
+                const possuiValorReal = valTotal > 0;
+                const estimativaEdital = possuiValorReal ? valTotal : null;
+                const precoMinimoSustentavel = estimativaEdital ? Math.round(estimativaEdital * 0.72) : null;
+                const nossoPreco = estimativaEdital ? Math.round(estimativaEdital * 0.85) : null;
+                const margemBrutaEstimada = nossoPreco && precoMinimoSustentavel ? nossoPreco - precoMinimoSustentavel : null;
+                const margemPercentual = nossoPreco && margemBrutaEstimada ? Math.round((margemBrutaEstimada / nossoPreco) * 100) : null;
 
                 return (
                     <div
@@ -1495,7 +1448,6 @@ export default function LicitacoesPage({
                             className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
                             onClick={e => e.stopPropagation()}
                         >
-                            {/* Cabeçalho do Modal */}
                             <div className="bg-[#0B192C] text-white p-5 flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
@@ -1519,7 +1471,6 @@ export default function LicitacoesPage({
                             </div>
 
                             <div className="p-6 space-y-6 max-h-[calc(85vh-140px)] overflow-y-auto">
-                                {/* Cartão de Score */}
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
                                     <div className="flex items-center gap-3">
                                         <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center font-black text-xl text-[#0B192C]">
@@ -1536,98 +1487,91 @@ export default function LicitacoesPage({
                                     </div>
                                 </div>
 
-                                {/* Formação de Preço Sustentável: Comparativo Visual */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h4 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                                             <DollarSign className="w-4 h-4 text-brand-blue" />
                                             Formação de Preço Sustentável vs. Estimativa do Órgão
                                         </h4>
-                                        {valTotal <= 0 && (
-                                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                                Valor de referência ilustrativo
-                                            </span>
-                                        )}
                                     </div>
 
-                                    {/* Barra 1: Preço Mínimo Sustentável */}
-                                    <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="font-semibold text-slate-700">Preço Mínimo Sustentável (Custos + Piso)</span>
-                                            <span className="font-bold text-amber-600">{formatVal(precoMinimoSustentavel)}</span>
-                                        </div>
-                                        <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                                                style={{ width: `${Math.round((precoMinimoSustentavel / estimativaEdital) * 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                    {possuiValorReal && estimativaEdital && precoMinimoSustentavel && nossoPreco && margemBrutaEstimada != null && margemPercentual != null ? (
+                                        <>
+                                            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="font-semibold text-slate-700">Preço Mínimo Sustentável (Custos + Piso)</span>
+                                                    <span className="font-bold text-amber-600">{formatVal(precoMinimoSustentavel)}</span>
+                                                </div>
+                                                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                                                        style={{ width: `${Math.round((precoMinimoSustentavel / estimativaEdital) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
 
-                                    {/* Barra 2: Nosso Preço Sugerido */}
-                                    <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="font-semibold text-emerald-900">Preço Sugerido de Disputa (Nosso Preço)</span>
-                                            <span className="font-bold text-emerald-700">{formatVal(nossoPreco)}</span>
-                                        </div>
-                                        <div className="h-3 w-full bg-emerald-200/60 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                                                style={{ width: `${Math.round((nossoPreco / estimativaEdital) * 100)}%` }}
-                                            />
-                                        </div>
-                                    </div>
+                                            <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="font-semibold text-emerald-900">Preço Sugerido de Disputa (Nosso Preço)</span>
+                                                    <span className="font-bold text-emerald-700">{formatVal(nossoPreco)}</span>
+                                                </div>
+                                                <div className="h-3 w-full bg-emerald-200/60 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-emerald-600 rounded-full transition-all duration-500"
+                                                        style={{ width: `${Math.round((nossoPreco / estimativaEdital) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
 
-                                    {/* Barra 3: Estimativa do Órgão (Teto) */}
-                                    <div className="space-y-1.5 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                                        <div className="flex justify-between text-xs">
-                                            <span className="font-semibold text-[#0B192C]">Valor Estimado do Edital (Teto do Órgão)</span>
-                                            <span className="font-bold text-[#0B192C]">{formatVal(estimativaEdital)}</span>
-                                        </div>
-                                        <div className="h-3 w-full bg-blue-200/60 rounded-full overflow-hidden">
-                                            <div className="h-full bg-[#0B192C] rounded-full transition-all duration-500 w-full" />
-                                        </div>
-                                    </div>
+                                            <div className="space-y-1.5 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className="font-semibold text-[#0B192C]">Valor Estimado do Edital (Teto do Órgão)</span>
+                                                    <span className="font-bold text-[#0B192C]">{formatVal(estimativaEdital)}</span>
+                                                </div>
+                                                <div className="h-3 w-full bg-blue-200/60 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-[#0B192C] rounded-full transition-all duration-500 w-full" />
+                                                </div>
+                                            </div>
 
-                                    {/* Indicadores de Margem */}
-                                    <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                                                Margem Bruta Estimada
-                                            </span>
-                                            <span className="text-base font-extrabold text-emerald-600">
-                                                {formatVal(margemBrutaEstimada)}
-                                            </span>
+                                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                                                        Margem Bruta Estimada
+                                                    </span>
+                                                    <span className="text-base font-extrabold text-emerald-600">
+                                                        {formatVal(margemBrutaEstimada)}
+                                                    </span>
+                                                </div>
+                                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                                                        Margem Percentual
+                                                    </span>
+                                                    <span className="text-base font-extrabold text-brand-blue">
+                                                        {margemPercentual}% de Margem
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+                                            Este edital possui <strong>orçamento sigiloso no PNCP</strong>. Clique em <strong>Gerar Proposta Comercial</strong> abaixo para importar os itens do Termo de Referência e calcular sua margem real a partir do seu custo unitário.
                                         </div>
-                                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                                                Margem Percentual
-                                            </span>
-                                            <span className="text-base font-extrabold text-brand-blue">
-                                                {margemPercentual}% de Margem
-                                            </span>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
 
-                                {/* Recomendação Comercial */}
                                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed">
                                     <span className="font-bold text-[#0B192C] block mb-1">Recomendação Comercial:</span>
                                     {viab.recomendacao}
                                 </div>
                             </div>
 
-                            {/* Rodapé com Ações */}
                             <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
                                 <button
                                     type="button"
                                     onClick={() => {
                                         const ed = editalParaViabilidade;
                                         setEditalParaViabilidade(null);
-                                        setEditalParaResumo({
-                                            ...ed,
-                                            downloadUrl: resolveEditalDownloadUrl(ed),
-                                        });
+                                        abrirResumoDoEdital(ed);
                                     }}
                                     className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
                                 >
