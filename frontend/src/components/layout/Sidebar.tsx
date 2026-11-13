@@ -489,11 +489,11 @@ export default function Sidebar() {
     }
     if (isPinned) return;
 
-    // 2. Aguarda 650ms antes de recolher, garantindo fechamento suave e tolerante a oscilações
+    // 2. Aguarda 150ms antes de recolher, garantindo fechamento suave e tolerante a oscilações
     closeTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       closeTimeoutRef.current = null;
-    }, 650);
+    }, 150);
   };
 
   useEffect(() => {

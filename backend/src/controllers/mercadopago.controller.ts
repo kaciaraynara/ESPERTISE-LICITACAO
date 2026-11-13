@@ -7,6 +7,9 @@ import { isProduction } from '../config/env';
 
 type MercadoPagoPlanId = Extract<PlanId, 'basic' | 'pro' | 'master'>;
 
+const EXPERTISE_FISCAL_ADDON_VALOR = 99.99;
+const GRACE_PERIOD_MS = 10 * 24 * 60 * 60 * 1000;
+
 function getMercadoPagoPlanConfig(planId: MercadoPagoPlanId) {
   const definition = getPlanDefinition(planId);
   const envKeys: Record<MercadoPagoPlanId, string[]> = {
@@ -36,11 +39,11 @@ const ALIAS_PLANOS: Record<string, MercadoPagoPlanId> = {
   pro: 'pro',
   profissional: 'pro',
   premium: 'pro',
+  avancado: 'pro',
+  avançado: 'pro',
 
   master: 'master',
   enterprise: 'master',
-  avancado: 'pro',
-  avançado: 'pro',
 };
 
 function resolvePlanKey(input?: string | null): MercadoPagoPlanId | null {
@@ -86,20 +89,19 @@ function parseRequiredDate(value: unknown, field: string): Date {
 function assertExpectedPlanConfiguration(
   planId: MercadoPagoPlanId,
   preapproval: any,
+  expectedAmount?: number,
 ) {
   const planConfig = getMercadoPagoPlanConfig(planId);
-  if (!planConfig.preapprovalPlanId) {
-    throw new Error('MP_PLAN_NOT_CONFIGURED');
-  }
-
   const returnedPlanId = asSingleString(preapproval?.preapproval_plan_id);
-  if (returnedPlanId && returnedPlanId !== planConfig.preapprovalPlanId) {
+
+  if (planConfig.preapprovalPlanId && returnedPlanId && returnedPlanId !== planConfig.preapprovalPlanId) {
     throw new Error('MP_PLAN_MISMATCH');
   }
 
+  const targetAmount = expectedAmount ?? planConfig.valor;
   const amount = Number(preapproval?.auto_recurring?.transaction_amount);
   const currency = asSingleString(preapproval?.auto_recurring?.currency_id);
-  if (!Number.isFinite(amount) || amount !== planConfig.valor || currency !== 'BRL') {
+  if (!Number.isFinite(amount) || Math.abs(amount - targetAmount) > 0.01 || currency !== 'BRL') {
     throw new Error('MP_PLAN_AMOUNT_MISMATCH');
   }
 }
@@ -110,7 +112,7 @@ function hasConfirmedCharge(preapproval: any, expectedAmount: number) {
   return Number.isFinite(quantity)
     && quantity > 0
     && Number.isFinite(chargedAmount)
-    && chargedAmount >= expectedAmount;
+    && chargedAmount + 0.01 >= expectedAmount;
 }
 
 export class MercadoPagoController {
@@ -131,10 +133,7 @@ export class MercadoPagoController {
           destaque: definition.id === 'pro',
           features: definition.features,
           limites: getPlanLimits(planId),
-          mercadoPagoConfigurado: Boolean(
-            process.env.MP_ACCESS_TOKEN?.trim()
-              && getMercadoPagoPlanConfig(planId).preapprovalPlanId,
-          ),
+          mercadoPagoConfigurado: Boolean(process.env.MP_ACCESS_TOKEN?.trim()),
         };
       }),
     });
@@ -207,8 +206,11 @@ export class MercadoPagoController {
       });
     }
 
-    const isExpired = sub.periodoFim ? new Date(sub.periodoFim) < now : false;
-    const isAtiva = ['active', 'trialing'].includes(sub.status) && !isExpired;
+    const fimComCarencia = sub.periodoFim
+      ? new Date(new Date(sub.periodoFim).getTime() + GRACE_PERIOD_MS)
+      : null;
+    const isExpired = fimComCarencia ? fimComCarencia < now : false;
+    const isAtiva = ['active', 'trialing', 'past_due'].includes(sub.status) && !isExpired;
     const isTrialActive = isAtiva && (sub.status === 'trialing' || isUserTrialActive);
     const plano = isAtiva ? normalizePlanId(sub.plano) : (isUserTrialActive ? 'master' : 'free');
 
@@ -238,7 +240,6 @@ export class MercadoPagoController {
 
     const userId = req.user.id;
 
-    // 1. Verificar se usuário já possui ou possuiu qualquer assinatura da plataforma
     const existingSubscription = await prisma.subscription.findFirst({
       where: {
         userId,
@@ -254,7 +255,6 @@ export class MercadoPagoController {
       });
     }
 
-    // 2. Verificar se a empresa (CNPJ) vinculada já utilizou trial em qualquer conta
     const userCompany = await prisma.company.findFirst({
       where: { userId },
       select: { cnpj: true },
@@ -283,7 +283,6 @@ export class MercadoPagoController {
       }
     }
 
-    // 3. Ativar Trial de 7 dias com plano Pro (determinado exclusivamente pelo servidor)
     const now = new Date();
     const TRIAL_DURATION_DAYS = 7;
     const periodoFim = new Date(now.getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
@@ -351,7 +350,11 @@ export class MercadoPagoController {
       const isPastDue = mpStatus === 'paused';
 
       const newStatus = isActive ? 'active' : isCanceled ? 'canceled' : isPastDue ? 'past_due' : sub.status;
-      const effectivePlan: PlanId = isActive ? normalizePlanId(sub.plano) : 'free';
+      const fimBase = sub.periodoFim ? new Date(sub.periodoFim).getTime() : Date.now();
+      const dentroCarencia = Date.now() <= fimBase + GRACE_PERIOD_MS;
+      const effectivePlan: PlanId = isActive || (isPastDue && dentroCarencia)
+        ? normalizePlanId(sub.plano)
+        : 'free';
 
       await prisma.$transaction(async (tx) => {
         await tx.user.update({
@@ -399,37 +402,43 @@ export class MercadoPagoController {
 
     const planConfig = getMercadoPagoPlanConfig(resolved);
     const configuredBackUrl = asSingleString(process.env.MP_BACK_URL);
-
-    if (!planConfig.preapprovalPlanId) {
-      return res.status(503).json({
-        success: false,
-        message: `Plano ${planConfig.nome} ainda não está configurado no Mercado Pago.`,
-      });
-    }
-    if (!configuredBackUrl) {
-      return res.status(503).json({
-        success: false,
-        message: 'A URL de retorno do Mercado Pago ainda não está configurada.',
-      });
-    }
+    const fallbackOrigin = asSingleString(process.env.FRONTEND_URL) || 'https://expertiselicitatoria.com.br';
+    const effectiveBackUrl = configuredBackUrl || `${fallbackOrigin}/fornecedor/planos`;
 
     try {
-      const backUrl = new URL(configuredBackUrl);
+      const backUrl = new URL(effectiveBackUrl);
       backUrl.searchParams.set('status', 'success');
 
-      const response = await mercadoPagoService.createSubscription({
-        preapproval_plan_id: planConfig.preapprovalPlanId,
+      const includeAddonFiscal = Boolean(
+        req.body?.incluirExpertiseFiscal || req.body?.addon === 'expertise_fiscal',
+      );
+      const valorFinalMensal = Number(
+        (planConfig.valor + (includeAddonFiscal ? EXPERTISE_FISCAL_ADDON_VALOR : 0)).toFixed(2),
+      );
+      const externalRef = includeAddonFiscal
+        ? `${req.user.id}:${resolved}:expertise_fiscal`
+        : `${req.user.id}:${resolved}`;
+
+      const subscriptionPayload: any = {
         payer_email: req.user.email,
-        external_reference: `${req.user.id}:${resolved}`,
+        external_reference: externalRef,
         back_url: backUrl.toString(),
-        reason: `Assinatura EXPERTISE ${planConfig.nome}`,
+        reason: includeAddonFiscal
+          ? `Assinatura EXPERTISE ${planConfig.nome} + Add-on Expertise Fiscal`
+          : `Assinatura EXPERTISE ${planConfig.nome}`,
         auto_recurring: {
           frequency: 1,
           frequency_type: 'months',
-          transaction_amount: planConfig.valor,
+          transaction_amount: valorFinalMensal,
           currency_id: 'BRL',
         },
-      });
+      };
+
+      if (planConfig.preapprovalPlanId && !includeAddonFiscal) {
+        subscriptionPayload.preapproval_plan_id = planConfig.preapprovalPlanId;
+      }
+
+      const response = await mercadoPagoService.createSubscription(subscriptionPayload);
 
       const checkout = response as unknown as {
         init_point?: string;
@@ -450,6 +459,7 @@ export class MercadoPagoController {
         data: {
           url,
           plano: resolved,
+          valorMensal: valorFinalMensal,
         },
       });
     } catch (error: any) {
@@ -623,21 +633,25 @@ export class MercadoPagoController {
         throw new Error('MP_EXTERNAL_REFERENCE_MISSING');
       }
 
-      const [userId, rawPlanId, ...unexpectedParts] = externalReference.split(':');
+      const [userId, rawPlanId, addonPart, ...unexpectedParts] = externalReference.split(':');
       const planId = resolvePlanKey(rawPlanId);
-      if (!userId || !planId || unexpectedParts.length > 0) {
+      const hasFiscalAddon = addonPart === 'expertise_fiscal';
+      if (!userId || !planId || (addonPart && !hasFiscalAddon) || unexpectedParts.length > 0) {
         throw new Error('MP_EXTERNAL_REFERENCE_INVALID');
       }
 
-      assertExpectedPlanConfiguration(planId, signatureInfo);
       const planConfig = getMercadoPagoPlanConfig(planId);
+      const expectedValor = Number(
+        (planConfig.valor + (hasFiscalAddon ? EXPERTISE_FISCAL_ADDON_VALOR : 0)).toFixed(2),
+      );
+      assertExpectedPlanConfiguration(planId, signatureInfo, expectedValor);
 
       if (confirmedInvoice) {
         const invoiceAmount = Number(confirmedInvoice.transaction_amount);
         const invoiceCurrency = asSingleString(confirmedInvoice.currency_id);
         if (
           !Number.isFinite(invoiceAmount)
-          || invoiceAmount !== planConfig.valor
+          || Math.abs(invoiceAmount - expectedValor) > 0.01
           || invoiceCurrency !== 'BRL'
         ) {
           throw new Error('MP_INVOICE_AMOUNT_MISMATCH');
@@ -654,7 +668,7 @@ export class MercadoPagoController {
 
       const mercadoPagoStatus = asSingleString(signatureInfo.status);
       const paymentConfirmed = Boolean(confirmedInvoice)
-        || hasConfirmedCharge(signatureInfo, planConfig.valor);
+        || hasConfirmedCharge(signatureInfo, expectedValor);
       const isActive = mercadoPagoStatus === 'authorized' && paymentConfirmed;
       const isCanceled = mercadoPagoStatus === 'cancelled';
       const isPastDue = mercadoPagoStatus === 'paused';
@@ -675,7 +689,7 @@ export class MercadoPagoController {
           : isCanceled
             ? 'canceled'
             : 'past_due';
-        const effectivePlan = isActive ? planId : 'free';
+        const effectivePlan = isActive || isPastDue ? planId : 'free';
 
         await prisma.$transaction(async (tx) => {
           await tx.user.update({
@@ -697,7 +711,7 @@ export class MercadoPagoController {
               status: subscriptionStatus,
               mpPreapprovalId: signatureInfo.id,
               mpPayerId: signatureInfo.payer_id?.toString(),
-              mpPlanId: planConfig.preapprovalPlanId,
+              mpPlanId: planConfig.preapprovalPlanId || null,
               periodoInicio,
               periodoFim,
             },
@@ -706,7 +720,7 @@ export class MercadoPagoController {
               status: subscriptionStatus,
               mpPreapprovalId: signatureInfo.id,
               mpPayerId: signatureInfo.payer_id?.toString(),
-              mpPlanId: planConfig.preapprovalPlanId,
+              mpPlanId: planConfig.preapprovalPlanId || null,
               periodoInicio,
               periodoFim,
             },

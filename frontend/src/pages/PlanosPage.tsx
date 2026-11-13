@@ -82,7 +82,7 @@ const FALLBACK_PLANS: Plan[] = [
       'gestao_contratual',
       'credenciamento',
     ],
-    mercadoPagoConfigurado: false,
+    mercadoPagoConfigurado: true,
     limites: {
       maxCompanies: 5,
       maxUsers: 2,
@@ -111,7 +111,7 @@ const FALLBACK_PLANS: Plan[] = [
       'lex_ia_avancada',
       'relatorios_estrategicos',
     ],
-    mercadoPagoConfigurado: false,
+    mercadoPagoConfigurado: true,
     limites: {
       maxCompanies: 10,
       maxUsers: 5,
@@ -148,7 +148,7 @@ const FALLBACK_PLANS: Plan[] = [
       'assistente_repactuacao',
       'assistente_reequilibrio',
     ],
-    mercadoPagoConfigurado: false,
+    mercadoPagoConfigurado: true,
     limites: {
       maxCompanies: 20,
       maxUsers: 10,
@@ -191,11 +191,9 @@ function ConsultantModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200"
     >
       <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-7 sm:p-9 shadow-2xl animate-in zoom-in-95 duration-200">
-        {/* Glow de fundo */}
         <div className="pointer-events-none absolute -right-20 -top-20 h-44 w-44 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-44 w-44 rounded-full bg-blue-600/10 blur-3xl" />
 
-        {/* Botão Fechar */}
         <button
           type="button"
           onClick={onClose}
@@ -205,7 +203,6 @@ function ConsultantModal({
           <X className="w-5 h-5" weight="bold" />
         </button>
 
-        {/* Cabeçalho */}
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 shadow-sm">
             <ChatCircleDots className="w-7 h-7" weight="duotone" />
@@ -225,7 +222,6 @@ function ConsultantModal({
           </p>
         </div>
 
-        {/* Card do Plano Selecionado */}
         <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
             <div>
@@ -260,7 +256,6 @@ function ConsultantModal({
           </div>
         </div>
 
-        {/* Ações */}
         <div className="mt-6 space-y-3">
           <a
             href={whatsAppUrl}
@@ -290,7 +285,6 @@ function ConsultantModal({
           </button>
         </div>
 
-        {/* Rodapé de Segurança */}
         <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 text-center">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" weight="fill" />
           <span>Atendimento empresarial de segunda a sexta, das 08h às 18h (Horário de Brasília)</span>
@@ -310,7 +304,6 @@ export default function PlanosPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'mensal' | 'anual'>('mensal');
 
-  // Estado do Modal Corporativo de Pagamento Seguro
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [isConsultantModalOpen, setIsConsultantModalOpen] = useState(false);
 
@@ -405,32 +398,27 @@ export default function PlanosPage() {
       return;
     }
 
-    // Se o gateway de pagamento estiver configurado, tenta abrir a sessão:
-    if (plan.mercadoPagoConfigurado) {
-      setCheckoutLoading(plan.id);
-      try {
-        const response = await pagamentosApi.criarCheckout({ plano: plan.id });
-        if (response.data?.success && response.data?.data?.url) {
-          window.location.href = response.data.data.url;
-          return;
-        }
-        // Se a resposta não tiver URL, aciona o modal corporativo com consultor
-        setSelectedPlan(plan);
-        setIsConsultantModalOpen(true);
-      } catch {
-        // Fallback gracioso: abre o modal de consultor
-        setSelectedPlan(plan);
-        setIsConsultantModalOpen(true);
-      } finally {
-        setCheckoutLoading(null);
+    setCheckoutLoading(plan.id);
+    try {
+      const response = await pagamentosApi.criarCheckout({ plano: plan.id });
+      const checkoutUrl = response.data?.data?.url;
+      if (response.data?.success && checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
       }
-      return;
+      setSelectedPlan(plan);
+      setIsConsultantModalOpen(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      if (msg && err?.response?.status !== 503) {
+        toast.error(msg);
+      } else {
+        setSelectedPlan(plan);
+        setIsConsultantModalOpen(true);
+      }
+    } finally {
+      setCheckoutLoading(null);
     }
-
-    // Ação Temporária Segura: Se o gateway ainda não estiver finalizado no código,
-    // NÃO deixa o botão quebrado. Abre o modal corporativo com redirecionamento para consultor via WhatsApp:
-    setSelectedPlan(plan);
-    setIsConsultantModalOpen(true);
   };
 
   const getButtonCopy = (plan: Plan, isCurrentPlan: boolean) => {
@@ -445,7 +433,6 @@ export default function PlanosPage() {
 
   return (
     <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-10 font-sans selection:bg-brand-orange selection:text-white">
-      {/* Banner de Trial Oficial Ativo */}
       {userTrialActive && (
         <div className="rounded-3xl border border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-5 text-emerald-950 shadow-md">
           <div className="flex items-center gap-4">
@@ -470,7 +457,6 @@ export default function PlanosPage() {
         </div>
       )}
 
-      {/* Header Corporativo B2B */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-dark/5 border border-brand-dark/15 text-brand-dark text-xs font-black uppercase tracking-wider">
           <ShieldCheck className="w-4 h-4 text-brand-orange" weight="fill" />
@@ -485,7 +471,6 @@ export default function PlanosPage() {
           Escolha a estrutura adequada para sua empresa vencer mais licitações sob a Nova Lei 14.133/2021. Sem fidelidade, sem carência e sem comissão sobre contratos ganhos.
         </p>
 
-        {/* Alternador Mensal / Anual */}
         <div className="pt-4 flex items-center justify-center">
           <div className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-slate-100 border border-slate-200 shadow-inner">
             <button
@@ -517,7 +502,6 @@ export default function PlanosPage() {
         </div>
       </div>
 
-      {/* Grid de Cards dos Planos */}
       {loading ? (
         <div className="flex h-72 w-full items-center justify-center">
           <div className="flex flex-col items-center gap-3">
@@ -544,7 +528,6 @@ export default function PlanosPage() {
                     : 'border-slate-200 bg-white text-slate-800'
                 }`}
               >
-                {/* Badge de Destaque */}
                 {plan.destaque && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-orange text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
                     <Star weight="fill" className="w-3.5 h-3.5" /> Mais Escolhido
@@ -557,7 +540,6 @@ export default function PlanosPage() {
                   </div>
                 )}
 
-                {/* Cabeçalho do Card */}
                 <div className="mb-6 pt-2">
                   <h3 className={`text-2xl font-black ${plan.destaque ? 'text-white' : 'text-brand-dark'}`}>
                     {plan.nome}
@@ -567,7 +549,6 @@ export default function PlanosPage() {
                   </p>
                 </div>
 
-                {/* Indicador de Plano Atual */}
                 {isCurrentPlan && (
                   <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-center text-xs font-bold text-emerald-800 flex items-center justify-center gap-2">
                     <Check className="w-4 h-4 text-emerald-600" weight="bold" />
@@ -575,7 +556,6 @@ export default function PlanosPage() {
                   </div>
                 )}
 
-                {/* Preço */}
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
                     <span className="text-xs font-black uppercase text-slate-400">R$</span>
@@ -591,7 +571,6 @@ export default function PlanosPage() {
                   </p>
                 </div>
 
-                {/* BOTÃO PRINCIPAL COM COPY PROFISSIONAL */}
                 <button
                   type="button"
                   id={`btn-plan-${plan.id}`}
@@ -613,7 +592,6 @@ export default function PlanosPage() {
                   )}
                 </button>
 
-                {/* Lista de Recursos Incluídos */}
                 <div className={`mt-8 space-y-3.5 flex-1 pt-6 border-t ${plan.destaque ? 'border-white/10 text-slate-200' : 'border-slate-100 text-slate-700'}`}>
                   <p className="font-black text-[11px] uppercase tracking-widest opacity-60">
                     O que está incluído:
@@ -651,7 +629,6 @@ export default function PlanosPage() {
                       <span>Cofre de Documentos & Alerta de Certidões</span>
                     </li>
 
-                    {/* Features Avançadas */}
                     {plan.id === 'pro' && (
                       <li className="flex items-start gap-2.5 pt-2 border-t border-white/10 text-white font-bold">
                         <RocketLaunch className="w-4 h-4 text-brand-orange shrink-0 mt-0.5" weight="duotone" />
@@ -659,7 +636,6 @@ export default function PlanosPage() {
                       </li>
                     )}
 
-                    {/* Features Master */}
                     {plan.id === 'master' && (
                       <>
                         <li className="flex items-start gap-2.5 pt-2 border-t border-slate-100 font-bold text-brand-dark">
@@ -680,9 +656,7 @@ export default function PlanosPage() {
         </div>
       )}
 
-      {/* SEÇÃO ADD-ON OFICIAL: EXPERTISE FISCAL (+R$ 99,99/mês) */}
       <section className="rounded-3xl border-2 border-indigo-500/30 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 sm:p-10 shadow-2xl relative overflow-hidden">
-        {/* Glow de fundo */}
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
 
@@ -748,7 +722,6 @@ export default function PlanosPage() {
         </div>
       </section>
 
-      {/* Seção Corporativa de Confiança e Faturamento B2B */}
       <section className="mt-16 rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-sm">
         <div className="text-center max-w-2xl mx-auto mb-8">
           <h2 className="text-xl sm:text-2xl font-black text-brand-dark tracking-tight">
@@ -817,7 +790,6 @@ export default function PlanosPage() {
           </div>
         </div>
 
-        {/* Linha de Apoio Comercial Direto */}
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-medium text-slate-600">
           <div className="flex items-center gap-2">
             <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -836,7 +808,6 @@ export default function PlanosPage() {
         </div>
       </section>
 
-      {/* Modal Corporativo de Integração Segura */}
       <ConsultantModal
         isOpen={isConsultantModalOpen}
         onClose={() => setIsConsultantModalOpen(false)}
