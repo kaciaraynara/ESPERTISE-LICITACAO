@@ -42,10 +42,12 @@ export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
       ? 'Teste Gratuito'
       : getPlanDisplayLabel(resolveUserPlanTier(user)));
 
+  const userName = user?.nome?.trim() || 'Usuário';
+
   const initial = (
+    userName.charAt(0) ||
     companyNomeFantasia.trim().charAt(0) ||
-    user?.nome?.charAt(0) ||
-    'E'
+    'U'
   ).toUpperCase();
 
   return (
@@ -102,22 +104,25 @@ export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
           <span className="first-letter:uppercase">{dateLabel}</span>
         </p>
 
-        {/* Dados Reais do Contexto: {company.nomeFantasia} e {user.planLevel} */}
+        {/* Dados Reais do Contexto: Nome Pessoal do Usuário e Empresa/Plano */}
         <div className="hidden min-w-0 text-right sm:block">
           <p
             className="max-w-56 truncate text-sm font-black text-slate-900"
+            title={userName}
+          >
+            {userName}
+          </p>
+          <p
+            className="max-w-56 truncate text-[11px] font-semibold text-slate-500"
             title={companyNomeFantasia}
           >
-            {companyNomeFantasia}
-          </p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-orange">
-            {userPlanLevel}
+            {companyNomeFantasia} • <span className="font-bold text-brand-orange uppercase">{userPlanLevel}</span>
           </p>
         </div>
 
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-orange text-sm font-black text-white shadow-sm"
-          title={companyNomeFantasia}
+          title={`${userName} (${companyNomeFantasia})`}
         >
           {initial}
         </span>

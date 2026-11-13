@@ -2,7 +2,6 @@ import { useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Loader2,
   AlertCircle,
   RefreshCw,
   DollarSign,
@@ -21,6 +20,10 @@ import {
   Clock,
   Calendar,
   TrendingUp,
+  FileText,
+  Sparkles,
+  Award,
+  Check,
 } from 'lucide-react';
 import { dashboardApi, certidoesApi, crmApi, licitacoesApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
@@ -85,12 +88,6 @@ function formatarData(data: string): string {
   }
 }
 
-function formatCnpj(cnpj?: string | null): string {
-  if (!cnpj) return 'Aguardando cadastro';
-  const clean = cnpj.replace(/\D/g, '');
-  if (clean.length !== 14) return cnpj;
-  return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-}
 
 const DASHBOARD_METRICS_QUERY_KEY = ['dashboard', 'metrics'] as const;
 const MANUAL_REFRESH_COOLDOWN_MS = 30_000;
@@ -178,37 +175,6 @@ export default function DashboardPage() {
 
   const certidoes = certidoesQuery.data ?? [];
 
-  const certidaoTrabalhista = certidoes.find((c: any) => {
-    const nome = (c.nome || '').toLowerCase();
-    const orgao = (c.orgao || '').toLowerCase();
-    const esfera = (c.esfera || '').toUpperCase();
-    return esfera === 'TRABALHISTA' || nome.includes('trabalh') || nome.includes('cndt') || orgao.includes('tst');
-  });
-
-  const isTrabalhistaRegular = Boolean(
-    certidaoTrabalhista &&
-      certidaoTrabalhista.status === 'VALIDA' &&
-      certidaoTrabalhista.regularidade !== 'IRREGULAR'
-  );
-
-  const certidaoFgts = certidoes.find((c: any) => {
-    const nome = (c.nome || '').toLowerCase();
-    const orgao = (c.orgao || '').toLowerCase();
-    return nome.includes('fgts') || nome.includes('crf') || orgao.includes('caixa');
-  });
-
-  const isFgtsRegular = Boolean(
-    certidaoFgts &&
-      certidaoFgts.status === 'VALIDA' &&
-      certidaoFgts.regularidade !== 'IRREGULAR'
-  );
-
-  const totalValidas = certidoes.filter(
-    (c: any) => c.status === 'VALIDA' && c.regularidade !== 'IRREGULAR'
-  ).length;
-
-  const notaQualificacao = certidoes.length > 0 ? Number(((totalValidas / certidoes.length) * 10).toFixed(1)) : 0;
-
   // Metas de Contratos
   const editaisMonitorados = metrics?.editaisMonitorados ?? 0;
   const editaisTarget = 20;
@@ -218,9 +184,6 @@ export default function DashboardPage() {
   const metaTrimestralTarget = 500000;
   const progressoMetaTrimestral = valorHomologado > 0 ? Math.min(100, Math.round((valorHomologado / metaTrimestralTarget) * 100)) : 0;
 
-  const disputasSemana = metrics?.prazosEstaSemana ?? metrics?.crmOportunidades ?? 0;
-  const disputasTarget = 5;
-  const progressoDisputas = disputasSemana > 0 ? Math.min(100, Math.round((disputasSemana / disputasTarget) * 100)) : 0;
 
   // Licitações salvas do backend para Linha do Tempo e Assertividade
   const savedLicitacoesQuery = useQuery({
@@ -275,28 +238,6 @@ export default function DashboardPage() {
     ['ADJUDICADO', 'GANHO', 'HOMOLOGADO', 'VITORIA', 'ACEITA'].includes(String(i.stage || i.situacao || '').toUpperCase())
   ).length;
 
-  const faseRecursoCount = savedLicitacoes.filter((i: any) =>
-    ['RECURSO', 'IMPUGNACAO', 'ANALISE', 'DISPUTA'].includes(String(i.stage || i.situacao || '').toUpperCase())
-  ).length;
-
-  const desclassificacoesCount = savedLicitacoes.filter((i: any) =>
-    ['PERDIDO', 'DESCLASSIFICADO', 'INABILITADO', 'FRACASSADO'].includes(String(i.stage || i.situacao || '').toUpperCase())
-  ).length;
-
-  const totalAssertividade = propostasAceitasCount + faseRecursoCount + desclassificacoesCount;
-
-  const pctAceitas = totalAssertividade > 0
-    ? Math.round((propostasAceitasCount / totalAssertividade) * 100)
-    : (metrics?.taxaSucesso ?? 0);
-
-  const pctRecurso = totalAssertividade > 0
-    ? Math.round((faseRecursoCount / totalAssertividade) * 100)
-    : (metrics?.prazosEstaSemana && metrics.prazosEstaSemana > 0 ? Math.min(30, metrics.prazosEstaSemana * 10) : 0);
-
-  const pctDesclassificacoes = totalAssertividade > 0
-    ? Math.max(0, 100 - pctAceitas - pctRecurso)
-    : 0;
-
   const isContaNova =
     Boolean(metrics?.isContaNova) ||
     (!loading &&
@@ -305,13 +246,175 @@ export default function DashboardPage() {
       metrics.propostasCriadas === 0 &&
       (metrics.catalogItemsCount ?? 0) === 0);
 
+  // Ranking dos Editais do Dia com Maior Chance de Vitória (Dados Reais do PNCP)
+  const rankingEditaisQuery = useQuery({
+    queryKey: ['ranking-editais-dashboard', selectedCompany?.id ?? 'default'],
+    queryFn: async () => {
+      try {
+        const res = await licitacoesApi.listar({ tamanhoPagina: 10 });
+        const raw = res.data?.data?.itens || res.data?.itens || res.data?.data || [];
+        return Array.isArray(raw) ? raw : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  // Score real de aderência quando calculado pelo backend; nunca inventado no frontend
+  const getScoreReal = (edital: any): number | null => {
+    const s = edital?.score?.pontuacao ?? edital?.scoreAderencia ?? edital?.score;
+    const n = typeof s === 'number' ? s : Number(s);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  };
+
+  const rawRanking: any[] = rankingEditaisQuery.data ?? [];
+  const displayRanking = [...(rawRanking.length > 0 ? rawRanking : (metrics?.recomendacoes ?? []))]
+    .sort((a: any, b: any) => (getScoreReal(b) ?? -1) - (getScoreReal(a) ?? -1))
+    .slice(0, 5);
+
+  // Mapeamento das 5 Certidões Obrigatórias da Lei 14.133/2021
+  const findCertidao = (keywords: string[], esfera?: string) => {
+    return certidoes.find((c: any) => {
+      const nome = (c.nome || c.tipo || '').toLowerCase();
+      const orgao = (c.orgao || '').toLowerCase();
+      const esf = (c.esfera || '').toUpperCase();
+      if (esfera && esf === esfera) return true;
+      return keywords.some((kw) => nome.includes(kw) || orgao.includes(kw));
+    });
+  };
+
+  const certFederal = findCertidao(['federal', 'pgfn', 'receita', 'inss', 'uniao'], 'FEDERAL');
+  const certFgts = findCertidao(['fgts', 'crf', 'caixa']);
+  const certTrabalhista = findCertidao(['trabalh', 'cndt', 'tst'], 'TRABALHISTA');
+  const certEstadual = findCertidao(['estadual', 'sefaz', 'icms'], 'ESTADUAL');
+  const certMunicipal = findCertidao(['municipal', 'prefeitura', 'iss'], 'MUNICIPAL');
+
+  const cincoCertidoes = [
+    {
+      id: 'federal',
+      nome: 'Receita Federal / PGFN',
+      descricao: 'Tributos Federais e Contribuições Previdenciárias',
+      item: certFederal,
+      isValida: Boolean(certFederal && certFederal.status === 'VALIDA' && certFederal.regularidade !== 'IRREGULAR'),
+      dias: certFederal?.validade ? Math.max(0, Math.ceil((new Date(certFederal.validade).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    },
+    {
+      id: 'fgts',
+      nome: 'FGTS (CRF Caixa)',
+      descricao: 'Certificado de Regularidade do FGTS',
+      item: certFgts,
+      isValida: Boolean(certFgts && certFgts.status === 'VALIDA' && certFgts.regularidade !== 'IRREGULAR'),
+      dias: certFgts?.validade ? Math.max(0, Math.ceil((new Date(certFgts.validade).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    },
+    {
+      id: 'trabalhista',
+      nome: 'CNDT Trabalhista (TST)',
+      descricao: 'Certidão Negativa de Débitos Trabalhistas',
+      item: certTrabalhista,
+      isValida: Boolean(certTrabalhista && certTrabalhista.status === 'VALIDA' && certTrabalhista.regularidade !== 'IRREGULAR'),
+      dias: certTrabalhista?.validade ? Math.max(0, Math.ceil((new Date(certTrabalhista.validade).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    },
+    {
+      id: 'estadual',
+      nome: 'Fazenda Estadual',
+      descricao: 'ICMS e Dívida Ativa Estadual',
+      item: certEstadual,
+      isValida: Boolean(certEstadual && certEstadual.status === 'VALIDA' && certEstadual.regularidade !== 'IRREGULAR'),
+      dias: certEstadual?.validade ? Math.max(0, Math.ceil((new Date(certEstadual.validade).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    },
+    {
+      id: 'municipal',
+      nome: 'Fazenda Municipal',
+      descricao: 'ISS e Tributos Municipais',
+      item: certMunicipal,
+      isValida: Boolean(certMunicipal && certMunicipal.status === 'VALIDA' && certMunicipal.regularidade !== 'IRREGULAR'),
+      dias: certMunicipal?.validade ? Math.max(0, Math.ceil((new Date(certMunicipal.validade).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null,
+    },
+  ];
+
+  const totalCertidoesValidas = cincoCertidoes.filter((c) => c.isValida).length;
+  const saudeCertidoesPercent = Math.round((totalCertidoesValidas / 5) * 100);
+
+  // Geometria do Donut SVG
+  const radiusDonut = 48;
+  const circDonut = 2 * Math.PI * radiusDonut;
+  const dashoffsetDonut = circDonut - (saudeCertidoesPercent / 100) * circDonut;
+
+  // Funil Visual de Licitações por Etapa
+  const funilEtapas = [
+    {
+      step: 1,
+      titulo: 'Prospecção',
+      subtitulo: 'Radar PNCP',
+      count: metrics?.editaisMonitorados || savedLicitacoes.length || 0,
+      badge: 'Filtro por UF & Ramos',
+      corBorda: 'border-blue-300',
+      corFundo: 'bg-blue-50/70',
+      corTexto: 'text-[#0070c0]',
+      link: FORNECEDOR_ROUTES.radar,
+    },
+    {
+      step: 2,
+      titulo: 'Análise Técnica',
+      subtitulo: 'Robô Lex & Riscos',
+      count: metrics?.analisesNulidade ?? 0,
+      badge: 'Atestados <= 50%',
+      corBorda: 'border-orange-300',
+      corFundo: 'bg-orange-50/70',
+      corTexto: 'text-[#ff6600]',
+      link: FORNECEDOR_ROUTES.lex,
+    },
+    {
+      step: 3,
+      titulo: 'Proposta Elaborada',
+      subtitulo: 'Precificação & BDI',
+      count: metrics?.propostasCriadas ?? 0,
+      badge: 'Trava Stop-Loss',
+      corBorda: 'border-emerald-300',
+      corFundo: 'bg-emerald-50/70',
+      corTexto: 'text-emerald-700',
+      link: FORNECEDOR_ROUTES.precificacao_estrategica,
+    },
+    {
+      step: 4,
+      titulo: 'Disputa ao Vivo',
+      subtitulo: 'Mesa de Lances',
+      count: metrics?.crmOportunidades || metrics?.prazosEstaSemana || 0,
+      badge: 'Aberto / Fechado',
+      corBorda: 'border-slate-300',
+      corFundo: 'bg-slate-100/80',
+      corTexto: 'text-[#081c3a]',
+      link: FORNECEDOR_ROUTES.disputa_ao_vivo,
+    },
+    {
+      step: 5,
+      titulo: 'Homologada / Vencida',
+      subtitulo: 'Contratos Ganhos',
+      count: propostasAceitasCount || 0,
+      badge: `${metrics?.taxaSucesso ?? 0}% Sucesso`,
+      corBorda: 'border-emerald-400',
+      corFundo: 'bg-emerald-100/80',
+      corTexto: 'text-emerald-800',
+      link: FORNECEDOR_ROUTES.gestao_pos_vitoria,
+    },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-brand-light min-h-screen">
-      {/* Header — Visão Geral das Licitações */}
-      <header data-tour="executive-header" className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-8">
+      {/* Header — Visão Geral das Licitações com Nome do Usuário */}
+      <header data-tour="executive-header" className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-slate-400 capitalize">{dateLabel}</span>
+            <span className="text-xs font-bold text-brand-blue capitalize">{dateLabel}</span>
+            {user?.nome && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className="text-xs font-semibold text-slate-600">Olá, {user.nome}</span>
+              </>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-dark">
             Visão Geral das Licitações
@@ -342,6 +445,502 @@ export default function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* =========================================================================
+          OS 4 ATALHOS ESTRATÉGICOS DE 1 CLIQUE (TOPO DA PÁGINA)
+          ========================================================================= */}
+      <section className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Atalhos Estratégicos">
+        {/* 1. Buscar Editais Compatíveis (Radar) */}
+        <Link
+          to={FORNECEDOR_ROUTES.radar}
+          className="group bg-white border border-slate-200 hover:border-brand-blue rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-8 h-8 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center font-black text-xs group-hover:bg-brand-blue group-hover:text-white transition-colors">
+                1
+              </span>
+              <Crosshair className="w-5 h-5 text-brand-blue group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="text-sm font-black text-brand-dark group-hover:text-brand-blue transition-colors leading-snug">
+              1. Buscar Editais Compatíveis
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Consulte oportunidades publicadas no PNCP por UF e palavra-chave.
+            </p>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-blue">
+            <span>Acessar Radar</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+
+        {/* 2. Ler Resumo e Estratégia do Edital (Lex) */}
+        <Link
+          to={FORNECEDOR_ROUTES.lex}
+          className="group bg-white border border-slate-200 hover:border-brand-orange rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-8 h-8 rounded-xl bg-orange-50 text-brand-orange flex items-center justify-center font-black text-xs group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                2
+              </span>
+              <FileText className="w-5 h-5 text-brand-orange group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="text-sm font-black text-brand-dark group-hover:text-brand-orange transition-colors leading-snug">
+              2. Ler Resumo e Estratégia
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Análise com o Robô Lex: limites de atestados (Súmula 263) e impugnações.
+            </p>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-orange">
+            <span>Consultar Lex</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+
+        {/* 3. Montar Proposta (Planilha Estilo Excel) */}
+        <Link
+          to={FORNECEDOR_ROUTES.precificacao_estrategica}
+          className="group bg-white border border-slate-200 hover:border-emerald-500 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-xs group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                3
+              </span>
+              <DollarSign className="w-5 h-5 text-emerald-600 group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="text-sm font-black text-brand-dark group-hover:text-emerald-700 transition-colors leading-snug">
+              3. Montar Proposta
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Planilha de Custos & BDI com trava automática de Stop-Loss.
+            </p>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-700">
+            <span>Simular BDI</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+
+        {/* 4. Abrir Sala de Disputa e Lances Automáticos */}
+        <Link
+          to={FORNECEDOR_ROUTES.disputa_ao_vivo}
+          className="group bg-white border border-slate-200 hover:border-brand-dark rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="w-8 h-8 rounded-xl bg-slate-100 text-brand-dark flex items-center justify-center font-black text-xs group-hover:bg-brand-dark group-hover:text-white transition-colors">
+                4
+              </span>
+              <Target className="w-5 h-5 text-brand-dark group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="text-sm font-black text-brand-dark group-hover:text-brand-blue transition-colors leading-snug">
+              4. Sala de Disputa e Lances
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Mesa Operacional ao vivo nos modos Aberto e Aberto-Fechado (IN 73/2022).
+            </p>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-dark">
+            <span>Entrar na Sala</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+      </section>
+
+      {/* =========================================================================
+          GRÁFICO 1: FUNIL VISUAL DE LICITAÇÕES POR ETAPA
+          ========================================================================= */}
+      <section className="mb-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 mb-5 gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-50 text-brand-blue">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-brand-dark">
+                Funil Visual de Licitações por Etapa
+              </h2>
+              <p className="text-xs text-slate-500">
+                Acompanhamento da esteira operacional: da prospecção à vitória homologada
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 self-start sm:self-auto">
+            Esteira Dinâmica
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
+          {funilEtapas.map((etapa) => (
+            <Link
+              key={etapa.step}
+              to={etapa.link}
+              className={`p-4 rounded-xl border ${etapa.corBorda} ${etapa.corFundo} flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-sm group`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="w-6 h-6 rounded-full bg-white text-xs font-black flex items-center justify-center shadow-xs">
+                    {etapa.step}
+                  </span>
+                  <span className={`text-[11px] font-bold ${etapa.corTexto} bg-white/80 px-2 py-0.5 rounded-full`}>
+                    {etapa.badge}
+                  </span>
+                </div>
+                <h3 className="text-xs font-bold text-slate-900 group-hover:text-brand-blue transition-colors">
+                  {etapa.titulo}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {etapa.subtitulo}
+                </p>
+                <div className="text-2xl font-black text-brand-dark mt-3 tracking-tight">
+                  {etapa.count}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    {etapa.count === 1 ? 'item' : 'itens'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <span>Ver etapa</span>
+                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* =========================================================================
+          GRÁFICO 2: ANEL DE SAÚDE DAS 5 CERTIDÕES OBRIGATÓRIAS + METAS DE CONTRATOS
+          ========================================================================= */}
+      <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Anel de Saúde das 5 Certidões Obrigatórias (Esquerda - 6 cols) */}
+        <div className="lg:col-span-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Anel de Saúde das 5 Certidões Obrigatórias
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Habilitação Fiscal e Trabalhista (Arts. 68 e 69 da Lei 14.133/2021)
+                  </p>
+                </div>
+              </div>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${totalCertidoesValidas === 5
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                {totalCertidoesValidas} de 5 Válidas
+              </span>
+            </div>
+
+            {/* Layout com Donut SVG e Lista das 5 Certidões */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
+              {/* Donut Chart SVG */}
+              <div className="sm:col-span-5 flex flex-col items-center justify-center p-3">
+                <div className="relative w-32 h-32 flex items-center justify-center">
+                  <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 120 120">
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={radiusDonut}
+                      className="text-slate-100"
+                      strokeWidth="10"
+                      stroke="currentColor"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r={radiusDonut}
+                      className={saudeCertidoesPercent >= 80 ? 'text-emerald-500' : saudeCertidoesPercent >= 50 ? 'text-amber-500' : 'text-rose-500'}
+                      strokeWidth="10"
+                      strokeDasharray={circDonut}
+                      strokeDashoffset={dashoffsetDonut}
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="transparent"
+                      style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-black text-brand-dark tracking-tight">
+                      {saudeCertidoesPercent}%
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Saúde
+                    </span>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-slate-500 mt-2 text-center">
+                  {totalCertidoesValidas === 5 ? 'Apta para qualquer certame' : 'Atenção aos vencimentos'}
+                </span>
+              </div>
+
+              {/* Lista das 5 Certidões Obrigatórias */}
+              <div className="sm:col-span-7 space-y-2">
+                {cincoCertidoes.map((cert) => (
+                  <div
+                    key={cert.id}
+                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="font-bold text-slate-800 truncate" title={cert.nome}>
+                        {cert.nome}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {cert.descricao}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      {cert.isValida ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          <Check className="w-3 h-3" />
+                          <span>Válida</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>Pendente</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500">
+              Conforme regularidade exigida no SICAF
+            </span>
+            <Link
+              to={FORNECEDOR_ROUTES.certidoes}
+              className="font-bold text-brand-blue hover:text-brand-dark transition flex items-center gap-1"
+            >
+              <span>Gerenciar Certidões</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Metas de Contratos & Indicadores (Direita - 6 cols) */}
+        <div className="lg:col-span-6 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-orange-50 text-brand-orange">
+                  <Target className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-brand-dark">
+                    Metas de Contratos & Assertividade
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Execução trimestral e taxa de conversão em disputas
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-slate-400">Ciclo Vigente</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                  1. Editais Salvos
+                </span>
+                <div className="text-xl font-black text-brand-dark">
+                  {editaisMonitorados}
+                </div>
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full bg-brand-blue rounded-full"
+                    style={{ width: `${progressoEditais}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">{progressoEditais}% da meta</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                  2. Capital em Jogo
+                </span>
+                <div className="text-lg font-black text-brand-orange truncate">
+                  {formatarMoeda(valorHomologado)}
+                </div>
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full bg-brand-orange rounded-full"
+                    style={{ width: `${progressoMetaTrimestral}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">{progressoMetaTrimestral}% atingido</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                  3. Taxa de Sucesso
+                </span>
+                <div className="text-xl font-black text-emerald-600">
+                  {metrics?.taxaSucesso ?? 0}%
+                </div>
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full"
+                    style={{ width: `${metrics?.taxaSucesso ?? 0}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">Homologações</span>
+              </div>
+            </div>
+
+            {/* Alerta de Prazos ou Dica Tática */}
+            <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-brand-dark">
+                  Dica Tática dos 40 Anos de Experiência:
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                  No modo de disputa Aberto-Fechado (IN 73/2022), mantenha-se dentro da faixa de 10% do primeiro colocado durante a fase aberta para garantir convocação ao lance final sigiloso.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span className="text-slate-500">Métricas integradas à mesa operacional</span>
+            <Link
+              to={FORNECEDOR_ROUTES.crm}
+              className="font-bold text-brand-orange hover:text-orange-600 transition flex items-center gap-1"
+            >
+              <span>Ver CRM Licitatório</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          GRÁFICO 3: RANKING DOS EDITAIS DO DIA COM MAIOR CHANCE DE VITÓRIA
+          ========================================================================= */}
+      <section className="mb-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 mb-5 gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-orange-50 text-brand-orange">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-brand-dark">
+                Ranking dos Editais do Dia com Maior Chance de Vitória
+              </h2>
+              <p className="text-xs text-slate-500">
+                Oportunidades em aberto no PNCP ranqueadas por aderência e competitividade
+              </p>
+            </div>
+          </div>
+          <Link
+            to={FORNECEDOR_ROUTES.radar}
+            className="text-xs font-bold text-brand-blue hover:text-brand-dark transition flex items-center gap-1 self-start sm:self-auto"
+          >
+            <span>Ver Todos os Editais no Radar</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {displayRanking.length > 0 ? (
+          <div className="space-y-3">
+            {displayRanking.map((edital: any, index: number) => {
+              const id = edital.id || `rank-${index}`;
+              const orgao = edital.buyerName || edital.orgao || edital.nomeOrgao || 'Órgão Licitante';
+              const uf = edital.uf || 'BR';
+              const modalidade = edital.modality || edital.modalidade || 'Pregão Eletrônico';
+              const objeto = edital.object || edital.objeto || 'Contratação regida pela Lei Federal nº 14.133/2021';
+              const rawValor = edital.estimatedValue ?? edital.valorEstimado ?? edital.valor ?? null;
+              const valorFormatado = rawValor && Number(rawValor) > 0 ? formatarMoeda(Number(rawValor)) : 'Orçamento Sigiloso / Ver Itens no TR';
+              const score = getScoreReal(edital);
+
+              return (
+                <div
+                  key={id}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-brand-blue transition-all duration-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                >
+                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    <span className="w-8 h-8 rounded-xl bg-brand-dark text-white font-black text-xs flex items-center justify-center shrink-0">
+                      {index + 1}º
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-blue-100">
+                          {modalidade}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-700">
+                          UF: {uf}
+                        </span>
+                        {score !== null && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Aderência: {score}%
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-bold text-sm text-slate-900 truncate" title={orgao}>
+                        {orgao}
+                      </h3>
+                      <p className="text-xs text-slate-600 line-clamp-2 mt-0.5">
+                        {objeto}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-4 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-200">
+                    <div className="text-left md:text-right">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        Valor de Referência
+                      </span>
+                      <span className="text-sm font-black text-brand-dark">
+                        {valorFormatado}
+                      </span>
+                    </div>
+
+                    <Link
+                      to={`${FORNECEDOR_ROUTES.lex}?editalId=${id}`}
+                      className="h-9 px-3.5 rounded-lg bg-[#0070c0] hover:bg-[#081c3a] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs shrink-0"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-brand-orange" />
+                      <span>Analisar com Lex</span>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 px-4 bg-slate-50 rounded-xl border border-slate-100">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+            <p className="text-xs font-bold text-slate-800">
+              Aguardando sincronização de editais do PNCP
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+              Acesse o Radar Governamental para buscar oportunidades ativas no seu segmento.
+            </p>
+            <Link
+              to={FORNECEDOR_ROUTES.radar}
+              className="inline-block mt-3 h-8 px-4 leading-8 rounded-md bg-brand-orange hover:bg-orange-600 text-white text-xs font-bold transition"
+            >
+              Abrir Radar
+            </Link>
+          </div>
+        )}
+      </section>
 
       {/* Alerta de Falha */}
       {error && (
@@ -392,542 +991,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
-      {/* =========================================================================
-          SEÇÃO ESTRUTURAL: PAINEL DE REGULARIDADE (SICAF) & METAS DE CONTRATOS
-          ========================================================================= */}
-      <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Painel de Regularidade (SICAF) - Esquerda */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-50 text-brand-dark">
-                  <ShieldCheck className="w-5 h-5 text-brand-blue" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-brand-dark">
-                    Painel de Regularidade (SICAF)
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    Habilitação Fiscal & Cadastral
-                  </p>
-                </div>
-              </div>
-
-              {selectedCompany?.cnpj ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  CNPJ Ativo
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                  Aguardando sincronização
-                </span>
-              )}
-            </div>
-
-            {/* Informações da Empresa & CNPJ */}
-            <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-              <div className="min-w-0 pr-2">
-                <p className="text-xs font-black text-brand-dark truncate">
-                  {selectedCompany?.nomeFantasia || selectedCompany?.razaoSocial || 'Empresa Cadastrada'}
-                </p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                  CNPJ: {formatCnpj(selectedCompany?.cnpj)}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                  Nota Qualificação
-                </span>
-                <div className="text-lg font-black text-brand-dark">
-                  {notaQualificacao > 0 ? (
-                    <span className="text-emerald-600">{notaQualificacao.toFixed(1)}</span>
-                  ) : (
-                    <span className="text-slate-400">0.0</span>
-                  )}
-                  <span className="text-xs font-normal text-slate-400"> / 10</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Duas Barras de Status Curtas (Trabalhista e FGTS) */}
-            <div className="mt-5 space-y-4">
-              {/* 1. Trabalhista (CNDT) */}
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                    Trabalhista (CNDT)
-                  </span>
-                  {isTrabalhistaRegular ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      100% Regular
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      0% Aguardando Sincronização
-                    </span>
-                  )}
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isTrabalhistaRegular ? 'w-full bg-emerald-500' : 'w-0 bg-slate-300'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* 2. FGTS / Previdenciária (CRF Caixa) */}
-              <div>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                    FGTS (CRF Caixa)
-                  </span>
-                  {isFgtsRegular ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      100% Regular
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                      0% Aguardando Sincronização
-                    </span>
-                  )}
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isFgtsRegular ? 'w-full bg-emerald-500' : 'w-0 bg-slate-300'
-                    }`}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
-              {certidoes.length > 0
-                ? `${totalValidas} de ${certidoes.length} certidões ativas`
-                : 'Sincronização cadastral pendente'}
-            </span>
-            <Link
-              to={FORNECEDOR_ROUTES.certidoes}
-              className="text-xs font-bold text-brand-blue hover:text-brand-dark transition flex items-center gap-1"
-            >
-              <span>Gerenciar SICAF</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Metas de Contratos - Direita (Topo) */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-orange-50 text-brand-orange">
-                  <Target className="w-5 h-5 text-brand-orange" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-brand-dark">
-                    Metas de Contratos
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    Acompanhamento operacional e execução de certames
-                  </p>
-                </div>
-              </div>
-
-              <span className="text-[11px] font-semibold text-slate-400">
-                Ciclo Atual
-              </span>
-            </div>
-
-            {/* 3 Mini-cards com barra de progresso horizontal simples */}
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3.5">
-              {/* 1. Edital Transparência */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      1. Transparência
-                    </span>
-                    <span className="text-[10px] font-bold text-brand-blue">
-                      {progressoEditais}%
-                    </span>
-                  </div>
-                  <h3 className="text-xs font-bold text-slate-800">
-                    Edital Transparência
-                  </h3>
-                  <div className="text-xl font-black text-brand-dark tracking-tight my-1.5">
-                    {editaisMonitorados}{' '}
-                    <span className="text-xs font-normal text-slate-400">
-                      {editaisMonitorados === 1 ? 'edital' : 'editais'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-brand-blue rounded-full transition-all duration-500"
-                      style={{ width: `${progressoEditais}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1 truncate">
-                    {editaisMonitorados > 0 ? 'Radar PNCP ativo' : '0% - Aguardando radar'}
-                  </p>
-                </div>
-              </div>
-
-              {/* 2. Meta Trimestral (Capital homologado) */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      2. Capital
-                    </span>
-                    <span className="text-[10px] font-bold text-brand-orange">
-                      {progressoMetaTrimestral}%
-                    </span>
-                  </div>
-                  <h3 className="text-xs font-bold text-slate-800 truncate" title="Meta Trimestral (Capital homologado)">
-                    Meta Trimestral
-                  </h3>
-                  <div className="text-lg font-black text-brand-orange tracking-tight my-1.5 truncate">
-                    {formatarMoeda(valorHomologado)}
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-brand-orange rounded-full transition-all duration-500"
-                      style={{ width: `${progressoMetaTrimestral}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1 truncate">
-                    {valorHomologado > 0 ? 'Capital homologado' : '0% - Sem homologações'}
-                  </p>
-                </div>
-              </div>
-
-              {/* 3. Disputas da Semana */}
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      3. Disputas
-                    </span>
-                    <span className="text-[10px] font-bold text-brand-dark">
-                      {progressoDisputas}%
-                    </span>
-                  </div>
-                  <h3 className="text-xs font-bold text-slate-800">
-                    Disputas da Semana
-                  </h3>
-                  <div className="text-xl font-black text-brand-dark tracking-tight my-1.5">
-                    {disputasSemana}{' '}
-                    <span className="text-xs font-normal text-slate-400">
-                      {disputasSemana === 1 ? 'sessão' : 'sessões'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-2">
-                  <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-brand-dark rounded-full transition-all duration-500"
-                      style={{ width: `${progressoDisputas}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1 truncate">
-                    {disputasSemana > 0 ? 'Sessões em agenda' : '0% - Nenhuma sessão'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
-              Conectado ao fluxo do PNCP e CRM Governamental
-            </span>
-            <Link
-              to={FORNECEDOR_ROUTES.crm}
-              className="text-xs font-bold text-brand-orange hover:text-orange-600 transition flex items-center gap-1"
-            >
-              <span>Acompanhar Esteira</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SEÇÃO DO MEIO: INDICADORES PRINCIPAIS & ASSERTIVIDADE (MEIO DIREITA)
-          ========================================================================= */}
-      <section className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* 3 Indicadores Principais (Meio Esquerda - 7 cols) */}
-        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* 1. Valor Total em Disputa */}
-          <div
-            onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-brand-dark hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between"
-            style={{ transition: 'all 0.3s ease' }}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Em Disputa
-                </span>
-                <div className="p-2 rounded-xl bg-blue-50 text-brand-dark group-hover:bg-brand-dark group-hover:text-white transition">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="h-8 flex items-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div className="text-2xl font-black text-brand-dark tracking-tight">
-                  {formatarMoeda(metrics?.valorTotalEmDisputa ?? 0)}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
-              <span className="text-slate-500 font-medium truncate">
-                {metrics?.crmOportunidades ?? 0} disputas ativas
-              </span>
-              <span className="font-bold text-brand-dark flex items-center gap-0.5 shrink-0">
-                Ver <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-
-          {/* 2. Sua Taxa de Sucesso */}
-          <div
-            onClick={() => navigate(FORNECEDOR_ROUTES.crm)}
-            className="cursor-pointer group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-emerald-500 hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between"
-            style={{ transition: 'all 0.3s ease' }}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Taxa de Sucesso
-                </span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
-                  <Trophy className="w-4 h-4" />
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="h-8 flex items-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div className="text-2xl font-black text-emerald-600 tracking-tight">
-                  {metrics?.taxaSucesso ?? 0}%
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
-              <span className="text-slate-500 font-medium truncate">
-                Homologados vs. disputa
-              </span>
-              <span className="font-bold text-emerald-700 flex items-center gap-0.5 shrink-0">
-                Métricas <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-
-          {/* 3. Atenção Imediata */}
-          <div
-            onClick={() => navigate(FORNECEDOR_ROUTES.prazos_alertas)}
-            className={`cursor-pointer group rounded-2xl border p-5 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-300 ease-in-out relative overflow-hidden flex flex-col justify-between ${
-              (metrics?.atencaoImediataCount ?? 0) > 0
-                ? 'border-amber-300 bg-amber-50/30 hover:border-amber-500'
-                : 'border-slate-200 bg-white hover:border-slate-300'
-            }`}
-            style={{ transition: 'all 0.3s ease' }}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Atenção Imediata
-                </span>
-                <div
-                  className={`p-2 rounded-xl transition ${
-                    (metrics?.atencaoImediataCount ?? 0) > 0
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="h-8 flex items-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
-                </div>
-              ) : (
-                <div
-                  className={`text-2xl font-black tracking-tight ${
-                    (metrics?.atencaoImediataCount ?? 0) > 0
-                      ? 'text-amber-600'
-                      : 'text-slate-800'
-                  }`}
-                >
-                  {metrics?.atencaoImediataCount ?? 0}{' '}
-                  <span className="text-xs font-bold text-slate-400">
-                    {(metrics?.atencaoImediataCount ?? 0) === 1 ? 'alerta' : 'alertas'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-100 pt-2.5">
-              <span className="text-slate-500 font-medium truncate">
-                {(metrics?.atencaoImediataCount ?? 0) > 0 ? 'Documentos / prazos' : 'Conformidade ativa'}
-              </span>
-              <span className="font-bold text-amber-700 flex items-center gap-0.5 shrink-0">
-                Ver <ChevronRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Assertividade (Meio Direita - 5 cols) */}
-        <div
-          className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md"
-          style={{ transition: 'all 0.3s ease' }}
-        >
-          <div>
-            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-brand-dark">
-                    Assertividade
-                  </h2>
-                  <p className="text-[11px] text-slate-500">
-                    Conversão em disputas governamentais
-                  </p>
-                </div>
-              </div>
-
-              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                {totalAssertividade > 0 ? `${totalAssertividade} analisadas` : 'Esteira Real'}
-              </span>
-            </div>
-
-            {/* 3 Barras de Progresso Horizontais Empilhadas */}
-            <div className="mt-4 space-y-3.5">
-              {/* 1. Propostas Aceitas (Verde) */}
-              <div
-                className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
-                style={{ transition: 'all 0.3s ease' }}
-              >
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Propostas Aceitas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {propostasAceitasCount} {propostasAceitasCount === 1 ? 'proposta' : 'propostas'}
-                    </span>
-                    <span className="text-xs font-black text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
-                      {pctAceitas}%
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 w-full bg-emerald-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                    style={{ width: `${pctAceitas}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* 2. Fase de Recurso (Laranja/Amarelo) */}
-              <div
-                className="p-3 rounded-xl bg-amber-50/50 border border-amber-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
-                style={{ transition: 'all 0.3s ease' }}
-              >
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span>Fase de Recurso</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {faseRecursoCount} {faseRecursoCount === 1 ? 'processo' : 'processos'}
-                    </span>
-                    <span className="text-xs font-black text-amber-800 bg-white px-2 py-0.5 rounded border border-amber-200">
-                      {pctRecurso}%
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 w-full bg-amber-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                    style={{ width: `${pctRecurso}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* 3. Desclassificações (Vermelho) */}
-              <div
-                className="p-3 rounded-xl bg-rose-50/50 border border-rose-100/80 transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-sm"
-                style={{ transition: 'all 0.3s ease' }}
-              >
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-rose-800">
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>Desclassificações</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {desclassificacoesCount} {desclassificacoesCount === 1 ? 'ocorrência' : 'ocorrências'}
-                    </span>
-                    <span className="text-xs font-black text-rose-700 bg-white px-2 py-0.5 rounded border border-rose-200">
-                      {pctDesclassificacoes}%
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 w-full bg-rose-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-rose-500 rounded-full transition-all duration-500"
-                    style={{ width: `${pctDesclassificacoes}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
-              Índice de assertividade da esteira
-            </span>
-            <Link
-              to={FORNECEDOR_ROUTES.crm}
-              className="text-xs font-bold text-brand-orange hover:text-orange-600 transition flex items-center gap-1"
-            >
-              <span>Ver Funil</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-      </section>
 
       {/* =========================================================================
           CAMINHO DO SUCESSO (ONBOARDING INTELIGENTE: ZERO ATRITO)

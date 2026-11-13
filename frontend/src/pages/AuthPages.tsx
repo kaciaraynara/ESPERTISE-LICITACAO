@@ -38,6 +38,8 @@ const resetSchema = z.object({
 });
 
 const registerSchema = z.object({
+   nome_completo: z.string().min(3, 'Informe seu nome completo'),
+   como_gostaria_de_ser_chamado: z.string().optional(),
    email: z.string().email('E-mail corporativo inválido'),
    cnpj: z.string()
       .optional()
@@ -186,6 +188,8 @@ export default function AuthPages() {
       mode: 'onChange',
       reValidateMode: 'onChange',
       defaultValues: {
+         nome_completo: '',
+         como_gostaria_de_ser_chamado: '',
          email: location.state?.email || '',
          cnpj: location.state?.cnpj || '',
          razoesocial: location.state?.razaoSocial || '',
@@ -254,7 +258,7 @@ export default function AuthPages() {
          const razaoSocialInformada = (data.razoesocial || '').trim();
 
          const response = await authApi.register({
-            nome: 'Administrador da conta',
+            nome: (data.como_gostaria_de_ser_chamado || '').trim() || data.nome_completo.trim(),
             email: data.email.trim().toLowerCase(),
             senha: data.password,
             cnpj: cleanCnpj,
@@ -620,6 +624,42 @@ export default function AuthPages() {
                         </div>
 
                         <form onSubmit={handleRegSubmit(onRegister)} className="space-y-4">
+                           {/* Dados Pessoais do Usuário */}
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_nome_completo" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Seu Nome Completo
+                                 </label>
+                                 <input
+                                    {...regForm('nome_completo')}
+                                    id="reg_nome_completo"
+                                    placeholder="Ex: Raynara Kácia"
+                                    type="text"
+                                    autoComplete="name"
+                                    required
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                                 {regErrors.nome_completo && (
+                                    <p className="text-red-500 text-xs font-medium mt-1 flex items-center gap-1">
+                                       <WarningCircle weight="bold" className="w-4 h-4 shrink-0" /> {regErrors.nome_completo.message}
+                                    </p>
+                                 )}
+                              </div>
+
+                              <div className="space-y-1.5">
+                                 <label htmlFor="reg_como_chamado" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Como você gostaria de ser chamado(a)?
+                                 </label>
+                                 <input
+                                    {...regForm('como_gostaria_de_ser_chamado')}
+                                    id="reg_como_chamado"
+                                    placeholder="Ex: Raynara"
+                                    type="text"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
+                                 />
+                              </div>
+                           </div>
+
                            <div className="space-y-1.5">
                               <label htmlFor="reg_email" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
                                  E-mail corporativo

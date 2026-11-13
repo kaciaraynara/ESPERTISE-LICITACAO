@@ -105,11 +105,11 @@ function cleanDisplayCandidate(value?: string | null) {
 
 export function getUserDisplayName(user?: UserDisplaySource | null, fallback = 'Conta Expertise') {
   const candidates = [
+    user?.nome,
     user?.nome_fantasia,
     user?.razao_social,
     user?.empresa?.nome_fantasia,
     user?.empresa?.razao_social,
-    user?.nome,
   ];
 
   return candidates.map(cleanDisplayCandidate).find(Boolean) ?? fallback;
