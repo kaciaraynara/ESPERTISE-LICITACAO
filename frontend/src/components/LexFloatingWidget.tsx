@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import {
-  Bot,
+  BookOpen,
   ChevronRight,
   Compass,
+  HelpCircle,
   Loader2,
   Maximize2,
   Minimize2,
   Send,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -33,65 +33,65 @@ function resolveRouteGuidance(pathname: string): RouteGuidance {
 
   if (path.includes('/licitacoes/') && path.split('/').filter(Boolean).length >= 2) {
     return {
-      screenLabel: 'Dossiê do Edital',
+      screenLabel: 'Resumo do Edital',
       nextStep:
-        'Confira os itens do Termo de Referência, verifique se há exigência de atestado acima de 50% (Súmula 263/TCU) e simule seu preço mínimo antes de cadastrar proposta.',
+        'Confira os itens pedidos, veja se a sua empresa tem os documentos exigidos e calcule seu preço mínimo antes de cadastrar a proposta.',
       quickPrompts: [
-        'Quais pontos de atenção devo checar neste edital antes de disputar?',
-        'Como impugnar exigência restritiva em até 3 dias úteis (Art. 164)?',
-        'Qual a regra de empate ficto ME/EPP (5% em 5 minutos) no pregão?',
+        'O que devo conferir neste edital antes de decidir participar?',
+        'Como pedir esclarecimento ou impugnar um edital no prazo de 3 dias úteis?',
+        'Como funciona o benefício de microempresa na hora do desempate?',
       ],
     };
   }
 
   if (path.includes('/licitacoes') || path.includes('/radar') || path.includes('/monitorados')) {
     return {
-      screenLabel: 'Buscar Oportunidades (PNCP)',
+      screenLabel: 'Buscar Oportunidades',
       nextStep:
-        'Filtre os editais por UF e situação "A Receber Propostas", abra o edital com maior aderência ao seu catálogo e envie os itens para a calculadora de Precificação & BDI.',
+        'Filtre os editais pelo seu estado e pela situação "A Receber Propostas", abra os que combinam com seus produtos e salve para montar sua proposta.',
       quickPrompts: [
-        'Como escolher os editais com maior chance de vitória e margem?',
-        'O que fazer quando o valor estimado do edital é sigiloso?',
-        'Como funciona o modo de disputa Aberto-Fechado (IN 73/2022)?',
+        'Como escolher os editais com maior chance de vitória e lucro?',
+        'O que fazer quando o edital não mostra o valor estimado?',
+        'Como funciona a disputa no modo Aberto e no Aberto-Fechado?',
       ],
     };
   }
 
   if (path.includes('/precificacao') || path.includes('/propostas')) {
     return {
-      screenLabel: 'Precificação & BDI / Propostas',
+      screenLabel: 'Montagem de Preço e Proposta',
       nextStep:
-        'Defina seu custo real de reposição, impostos do seu regime tributário, frete e margem mínima para travar o seu Stop-Loss (Piso Mínimo Exequível) antes da sessão.',
+        'Informe o custo real do produto ou serviço, seus impostos, frete e a margem de lucro desejada para garantir que a proposta não dê prejuízo.',
       quickPrompts: [
-        'Como calcular meu Stop-Loss reservando gordura para negociar no Art. 61?',
-        'Como comprovar exequibilidade se meu lance ficar abaixo de 75% (Súmula 262/TCU)?',
-        'Qual o prazo para enviar a proposta readequada após vencer o item?',
+        'Como calcular meu preço mínimo deixando margem para negociar depois?',
+        'Como comprovar que meu preço é viável se o pregoeiro pedir explicação?',
+        'Qual o prazo para enviar a proposta final depois de vencer o item?',
       ],
     };
   }
 
   if (path.includes('/robo') || path.includes('/disputa')) {
     return {
-      screenLabel: 'Mesa Operacional de Disputa e Lances',
+      screenLabel: 'Sala de Disputa e Lances',
       nextStep:
-        'Mantenha o Stop-Loss travado em cada item, acompanhe os 2 minutos finais no modo Aberto (ou a faixa de 10% no Aberto-Fechado) e responda ao Pregoeiro no chat em até 60 segundos.',
+        'Deixe seu valor mínimo travado em cada item, use a Tela Espelhada para acompanhar o portal oficial ao lado e responda ao pregoeiro no chat rapidamente.',
       quickPrompts: [
-        'Qual a melhor tática para o lance fechado de 5 minutos no modo Aberto-Fechado?',
-        'Como negociar com o Pregoeiro no chat (Art. 61) sem perder margem?',
-        'Como exigir diligência se o concorrente der mergulho de preço inexequível?',
+        'Qual a melhor estratégia para os minutos finais da disputa?',
+        'Como negociar no chat com o pregoeiro sem perder meu lucro?',
+        'O que fazer se um concorrente baixar o preço abaixo do possível?',
       ],
     };
   }
 
   if (path.includes('/cofre') || path.includes('/certidoes') || path.includes('/habilitacao')) {
     return {
-      screenLabel: 'Habilitação e Documentos (Art. 62 a 70)',
+      screenLabel: 'Documentos e Certidões',
       nextStep:
-        'Verifique a validade das certidões fiscais, FGTS e CNDT. Se você for ME/EPP com restrição fiscal, a LC 123/2006 garante 5 dias úteis prorrogáveis por mais 5 para regularizar.',
+        'Mantenha suas certidões (Federal, Estadual, Municipal, FGTS e Trabalhista) sempre em dia. Microempresas têm 5 dias úteis (prorrogáveis por mais 5) para regularizar certidão vencida.',
       quickPrompts: [
-        'Esqueci um documento preexistente: como usar o Acórdão 1211/2021 do TCU?',
-        'Como funciona o prazo de 5 + 5 dias úteis para certidão vencida de ME/EPP?',
-        'Qual o limite legal de quantitativos em atestados técnicos (Art. 67, § 2º)?',
+        'Esqueci de enviar um documento que eu já tinha antes da sessão. Posso entregar depois?',
+        'Como funciona o prazo extra para microempresa com certidão vencida?',
+        'O órgão pode exigir atestado técnico acima de 50% da quantidade?',
       ],
     };
   }
@@ -103,73 +103,64 @@ function resolveRouteGuidance(pathname: string): RouteGuidance {
     path.includes('/contencioso')
   ) {
     return {
-      screenLabel: 'Defesa Jurídica, Impugnação e Recursos',
+      screenLabel: 'Impugnações e Recursos',
       nextStep:
-        'Observe o prazo fatal de 3 dias úteis antes da abertura para Impugnação (Art. 164) e manifeste intenção imediata no sistema para Recurso Administrativo com 3 dias úteis para razões (Art. 165).',
+        'Fique atento aos prazos: até 3 dias úteis antes da sessão para impugnar o edital e manifestação imediata no sistema caso precise entrar com recurso.',
       quickPrompts: [
-        'Estruture argumentos contra agrupamento indevido em lote único (Súmula 247/TCU).',
-        'Estruture recurso contra inabilitação formal citando o Acórdão 1211/2021-TCU.',
-        'Como pedir desclassificação de concorrente que descumpriu marca/modelo do edital?',
+        'Como contestar itens agrupados juntos sem necessidade?',
+        'Como fazer um recurso contra desclassificação por erro simples de documento?',
+        'Como pedir a desclassificação de concorrente que ofertou produto fora do edital?',
       ],
     };
   }
 
   if (path.includes('/expertise-fiscal')) {
     return {
-      screenLabel: 'Expertise Fiscal & Tributária',
+      screenLabel: 'Gestão Fiscal e Tributária',
       nextStep:
-        'Importe os XMLs de NF-e, audite retenções da IN RFB 1.234/2012 (evitando retenção indevida no Simples Nacional) e gere a minuta de Reequilíbrio Econômico-Financeiro (Art. 124, II, "d").',
+        'Confira suas notas fiscais e verifique se houve retenção indevida de impostos (especialmente para empresas do Simples Nacional) ou necessidade de reequilíbrio de preço.',
       quickPrompts: [
-        'Empresa do Simples Nacional sofre retenção de IR/PIS/COFINS pela IN 1.234/2012?',
-        'Como pedir Reequilíbrio Econômico-Financeiro por aumento de carga tributária (Art. 134)?',
-        'Como evitar glosa fiscal na emissão da nota de empenho para órgão público?',
+        'Empresa do Simples Nacional sofre retenção de impostos na nota para órgão público?',
+        'Quando posso pedir reequilíbrio de preço por aumento de custo ou imposto?',
+        'Quais cuidados tomar ao emitir nota fiscal para prefeitura ou estado?',
       ],
     };
   }
 
   if (path.includes('/pos-vitoria') || path.includes('/contratos') || path.includes('/srp')) {
     return {
-      screenLabel: 'Gestão Contratual e Atas de Registro de Preços (SRP)',
+      screenLabel: 'Contratos e Atas de Registro de Preços',
       nextStep:
-        'Monitore o saldo de empenhos, os prazos de entrega e os limites de adesão ("carona") do Art. 86 da Lei 14.133/2021 (50% por órgão carona e 200% no total).',
+        'Acompanhe seus empenhos, prazos de entrega e pedidos de adesão ("carona") para entregar sempre no prazo e evitar multas.',
       quickPrompts: [
-        'Quais são os limites de carona em Ata de Registro de Preços (Decreto 11.462/2023)?',
-        'Como solicitar prorrogação de prazo de entrega sem sofrer multa contratual?',
-        'Quando cabe reajuste (IPCA) versus revisão/reequilíbrio contratual?',
+        'Como funciona o pedido de adesão (carona) em Ata de Registro de Preços?',
+        'Como pedir prorrogação do prazo de entrega sem levar multa?',
+        'Qual a diferença entre reajuste anual e revisão de preço?',
       ],
     };
   }
 
   return {
-    screenLabel: 'Painel Estratégico Expertise Licitatória',
+    screenLabel: 'Painel Principal',
     nextStep:
-      'Revise os alertas de prazos do dia, confira suas certidões vigentes e selecione uma oportunidade no PNCP para iniciar a análise de viabilidade e precificação.',
+      'Confira os prazos do dia, verifique se suas certidões estão válidas e escolha um edital na busca de oportunidades para montar sua proposta.',
     quickPrompts: [
-      'Me dê um roteiro rápido em 4 passos para vencer licitações com lucro seguro.',
-      'Quais são as principais armadilhas da Lei 14.133/2021 na fase de habilitação?',
-      'Como negociar no chat com o Pregoeiro (Art. 61) mantendo minha margem?',
+      'Me dê um passo a passo simples para começar a vencer licitações.',
+      'Quais são os erros mais comuns que fazem empresas perderem licitações?',
+      'Como negociar com o pregoeiro mantendo minha margem de lucro?',
     ],
   };
 }
 
 function buildOfflineContingencyReply(question: string, guidance: RouteGuidance): string {
-  return `**[Fato da fonte]**
-Você está em **${guidance.screenLabel}**. Sua dúvida foi registrada: *"${question}"*.
+  return `Você está na etapa **${guidance.screenLabel}**. Sobre a sua dúvida (*"${question}"*), aqui vão os prazos e regras principais para não errar:
 
-**[Cálculo reproduzível]**
-- **Impugnação e Esclarecimentos (Art. 164 da Lei 14.133/2021)**: até **3 (três) dias úteis** antes da data de abertura do certame.
-- **Recurso Administrativo (Art. 165, I da Lei 14.133/2021)**: intenção imediata no chat da sessão e **3 (três) dias úteis** para apresentação das razões recursais.
-- **Empate Ficto ME/EPP (Art. 44, § 2º da LC 123/2006)**: margem de até **5% (cinco por cento)** no pregão com envio de lance em até **5 (cinco) minutos**.
-- **Proposta Readequada (IN SEGES/ME 73/2022, Art. 29, § 2º)**: prazo mínimo de **2 (duas) horas**, prorrogável mediante solicitação motivada antes do vencimento.
+- **Pedido de esclarecimento ou impugnação**: até **3 dias úteis** antes da data de abertura da sessão.
+- **Recurso após o resultado**: manifeste a intenção logo após o pregoeiro abrir o prazo no chat, e envie as razões em até **3 dias úteis**.
+- **Vantagem para Microempresa e EPP**: se sua proposta ficar até **5% acima** da melhor oferta, você tem **5 minutos** na sessão para dar um lance menor e assumir o 1º lugar.
+- **Proposta final readequada**: após vencer o item, o prazo mínimo para enviar a proposta ajustada é de **2 horas** (podendo pedir mais tempo antes de vencer).
 
-**[Indício]**
-- Na habilitação técnica (**Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU**), o edital não pode exigir atestados superiores a **50%** dos quantitativos das parcelas de maior relevância.
-- Caso falte documento preexistente à abertura da sessão, exija a abertura de diligência com base no **Art. 64 da Lei 14.133/2021** e no **Acórdão 1211/2021-TCU-Plenário**.
-
-**[Hipótese]**
-- Na negociação do **Art. 61**, mantenha reserva tática de 0,5% a 1,5% acima do seu **Stop-Loss** e demonstre a exequibilidade da proposta com notas fiscais de entrada e planilha de custos (**Súmula 262/TCU e Art. 59, § 2º**).
-
-**[Próximo Passo Recomendado]**
+**Próximo passo recomendado nesta tela:**
 ${guidance.nextStep}`;
 }
 
@@ -202,9 +193,10 @@ export const LexFloatingWidget: React.FC = () => {
 
   const [messages, setMessages] = useState<LexMessage[]>([
     {
-      id: 'welcome-lex',
+      id: 'welcome-guia',
       role: 'assistant',
-      content: `Olá! Sou o **Lex**, seu consultor estratégico com **40 anos de experiência prática em licitações públicas** (Lei 14.133/2021, LC 123/2006, IN 73/2022 e Jurisprudência do TCU).\n\nEstou acompanhando sua tela atual e pronto para orientar sua precificação, estratégia de lances, negociação com o Pregoeiro ou defesa jurídica.`,
+      content:
+        'Olá! Este é o seu **Guia do Licitante**.\n\nEstou acompanhando a tela em que você está agora para ajudar em todas as etapas: escolha do edital, formação de preço, lances, prazos, documentos e recursos. Como posso te ajudar hoje?',
       timestamp: new Date().toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
@@ -238,7 +230,7 @@ export const LexFloatingWidget: React.FC = () => {
       }),
     };
 
-    const assistantMsgId = `lex-${Date.now() + 1}`;
+    const assistantMsgId = `guia-${Date.now() + 1}`;
     const placeholderAssistantMsg: LexMessage = {
       id: assistantMsgId,
       role: 'assistant',
@@ -307,7 +299,7 @@ export const LexFloatingWidget: React.FC = () => {
       {
         id: `welcome-${Date.now()}`,
         role: 'assistant',
-        content: `Histórico reiniciado. Estou acompanhando a tela **${guidance.screenLabel}**. Qual é a sua dúvida jurídica, tributária ou de disputa?`,
+        content: `Conversa reiniciada. Estou acompanhando a etapa **${guidance.screenLabel}**. Qual é a sua dúvida sobre prazos, preços, documentos ou disputa?`,
         timestamp: new Date().toLocaleTimeString('pt-BR', {
           hour: '2-digit',
           minute: '2-digit',
@@ -320,39 +312,31 @@ export const LexFloatingWidget: React.FC = () => {
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end font-sans">
       {isOpen ? (
         <div
-          className={`bg-white border border-slate-300 shadow-2xl rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${
+          className={`bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${
             isExpanded
               ? 'w-[92vw] sm:w-[640px] h-[84vh]'
               : 'w-[92vw] sm:w-[430px] h-[640px] max-h-[84vh]'
           }`}
           role="dialog"
-          aria-label="Assistente Estratégico Lex"
+          aria-label="Guia do Licitante"
         >
-          {/* Cabeçalho Institucional nas Cores Originais da Marca */}
+          {/* Cabeçalho Limpo */}
           <div className="bg-[#081c3a] text-white px-4 py-3.5 flex items-center justify-between border-b-2 border-[#0070c0] shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0 overflow-hidden">
-                <img
-                  src="/assets/mascote-3d.png"
-                  alt="Lex"
-                  className="w-8 h-8 object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-                <Bot className="w-5 h-5 text-[#ff6600] hidden" />
+              <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+                <BookOpen className="w-5 h-5 text-[#ff6600]" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-white text-base truncate">
-                    Consultor Lex
+                    Guia do Licitante
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#0070c0] text-white">
-                    40 Anos de Experiência
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#0070c0] text-white">
+                    Passo a Passo
                   </span>
                 </div>
                 <p className="text-xs text-slate-200 truncate">
-                  Lei 14.133/2021 • Jurisprudência TCU • Estratégia de Lances
+                  Orientação completa em prazos, preços, lances e documentos
                 </p>
               </div>
             </div>
@@ -362,7 +346,7 @@ export const LexFloatingWidget: React.FC = () => {
                 type="button"
                 onClick={handleClearHistory}
                 title="Limpar conversa"
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -370,7 +354,7 @@ export const LexFloatingWidget: React.FC = () => {
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
                 title={isExpanded ? 'Reduzir janela' : 'Expandir janela'}
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 {isExpanded ? (
                   <Minimize2 className="w-4 h-4" />
@@ -381,24 +365,22 @@ export const LexFloatingWidget: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                title="Fechar assistente"
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                title="Fechar guia"
+                className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Banner Contextual de Próximo Passo Recomendado (Estilo Mercado Pago / Gov.br) */}
+          {/* Próximo Passo Recomendado */}
           <div className="bg-[#f8fafc] border-b border-slate-200 px-4 py-3 shrink-0">
             <div className="flex items-start gap-2.5 border-l-4 border-[#0070c0] pl-3">
               <Compass className="w-4 h-4 text-[#0070c0] shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#081c3a]">
-                    Próximo Passo Recomendado • {guidance.screenLabel}
-                  </span>
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#081c3a] block">
+                  O que fazer agora • {guidance.screenLabel}
+                </span>
                 <p className="text-xs text-slate-700 mt-0.5 leading-snug">
                   {guidance.nextStep}
                 </p>
@@ -416,7 +398,7 @@ export const LexFloatingWidget: React.FC = () => {
                 }`}
               >
                 <div
-                  className={`max-w-[92%] rounded-xl px-3.5 py-2.5 text-sm ${
+                  className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm ${
                     msg.role === 'user'
                       ? 'bg-[#081c3a] text-white rounded-br-none'
                       : 'bg-[#f8fafc] text-slate-800 border border-slate-200 rounded-bl-none'
@@ -429,7 +411,7 @@ export const LexFloatingWidget: React.FC = () => {
                       <div className="flex items-center gap-2 text-slate-600 py-1">
                         <Loader2 className="w-4 h-4 animate-spin text-[#0070c0]" />
                         <span className="text-xs font-medium">
-                          Consultando legislação e jurisprudência do TCU...
+                          Verificando regras e orientações...
                         </span>
                       </div>
                     )
@@ -438,18 +420,18 @@ export const LexFloatingWidget: React.FC = () => {
                   )}
                 </div>
                 <span className="text-xs text-slate-400 mt-1 px-1">
-                  {msg.role === 'user' ? 'Você' : 'Lex'} • {msg.timestamp}
+                  {msg.role === 'user' ? 'Você' : 'Guia'} • {msg.timestamp}
                 </span>
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Atalhos Táticos Rápidos da Tela Atual */}
-          <div className="px-4 py-2 bg-[#f8fafc] border-t border-slate-200 shrink-0">
-            <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-[#ff6600]" />
-              Perguntas rápidas sobre esta etapa:
+          {/* Perguntas Rápidas */}
+          <div className="px-4 py-2.5 bg-[#f8fafc] border-t border-slate-200 shrink-0">
+            <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-[#ff6600]" />
+              <span>Dúvidas comuns nesta etapa:</span>
             </p>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               {guidance.quickPrompts.map((prompt, index) => (
@@ -458,7 +440,7 @@ export const LexFloatingWidget: React.FC = () => {
                   type="button"
                   disabled={isStreaming}
                   onClick={() => void handleSendQuestion(prompt)}
-                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-[#0070c0] hover:bg-blue-50/40 text-xs font-medium text-[#081c3a] transition-colors disabled:opacity-50"
+                  className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white border border-slate-300 hover:border-[#0070c0] hover:bg-blue-50/40 text-xs font-medium text-[#081c3a] transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <span className="truncate max-w-[230px]">{prompt}</span>
                   <ChevronRight className="w-3.5 h-3.5 text-[#0070c0] shrink-0" />
@@ -480,13 +462,13 @@ export const LexFloatingWidget: React.FC = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isStreaming}
-              placeholder="Pergunte sobre o edital, lances, recursos ou impostos..."
-              className="flex-1 px-3.5 py-2.5 text-sm bg-[#f8fafc] border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#0070c0] focus:bg-white"
+              placeholder="Escreva sua dúvida sobre o edital, prazos ou lances..."
+              className="flex-1 px-4 py-2.5 text-sm bg-[#f8fafc] border border-slate-300 rounded-full text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-[#0070c0] focus:bg-white"
             />
             <button
               type="submit"
               disabled={!inputValue.trim() || isStreaming}
-              className="px-4 py-2.5 rounded-xl bg-[#0070c0] hover:bg-[#081c3a] text-white font-semibold text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              className="px-4 py-2.5 rounded-full bg-[#0070c0] hover:bg-[#081c3a] text-white font-semibold text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isStreaming ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -501,24 +483,17 @@ export const LexFloatingWidget: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-3 pl-3 pr-4 py-2.5 rounded-full bg-[#081c3a] hover:bg-[#0070c0] text-white shadow-xl border-2 border-white transition-all duration-200"
-          aria-label="Abrir Consultor Lex"
+          className="group flex items-center gap-3 pl-3 pr-4 py-2.5 rounded-full bg-[#081c3a] hover:bg-[#0070c0] text-white shadow-xl border-2 border-white transition-all duration-200 cursor-pointer"
+          aria-label="Abrir Guia do Licitante"
         >
-          <div className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
-            <img
-              src="/assets/mascote-3d.png"
-              alt="Lex"
-              className="w-7 h-7 object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-[#ff6600] ring-2 ring-[#081c3a]" />
+          <div className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+            <BookOpen className="w-5 h-5 text-[#ff6600]" />
+            <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#081c3a]" />
           </div>
           <div className="text-left">
             <div className="text-xs font-bold leading-tight text-white flex items-center gap-1.5">
-              <span>Consultor Lex</span>
-              <span className="px-1.5 py-0.5 rounded bg-[#0070c0] group-hover:bg-[#081c3a] text-white text-xs font-semibold">
+              <span>Guia do Licitante</span>
+              <span className="px-2 py-0.5 rounded-full bg-[#0070c0] group-hover:bg-[#081c3a] text-white text-[11px] font-semibold">
                 Ajuda
               </span>
             </div>

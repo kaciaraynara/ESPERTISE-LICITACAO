@@ -161,6 +161,14 @@ function formatDataHora(isoString?: string | null): string {
   return formatted.includes(':') ? formatted.replace(' ', ' às ') : formatted;
 }
 
+function escapeHtml(text: string): string {
+  return (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export default function DossieEditalModal({
   isOpen,
   onClose,
@@ -174,11 +182,8 @@ export default function DossieEditalModal({
   const [itens, setItens] = useState<DossieItem[]>([]);
   const [criterioJulgamento, setCriterioJulgamento] = useState<string | null>(null);
   const [modoDisputa, setModoDisputa] = useState<string | null>(null);
-
-  // Checklist interativo persistido por edital no localStorage
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
 
-  // Carrega estado do checklist para o edital atual
   useEffect(() => {
     if (!edital?.id) {
       setChecklist({});
@@ -197,20 +202,22 @@ export default function DossieEditalModal({
     }
   }, [edital?.id]);
 
-  const toggleChecklistItem = useCallback((id: string) => {
-    if (!edital?.id) return;
-    setChecklist((prev) => {
-      const updated = { ...prev, [id]: !prev[id] };
-      try {
-        localStorage.setItem(`expertise_dossie_chk_${edital.id}`, JSON.stringify(updated));
-      } catch {
-        // Ignora erros de localStorage
-      }
-      return updated;
-    });
-  }, [edital?.id]);
+  const toggleChecklistItem = useCallback(
+    (id: string) => {
+      if (!edital?.id) return;
+      setChecklist((prev) => {
+        const updated = { ...prev, [id]: !prev[id] };
+        try {
+          localStorage.setItem(`expertise_dossie_chk_${edital.id}`, JSON.stringify(updated));
+        } catch {
+          // Ignora erros de localStorage
+        }
+        return updated;
+      });
+    },
+    [edital?.id],
+  );
 
-  // Tecla ESC para fechar
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -220,7 +227,6 @@ export default function DossieEditalModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Busca oficial de itens do PNCP
   useEffect(() => {
     if (!isOpen || !edital?.id) {
       setItens([]);
@@ -232,7 +238,6 @@ export default function DossieEditalModal({
     let active = true;
     setCarregandoItens(true);
 
-    // Carrega itens existentes no edital se houver
     const itensIniciais = edital.itens || edital.items || [];
     if (itensIniciais.length > 0) {
       setItens(itensIniciais);
@@ -242,7 +247,6 @@ export default function DossieEditalModal({
       try {
         const encodedNoticeId = encodeURIComponent(edital.numeroControlePNCP || edital.id);
 
-        // 1ª Tentativa: Endpoint de itens do backend (licitacoesApi)
         try {
           const res = await licitacoesApi.obterItens(encodedNoticeId);
           const data = res.data?.data || res.data;
@@ -252,10 +256,9 @@ export default function DossieEditalModal({
             return;
           }
         } catch {
-          // Continua para próxima tentativa
+          // Continua
         }
 
-        // 2ª Tentativa: Endpoint noticesApi.getItens
         try {
           const res = await noticesApi.getItens(encodedNoticeId);
           const data = res.data?.data || res.data;
@@ -265,15 +268,13 @@ export default function DossieEditalModal({
             return;
           }
         } catch {
-          // Continua para próxima tentativa
+          // Continua
         }
 
-        // 3ª Tentativa: Consulta direta aos endpoints oficiais do PNCP
         const pncpParams = extractPncpParams(edital);
         if (pncpParams?.cnpj && pncpParams.anoCompra && pncpParams.sequencialCompra) {
           const { cnpj, anoCompra, sequencialCompra } = pncpParams;
 
-          // pncp/v1
           try {
             const urlPncpV1 = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${Number(anoCompra)}/${Number(sequencialCompra)}/itens`;
             const resp = await fetch(urlPncpV1, { headers: { Accept: 'application/json' } });
@@ -286,10 +287,9 @@ export default function DossieEditalModal({
               }
             }
           } catch {
-            // Continua para fallback consulta/v1
+            // Continua
           }
 
-          // consulta/v1
           try {
             const urlConsultaV1 = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/compras/${Number(anoCompra)}/${Number(sequencialCompra)}/itens`;
             const resp = await fetch(urlConsultaV1, { headers: { Accept: 'application/json' } });
@@ -303,11 +303,10 @@ export default function DossieEditalModal({
               }
             }
           } catch {
-            // Falhas tratadas no bloco principal
+            // Continua
           }
         }
 
-        // Busca metadados adicionais via noticesApi.getById
         try {
           const resDetalhe = await noticesApi.getById(encodedNoticeId);
           const detalhe = resDetalhe.data?.data || resDetalhe.data;
@@ -319,7 +318,7 @@ export default function DossieEditalModal({
               setModoDisputa(detalhe.modoDisputa || detalhe.disputeMode);
             }
             if (Array.isArray(detalhe.items) && detalhe.items.length > 0) {
-              setItens((prev) => (prev.length > 0 ? prev : (Array.isArray(detalhe.items) ? detalhe.items : [])));
+              setItens((prev) => (prev.length > 0 ? prev : detalhe.items));
             }
           }
         } catch {
@@ -343,6 +342,74 @@ export default function DossieEditalModal({
   }, [checklist]);
 
   const checklistPorcentagem = Math.round((checklistCheckedCount / checklistTotal) * 100);
+
+  const prazoLimiteEnvio =
+    edital?.dataLimiteProposta ||
+    edital?.dataEncerramentoProposta ||
+    edital?.dataEncerramento ||
+    edital?.data_encerramento;
+
+  const valorTotalExibido =
+    edital?.valorTotalEstimado ??
+    edital?.valorEstimado ??
+    edital?.valor_estimado;
+
+  const somaRealItens = useMemo(() => {
+    if (!itens || itens.length === 0) return null;
+    let soma = 0;
+    let hasValidItemValue = false;
+    for (const it of itens) {
+      const v =
+        it.valorTotal ??
+        Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || it.valorReferencia || it.precoUnitario || 0);
+      const numV = Number(v);
+      if (Number.isFinite(numV) && numV > 0) {
+        soma += numV;
+        hasValidItemValue = true;
+      }
+    }
+    return hasValidItemValue && soma > 0 ? soma : null;
+  }, [itens]);
+
+  const valorFinal =
+    valorTotalExibido != null && Number(valorTotalExibido) > 0
+      ? Number(valorTotalExibido)
+      : somaRealItens;
+
+  const resumoEstrategico = useMemo(() => {
+    const agora = Date.now();
+    const dataLimite = prazoLimiteEnvio ? new Date(prazoLimiteEnvio).getTime() : null;
+    const diasAteLimite = dataLimite ? Math.ceil((dataLimite - agora) / 86400000) : null;
+
+    let urgencia = 'Prazo Confortável';
+    let urgenciaCor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    if (diasAteLimite !== null) {
+      if (diasAteLimite <= 1) {
+        urgencia = 'Crítica (Encerra em menos de 24h)';
+        urgenciaCor = 'text-rose-700 bg-rose-50 border-rose-200';
+      } else if (diasAteLimite <= 4) {
+        urgencia = 'Alta (Últimos dias de envio)';
+        urgenciaCor = 'text-amber-700 bg-amber-50 border-amber-200';
+      }
+    }
+
+    const valor = Number(valorFinal || 0);
+    let porteOportunidade = 'Médio Porte';
+    if (valor >= 1_000_000) {
+      porteOportunidade = 'Grande Porte (Acima de R$ 1 Mi)';
+    } else if (valor > 0 && valor < 100_000) {
+      porteOportunidade = 'Pequeno Porte';
+    } else if (valor === 0) {
+      porteOportunidade = 'Sigiloso / Ver Itens no TR';
+    }
+
+    return {
+      diasAteLimite,
+      urgencia,
+      urgenciaCor,
+      porteOportunidade,
+    };
+  }, [prazoLimiteEnvio, valorFinal]);
 
   if (!isOpen || !edital) return null;
 
@@ -368,41 +435,11 @@ export default function DossieEditalModal({
     edital.criterioJulgamento ||
     'Aberto / Fechado';
 
-  const prazoLimiteEnvio =
-    edital.dataLimiteProposta ||
-    edital.dataEncerramentoProposta ||
-    edital.dataEncerramento ||
-    edital.data_encerramento;
-
   const prazoSessaoDisputa =
     edital.dataSessaoDisputa ||
     edital.dataAbertura ||
     edital.data_abertura ||
     prazoLimiteEnvio;
-
-  const valorTotalExibido =
-    edital.valorTotalEstimado ??
-    edital.valorEstimado ??
-    edital.valor_estimado;
-
-  const somaRealItens = useMemo(() => {
-    if (!itens || itens.length === 0) return null;
-    let soma = 0;
-    let hasValidItemValue = false;
-    for (const it of itens) {
-      const v = it.valorTotal ?? (Number(it.quantidade || 0) * Number(it.valorUnitarioEstimado || it.valorReferencia || it.precoUnitario || 0));
-      const numV = Number(v);
-      if (Number.isFinite(numV) && numV > 0) {
-        soma += numV;
-        hasValidItemValue = true;
-      }
-    }
-    return hasValidItemValue && soma > 0 ? soma : null;
-  }, [itens]);
-
-  const valorFinal = (valorTotalExibido != null && Number(valorTotalExibido) > 0)
-    ? Number(valorTotalExibido)
-    : somaRealItens;
 
   const localizacaoExibida =
     [edital.municipio, edital.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional';
@@ -412,41 +449,6 @@ export default function DossieEditalModal({
     edital.objetoCompra ||
     edital.informacaoComplementar ||
     'Consulte a íntegra do Termo de Referência no edital.';
-
-  const resumoEstrategico = useMemo(() => {
-    const agora = Date.now();
-    const dataLimite = prazoLimiteEnvio ? new Date(prazoLimiteEnvio).getTime() : null;
-    const diasAteLimite = dataLimite ? Math.ceil((dataLimite - agora) / 86400000) : null;
-
-    let urgencia = 'Prazo Confortável';
-    let urgenciaCor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (diasAteLimite !== null) {
-      if (diasAteLimite <= 1) {
-        urgencia = 'Crítica (Encerra em < 24h)';
-        urgenciaCor = 'text-rose-700 bg-rose-50 border-rose-200';
-      } else if (diasAteLimite <= 4) {
-        urgencia = 'Alta (Últimos dias de envio)';
-        urgenciaCor = 'text-amber-700 bg-amber-50 border-amber-200';
-      }
-    }
-
-    const valor = Number(valorFinal || 0);
-    let porteOportunidade = 'Médio Porte';
-    if (valor >= 1_000_000) {
-      porteOportunidade = 'Grande Porte (> R$ 1 Mi)';
-    } else if (valor > 0 && valor < 100_000) {
-      porteOportunidade = 'Pequeno Porte';
-    } else if (valor === 0) {
-      porteOportunidade = 'Sigiloso / Ver Itens no TR';
-    }
-
-    return {
-      diasAteLimite,
-      urgencia,
-      urgenciaCor,
-      porteOportunidade,
-    };
-  }, [prazoLimiteEnvio, valorFinal]);
 
   const handleBaixarPdf = () => {
     try {
@@ -466,16 +468,16 @@ export default function DossieEditalModal({
         return;
       }
 
-      const itensRaw = itens.length > 0 ? itens : (edital.itens || edital.items || []);
+      const itensRaw = itens.length > 0 ? itens : edital.itens || edital.items || [];
       const itensParaRender = Array.isArray(itensRaw) ? itensRaw : [];
-      const itensRowsHtml = (Array.isArray(itensParaRender) ? itensParaRender : [])
+      const itensRowsHtml = itensParaRender
         .map((it, idx) => {
           const itemNum = it.numeroItem ?? it.itemNumber ?? it.numero ?? idx + 1;
-          const desc = it.descricao ?? it.description ?? 'Item do edital';
+          const desc = escapeHtml(String(it.descricao ?? it.description ?? 'Item do edital'));
           const qtd = it.quantidade ?? it.quantity ?? 1;
-          const unid = it.unidadeMedida ?? it.siglaUnidadeMedida ?? it.unidade ?? 'UN';
+          const unid = escapeHtml(String(it.unidadeMedida ?? it.siglaUnidadeMedida ?? it.unidade ?? 'UN'));
           const unit = it.valorUnitarioEstimado ?? it.valorReferencia ?? it.precoUnitario ?? 0;
-          const tot = it.valorTotal ?? ((Number(qtd) || 1) * (Number(unit) || 0));
+          const tot = it.valorTotal ?? (Number(qtd) || 1) * (Number(unit) || 0);
           return `
             <tr>
               <td style="padding: 6px 8px; border: 1px solid #CBD5E1; text-align: center; font-weight: bold; font-family: monospace;">${itemNum}</td>
@@ -489,7 +491,7 @@ export default function DossieEditalModal({
         })
         .join('');
 
-      const checklistHtml = (Array.isArray(CHECKLIST_HABILITACAO_PADRAO) ? CHECKLIST_HABILITACAO_PADRAO : []).map((chk) => {
+      const checklistHtml = CHECKLIST_HABILITACAO_PADRAO.map((chk) => {
         const isOk = Boolean(checklist[chk.id]);
         return `
           <div style="padding: 8px 10px; border: 1px solid ${isOk ? '#86EFAC' : '#E2E8F0'}; background: ${isOk ? '#F0FDF4' : '#FFFFFF'}; border-radius: 6px; margin-bottom: 6px;">
@@ -510,7 +512,7 @@ export default function DossieEditalModal({
         <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>Resumo do Edital — ${numeroPncp}</title>
+          <title>Resumo do Edital — ${escapeHtml(String(numeroPncp))}</title>
           <style>
             @page {
               size: A4 portrait;
@@ -678,57 +680,55 @@ export default function DossieEditalModal({
             <div>
               <div class="brand-sub">EXPERTISE LICITATÓRIA • LEI FEDERAL Nº 14.133/2021</div>
               <div class="brand-title">Resumo do Edital</div>
-              <div style="font-size: 10.5px; color: #334155; margin-top: 2px;">Órgão Comprador: <strong>${edital.orgao || edital.nomeOrgao || 'Administração Pública'}</strong></div>
+              <div style="font-size: 10.5px; color: #334155; margin-top: 2px;">Órgão Comprador: <strong>${escapeHtml(edital.orgao || edital.nomeOrgao || 'Administração Pública')}</strong></div>
             </div>
             <div style="text-align: right;">
               <div style="font-size: 8.5px; color: #64748B;">Emissão: ${emissaoData} às ${emissaoHora}</div>
-              <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">ID PNCP: ${numeroPncp}</div>
+              <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">ID PNCP: ${escapeHtml(String(numeroPncp))}</div>
             </div>
           </div>
 
-          <!-- QUADRO ESTRATÉGICO & RESUMO EXPLICATIVO -->
           <div class="estrategico-box">
             <div class="estrategico-header">
               <span>Quadro Estratégico & Resumo Explicativo</span>
-              <span>${resumoEstrategico.urgencia} • ${resumoEstrategico.porteOportunidade}</span>
+              <span>${escapeHtml(resumoEstrategico.urgencia)} • ${escapeHtml(resumoEstrategico.porteOportunidade)}</span>
             </div>
             <div class="estrategico-text">
-              <strong>Resumo do Objeto: </strong>${objetoCompleto.length > 320 ? `${objetoCompleto.slice(0, 320).trim()}...` : objetoCompleto}
+              <strong>Resumo do Objeto: </strong>${escapeHtml(objetoCompleto.length > 320 ? `${objetoCompleto.slice(0, 320).trim()}...` : objetoCompleto)}
             </div>
             <div class="estrategico-dica">
-              <strong>Diretriz de Disputa: </strong>Verifique certidões obrigatórias da Lei 14.133/2021. Envie a proposta antes do encerramento (${formatDataHora(prazoLimiteEnvio)}) e prepare sua margem para a fase competitiva de lances em ${formatDataHora(prazoSessaoDisputa)}.
+              <strong>Diretriz de Disputa: </strong>Verifique certidões obrigatórias da Lei 14.133/2021. Envie a proposta antes do encerramento (${escapeHtml(formatDataHora(prazoLimiteEnvio))}) e prepare sua margem para a fase competitiva de lances em ${escapeHtml(formatDataHora(prazoSessaoDisputa))}.
             </div>
           </div>
 
-          <!-- SEÇÃO 1: IDENTIFICAÇÃO DO CERTAME -->
           <div class="section-box">
             <div class="section-title">Seção 1: Identificação do Certame</div>
             <div class="grid-3">
               <div class="card">
                 <div class="card-label">Órgão Comprador</div>
-                <div class="card-value">${edital.orgao || edital.nomeOrgao || 'Administração Pública'}</div>
-                <div style="font-size: 8.5px; color: #64748B;">${localizacaoExibida}</div>
+                <div class="card-value">${escapeHtml(edital.orgao || edital.nomeOrgao || 'Administração Pública')}</div>
+                <div style="font-size: 8.5px; color: #64748B;">${escapeHtml(localizacaoExibida)}</div>
               </div>
               <div class="card">
                 <div class="card-label">CNPJ Oficial & Registro</div>
-                <div class="card-value" style="font-family: monospace;">${cnpjFormatado}</div>
-                <div style="font-size: 8.5px; font-family: monospace; color: #64748B;">Controle: ${numeroPncp}</div>
+                <div class="card-value" style="font-family: monospace;">${escapeHtml(cnpjFormatado)}</div>
+                <div style="font-size: 8.5px; font-family: monospace; color: #64748B;">Controle: ${escapeHtml(String(numeroPncp))}</div>
               </div>
               <div class="card">
                 <div class="card-label">Amparo Legal & Modalidade</div>
-                <div class="card-value">${modalidadeExibida}</div>
-                <div style="font-size: 8.5px; color: #1D4ED8; font-weight: bold;">Lei 14.133/2021 (${modoDisputaExibido})</div>
+                <div class="card-value">${escapeHtml(modalidadeExibida)}</div>
+                <div style="font-size: 8.5px; color: #1D4ED8; font-weight: bold;">Lei 14.133/2021 (${escapeHtml(modoDisputaExibido)})</div>
               </div>
             </div>
 
             <div class="grid-3">
               <div class="card">
                 <div class="card-label">Prazo Limite para Envio</div>
-                <div class="card-value" style="color: #EA580C;">${formatDataHora(prazoLimiteEnvio)}</div>
+                <div class="card-value" style="color: #EA580C;">${escapeHtml(formatDataHora(prazoLimiteEnvio))}</div>
               </div>
               <div class="card">
                 <div class="card-label">Sessão de Disputa / Lances</div>
-                <div class="card-value" style="color: #1D4ED8;">${formatDataHora(prazoSessaoDisputa)}</div>
+                <div class="card-value" style="color: #1D4ED8;">${escapeHtml(formatDataHora(prazoSessaoDisputa))}</div>
               </div>
               <div class="card">
                 <div class="card-label">Valor Total Estimado</div>
@@ -738,11 +738,10 @@ export default function DossieEditalModal({
 
             <div style="margin-top: 4px;">
               <div class="card-label" style="margin-bottom: 2px;">Objeto Integral da Contratação</div>
-              <div class="objeto-box">${objetoCompleto}</div>
+              <div class="objeto-box">${escapeHtml(objetoCompleto)}</div>
             </div>
           </div>
 
-          <!-- SEÇÃO 2: TABELA OFICIAL DE ITENS E VALORES -->
           <div class="section-box">
             <div class="section-title">Seção 2: Tabela Oficial de Itens e Valores</div>
             ${itensRowsHtml ? `
@@ -768,7 +767,6 @@ export default function DossieEditalModal({
             `}
           </div>
 
-          <!-- SEÇÃO 3: CHECKLIST DE HABILITAÇÃO DOCUMENTAL -->
           <div class="section-box">
             <div class="section-title">Seção 3: Checklist de Habilitação Documental (${checklistCheckedCount}/${checklistTotal} Conferidos - ${checklistPorcentagem}%)</div>
             <div class="checklist-grid">
@@ -776,7 +774,6 @@ export default function DossieEditalModal({
             </div>
           </div>
 
-          <!-- SEÇÃO 4: PASSO A PASSO OPERACIONAL -->
           <div class="section-box">
             <div class="section-title">Seção 4: Passo a Passo Operacional para Disputar</div>
             <div class="passo-grid">
@@ -798,10 +795,9 @@ export default function DossieEditalModal({
             </div>
           </div>
 
-          <!-- RODAPÉ -->
           <div class="footer-info">
             Resumo estruturado emitido pelo sistema EXPERTISE com base em dados sincronizados do PNCP e Lei nº 14.133/2021.<br/>
-            Consulta oficial: <strong>${urlOficialPncp}</strong>
+            Consulta oficial: <strong>${escapeHtml(urlOficialPncp)}</strong>
           </div>
         </body>
         </html>
@@ -844,20 +840,20 @@ export default function DossieEditalModal({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 print:border-slate-400 print:text-slate-900">
                   <FileText className="w-3.5 h-3.5" />
-                  {titulo || 'Dossiê Estratégico do Edital'}
+                  {titulo || 'Resumo Completo do Edital'}
                 </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                   Lei 14.133/2021
                 </span>
                 {Boolean(edital.srp) && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-md">
-                    Registro de Preços (SRP) • Ata Vigente
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                    Registro de Preços (SRP)
                   </span>
                 )}
                 {carregandoItens && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 print:hidden">
                     <RefreshCw className="w-3 h-3 animate-spin text-brand-blue" />
-                    Sincronizando itens oficiais do PNCP…
+                    Carregando itens oficiais...
                   </span>
                 )}
               </div>
@@ -874,35 +870,30 @@ export default function DossieEditalModal({
               </div>
             </div>
 
-            {/* BOTÕES DE AÇÃO DO CABEÇALHO */}
             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end print:hidden">
-              {/* BOTÃO [Baixar Resumo em PDF] */}
               <button
                 type="button"
                 onClick={handleBaixarPdf}
-                className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="Baixar em PDF (Dossiê Estratégico do Edital)"
+                className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Baixar Dossiê em PDF</span>
+                <span>Baixar PDF</span>
               </button>
 
-              {/* BOTÃO [Ver no Portal Oficial do PNCP ↗] */}
               <a
                 href={urlOficialPncp}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-link-pncp inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
-                title="Auditar contratação e autos diretamente no portal oficial do PNCP"
+                className="btn-link-pncp inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
-                <span>Ver no Portal Oficial do PNCP ↗</span>
+                <span>Ver no PNCP</span>
+                <ExternalLink className="w-3.5 h-3.5" />
               </a>
 
-              {/* BOTÃO FECHAR */}
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
                 title="Fechar janela"
                 aria-label="Fechar resumo"
               >
@@ -911,9 +902,8 @@ export default function DossieEditalModal({
             </div>
           </header>
 
-          {/* CORPO DO DOSSIÊ COM AS 4 SEÇÕES OFICIAIS */}
+          {/* CORPO DO RESUMO */}
           <div className="p-6 overflow-y-auto space-y-6 text-sm print:overflow-visible print:p-2 print:space-y-4">
-            {/* QUADRO ESTRATÉGICO & RESUMO EXPLICATIVO */}
             <div className="bg-gradient-to-br from-blue-50/70 via-white to-slate-50 border border-blue-100/90 rounded-2xl p-5 shadow-xs space-y-3.5 print:bg-white print:border-slate-300">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100/60 pb-3">
                 <div className="flex items-center gap-2">
@@ -922,26 +912,25 @@ export default function DossieEditalModal({
                   </div>
                   <div>
                     <h2 className="text-xs font-black uppercase tracking-wider text-[#0B192C]">
-                      Quadro Estratégico & Resumo Explicativo
+                      Resumo Explicativo e Prazos
                     </h2>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Síntese operacional e direcionamento tático para a disputa
+                      Visão direta do objeto, porte e urgência para participar
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border ${resumoEstrategico.urgenciaCor}`}>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${resumoEstrategico.urgenciaCor}`}>
                     <Clock className="w-3 h-3" />
                     {resumoEstrategico.urgencia}
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                     <TrendingUp className="w-3 h-3 text-brand-blue" />
                     {resumoEstrategico.porteOportunidade}
                   </span>
                 </div>
               </div>
 
-              {/* TEXTO EXPLICATIVO SINTÉTICO */}
               <div className="space-y-1">
                 <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-normal">
                   <strong className="text-[#0B192C] font-semibold">Resumo do Objeto: </strong>
@@ -949,12 +938,11 @@ export default function DossieEditalModal({
                 </p>
               </div>
 
-              {/* RECOMENDAÇÃO TÁTICA */}
               <div className="bg-white/80 rounded-xl p-3 border border-blue-100/80 flex items-start gap-2.5">
                 <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="text-[11px] leading-relaxed text-slate-600">
-                  <strong className="text-slate-800 font-bold">Diretriz de Disputa: </strong>
-                  Certifique-se de que todas as certidões e declarações obrigatórias da Lei 14.133/2021 estejam válidas. Cadastre a proposta no sistema oficial antes do prazo limite de envio ({formatDataHora(prazoLimiteEnvio)}) e prepare sua planilha de custos para a fase competitiva de lances em {formatDataHora(prazoSessaoDisputa)}.
+                  <strong className="text-slate-800 font-bold">Orientação Prática: </strong>
+                  Confira suas certidões e declarações antes do envio. Cadastre a proposta até {formatDataHora(prazoLimiteEnvio)} e deixe seus custos definidos para a sessão de lances em {formatDataHora(prazoSessaoDisputa)}.
                 </div>
               </div>
             </div>
@@ -968,9 +956,7 @@ export default function DossieEditalModal({
                 </h2>
               </div>
 
-              {/* GRADE DE METADADOS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* ÓRGÃO COMPRADOR */}
                 <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3.5 space-y-1">
                   <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
                     Órgão Comprador
@@ -978,32 +964,24 @@ export default function DossieEditalModal({
                   <p className="font-bold text-slate-900 leading-snug">
                     {edital.orgao || edital.nomeOrgao || 'Administração Pública'}
                   </p>
-                  <p className="text-xs text-slate-500 font-medium">
-                    {localizacaoExibida}
-                  </p>
+                  <p className="text-xs text-slate-500 font-medium">{localizacaoExibida}</p>
                 </div>
 
-                {/* CNPJ OFICIAL & ID PNCP */}
                 <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3.5 space-y-1">
                   <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
                     CNPJ Oficial & Registro
                   </span>
-                  <p className="font-mono font-bold text-slate-900">
-                    {cnpjFormatado}
-                  </p>
+                  <p className="font-mono font-bold text-slate-900">{cnpjFormatado}</p>
                   <p className="text-xs font-mono text-slate-500 truncate" title={numeroPncp}>
                     ID PNCP: {numeroPncp}
                   </p>
                 </div>
 
-                {/* AMPARO LEGAL & MODALIDADE */}
                 <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3.5 space-y-1">
                   <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">
                     Amparo Legal & Modalidade
                   </span>
-                  <p className="font-bold text-slate-900">
-                    {modalidadeExibida}
-                  </p>
+                  <p className="font-bold text-slate-900">{modalidadeExibida}</p>
                   <p className="text-xs font-semibold text-brand-blue flex items-center gap-1">
                     <Gavel className="w-3.5 h-3.5 shrink-0" />
                     Lei 14.133/2021 ({modoDisputaExibido})
@@ -1011,7 +989,6 @@ export default function DossieEditalModal({
                 </div>
               </div>
 
-              {/* LINHA DE PRAZOS CRÍTICOS & VALOR TOTAL */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3">
                   <div className="p-2 bg-orange-50 text-brand-orange rounded-lg shrink-0">
@@ -1044,7 +1021,7 @@ export default function DossieEditalModal({
                 <div className="bg-gradient-to-r from-blue-50/80 to-slate-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 block">
-                      Valor Total Estimado {somaRealItens && (!valorTotalExibido || Number(valorTotalExibido) <= 0) ? '(Soma dos Itens)' : ''}
+                      Valor Total Estimado
                     </span>
                     <span className="text-base font-black text-brand-blue">
                       {formatCurrency(valorFinal)}
@@ -1054,15 +1031,11 @@ export default function DossieEditalModal({
                 </div>
               </div>
 
-              {/* OBJETO INTEGRAL DA CONTRATAÇÃO (SEM CORTES OU RETICÊNCIAS) */}
               <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase tracking-wider text-[#0B192C] flex items-center gap-1.5">
                     <FileText className="w-4 h-4 text-brand-blue" />
                     Objeto Integral da Contratação
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Termo de Referência
                   </span>
                 </div>
                 <div className="p-3.5 bg-slate-50/70 rounded-lg border border-slate-100 text-xs sm:text-sm font-medium text-slate-800 leading-relaxed whitespace-pre-wrap select-text">
@@ -1101,22 +1074,20 @@ export default function DossieEditalModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
-                      {(Array.isArray(itens) ? itens : []).map((it, idx) => {
+                      {itens.map((it, idx) => {
                         const itemNum = it.numeroItem ?? it.itemNumber ?? it.numero ?? idx + 1;
                         const descricao = it.descricao ?? it.description ?? 'Item do edital';
                         const qtd = it.quantidade ?? it.quantity ?? 1;
                         const unidade = it.unidadeMedida ?? it.siglaUnidadeMedida ?? it.unidade ?? 'UN';
                         const unitario = it.valorUnitarioEstimado ?? it.valorReferencia ?? it.precoUnitario ?? 0;
-                        const total = it.valorTotal ?? ((Number(qtd) || 1) * (Number(unitario) || 0));
+                        const total = it.valorTotal ?? (Number(qtd) || 1) * (Number(unitario) || 0);
 
                         return (
                           <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3 px-3 font-mono font-bold text-slate-900 text-center">
                               {itemNum}
                             </td>
-                            <td className="py-3 px-3 leading-relaxed text-slate-800">
-                              {descricao}
-                            </td>
+                            <td className="py-3 px-3 leading-relaxed text-slate-800">{descricao}</td>
                             <td className="py-3 px-3 text-center whitespace-nowrap font-semibold">
                               {typeof qtd === 'number' ? qtd.toLocaleString('pt-BR') : qtd}
                             </td>
@@ -1139,7 +1110,7 @@ export default function DossieEditalModal({
                 <div className="p-8 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center space-y-2">
                   <RefreshCw className="w-5 h-5 animate-spin text-brand-blue mx-auto" />
                   <p className="text-xs font-semibold text-slate-600">
-                    Carregando tabela oficial de itens e valores da contratação…
+                    Carregando tabela oficial de itens e valores da contratação...
                   </p>
                 </div>
               ) : (
@@ -1170,22 +1141,21 @@ export default function DossieEditalModal({
                 </div>
               </div>
 
-              {/* BARRA DE PROGRESSO DO CHECKLIST */}
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden print:hidden">
                 <div
-                  className={`h-full transition-all duration-300 rounded-full ${checklistPorcentagem === 100
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    checklistPorcentagem === 100
                       ? 'bg-emerald-500'
                       : checklistPorcentagem > 50
                         ? 'bg-blue-600'
                         : 'bg-brand-orange'
-                    }`}
+                  }`}
                   style={{ width: `${checklistPorcentagem}%` }}
                 />
               </div>
 
-              {/* LISTA INTERATIVA DE REQUISITOS DOCUMENTAIS */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {(Array.isArray(CHECKLIST_HABILITACAO_PADRAO) ? CHECKLIST_HABILITACAO_PADRAO : []).map((item) => {
+                {CHECKLIST_HABILITACAO_PADRAO.map((item) => {
                   const isChecked = Boolean(checklist[item.id]);
 
                   return (
@@ -1193,10 +1163,11 @@ export default function DossieEditalModal({
                       key={item.id}
                       type="button"
                       onClick={() => toggleChecklistItem(item.id)}
-                      className={`text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer select-none ${isChecked
+                      className={`text-left p-3 rounded-xl border transition-all flex items-start gap-3 cursor-pointer select-none ${
+                        isChecked
                           ? 'bg-emerald-50/60 border-emerald-300 text-emerald-950 shadow-2xs'
                           : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                        }`}
+                      }`}
                     >
                       <div className="shrink-0 mt-0.5">
                         {isChecked ? (
@@ -1209,9 +1180,7 @@ export default function DossieEditalModal({
                         <p className={`text-xs font-bold leading-snug ${isChecked ? 'text-emerald-900 line-through' : 'text-slate-900'}`}>
                           {item.titulo}
                         </p>
-                        <p className="text-[11px] text-slate-500 leading-relaxed">
-                          {item.detalhe}
-                        </p>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">{item.detalhe}</p>
                       </div>
                     </button>
                   );
@@ -1229,7 +1198,6 @@ export default function DossieEditalModal({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* PASSO 1 */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2 relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="w-6 h-6 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center font-black text-xs">
@@ -1241,11 +1209,10 @@ export default function DossieEditalModal({
                     Cadastrar proposta de preços
                   </h3>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Acesse o sistema eletrônico indicado no edital (ex: Compras.gov.br, BBMNet ou portal próprio) e cadastre sua proposta inicial de preços e marcas/modelos.
+                    Acesse o sistema eletrônico indicado no edital e cadastre sua proposta inicial de preços e marcas/modelos.
                   </p>
                 </div>
 
-                {/* PASSO 2 */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2 relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="w-6 h-6 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center font-black text-xs">
@@ -1257,11 +1224,10 @@ export default function DossieEditalModal({
                     Inserir declarações e documentos
                   </h3>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Faça o upload dos documentos de habilitação (jurídica, fiscal, técnica e econômica) e marque as declarações legais obrigatórias antes do encerramento do prazo.
+                    Faça o upload dos documentos de habilitação e marque as declarações legais obrigatórias antes do encerramento do prazo.
                   </p>
                 </div>
 
-                {/* PASSO 3 */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2 relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <span className="w-6 h-6 rounded-full bg-orange-100 text-brand-orange flex items-center justify-center font-black text-xs">
@@ -1273,22 +1239,21 @@ export default function DossieEditalModal({
                     Acessar sala de lances com antecedência
                   </h3>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Conecte-se com pelo menos 15 a 30 minutos de antecedência ao horário da sessão pública para acompanhar os lances e a etapa competitiva sem imprevistos.
+                    Conecte-se com pelo menos 15 a 30 minutos de antecedência ao horário da sessão para acompanhar os lances sem imprevistos.
                   </p>
                 </div>
               </div>
             </section>
           </div>
 
-          {/* RODAPÉ DO MODAL COM CONTROLE E AÇÕES */}
+          {/* RODAPÉ DO MODAL */}
           <footer className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col gap-2.5 print:hidden">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleBaixarPdf}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
-                  title="Baixar em PDF (Resumo do Edital)"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-brand-blue" />
                   <span>Baixar Resumo em PDF</span>
@@ -1297,11 +1262,10 @@ export default function DossieEditalModal({
                   href={urlOficialPncp}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-link-pncp inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-2xs transition-all cursor-pointer"
-                  title="Ver no Portal Oficial do PNCP ↗"
+                  className="btn-link-pncp inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Ver no PNCP ↗</span>
+                  <span>Ver no PNCP</span>
                 </a>
               </div>
 
@@ -1309,7 +1273,7 @@ export default function DossieEditalModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 border border-slate-200 text-xs font-bold uppercase tracking-wider text-slate-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 text-xs font-bold text-slate-600 hover:bg-white rounded-full transition-colors cursor-pointer"
                 >
                   Fechar
                 </button>
@@ -1319,22 +1283,21 @@ export default function DossieEditalModal({
                     type="button"
                     onClick={() => onSalvar(edital)}
                     disabled={isSalvo || isSalvando}
-                    className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all border ${isSalvo
+                    className={`inline-flex items-center justify-center gap-1.5 px-5 py-2 text-xs font-bold rounded-full transition-all border ${
+                      isSalvo
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 cursor-default'
                         : 'bg-brand-orange text-white hover:bg-orange-600 border-transparent shadow-xs cursor-pointer'
-                      }`}
+                    }`}
                   >
                     {isSalvando ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     ) : isSalvo ? (
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Salvo ✓</span>
+                        <span>Salvo</span>
                       </>
                     ) : (
-                      <>
-                        <span>Salvar p/ Proposta</span>
-                      </>
+                      <span>Salvar p/ Proposta</span>
                     )}
                   </button>
                 )}

@@ -719,3 +719,26 @@ button {
   font-size: 0.9375rem !important;
   line-height: 1.5 !important;
 }
+/* Estilo Limpo e Moderno-Rústico (Campos em Pílula e Hierarquia Clara) */
+.expertise-pill-input,
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select {
+  border-radius: 9999px !important;
+  border-color: #CBD5E1;
+  background-color: #FFFFFF;
+  color: #081C3A;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus,
+textarea:focus {
+  border-color: #0070C0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 112, 192, 0.14) !important;
+}
+
+textarea {
+  border-radius: 1rem !important;
+}

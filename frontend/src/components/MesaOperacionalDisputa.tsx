@@ -22,6 +22,8 @@ import {
   X,
   Building2,
   Gavel,
+  Copy,
+  Monitor,
 } from 'lucide-react';
 
 import { useAuthStore } from '../store/auth.store';
@@ -67,11 +69,19 @@ interface MesaOperacionalDisputaProps {
   mode?: 'disputa' | 'robo';
 }
 
+const PORTAIS_DISPUTA = [
+  { id: 'edital', label: 'Portal do Edital (Automático)', url: '' },
+  { id: 'comprasgov', label: 'Compras.gov.br (Federal)', url: 'https://www.gov.br/compras/pt-br' },
+  { id: 'bll', label: 'BLL Compras', url: 'https://bllcompras.com' },
+  { id: 'bnc', label: 'BNC - Bolsa Nacional de Compras', url: 'https://bnc.org.br' },
+  { id: 'bb', label: 'Licitações-e (Banco do Brasil)', url: 'https://www.licitacoes-e.com.br' },
+];
+
 function calcularMargemLiquida(precoAtual: number, unitCost: number, despesasPercentual: number): number {
   if (!precoAtual || precoAtual <= 0) return 0;
   const custoTotal = unitCost * (1 + despesasPercentual / 100);
-  const ivaDualRetido = precoAtual * 0.114;
-  const lucroLiquido = precoAtual - ivaDualRetido - custoTotal;
+  const impostosRetidos = precoAtual * 0.114;
+  const lucroLiquido = precoAtual - impostosRetidos - custoTotal;
   return Number(((lucroLiquido / precoAtual) * 100).toFixed(1));
 }
 
@@ -104,6 +114,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
   const [decrementoGlobal, setDecrementoGlobal] = useState<number>(1.0);
   const [automacaoGlobalAtiva, setAutomacaoGlobalAtiva] = useState(false);
 
+  const [portalSelecionado, setPortalSelecionado] = useState<string>('edital');
   const [tickerLances, setTickerLances] = useState<LiveTickerEntry[]>([]);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
@@ -112,17 +123,17 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     return itens[selectedItemIndex] || itens[0];
   }, [itens, selectedItemIndex]);
 
-  const bdiCalculado = useMemo(() => {
+  const resumoFinanceiro = useMemo(() => {
     if (!itemEmFoco) {
       return {
         custoDireto: 0,
         despesas: 0,
         custoTotal: 0,
-        ivaDualRetido: 0,
+        impostosEstimados: 0,
         receitaLiquida: 0,
         lucroLiquido: 0,
         margemReal: 0,
-        pisoStopLoss: precoLimiteParam || 0,
+        valorMinimoSeguro: precoLimiteParam || 0,
       };
     }
 
@@ -131,8 +142,8 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     const custoTotal = custoDireto + despesas;
     const precoAtual = itemEmFoco.melhorLanceAtual || itemEmFoco.valorUnitarioEstimado || itemEmFoco.stopLossMinimo * 1.25;
 
-    const ivaDualRetido = precoAtual * 0.114;
-    const receitaLiquida = precoAtual - ivaDualRetido;
+    const impostosEstimados = precoAtual * 0.114;
+    const receitaLiquida = precoAtual - impostosEstimados;
     const lucroLiquido = receitaLiquida - custoTotal;
     const margemReal = precoAtual > 0 ? (lucroLiquido / precoAtual) * 100 : 0;
 
@@ -140,11 +151,11 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
       custoDireto,
       despesas,
       custoTotal,
-      ivaDualRetido,
+      impostosEstimados,
       receitaLiquida,
       lucroLiquido,
       margemReal,
-      pisoStopLoss: itemEmFoco.stopLossMinimo,
+      valorMinimoSeguro: itemEmFoco.stopLossMinimo,
     };
   }, [itemEmFoco, precoLimiteParam]);
 
@@ -328,7 +339,6 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
           }
         }
 
-        // Sem edital na URL: tenta carregar automaticamente o primeiro edital salvo do usuário (zero dados fictícios)
         const salvosResp = await api.get('/licitacoes/salvos').catch(() => null);
         const salvosList = salvosResp?.data?.data || [];
         if (Array.isArray(salvosList) && salvosList.length > 0 && isMounted) {
@@ -436,27 +446,27 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             };
 
             if (item.autoLanceAtivo && wasLeading) {
-              const stopLoss = item.stopLossMinimo;
-              const decremento = item.decremento;
+              const pisoMinimo = item.stopLossMinimo;
+              const reducao = item.decremento;
               const menorLance = remoteBid.bid_amount;
 
-              if (menorLance <= stopLoss) {
+              if (menorLance <= pisoMinimo) {
                 toast.error(
-                  `[STOP-LOSS] Mercado rompeu seu piso (R$ ${stopLoss.toFixed(2)}). Cobertura automática cancelada no Item #${item.itemNumero}.`,
+                  `Trava de segurança acionada no Item #${item.itemNumero}: o valor chegou ao seu mínimo de R$ ${pisoMinimo.toFixed(2)}.`,
                 );
                 return { ...updatedItem, autoLanceAtivo: false };
               }
 
-              const novoLance = Number(Math.max(stopLoss, menorLance - decremento).toFixed(2));
+              const novoLance = Number(Math.max(pisoMinimo, menorLance - reducao).toFixed(2));
 
-              if (novoLance >= stopLoss) {
+              if (novoLance >= pisoMinimo) {
                 socket.emit('place_bid', {
                   pregaoId: editalAtivo.id,
                   itemNumero: item.itemNumero,
                   bid_amount: novoLance,
                   custoInsumos: item.unitCost,
-                  stop_loss_minimo: stopLoss,
-                  licitanteNome: user?.nome || 'Minha Empresa (Você - Robô)',
+                  stop_loss_minimo: pisoMinimo,
+                  licitanteNome: user?.nome || 'Minha Empresa (Você)',
                 });
               }
             }
@@ -475,14 +485,14 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
           licitante: remoteBid.licitanteNome,
           valor: remoteBid.bid_amount,
           isOwnBid: false,
-          status: 'OPONENTE',
+          status: 'CONCORRENTE',
         },
         ...prev.slice(0, 49),
       ]);
     });
 
     socket.on('bid_error', (err: SocketBidError) => {
-      toast.error(err.message || 'Bloqueio de segurança Stop-Loss acionado.');
+      toast.error(err.message || 'Lance bloqueado pela trava de proteção de prejuízo.');
       if (err.itemNumero !== undefined) {
         setItens((prev) =>
           prev.map((it) => (it.itemNumero === err.itemNumero ? { ...it, autoLanceAtivo: false } : it)),
@@ -508,12 +518,12 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
       prev.map((it) => {
         if (it.itemNumero !== itemNumero) return it;
         const custoComDespesas = custoVal * (1 + it.despesasPercentual / 100);
-        const novoStopLoss = custoVal > 0 ? Number((custoComDespesas / 0.836).toFixed(2)) : 0;
-        const precoRef = it.melhorLanceAtual > 0 ? it.melhorLanceAtual : Number((novoStopLoss * 1.2).toFixed(2));
+        const novoPiso = custoVal > 0 ? Number((custoComDespesas / 0.836).toFixed(2)) : 0;
+        const precoRef = it.melhorLanceAtual > 0 ? it.melhorLanceAtual : Number((novoPiso * 1.2).toFixed(2));
         return {
           ...it,
           unitCost: custoVal,
-          stopLossMinimo: novoStopLoss,
+          stopLossMinimo: novoPiso,
           melhorLanceAtual: precoRef,
           margemLiquidaCalculada: calcularMargemLiquida(precoRef, custoVal, it.despesasPercentual),
         };
@@ -534,6 +544,12 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     );
   };
 
+  const handleCopiarLance = (valor: number, itemNumero: number) => {
+    const texto = valor.toFixed(2).replace('.', ',');
+    navigator.clipboard.writeText(texto);
+    toast.success(`Valor R$ ${texto} (Item #${itemNumero}) copiado! Cole direto no portal ao lado.`);
+  };
+
   const handleEnviarLanceItem = (itemNumero: number, valorParam?: number) => {
     const item = itens.find((it) => it.itemNumero === itemNumero);
     if (!item) return;
@@ -547,7 +563,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
 
     if (item.stopLossMinimo > 0 && valor < item.stopLossMinimo) {
       toast.error(
-        `Lance BLOQUEADO: R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} viola o piso de Stop-Loss (R$ ${item.stopLossMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
+        `Lance bloqueado: R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} fica abaixo do seu valor mínimo seguro (R$ ${item.stopLossMinimo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`,
       );
       return;
     }
@@ -577,7 +593,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             : it,
         ),
       );
-      toast.success(`Lance de R$ ${valor.toFixed(2)} registrado na planilha da disputa.`);
+      toast.success(`Lance de R$ ${valor.toFixed(2)} registrado na planilha.`);
     }
 
     setItens((prev) =>
@@ -597,7 +613,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     const novoValor = Number(Math.max(item.stopLossMinimo, base - item.decremento).toFixed(2));
 
     if (item.stopLossMinimo > 0 && novoValor < item.stopLossMinimo) {
-      toast.error(`Piso de Stop-Loss atingido (R$ ${item.stopLossMinimo.toFixed(2)}). Não é possível cobrir.`);
+      toast.error(`Valor mínimo atingido (R$ ${item.stopLossMinimo.toFixed(2)}). Não é seguro baixar mais.`);
       return;
     }
 
@@ -610,7 +626,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
         if (it.itemNumero === itemNumero) {
           const novoEstado = !it.autoLanceAtivo;
           if (novoEstado) {
-            toast.success(`Robô ativado para o Item #${itemNumero} (Piso: R$ ${it.stopLossMinimo.toFixed(2)})`);
+            toast.success(`Disputa automática ativada no Item #${itemNumero} (Mínimo: R$ ${it.stopLossMinimo.toFixed(2)})`);
             socketRef.current?.emit('iniciar_robo', {
               pregaoId: editalAtivo?.id || 'arena-geral',
               itemNumero,
@@ -620,7 +636,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
               estrategia: modoEstrategia === 'SNIPER' ? 'sniper' : 'agressivo',
             });
           } else {
-            toast(`Robô pausado no Item #${itemNumero}`);
+            toast(`Disputa automática pausada no Item #${itemNumero}`);
             socketRef.current?.emit('pausar_robo', { itemNumero });
           }
           return { ...it, autoLanceAtivo: novoEstado };
@@ -632,7 +648,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
 
   const handleToggleAutomacaoGlobal = () => {
     if (itens.length === 0) {
-      toast.error('Selecione um edital antes de ativar o robô.');
+      toast.error('Selecione um edital antes de ativar a disputa automática.');
       return;
     }
 
@@ -648,7 +664,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     );
 
     if (novoEstado) {
-      toast.success(`Robô ATIVADO em todos os ${itens.length} itens do edital!`);
+      toast.success(`Disputa automática ativada em todos os ${itens.length} itens.`);
       socketRef.current?.emit('iniciar_robo', {
         pregaoId: editalAtivo?.id || 'arena-geral',
         valorInicial: itens[0]?.melhorLanceAtual || 0,
@@ -657,7 +673,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
         estrategia: modoEstrategia === 'SNIPER' ? 'sniper' : 'agressivo',
       });
     } else {
-      toast('Automação do Robô pausada em todos os itens.');
+      toast('Disputa automática pausada em todos os itens.');
       socketRef.current?.emit('pausar_robo');
     }
   };
@@ -673,8 +689,8 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
         noticeId: editalAtivo?.id,
         orgao: editalAtivo?.orgao,
         objeto: editalAtivo?.objeto,
-        custoInsumos: bdiCalculado.custoDireto,
-        despesasOperacionais: bdiCalculado.despesas,
+        custoInsumos: resumoFinanceiro.custoDireto,
+        despesasOperacionais: resumoFinanceiro.despesas,
         margemLucroDesejada: itemEmFoco?.margemAlvoPercentual || 15,
         margemMinimaStopLoss: 5,
         bidAmount: itemEmFoco?.melhorLanceAtual || 0,
@@ -684,7 +700,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     } catch {
       try {
         const rows = [
-          ['Item', 'Descrição', 'Qtd', 'Unidade', 'Valor Ref. (PNCP)', 'Custo Unit. (R$)', 'Lance Atual (R$)', 'Valor Total (R$)', 'Status'],
+          ['Item', 'Descrição', 'Qtd', 'Unidade', 'Valor de Referência', 'Custo Unit. (R$)', 'Lance Atual (R$)', 'Valor Total (R$)', 'Status'],
           ...itens.map((it) => [
             String(it.itemNumero),
             `"${it.descricao.replace(/"/g, '""')}"`,
@@ -694,7 +710,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             it.unitCost.toFixed(2),
             it.melhorLanceAtual.toFixed(2),
             (it.melhorLanceAtual * it.quantidade).toFixed(2),
-            it.isLeading ? '1º Lugar (Arrematado)' : 'Disputado',
+            it.isLeading ? '1º Lugar (Arrematado)' : 'Em Disputa',
           ]),
         ];
 
@@ -717,25 +733,44 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
   };
 
   const portalOficialUrl = useMemo(() => {
+    const selecionado = PORTAIS_DISPUTA.find((p) => p.id === portalSelecionado);
+    if (selecionado && selecionado.url) return selecionado.url;
     return editalAtivo?.urlOficialPncp || portalParam || 'https://pncp.gov.br/app/editais';
-  }, [editalAtivo, portalParam]);
+  }, [editalAtivo, portalParam, portalSelecionado]);
+
+  const handleAbrirTelaEspelhada = () => {
+    const larguraTela = window.screen.availWidth || 1280;
+    const alturaTela = window.screen.availHeight || 800;
+    const metadeLargura = Math.floor(larguraTela / 2);
+
+    const popup = window.open(
+      portalOficialUrl,
+      'PortalDisputaOficial',
+      `width=${metadeLargura},height=${alturaTela},left=${metadeLargura},top=0,resizable=yes,scrollbars=yes`,
+    );
+
+    if (!popup) {
+      toast.error('Permita janelas popup no navegador para abrir o portal lado a lado.');
+      return;
+    }
+
+    toast.success('Portal aberto ao lado! Use o botão Copiar na tabela para enviar seu lance.');
+  };
 
   return (
-    <div className="w-full bg-[#F4F6F9] text-slate-800 min-h-screen font-sans flex flex-col">
-      {/* ZONA 1 — CABEÇALHO CLARO ESTILO BLL / GOV.BR */}
-      <header className="sticky top-0 z-30 bg-white border-b-2 border-[#081c3a] px-3 py-2.5 sm:px-5 shadow-xs">
+    <div className="w-full bg-[#F8FAFC] text-slate-800 min-h-screen font-sans flex flex-col">
+      {/* CABEÇALHO LIMPO E DIRETO */}
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-3 py-3 sm:px-5 shadow-xs">
         <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3 max-w-[1920px] mx-auto">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
               onClick={() => setIsEditalSelectorOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#081c3a] hover:bg-[#0d2a56] px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer shadow-xs shrink-0"
+              className="inline-flex items-center gap-2 rounded-full bg-[#081c3a] hover:bg-[#0d2a56] px-4 py-1.5 text-xs font-bold text-white transition cursor-pointer shadow-xs shrink-0"
               title="Trocar Edital / Licitação Ativa"
             >
               <Gavel className="h-3.5 w-3.5 text-[#ff6600]" />
-              <span className="font-mono text-xs">
-                {editalAtivo?.numeroEdital || 'Selecionar Edital'}
-              </span>
+              <span>{editalAtivo?.numeroEdital || 'Selecionar Edital'}</span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-300" />
             </button>
 
@@ -750,26 +785,23 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             </div>
 
             <div className="hidden md:flex items-center gap-1.5 shrink-0">
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-orange-50 text-[#ff6600] border border-orange-200">
-                {mode === 'robo' ? 'Sala de Disputa & Robô' : 'Sala de Disputa'}
-              </span>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Modo Aberto
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-50 text-[#ff6600] border border-orange-200">
+                {mode === 'robo' ? 'Disputa Assistida' : 'Sala de Disputa'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-300 text-xs font-bold">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold">
               <span
                 className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}
               />
               <span className={isConnected ? 'text-emerald-700' : 'text-amber-700'}>
-                {isConnected ? 'Ao Vivo' : 'Modo Local'}
+                {isConnected ? 'Conectado' : 'Modo Local'}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-300 text-xs font-mono font-bold text-[#081c3a]">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold text-[#081c3a]">
               <Clock className="h-3.5 w-3.5 text-[#ff6600]" />
               <span>{formatCronometro(cronometroSegundos)}</span>
               <button
@@ -783,51 +815,65 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={portalOficialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 px-3 py-1.5 text-xs font-bold text-[#081c3a] transition cursor-pointer"
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <select
+              value={portalSelecionado}
+              onChange={(e) => setPortalSelecionado(e.target.value)}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-[#081c3a] outline-none focus:border-[#0070c0]"
+              title="Escolha o portal oficial da sessão"
             >
-              <span>Abrir Portal Oficial</span>
-              <ExternalLink className="h-3.5 w-3.5 text-[#0070c0]" />
-            </a>
+              {PORTAIS_DISPUTA.map((portal) => (
+                <option key={portal.id} value={portal.id}>
+                  {portal.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={handleAbrirTelaEspelhada}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#0070c0] hover:bg-blue-700 px-4 py-1.5 text-xs font-bold text-white transition shadow-xs cursor-pointer"
+              title="Abre o portal oficial ao lado da sua planilha"
+            >
+              <Monitor className="h-3.5 w-3.5" />
+              <span>Abrir Tela Espelhada</span>
+              <ExternalLink className="h-3 w-3" />
+            </button>
 
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#ff6600] hover:bg-orange-600 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-white transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#ff6600] hover:bg-orange-600 px-4 py-1.5 text-xs font-bold text-white transition shadow-xs cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Exportar Readequada</span>
+                <span>Proposta Final</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute right-0 mt-1.5 w-60 rounded-xl border border-slate-300 bg-white p-1.5 shadow-xl z-50">
+                <div className="absolute right-0 mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl z-50">
                   <button
                     type="button"
                     onClick={() => void handleExportarReadequada('xlsx')}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer text-left"
                   >
                     <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
                     <div>
                       <p>Planilha Excel (.XLSX)</p>
-                      <p className="text-[11px] text-slate-500 font-normal">Quadro de itens e lances vencedores</p>
+                      <p className="text-[11px] text-slate-500 font-normal">Quadro de itens e valores finais</p>
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => void handleExportarReadequada('docx')}
-                    className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer text-left"
+                    className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 transition cursor-pointer text-left"
                   >
                     <FileText className="h-4 w-4 text-[#0070c0]" />
                     <div>
                       <p>Documento Word (.DOCX)</p>
-                      <p className="text-[11px] text-slate-500 font-normal">Modelo formal timbrado com IVA Dual</p>
+                      <p className="text-[11px] text-slate-500 font-normal">Proposta formal completa</p>
                     </div>
                   </button>
                 </div>
@@ -840,18 +886,18 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
       {/* MODAL SELETOR DE EDITAL */}
       {isEditalSelectorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-300 bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Gavel className="h-4 w-4 text-[#ff6600]" />
-                <h3 className="text-sm font-black uppercase tracking-wider text-[#081c3a]">
-                  Selecionar Edital Cadastrado / Monitorado
+                <h3 className="text-sm font-bold text-[#081c3a]">
+                  Selecionar Edital para Disputar
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsEditalSelectorOpen(false)}
-                className="text-slate-400 hover:text-slate-800 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-800 p-1 rounded-full cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -866,46 +912,46 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
         </div>
       )}
 
-      {/* CORPO PRINCIPAL BRANCO RÚSTICO ESTILO BLL (8 COLS PLANILHA + 4 COLS PAINEL BDI/FEED) */}
+      {/* CORPO PRINCIPAL */}
       <main className="flex-1 p-3 sm:p-5 max-w-[1920px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-4">
         <section className="lg:col-span-8 flex flex-col gap-3 min-w-0">
-          {/* Barra de Estratégia e Decremento */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-4 py-2.5 shadow-2xs">
+          {/* Barra de Estratégia */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Estratégia:
+              <span className="text-xs font-bold text-slate-600">
+                Ritmo de Lances:
               </span>
-              <div className="flex items-center rounded-lg bg-slate-100 p-0.5 border border-slate-300">
+              <div className="flex items-center rounded-full bg-slate-100 p-0.5 border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setModoEstrategia('SNIPER')}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
                     modoEstrategia === 'SNIPER'
                       ? 'bg-[#ff6600] text-white shadow-2xs'
                       : 'text-slate-600 hover:text-[#081c3a]'
                   }`}
                 >
                   <Crosshair className="h-3.5 w-3.5" />
-                  <span>Modo Sniper Final</span>
+                  <span>Segundos Finais</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setModoEstrategia('IMEDIATO')}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
                     modoEstrategia === 'IMEDIATO'
                       ? 'bg-[#ff6600] text-white shadow-2xs'
                       : 'text-slate-600 hover:text-[#081c3a]'
                   }`}
                 >
                   <TrendingDown className="h-3.5 w-3.5" />
-                  <span>Cobertura Imediata</span>
+                  <span>Cobrir na Hora</span>
                 </button>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Decremento:
+              <span className="text-xs font-bold text-slate-600">
+                Redução por Lance:
               </span>
               <div className="flex items-center gap-1">
                 {[0.5, 1.0, 5.0, 10.0].map((val) => (
@@ -916,7 +962,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                       setDecrementoGlobal(val);
                       setItens((prev) => prev.map((it) => ({ ...it, decremento: val })));
                     }}
-                    className={`px-2 py-1 rounded text-xs font-mono font-bold transition cursor-pointer border ${
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold transition cursor-pointer border ${
                       decrementoGlobal === val
                         ? 'bg-[#081c3a] text-white border-[#081c3a]'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -931,52 +977,52 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
             <button
               type="button"
               onClick={handleToggleAutomacaoGlobal}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer shadow-2xs ${
+              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer shadow-2xs ${
                 automacaoGlobalAtiva
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'bg-[#0070c0] hover:bg-blue-700 text-white'
               }`}
             >
               <Zap className="h-3.5 w-3.5 fill-current" />
-              <span>{automacaoGlobalAtiva ? 'Robô Ativo em Todos' : 'Ativar Robô em Todos'}</span>
+              <span>{automacaoGlobalAtiva ? 'Disputa Automática Ativa' : 'Ativar Disputa Automática'}</span>
             </button>
           </div>
 
-          {/* PLANILHA DE DISPUTA ESTILO EXCEL / BLL */}
-          <div className="rounded-lg border border-slate-300 bg-white overflow-hidden flex-1 flex flex-col shadow-xs">
+          {/* PLANILHA DE DISPUTA */}
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex-1 flex flex-col shadow-xs">
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#081c3a] text-white text-[11px] font-bold uppercase tracking-wider">
-                    <th className="py-2.5 px-3 border-r border-slate-700">Item & Descrição</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-center">Qtd / Unid</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-right">Custo Unit. (R$)</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-right">Piso Stop-Loss</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-right">Melhor Lance</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-right">Total Item (R$)</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-center">Posição</th>
-                    <th className="py-2.5 px-2 border-r border-slate-700 text-center">Robô</th>
-                    <th className="py-2.5 px-3 text-right">Lance / Cobrir</th>
+                    <th className="py-3 px-3 border-r border-slate-700">Item & Descrição</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-center">Qtd / Unid</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-right">Seu Custo (R$)</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-right">Valor Mínimo Seguro</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-right">Melhor Lance</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-right">Total Item (R$)</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-center">Posição</th>
+                    <th className="py-3 px-2 border-r border-slate-700 text-center">Auto</th>
+                    <th className="py-3 px-3 text-right">Enviar / Copiar Lance</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-300 font-mono text-slate-800">
+                <tbody className="divide-y divide-slate-200 text-slate-800">
                   {loadingItens ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-xs font-sans font-semibold text-slate-500">
+                      <td colSpan={9} className="py-12 text-center text-xs font-semibold text-slate-500">
                         <RefreshCw className="h-5 w-5 animate-spin text-[#ff6600] mx-auto mb-2" />
-                        Carregando itens reais do edital...
+                        Carregando itens do edital...
                       </td>
                     </tr>
                   ) : itens.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-xs font-sans text-slate-600">
+                      <td colSpan={9} className="py-12 text-center text-xs text-slate-600">
                         <p className="font-bold text-[#081c3a] mb-2">
                           Nenhum edital vinculado à Sala de Disputa ainda.
                         </p>
                         <button
                           type="button"
                           onClick={() => setIsEditalSelectorOpen(true)}
-                          className="inline-flex items-center gap-2 rounded-lg bg-[#ff6600] hover:bg-orange-600 px-4 py-2 text-xs font-bold text-white cursor-pointer"
+                          className="inline-flex items-center gap-2 rounded-full bg-[#ff6600] hover:bg-orange-600 px-5 py-2 text-xs font-bold text-white cursor-pointer"
                         >
                           <Gavel className="h-3.5 w-3.5" />
                           <span>Selecionar Edital Salvo para Disputar</span>
@@ -1000,44 +1046,40 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                                 : 'bg-slate-50/60 hover:bg-slate-100/70'
                           }`}
                         >
-                          {/* Item e Descrição */}
-                          <td className="py-2 px-3 border-r border-slate-200 max-w-[210px]">
+                          <td className="py-2.5 px-3 border-r border-slate-200 max-w-[210px]">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-[#081c3a] bg-slate-200 px-1.5 py-0.5 rounded text-[11px]">
+                              <span className="font-bold text-[#081c3a] bg-slate-200 px-2 py-0.5 rounded-full text-[11px]">
                                 #{item.itemNumero}
                               </span>
-                              <span className="font-sans font-bold text-slate-900 truncate" title={item.descricao}>
+                              <span className="font-bold text-slate-900 truncate" title={item.descricao}>
                                 {item.descricao}
                               </span>
                             </div>
                             {item.valorUnitarioEstimado != null && (
-                              <span className="text-[11px] font-sans text-slate-500 block mt-0.5">
-                                Ref. PNCP: R$ {item.valorUnitarioEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              <span className="text-[11px] text-slate-500 block mt-0.5">
+                                Valor de Referência: R$ {item.valorUnitarioEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </span>
                             )}
                           </td>
 
-                          {/* Quantidade e Unidade */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-center tabular-nums">
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-center tabular-nums">
                             <span className="font-bold text-slate-900">{item.quantidade}</span>
-                            <span className="block text-[10px] font-sans text-slate-500">{item.unidadeMedida}</span>
+                            <span className="block text-[10px] text-slate-500">{item.unidadeMedida}</span>
                           </td>
 
-                          {/* Célula Excel: Custo Unitário Editável */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-right" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="number"
                               step="0.01"
                               min="0"
                               value={item.unitCost}
                               onChange={(e) => handleAtualizarCustoItem(item.itemNumero, Number(e.target.value))}
-                              className="w-24 rounded border border-slate-300 bg-white py-1 px-2 text-right text-xs font-bold text-[#081c3a] focus:border-[#0070c0] focus:ring-2 focus:ring-blue-100 outline-none"
-                              title="Digite o custo unitário para recalcular Stop-Loss e Margem"
+                              className="w-24 rounded-full border border-slate-300 bg-white py-1 px-3 text-right text-xs font-bold text-[#081c3a] focus:border-[#0070c0] outline-none"
+                              title="Digite quanto custa esse item para você"
                             />
                           </td>
 
-                          {/* Célula Excel: Piso Stop-Loss Editável */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex flex-col items-end gap-0.5">
                               <input
                                 type="number"
@@ -1045,57 +1087,53 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                                 min="0"
                                 value={item.stopLossMinimo}
                                 onChange={(e) => handleAtualizarStopLossItem(item.itemNumero, Number(e.target.value))}
-                                className="w-24 rounded border border-emerald-300 bg-emerald-50/50 py-1 px-2 text-right text-xs font-bold text-emerald-800 focus:border-emerald-600 outline-none"
-                                title="Piso mínimo Stop-Loss (Editável)"
+                                className="w-24 rounded-full border border-emerald-300 bg-emerald-50/60 py-1 px-3 text-right text-xs font-bold text-emerald-800 focus:border-emerald-600 outline-none"
+                                title="Valor mínimo para não ter prejuízo"
                               />
-                              <span className="text-[10px] font-sans text-slate-500">
-                                Margem: {item.margemLiquidaCalculada.toFixed(1)}%
+                              <span className="text-[10px] text-slate-500">
+                                Lucro: {item.margemLiquidaCalculada.toFixed(1)}%
                               </span>
                             </div>
                           </td>
 
-                          {/* Melhor Lance Atual */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-right tabular-nums">
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-right tabular-nums">
                             <span className="font-black text-[#081c3a] text-sm">
                               R$ {item.melhorLanceAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </span>
                             {item.seuUltimoLance != null && (
-                              <span className="block text-[10px] text-[#0070c0] font-sans font-bold">
+                              <span className="block text-[10px] text-[#0070c0] font-bold">
                                 Seu: R$ {item.seuUltimoLance.toFixed(2)}
                               </span>
                             )}
                           </td>
 
-                          {/* Total Calculado (Qtd x Lance) estilo Excel */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-right tabular-nums bg-slate-50/70">
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-right tabular-nums bg-slate-50/70">
                             <span className="font-bold text-slate-900">
                               R$ {totalDoItem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </span>
                           </td>
 
-                          {/* Posição */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-center">
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-center">
                             {item.isLeading ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                                 <CheckCircle2 className="h-3 w-3" />
                                 1º Lugar
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
                                 2º+ Lugar
                               </span>
                             )}
                           </td>
 
-                          {/* Toggle Auto-Lance */}
-                          <td className="py-2 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-2.5 px-2 border-r border-slate-200 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               onClick={() => handleToggleAutoLanceItem(item.itemNumero)}
                               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
                                 item.autoLanceAtivo ? 'bg-emerald-600' : 'bg-slate-300'
                               }`}
-                              title={item.autoLanceAtivo ? 'Auto-Lance LIGADO' : 'Auto-Lance DESLIGADO'}
+                              title={item.autoLanceAtivo ? 'Disputa automática ligada' : 'Disputa automática desligada'}
                             >
                               <span
                                 className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
@@ -1105,9 +1143,8 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                             </button>
                           </td>
 
-                          {/* Lance Manual / Cobrir */}
-                          <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1">
+                          <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
                               <input
                                 type="text"
                                 placeholder="R$..."
@@ -1121,23 +1158,32 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') handleEnviarLanceItem(item.itemNumero);
                                 }}
-                                className="w-20 rounded border border-slate-300 bg-white py-1 px-2 text-right text-xs font-bold text-[#081c3a] outline-none focus:border-[#ff6600]"
+                                className="w-20 rounded-full border border-slate-300 bg-white py-1 px-2.5 text-right text-xs font-bold text-[#081c3a] outline-none focus:border-[#0070c0]"
                               />
 
                               <button
                                 type="button"
                                 onClick={() => handleCobrirItem(item.itemNumero)}
-                                className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 border border-slate-300 text-[10px] font-black uppercase text-[#081c3a] transition cursor-pointer shrink-0"
-                                title={`Cobrir diminuindo R$ ${item.decremento.toFixed(2)}`}
+                                className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-300 text-[11px] font-bold text-[#081c3a] transition cursor-pointer shrink-0"
+                                title={`Diminuir R$ ${item.decremento.toFixed(2)} do melhor lance`}
                               >
                                 Cobrir
                               </button>
 
                               <button
                                 type="button"
+                                onClick={() => handleCopiarLance(item.melhorLanceAtual, item.itemNumero)}
+                                className="p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-[#0070c0] transition cursor-pointer shrink-0"
+                                title="Copiar valor do lance para colar no portal ao lado"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={() => handleEnviarLanceItem(item.itemNumero)}
-                                className="p-1.5 rounded bg-[#ff6600] hover:bg-orange-600 text-white transition cursor-pointer shrink-0"
-                                title="Enviar Lance Imediato"
+                                className="p-1.5 rounded-full bg-[#ff6600] hover:bg-orange-600 text-white transition cursor-pointer shrink-0"
+                                title="Registrar Lance"
                               >
                                 <Radio className="h-3.5 w-3.5" />
                               </button>
@@ -1150,20 +1196,20 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
                 </tbody>
                 {itens.length > 0 && (
                   <tfoot>
-                    <tr className="bg-slate-100 border-t-2 border-slate-300 font-mono text-xs font-black text-[#081c3a]">
-                      <td colSpan={2} className="py-2.5 px-3 font-sans">
+                    <tr className="bg-slate-100 border-t-2 border-slate-200 text-xs font-black text-[#081c3a]">
+                      <td colSpan={2} className="py-3 px-3">
                         TOTAIS DA PLANILHA ({itens.length} {itens.length === 1 ? 'item' : 'itens'})
                       </td>
-                      <td className="py-2.5 px-2 text-right tabular-nums text-slate-700">
+                      <td className="py-3 px-2 text-right tabular-nums text-slate-700">
                         R$ {totaisPlanilha.totalCusto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td colSpan={2} className="py-2.5 px-2 text-right font-sans text-[11px] text-slate-500">
+                      <td colSpan={2} className="py-3 px-2 text-right text-[11px] text-slate-500">
                         Total Global dos Lances:
                       </td>
-                      <td className="py-2.5 px-2 text-right tabular-nums text-[#0070c0] text-sm">
+                      <td className="py-3 px-2 text-right tabular-nums text-[#0070c0] text-sm">
                         R$ {totaisPlanilha.totalLance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
-                      <td colSpan={3} className="py-2.5 px-3 text-right font-sans text-[11px] text-emerald-700">
+                      <td colSpan={3} className="py-3 px-3 text-right text-[11px] text-emerald-700">
                         Liderando: {itens.filter((i) => i.isLeading).length}/{itens.length}
                       </td>
                     </tr>
@@ -1174,99 +1220,99 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
           </div>
         </section>
 
-        {/* ZONA 3 — PAINEL LATERAL CLARO DE PROTEÇÃO DE MARGEM & FITA AO VIVO */}
+        {/* PAINEL LATERAL DE CUSTOS E HISTÓRICO */}
         <aside className="lg:col-span-4 flex flex-col gap-3 min-w-0">
-          <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-2xs flex flex-col gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div className="flex items-center gap-1.5">
                 <Shield className="h-4 w-4 text-emerald-600" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-[#081c3a]">
-                  Proteção de Margem & BDI
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#081c3a]">
+                  Resumo de Custos e Lucro
                 </h3>
               </div>
-              <span className="font-mono text-[11px] text-[#ff6600] font-bold bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
+              <span className="text-[11px] text-[#ff6600] font-bold bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full">
                 Item #{itemEmFoco?.itemNumero || 1}
               </span>
             </div>
 
-            <div className="rounded-lg bg-emerald-50 border border-emerald-300 p-3 flex items-center justify-between">
+            <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
                   <Lock className="h-3 w-3" />
-                  Piso Mínimo Inviolável
+                  Valor Mínimo (Não Baixar Disso)
                 </span>
-                <span className="text-xl font-mono font-black text-emerald-700">
-                  R$ {bdiCalculado.pisoStopLoss.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <span className="text-xl font-black text-emerald-700">
+                  R$ {resumoFinanceiro.valorMinimoSeguro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="text-right font-sans">
-                <span className="text-[10px] text-emerald-700 block">Trava Ativa</span>
-                <span className="text-xs font-black text-emerald-800">Stop-Loss 5%</span>
+              <div className="text-right">
+                <span className="text-[10px] text-emerald-700 block">Proteção Ativa</span>
+                <span className="text-xs font-bold text-emerald-800">Margem Mín. 5%</span>
               </div>
             </div>
 
-            <div className="space-y-1.5 text-xs font-mono">
+            <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-700">
-                <span className="text-slate-500 font-sans">Custo Direto (Insumos):</span>
-                <span>R$ {bdiCalculado.custoDireto.toFixed(2)}</span>
+                <span className="text-slate-500">Custo do Produto/Serviço:</span>
+                <span className="font-semibold">R$ {resumoFinanceiro.custoDireto.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-slate-700">
-                <span className="text-slate-500 font-sans">Despesas Indiretas (5%):</span>
-                <span>R$ {bdiCalculado.despesas.toFixed(2)}</span>
+                <span className="text-slate-500">Despesas Operacionais (5%):</span>
+                <span className="font-semibold">R$ {resumoFinanceiro.despesas.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-slate-700">
-                <span className="text-slate-500 font-sans">Split Payment (IVA Dual 11.4%):</span>
-                <span className="text-amber-700">-R$ {bdiCalculado.ivaDualRetido.toFixed(2)}</span>
+                <span className="text-slate-500">Impostos Estimados (11,4%):</span>
+                <span className="font-semibold text-amber-700">-R$ {resumoFinanceiro.impostosEstimados.toFixed(2)}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 font-bold text-[#081c3a]">
-                <span className="text-slate-600 font-sans">Margem Líquida Real:</span>
-                <span className={bdiCalculado.margemReal >= 5 ? 'text-emerald-700' : 'text-red-600'}>
-                  {bdiCalculado.margemReal.toFixed(1)}% (R$ {bdiCalculado.lucroLiquido.toFixed(2)})
+              <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-bold text-[#081c3a]">
+                <span className="text-slate-600">Lucro Líquido Estimado:</span>
+                <span className={resumoFinanceiro.margemReal >= 5 ? 'text-emerald-700' : 'text-red-600'}>
+                  {resumoFinanceiro.margemReal.toFixed(1)}% (R$ {resumoFinanceiro.lucroLiquido.toFixed(2)})
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-300 bg-white p-4 shadow-2xs flex-1 flex flex-col min-h-[340px]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex-1 flex flex-col min-h-[340px]">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
               <div className="flex items-center gap-1.5">
                 <Radio className="h-4 w-4 text-[#ff6600] animate-pulse" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-[#081c3a]">
-                  Fita de Lances ao Vivo
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#081c3a]">
+                  Histórico de Lances da Sessão
                 </h3>
               </div>
-              <span className="text-[11px] font-mono text-slate-500">
+              <span className="text-[11px] text-slate-500">
                 {tickerLances.length} registros
               </span>
             </div>
 
-            <div className="space-y-1.5 overflow-y-auto flex-1 max-h-[420px] pr-1 font-mono text-xs">
+            <div className="space-y-1.5 overflow-y-auto flex-1 max-h-[420px] pr-1 text-xs">
               {tickerLances.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 font-sans text-xs">
+                <div className="py-12 text-center text-slate-500 text-xs">
                   <Clock className="h-6 w-6 mx-auto mb-1.5 text-slate-400" />
                   <p className="font-semibold text-slate-700">Aguardando lances da sessão...</p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Os lances enviados aparecerão aqui em tempo real.
+                    Os lances registrados aparecerão aqui em tempo real.
                   </p>
                 </div>
               ) : (
                 tickerLances.map((lance) => (
                   <div
                     key={lance.id}
-                    className={`flex items-center justify-between p-2 rounded-lg border text-[11px] transition ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-[11px] transition ${
                       lance.isOwnBid
-                        ? 'bg-orange-50 border-orange-300 text-[#081c3a]'
+                        ? 'bg-orange-50 border-orange-200 text-[#081c3a]'
                         : 'bg-slate-50 border-slate-200 text-slate-700'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-slate-500 text-[10px] shrink-0">{lance.time}</span>
                       {lance.itemNumero !== undefined && (
-                        <span className="text-[10px] font-bold text-[#ff6600] bg-white px-1.5 py-0.5 rounded border border-orange-200 shrink-0">
+                        <span className="text-[10px] font-bold text-[#ff6600] bg-white px-2 py-0.5 rounded-full border border-orange-200 shrink-0">
                           #{lance.itemNumero}
                         </span>
                       )}
-                      <span className="font-sans font-bold truncate max-w-[120px]" title={lance.licitante}>
+                      <span className="font-bold truncate max-w-[120px]" title={lance.licitante}>
                         {lance.licitante}
                       </span>
                     </div>
