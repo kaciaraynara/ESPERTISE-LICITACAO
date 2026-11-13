@@ -266,7 +266,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Scales,
     items: [
       { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Leitura & Análise com Lex', icon: Brain, requiredFeature: 'lex_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Análise com o Luli', icon: Brain, requiredFeature: 'luli_ia_avancada' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
@@ -281,12 +281,12 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     items: [
       { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Expertise Fiscal (Add-on)', icon: Scales, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre de Documentos', icon: Vault, requiredFeature: 'cofre_documentos' },
+      { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos', icon: Vault, requiredFeature: 'Meus Documentos' },
       { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
       { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
       { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
-      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios Executivos & KPIs', icon: ChartLineUp, requiredFeature: 'relatorios_estrategicos' },
+      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios e Resultados', icon: ChartLineUp, requiredFeature: 'Relatórios e Resultados' },
     ],
   },
 ];

@@ -34,6 +34,7 @@ type TabKey =
   | 'perdcomp_compensacao'
   | 'reforma'
   | 'bdi_proposta'
+  | 'Custos e Impostos'
   | 'reequilibrio_contratos'
   | 'assistente_ia_lgpd';
 
@@ -491,7 +492,7 @@ export default function ExpertiseFiscalPage() {
               Ativa & Blindada
             </span>
             <span className="text-[11px] text-slate-500 block mt-1">
-              Zero compensação sem documento auditado
+              Valores conferidos nas suas notas fiscais
             </span>
           </div>
         </div>
@@ -576,15 +577,15 @@ export default function ExpertiseFiscalPage() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('bdi_proposta')}
+            onClick={() => setActiveTab('Custos e Impostos')}
             className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition cursor-pointer shrink-0 ${
-              activeTab === 'bdi_proposta'
+              activeTab === 'Custos e Impostos'
                 ? 'bg-brand-orange text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Calculator className="w-4 h-4" weight="bold" />
-            <span>6. BDI & Trava de 5 Etapas</span>
+            <span>6. Custos e Impostos</span>
           </button>
 
           <button
@@ -655,7 +656,7 @@ export default function ExpertiseFiscalPage() {
                       {file ? file.name : 'Clique para selecionar arquivo .xml ou .txt'}
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      Tamanho máximo: 25MB • Blindagem SHA-256 contra duplicidade
+                      Tamanho máximo: 25MB • Verificação automática contra arquivo duplicade
                     </span>
                   </label>
                 </div>
@@ -817,7 +818,7 @@ export default function ExpertiseFiscalPage() {
       )}
 
       {/* =====================================================================
-          ABA 2: SCANNER DE CRÉDITOS TRIBUTÁRIOS (MÓDULO 02)
+          ABA 2: Créditos a Recuperar tributários
           ===================================================================== */}
       {activeTab === 'creditos' && (
         <div className="space-y-6 animate-in fade-in duration-200">

@@ -780,23 +780,33 @@ export default function LicitacoesPage({
             toast.error('Nenhuma empresa ativa selecionada.');
             return;
         }
-        const nextCnpj = formatCnpjMask(selectedCompany.cnpj || '');
-        const nextCnae = selectedCompany.cnaePrincipal || selectedCompany.cnae_principal || (meta?.perfilRadar?.cnaes?.[0] ?? '');
+        const rawCnae = selectedCompany.cnaePrincipal || selectedCompany.cnae_principal || (meta?.perfilRadar?.cnaes?.[0] ?? '');
+        const cnaeDesc = rawCnae.replace(/^\d+[\s-]*/, '').trim();
+        const palavrasIgnoradas = new Set(['comercio', 'varejista', 'atacadista', 'artigos', 'produtos', 'servicos', 'geral', 'outros', 'para', 'de', 'da', 'do', 'dos', 'das', 'e', 'em']);
+        const palavraRamo = cnaeDesc
+            .split(/[\s,;/.-]+/)
+            .find((p) => p.length > 3 && !palavrasIgnoradas.has(p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) || '';
+
         const nextUf = selectedCompany.uf && UFS.includes(selectedCompany.uf.toUpperCase())
             ? selectedCompany.uf.toUpperCase()
-            : ufSel;
+            : 'Todos';
 
-        setCnpjFiltro(nextCnpj);
-        setCnaeFiltro(nextCnae);
+        setCnpjFiltro('');
+        setCnaeFiltro(rawCnae);
+        setBusca(palavraRamo);
         setUfSel(nextUf);
         setFiltrosAplicados({
-            busca: busca.trim(),
-            cnpj: sanitizeCnpj(nextCnpj),
-            cnae: nextCnae.trim(),
+            busca: palavraRamo,
+            cnpj: '',
+            cnae: rawCnae.trim(),
             uf: nextUf,
             modalidade: modalidadeSel,
         });
-        toast.success('Filtros preenchidos com os dados reais da empresa ativa.');
+        toast.success(
+            palavraRamo
+                ? `Buscando editais para o seu ramo (${palavraRamo})!`
+                : 'Filtros ajustados para o ramo da empresa ativa.',
+        );
     };
 
     const limparFiltros = () => {
@@ -917,7 +927,7 @@ export default function LicitacoesPage({
                                     title="Preencher filtros com CNPJ, CNAE e UF da empresa ativa"
                                 >
                                     <Building2 className="w-3.5 h-3.5" weight="bold" />
-                                    Usar Meu CNPJ/CNAE
+                                    Usar Meu CNAE
                                 </button>
                             )}
                             <button
@@ -1009,7 +1019,7 @@ export default function LicitacoesPage({
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-100 animate-in fade-in duration-150">
                                 <div>
                                     <label htmlFor="licitacoes-cnpj-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                                        CNPJ (Opcional · Alfanumérico)
+                                        CNPJ
                                     </label>
                                     <input
                                         id="licitacoes-cnpj-filter"
