@@ -230,6 +230,7 @@ export const authApi = {
     email: string;
     senha: string;
     nome: string;
+    apelido?: string;
     telefone?: string;
     aceite_lgpd: boolean;
     cnpj?: string;

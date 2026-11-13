@@ -19,6 +19,7 @@ export type AuthUser = {
   tenant_id: string;
   email: string;
   nome: string | null;
+  apelido?: string | null;
   telefone: string | null;
   plano: string;
   planType?: string | null;
@@ -57,13 +58,13 @@ export class AuthOperationsService {
   public buildPublicUser(user: any, primaryCompany?: any): AuthUser {
     const resolvedCompany = primaryCompany
       ? {
-          id: String(primaryCompany.id),
-          razaoSocial: String(primaryCompany.razaoSocial || primaryCompany.razao_social || 'Empresa'),
-          nomeFantasia: primaryCompany.nomeFantasia ?? primaryCompany.nome_fantasia ?? null,
-          cnpj: String(primaryCompany.cnpj || ''),
-          uf: primaryCompany.uf ?? null,
-          municipio: primaryCompany.municipio ?? null,
-        }
+        id: String(primaryCompany.id),
+        razaoSocial: String(primaryCompany.razaoSocial || primaryCompany.razao_social || 'Empresa'),
+        nomeFantasia: primaryCompany.nomeFantasia ?? primaryCompany.nome_fantasia ?? null,
+        cnpj: String(primaryCompany.cnpj || ''),
+        uf: primaryCompany.uf ?? null,
+        municipio: primaryCompany.municipio ?? null,
+      }
       : null;
 
     const fallbackTrialEndsAt = user.createdAt
@@ -84,6 +85,7 @@ export class AuthOperationsService {
       id: user.id,
       tenant_id: user.tenantId,
       email: normalizeAuthEmail(user.emailNormalized || user.email),
+      apelido: user.apelido ?? null,
       nome: user.nome,
       telefone: user.telefone,
       plano: isTrialActive ? 'master' : user.plano,
@@ -135,6 +137,7 @@ export class AuthOperationsService {
 
   async registerUser(validatedData: any) {
     const {
+      apelido,
       email,
       nome,
       senha,
@@ -337,7 +340,7 @@ export class AuthOperationsService {
   async loginUser(email: string, senha: string, auditContext: any) {
     const emailNormalized = normalizeAuthEmail(email);
     const user = await prisma.user.findUnique({ where: { emailNormalized } });
-    
+
     if (!user || user.deletedAt) {
       await logAuthEvent('LOGIN_FAILED', { email: emailNormalized, reason: 'user_not_found', ...auditContext });
       throw new Error('INVALID_CREDENTIALS');
@@ -363,7 +366,7 @@ export class AuthOperationsService {
     ]);
     const publicUser = this.buildPublicUser(refreshedUser, primaryCompany);
     const tokens = this.issueTokens(publicUser);
-    
+
     await prisma.refreshToken.deleteMany({
       where: { OR: [{ userId: user.id }, { expiresAt: { lte: new Date() } }] }
     });
@@ -446,7 +449,7 @@ export class AuthOperationsService {
   }
 
   // --- LGPD Compliance ---
-  
+
   async exportUserData(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },

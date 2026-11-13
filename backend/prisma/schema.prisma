@@ -29,6 +29,7 @@ model User {
   email                String                  @unique
   emailNormalized      String                  @unique @map("email_normalized")
   nome                 String?
+  apelido              String?
   telefone             String?
   plano                String                  @default("free")
   planType             PlanType                @default(BASIC) @map("plan_type")

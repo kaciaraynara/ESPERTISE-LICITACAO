@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { 
-   CircleNotch, CheckCircle, WarningCircle, InstagramLogo, 
+import {
+   CircleNotch, CheckCircle, WarningCircle, InstagramLogo,
    ArrowRight, Eye, EyeSlash, Check
 } from '@phosphor-icons/react';
 import { Eye as EyeIcon, EyeOff as EyeOffIcon } from 'lucide-react';
@@ -70,50 +70,50 @@ type ForgotFormValues = z.infer<typeof forgotSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-// Demonstrativos visuais da plataforma para a lateral
+
 const PLATFORM_DEMONSTRATORS = [
    {
-      tag: 'Radar de Editais',
+      tag: 'Radar de Editais PNCP',
       tagColor: 'bg-orange-50 text-[#EA580C] border-orange-200',
-      title: 'Pregão Eletrônico nº 048/2026',
-      orgao: 'Tribunal Regional Federal • Compras.gov',
-      objeto: 'Fornecimento continuado de equipamentos e serviços de suporte com entrega parcelada.',
-      highlightLabel: 'Valor Estimado',
-      highlightValue: 'R$ 1.840.000,00',
-      prazo: 'Abertura das propostas em 4 dias',
-      status: 'Edital em Análise',
+      title: 'Captação Direta e Oficial de Licitações',
+      orgao: 'Integração PNCP • Compras.gov.br • Portais Estaduais e Municipais',
+      objeto: 'Monitoramento automático por CNPJ, CNAE e UF com separação exata das datas de divulgação, início das propostas e abertura da sessão.',
+      highlightLabel: 'Base Legal',
+      highlightValue: 'Lei Federal nº 14.133/2021',
+      prazo: 'Atualização contínua em horário de Brasília',
+      status: 'Conexão Oficial',
       statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
    },
    {
-      tag: 'Controle de Certidões',
+      tag: 'Controle de Habilitação',
       tagColor: 'bg-blue-50 text-[#0A2540] border-blue-200',
-      title: 'Painel de Validade de Habilitação',
-      orgao: 'Acompanhamento preventivo de documentos',
+      title: 'Gestão Preventiva de Certidões (Art. 68)',
+      orgao: 'Acompanhamento documental da empresa',
       certidoes: [
-         { nome: 'CND Federal e Previdenciária', prazo: 'Vence em 52 dias' },
-         { nome: 'Regularidade FGTS (CRF)', prazo: 'Vence em 21 dias' },
-         { nome: 'CNDT Trabalhista', prazo: 'Vence em 88 dias' }
+         { nome: 'CND Federal Conjunta (RFB / PGFN)', prazo: 'Controle de validade' },
+         { nome: 'Regularidade do FGTS (CRF)', prazo: 'Controle de validade' },
+         { nome: 'CNDT Trabalhista, Estadual e Municipal', prazo: 'Alertas preventivos' }
       ],
-      highlightLabel: 'Situação Cadastral',
-      highlightValue: 'Empresa Regular e Habilitada',
-      prazo: 'Avisos emitidos antes de qualquer vencimento',
-      status: 'Documentação em Dia',
+      highlightLabel: 'Conformidade Documental',
+      highlightValue: 'Cofre Integrado ao Cadastro',
+      prazo: 'Avisos automáticos antes do vencimento',
+      status: 'Pronto para Disputar',
       statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
    },
    {
-      tag: 'Cálculo de Preço Seguro',
+      tag: 'Precificação & Stop-Loss',
       tagColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-      title: 'Composição de Custos e Margem',
-      orgao: 'Pregão Eletrônico • Lote 02',
+      title: 'Planilha de Custos, BDI e Trava de Margem',
+      orgao: 'Proteção contra propostas inexequíveis (Art. 59)',
       metricas: [
-         { label: 'Custos Diretos', valor: 'R$ 380.000,00' },
-         { label: 'Tributos e BDI', valor: '22,5%' },
-         { label: 'Margem Líquida', valor: '14,0%' }
+         { label: 'Custos Diretos', valor: 'Do seu catálogo' },
+         { label: 'Tributos e BDI', valor: 'Conforme regime' },
+         { label: 'Piso Stop-Loss', valor: 'Trava ativa na disputa' }
       ],
-      highlightLabel: 'Lance Mínimo Seguro (Piso)',
-      highlightValue: 'R$ 498.200,00',
-      prazo: 'Trava ativa para evitar propostas com prejuízo',
-      status: 'Margem Garantida',
+      highlightLabel: 'Segurança Financeira',
+      highlightValue: 'Lances Travados Acima do Piso',
+      prazo: 'Exportação direta em PDF, Word e Excel',
+      status: 'Margem Protegida',
       statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200'
    }
 ];
@@ -125,7 +125,7 @@ export default function AuthPages() {
 
    const [activeView, setActiveView] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
    const [activeDemo, setActiveDemo] = useState(0);
-   
+
    // Alterna automaticamente os demonstrativos da plataforma
    useEffect(() => {
       const interval = setInterval(() => {
@@ -258,7 +258,8 @@ export default function AuthPages() {
          const razaoSocialInformada = (data.razoesocial || '').trim();
 
          const response = await authApi.register({
-            nome: (data.como_gostaria_de_ser_chamado || '').trim() || data.nome_completo.trim(),
+            nome: data.nome_completo.trim(),
+            apelido: (data.como_gostaria_de_ser_chamado || '').trim() || undefined,
             email: data.email.trim().toLowerCase(),
             senha: data.password,
             cnpj: cleanCnpj,
@@ -271,7 +272,7 @@ export default function AuthPages() {
          });
 
          const { user, accessToken, refreshToken } = response.data?.data || {};
-         
+
          if (accessToken) {
             localStorage.setItem('token', accessToken);
             setAuth(user, accessToken, refreshToken ?? undefined);
@@ -300,7 +301,7 @@ export default function AuthPages() {
       try {
          const res = await authApi.forgotPassword({ email: data.email.trim().toLowerCase() });
          toast.success('Se o e-mail estiver cadastrado, você receberá as instruções em instantes.');
-         
+
          if (res.data?.devToken) {
             const link = `/reset-password?token=${res.data.devToken}`;
             setDevResetLink(link);
@@ -355,7 +356,7 @@ export default function AuthPages() {
          {/* LEFT PANEL: Logo Marcante e Demonstrativos da Plataforma */}
          <div className="hidden lg:flex w-1/2 bg-[#0A2540] text-white flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
             {/* Efeito de fundo sutil */}
-            <div 
+            <div
                className="absolute inset-0 opacity-[0.05] pointer-events-none"
                style={{
                   backgroundImage: 'radial-gradient(circle at 2px 2px, #FFFFFF 1px, transparent 0)',
@@ -366,10 +367,10 @@ export default function AuthPages() {
             {/* Cabeçalho com Logo em destaque real */}
             <div className="relative z-10 flex items-center justify-between">
                <div className="bg-white/95 backdrop-blur-sm p-4 rounded-2xl border border-white/20 shadow-lg inline-flex items-center">
-                  <img 
-                     src="/logo.png" 
-                     alt="Expertise Licitatória" 
-                     className="h-16 xl:h-20 w-auto object-contain" 
+                  <img
+                     src="/logo.png"
+                     alt="Expertise Licitatória"
+                     className="h-16 xl:h-20 w-auto object-contain"
                   />
                </div>
             </div>
@@ -478,9 +479,8 @@ export default function AuthPages() {
                         key={idx}
                         onClick={() => setActiveDemo(idx)}
                         aria-label={`Ver demonstrativo ${idx + 1}`}
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                           activeDemo === idx ? 'w-8 bg-[#EA580C]' : 'w-2 bg-slate-600 hover:bg-slate-400'
-                        }`}
+                        className={`h-2 rounded-full transition-all duration-300 ${activeDemo === idx ? 'w-8 bg-[#EA580C]' : 'w-2 bg-slate-600 hover:bg-slate-400'
+                           }`}
                      />
                   ))}
                </div>
@@ -560,10 +560,10 @@ export default function AuthPages() {
                                     spellCheck={false}
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <button 
-                                    type="button" 
-                                    aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'} 
-                                    onClick={() => setShowLoginPassword(!showLoginPassword)} 
+                                 <button
+                                    type="button"
+                                    aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                    onClick={() => setShowLoginPassword(!showLoginPassword)}
                                     className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
                                  >
                                     {showLoginPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -576,11 +576,11 @@ export default function AuthPages() {
                               )}
                            </div>
 
-                           <motion.button 
-                              disabled={loginSubmitting} 
-                              type="submit" 
-                              whileHover={{ scale: 1.01 }} 
-                              whileTap={{ scale: 0.98 }} 
+                           <motion.button
+                              disabled={loginSubmitting}
+                              type="submit"
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.98 }}
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-4 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
                            >
                               {loginSubmitting ? (
@@ -600,8 +600,8 @@ export default function AuthPages() {
                         <div className="mt-8 text-center border-t border-slate-100 pt-6">
                            <p className="text-sm text-slate-600">
                               Sua empresa ainda não tem cadastro?{' '}
-                              <button 
-                                 onClick={() => setActiveView('register')} 
+                              <button
+                                 onClick={() => setActiveView('register')}
                                  className="font-bold text-[#EA580C] hover:underline"
                               >
                                  Cadastrar CNPJ
@@ -830,10 +830,10 @@ export default function AuthPages() {
                                     autoComplete="new-password"
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <button 
-                                    type="button" 
-                                    aria-label={showRegPassword ? 'Ocultar senha corporativa' : 'Revelar senha corporativa'} 
-                                    onClick={() => setShowRegPassword((prev) => !prev)} 
+                                 <button
+                                    type="button"
+                                    aria-label={showRegPassword ? 'Ocultar senha corporativa' : 'Revelar senha corporativa'}
+                                    onClick={() => setShowRegPassword((prev) => !prev)}
                                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
                                  >
                                     {showRegPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
@@ -863,10 +863,10 @@ export default function AuthPages() {
                                     autoComplete="new-password"
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <button 
-                                    type="button" 
-                                    aria-label={showRegConfirmPassword ? 'Ocultar confirmação de senha' : 'Revelar confirmação de senha'} 
-                                    onClick={() => setShowRegConfirmPassword((prev) => !prev)} 
+                                 <button
+                                    type="button"
+                                    aria-label={showRegConfirmPassword ? 'Ocultar confirmação de senha' : 'Revelar confirmação de senha'}
+                                    onClick={() => setShowRegConfirmPassword((prev) => !prev)}
                                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
                                  >
                                     {showRegConfirmPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
@@ -911,11 +911,11 @@ export default function AuthPages() {
                               </span>
                            </label>
 
-                           <motion.button 
-                              disabled={regSubmitting || !isPasswordSecurityMet || !regIsValid} 
-                              type="submit" 
-                              whileHover={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 1.01 }} 
-                              whileTap={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 0.98 }} 
+                           <motion.button
+                              disabled={regSubmitting || !isPasswordSecurityMet || !regIsValid}
+                              type="submit"
+                              whileHover={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 1.01 }}
+                              whileTap={regSubmitting || !isPasswordSecurityMet || !regIsValid ? undefined : { scale: 0.98 }}
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-orange-600 transition-all mt-4 disabled:opacity-50 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed"
                            >
                               {regSubmitting ? (
@@ -935,8 +935,8 @@ export default function AuthPages() {
                         <div className="mt-6 text-center border-t border-slate-100 pt-4">
                            <p className="text-sm text-slate-600">
                               Já possui cadastro?{' '}
-                              <button 
-                                 onClick={() => setActiveView('login')} 
+                              <button
+                                 onClick={() => setActiveView('login')}
                                  className="font-bold text-[#EA580C] hover:underline"
                               >
                                  Entrar na Conta
@@ -980,11 +980,11 @@ export default function AuthPages() {
                               )}
                            </div>
 
-                           <motion.button 
-                              disabled={forgotSubmitting} 
-                              type="submit" 
-                              whileHover={{ scale: 1.01 }} 
-                              whileTap={{ scale: 0.98 }} 
+                           <motion.button
+                              disabled={forgotSubmitting}
+                              type="submit"
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.98 }}
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-slate-800 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
                            >
                               {forgotSubmitting ? (
@@ -999,8 +999,8 @@ export default function AuthPages() {
                         </form>
 
                         <div className="mt-6 text-center border-t border-slate-100 pt-4">
-                           <button 
-                              onClick={() => setActiveView('login')} 
+                           <button
+                              onClick={() => setActiveView('login')}
                               className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0A2540] transition-colors"
                            >
                               Voltar para o Login
@@ -1010,9 +1010,9 @@ export default function AuthPages() {
                         {devResetLink && (
                            <div className="mt-6 p-4 rounded-xl border border-orange-200 bg-orange-50 text-center">
                               <p className="text-xs font-bold text-orange-700 mb-1">Modo de Teste:</p>
-                              <a 
-                                 href={devResetLink} 
-                                 onClick={(e) => { e.preventDefault(); navigate(devResetLink); }} 
+                              <a
+                                 href={devResetLink}
+                                 onClick={(e) => { e.preventDefault(); navigate(devResetLink); }}
                                  className="text-xs font-semibold text-[#0A2540] underline hover:text-[#EA580C]"
                               >
                                  Clique aqui para redefinir sua senha agora
@@ -1050,9 +1050,9 @@ export default function AuthPages() {
                                     spellCheck={false}
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <button 
-                                    type="button" 
-                                    onClick={() => setShowResetPassword(!showResetPassword)} 
+                                 <button
+                                    type="button"
+                                    onClick={() => setShowResetPassword(!showResetPassword)}
                                     className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
                                  >
                                     {showResetPassword ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -1080,9 +1080,9 @@ export default function AuthPages() {
                                     spellCheck={false}
                                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-12 py-3.5 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all focus:bg-white focus:border-[#EA580C] focus:ring-4 focus:ring-orange-100"
                                  />
-                                 <button 
-                                    type="button" 
-                                    onClick={() => setShowResetConfirm(!showResetConfirm)} 
+                                 <button
+                                    type="button"
+                                    onClick={() => setShowResetConfirm(!showResetConfirm)}
                                     className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700 transition-colors"
                                  >
                                     {showResetConfirm ? <EyeSlash className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -1095,11 +1095,11 @@ export default function AuthPages() {
                               )}
                            </div>
 
-                           <motion.button 
-                              disabled={resetSubmitting} 
-                              type="submit" 
-                              whileHover={{ scale: 1.01 }} 
-                              whileTap={{ scale: 0.98 }} 
+                           <motion.button
+                              disabled={resetSubmitting}
+                              type="submit"
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.98 }}
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0A2540] py-3.5 text-sm font-bold uppercase tracking-wider text-white shadow-md hover:bg-slate-800 transition-all mt-4 disabled:opacity-70 disabled:cursor-not-allowed"
                            >
                               {resetSubmitting ? (
@@ -1114,8 +1114,8 @@ export default function AuthPages() {
                         </form>
 
                         <div className="mt-6 text-center border-t border-slate-100 pt-4">
-                           <button 
-                              onClick={() => navigate('/login')} 
+                           <button
+                              onClick={() => navigate('/login')}
                               className="text-xs font-bold uppercase tracking-wider text-slate-600 hover:text-[#0A2540] transition-colors"
                            >
                               Voltar para o Login
@@ -1128,10 +1128,10 @@ export default function AuthPages() {
 
             {/* Footer Digital Day Software */}
             <div className="w-full text-center mt-8 pt-4 border-t border-slate-100">
-               <a 
-                  href="https://instagram.com/digitalday_software" 
-                  target="_blank" 
-                  rel="noreferrer" 
+               <a
+                  href="https://instagram.com/digitalday_software"
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex items-center gap-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-full px-4 py-1.5 transition-all group"
                >
                   <span className="text-[11px] text-slate-500 group-hover:text-slate-700 transition-colors">

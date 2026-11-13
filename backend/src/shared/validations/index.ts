@@ -7,6 +7,7 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   nome: z.string().trim().optional().transform((v) => (v && v.length >= 2 ? v : 'Administrador da conta')),
+  apelido: z.string().trim().optional().transform((v) => (v && v.length >= 1 ? v : undefined)),
   cnpj: z.string()
     .optional()
     .default('')
