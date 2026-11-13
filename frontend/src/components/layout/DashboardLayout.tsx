@@ -115,8 +115,8 @@ export default function DashboardLayout() {
         >
           <ErrorBoundary
             key={location.pathname}
-            fallbackTitle="Erro ao carregar módulo da plataforma"
-            fallbackMessage="O módulo solicitado encontrou uma instabilidade. Os dados das demais áreas continuam preservados."
+            fallbackTitle="Instabilidade temporária na exibição desta página"
+            fallbackMessage="A área solicitada encontrou uma instabilidade pontual. Os dados das demais áreas da plataforma continuam preservados."
           >
             <Suspense
               fallback={

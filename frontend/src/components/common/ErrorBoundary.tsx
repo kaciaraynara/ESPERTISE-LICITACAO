@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
     // Log seguro sem expor credenciais
-    console.error('[Enterprise ErrorBoundary] Falha capturada no módulo:', error, errorInfo);
+    console.error('[Enterprise ErrorBoundary] Falha capturada na área:', error, errorInfo);
 
     const errorMessage = error?.message || error?.toString?.() || '';
     const isChunkLoadError =
@@ -95,12 +95,12 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
 
           <h3 className="mt-4 text-lg font-black tracking-tight text-brand-dark sm:text-xl">
-            {this.props.fallbackTitle || 'Módulo Temporariamente Indisponível'}
+            {this.props.fallbackTitle || 'Área Temporariamente Indisponível'}
           </h3>
 
           <p className="mt-2 max-w-md text-xs font-medium text-slate-500 sm:text-sm">
             {this.props.fallbackMessage ||
-              'Ocorreu uma instabilidade pontual ao renderizar este componente. Os demais módulos do sistema continuam operando normalmente.'}
+              'Ocorreu uma instabilidade pontual ao exibir esta seção. As demais áreas da plataforma continuam operando normalmente.'}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -110,7 +110,7 @@ export class ErrorBoundary extends Component<Props, State> {
               className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-orange-600 hover:shadow-lg active:scale-95 cursor-pointer"
             >
               <ArrowClockwise className="h-4 w-4" weight="bold" />
-              Recarregar Módulo
+              Recarregar Página
             </button>
 
             <a

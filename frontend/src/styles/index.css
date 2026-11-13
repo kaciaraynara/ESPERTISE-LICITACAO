@@ -1,5 +1,5 @@
-@import url('https://fonts.cdnfonts.com/css/rawline');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url("https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css");
+@import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -46,7 +46,8 @@
     margin: 0;
     background: #F8FAFC;
     color: #334155;
-    font-family: 'Rawline', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Rawline', 'Public Sans', system-ui, -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -107,7 +108,8 @@
   h5,
   h6 {
     color: #0B192C;
-    font-family: 'Rawline', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Rawline', 'Public Sans', system-ui, -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
     letter-spacing: -0.01em;
     line-height: 1.25;
@@ -682,4 +684,38 @@ time {
 
 .shadow-xl {
   box-shadow: 0 6px 18px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.04) !important;
+}
+
+/* Tipografia Oficial Gov.br (Rawline) e Alinhamento Tabular em Tabelas e Controles */
+body,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+table,
+th,
+td,
+input,
+select,
+button {
+  font-family: 'Rawline', 'Public Sans', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Trava de legibilidade para eliminar letras pequenas */
+.text-\[9px\], .text-\[10px\], .text-\[11px\] {
+  font-size: 0.8125rem !important;
+  line-height: 1.35 !important;
+}
+
+.text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+.text-sm {
+  font-size: 0.9375rem !important;
+  line-height: 1.5 !important;
 }
