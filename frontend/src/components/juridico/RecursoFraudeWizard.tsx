@@ -12,6 +12,9 @@ import {
 } from '@components/icons/phosphor-compat';
 import { concorrentesApi, impugnacaoApi } from '@services/api';
 import type { DadosFraudePeca, MalhaFinaLicitacao } from '@/types';
+import { useCompany } from '@/contexts/CompanyContext';
+import { useAuthStore } from '@/store/auth.store';
+import { formatCnpjMask } from '@/utils/cnpj';
 import PainelRiscoCartel from './PainelRiscoCartel';
 import { EditalSelector, EditalOption } from '@components/EditalSelector';
 
@@ -34,6 +37,9 @@ interface RecursoFraudeWizardProps {
 }
 
 export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWizardProps = {}) {
+  const { selectedCompany } = useCompany();
+  const user = useAuthStore((state) => state.user);
+
   const [step, setStep] = useState<WizardStep>(initialEditalId ? 'dadosPeca' : 'concorrentes');
 
   useEffect(() => {
@@ -41,6 +47,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
       setStep('dadosPeca');
     }
   }, [initialEditalId]);
+
   const [cnpjsText, setCnpjsText] = useState('');
   const [dataCertame, setDataCertame] = useState('');
   const [orgao, setOrgao] = useState('');
@@ -53,11 +60,27 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
   const [malhaFina, setMalhaFina] = useState<MalhaFinaLicitacao | null>(null);
   const [peca, setPeca] = useState<PecaGerada | null>(null);
 
+  // Pré-preenchimento automático com os dados da empresa ativa e do representante logado
+  useEffect(() => {
+    if (selectedCompany?.razaoSocial && !nomeEmpresa) {
+      setNomeEmpresa(selectedCompany.razaoSocial);
+    }
+    if (selectedCompany?.cnpj && !cnpjEmpresa) {
+      setCnpjEmpresa(formatCnpjMask(selectedCompany.cnpj));
+    }
+  }, [selectedCompany, nomeEmpresa, cnpjEmpresa]);
+
+  useEffect(() => {
+    if (user?.nome && !representanteLegal) {
+      setRepresentanteLegal(user.nome);
+    }
+  }, [user?.nome, representanteLegal]);
+
   const handleSelectEdital = (ed: EditalOption) => {
     setNumeroEdital(ed.numeroEdital);
     setOrgao(ed.orgao);
     if (ed.modalidade) setModalidade(ed.modalidade);
-    if (ed.dataCertame) setDataCertame(ed.dataCertame);
+    if (ed.dataCertame) setDataCertame(String(ed.dataCertame).slice(0, 10));
     if (ed.objeto) setObjeto(ed.objeto);
     toast.success('Edital selecionado: Órgão, Modalidade e Data preenchidos automaticamente!');
   };
@@ -78,22 +101,39 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
       setMalhaFina(data);
       setPeca(null);
       setStep('risco');
-      toast.success('Malha societária processada.');
+      toast.success('Checagem de vínculos concluída.');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível processar a malha societária.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível processar a checagem de vínculos.');
     },
   });
 
   const gerarPecaMutation = useMutation({
     mutationFn: async () => {
-      if (!malhaFina) {
-        throw new Error('Processe a malha societária antes de elaborar a peça.');
-      }
-
       if (!dataCertame) {
         throw new Error('Informe a data do certame para calcular o prazo da peça.');
       }
+
+      let malhaAtual = malhaFina;
+      if (!malhaAtual && cnpjs.length >= 2) {
+        try {
+          const malhaResp = await concorrentesApi.malhaFina({ cnpjs });
+          malhaAtual = malhaResp.data?.data as MalhaFinaLicitacao;
+          setMalhaFina(malhaAtual);
+        } catch {
+          // Segue com a elaboração da peça mesmo se a checagem de vínculos estiver indisponível
+        }
+      }
+
+      const pontos = malhaAtual
+        ? [
+            'Apuração de indícios societários entre concorrentes',
+            'Preservação da competitividade e da isonomia do procedimento',
+          ]
+        : [
+            'Revisão de cláusulas restritivas e preservação da competitividade (Art. 5º e Art. 9º da Lei 14.133/2021)',
+            'Garantia de isonomia e vinculação objetiva ao instrumento convocatório',
+          ];
 
       const response = await impugnacaoApi.gerarPeca({
         orgao,
@@ -101,14 +141,11 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
         numero_edital: numeroEdital,
         objeto,
         data_certame: dataCertame,
-        nome_empresa: nomeEmpresa,
-        cnpj_empresa: cnpjEmpresa,
-        representante_legal: representanteLegal,
-        pontos_impugnacao: [
-          'Apuração de indícios societários entre concorrentes',
-          'Preservação da competitividade e da isonomia do procedimento',
-        ],
-        dadosFraude: toDadosFraudePeca(malhaFina),
+        nome_empresa: nomeEmpresa || selectedCompany?.razaoSocial || '',
+        cnpj_empresa: cnpjEmpresa || (selectedCompany?.cnpj ? formatCnpjMask(selectedCompany.cnpj) : ''),
+        representante_legal: representanteLegal || user?.nome || '',
+        pontos_impugnacao: pontos,
+        dadosFraude: malhaAtual ? toDadosFraudePeca(malhaAtual) : undefined,
         formato: 'markdown',
       });
 
@@ -117,10 +154,10 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
     onSuccess: (data) => {
       setPeca(data);
       setStep('peca');
-      toast.success('Peça recursal estruturada.');
+      toast.success('Peça jurídica elaborada com sucesso!');
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível estruturar a peça recursal.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível elaborar a peça jurídica.');
     },
   });
 
@@ -133,7 +170,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
               Checagem de Sócios e Concorrentes
             </p>
             <h1 className="mt-3 text-3xl md:text-4xl font-black tracking-tight text-slate-900">
-              Recurso com prova societária
+              Impugnação & Recurso com Prova Societária
             </h1>
           </div>
 
@@ -142,18 +179,23 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
               const active = item.id === step;
               const completed = index < currentStepIndex;
               return (
-                <span
+                <button
                   key={item.id}
-                  className={`inline-flex h-10 items-center justify-center rounded-xl border-2 px-4 text-xs font-black uppercase tracking-widest transition-all ${active
+                  type="button"
+                  onClick={() => {
+                    if (item.id === 'peca' && !peca) return;
+                    setStep(item.id);
+                  }}
+                  className={`inline-flex h-10 items-center justify-center rounded-xl border-2 px-4 text-xs font-black uppercase tracking-widest transition-all cursor-pointer ${active
                       ? 'border-brand-blue bg-blue-50/50 text-brand-blue shadow-sm'
                       : completed
                         ? 'border-brand-orange/30 bg-orange-50/50 text-brand-orange'
-                        : 'border-slate-100 bg-slate-50 text-slate-400'
+                        : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
                     }`}
                 >
                   <span className="mr-2 opacity-50">{index + 1}</span>
                   {item.label}
-                </span>
+                </button>
               );
             })}
           </div>
@@ -171,7 +213,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
               <button
                 type="button"
                 onClick={() => setStep('dadosPeca')}
-                className="px-3.5 py-1.5 bg-[#0A2540] hover:bg-slate-800 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
+                className="px-3.5 py-1.5 bg-[#0A2540] hover:bg-slate-800 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer"
               >
                 Dados da Peça &rarr;
               </button>
@@ -183,7 +225,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
           <div className="grid gap-8 xl:grid-cols-[0.46fr_0.54fr]">
             <div>
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                CNPJs Concorrentes
+                CNPJs Concorrentes (Opcional)
               </label>
               <textarea
                 value={cnpjsText}
@@ -196,23 +238,32 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
                 {cnpjs.length} CNPJ{cnpjs.length === 1 ? '' : 's'} válido{cnpjs.length === 1 ? '' : 's'} identificado{cnpjs.length === 1 ? '' : 's'}.
               </p>
 
-              <button
-                type="button"
-                onClick={() => investigarMutation.mutate()}
-                disabled={investigarMutation.isPending}
-                className="mt-6 inline-flex w-full sm:w-auto h-14 items-center justify-center gap-3 rounded-xl bg-brand-blue hover:bg-[#172554] px-8 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
-              >
-                {investigarMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" weight="bold" /> : <Scale className="h-5 w-5" weight="bold" />}
-                Checar Vínculos
-              </button>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => investigarMutation.mutate()}
+                  disabled={investigarMutation.isPending}
+                  className="inline-flex w-full sm:w-auto h-14 items-center justify-center gap-3 rounded-xl bg-brand-blue hover:bg-[#172554] px-8 text-sm font-black uppercase tracking-widest text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0 cursor-pointer"
+                >
+                  {investigarMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" weight="bold" /> : <Scale className="h-5 w-5" weight="bold" />}
+                  Checar Vínculos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('dadosPeca')}
+                  className="inline-flex w-full sm:w-auto h-14 items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 px-6 text-xs font-black uppercase tracking-widest text-slate-700 transition-all cursor-pointer"
+                >
+                  Ir Direto para Peça &rarr;
+                </button>
+              </div>
             </div>
 
             <StepSurface>
               <div className="rounded-2xl border-2 border-slate-100 bg-slate-50 p-8 flex flex-col items-center justify-center text-center h-full">
                 <FileText className="h-12 w-12 text-brand-orange mb-4" weight="bold" />
-                <p className="text-xl font-black text-slate-900">Malha Societária</p>
+                <p className="text-xl font-black text-slate-900">Análise de Sócios e Vínculos</p>
                 <p className="mt-3 max-w-sm text-sm font-medium leading-relaxed text-slate-500">
-                  A análise cruza QSA público e retorna apenas vínculos objetivos entre concorrentes.
+                  Cruza os dados públicos dos concorrentes para identificar sócios em comum ou ir direto para a elaboração da impugnação.
                 </p>
               </div>
             </StepSurface>
@@ -231,7 +282,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
               <button
                 type="button"
                 onClick={() => setStep('dadosPeca')}
-                className="inline-flex h-14 w-full sm:w-auto items-center justify-center gap-3 rounded-xl border-2 border-brand-blue bg-white px-8 text-sm font-black uppercase tracking-widest text-brand-blue transition-all hover:bg-brand-blue hover:text-white"
+                className="inline-flex h-14 w-full sm:w-auto items-center justify-center gap-3 rounded-xl border-2 border-brand-blue bg-white px-8 text-sm font-black uppercase tracking-widest text-brand-blue transition-all hover:bg-brand-blue hover:text-white cursor-pointer"
               >
                 Prosseguir com Peça de Registro
                 <ArrowRight className="h-5 w-5" weight="bold" />
@@ -260,25 +311,25 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Empresa Recorrente" value={nomeEmpresa} onChange={setNomeEmpresa} placeholder="Razão social" />
               <Field label="CNPJ Recorrente" value={cnpjEmpresa} onChange={setCnpjEmpresa} placeholder="00.000.000/0000-00" />
-              <Field label="Representante" value={representanteLegal} onChange={setRepresentanteLegal} placeholder="Nome" />
+              <Field label="Representante" value={representanteLegal} onChange={setRepresentanteLegal} placeholder="Nome completo" />
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button
                 type="button"
-                onClick={() => setStep('risco')}
-                className="inline-flex h-14 items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 text-sm font-black uppercase tracking-widest text-slate-500 transition-all hover:border-slate-300 hover:bg-slate-50"
+                onClick={() => setStep(malhaFina ? 'risco' : 'concorrentes')}
+                className="inline-flex h-14 items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-8 text-sm font-black uppercase tracking-widest text-slate-500 transition-all hover:border-slate-300 hover:bg-slate-50 cursor-pointer"
               >
-                Revisar Risco
+                {malhaFina ? 'Revisar Risco' : 'Checar Concorrentes'}
               </button>
               <button
                 type="button"
                 onClick={() => gerarPecaMutation.mutate()}
                 disabled={gerarPecaMutation.isPending}
-                className="inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-brand-orange px-8 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 hover:bg-orange-500 disabled:opacity-50 disabled:hover:translate-y-0"
+                className="inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-brand-orange px-8 text-sm font-black uppercase tracking-widest text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 hover:bg-orange-500 disabled:opacity-50 disabled:hover:translate-y-0 cursor-pointer"
               >
                 {gerarPecaMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" weight="bold" /> : <ArrowRight className="h-5 w-5" weight="bold" />}
-                Gerar Peça com Checagem de Vínculos
+                {malhaFina ? 'Gerar Peça com Checagem de Vínculos' : 'Elaborar Peça Jurídica'}
               </button>
             </div>
           </div>
@@ -294,7 +345,7 @@ export default function RecursoFraudeWizard({ initialEditalId }: RecursoFraudeWi
               <button
                 type="button"
                 onClick={() => copyToClipboard(peca.conteudo)}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-blue/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-brand-blue transition hover:bg-brand-blue hover:text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-blue/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-brand-blue transition hover:bg-brand-blue hover:text-white cursor-pointer"
               >
                 <Copy className="h-4 w-4" weight="bold" />
                 Copiar
