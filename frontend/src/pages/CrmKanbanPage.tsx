@@ -224,40 +224,50 @@ export default function CrmKanbanPage() {
                             </p>
                             <p className="mt-1 truncate text-[11px] text-slate-500">{orgao}</p>
 
-                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5">
-                              <button
-                                type="button"
-                                onClick={() => handleRemover(op.id)}
-                                disabled={movendoId === op.id}
-                                title="Remover das disputas"
-                                className="rounded-full p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`${FORNECEDOR_ROUTES.propostas}?edital=${op.noticeId || op.id}`)}
+                                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 hover:bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-[#081C3A] transition"
+                                  title="Criar Proposta Comercial"
+                                >
+                                  <FileText className="h-3 w-3 text-[#FF6600]" />
+                                  Proposta
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`${FORNECEDOR_ROUTES.robo_lances}?id=${op.noticeId || op.id}`)}
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 hover:bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-[#0070C0] transition"
+                                  title="Abrir Sala de Disputa"
+                                >
+                                  <Gavel className="h-3 w-3" />
+                                  Sala
+                                </button>
+                              </div>
 
                               <div className="flex items-center gap-1.5">
-                                {col.id === 'SESSAO_PUBLICA' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(FORNECEDOR_ROUTES.disputa_ao_vivo)}
-                                    className="inline-flex items-center gap-1 rounded-full bg-[#0070C0] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#005ea3]"
-                                  >
-                                    <Gavel className="h-3 w-3" />
-                                    Sala
-                                  </button>
-                                )}
-
                                 {colIndex < COLUNAS.length - 1 && (
                                   <button
                                     type="button"
                                     onClick={() => handleAvancarEtapa(op)}
                                     disabled={movendoId === op.id}
-                                    className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#081C3A] shadow-sm transition hover:text-[#0070C0]"
+                                    className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#081C3A] shadow-xs border border-slate-200 transition hover:border-[#0070C0] hover:text-[#0070C0]"
                                   >
                                     Avançar
                                     <ChevronRight className="h-3 w-3" />
                                   </button>
                                 )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemover(op.id)}
+                                  disabled={movendoId === op.id}
+                                  title="Remover das disputas"
+                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             </div>
                           </div>

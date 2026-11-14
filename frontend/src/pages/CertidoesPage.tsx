@@ -87,37 +87,37 @@ export const CertidoesPage: React.FC = () => {
     if (st === 'VALIDA') {
       return (
         <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
-          <CheckCircle2 size={12} /> Em dia ({dias} dias)
+          <CheckCircle2 size={12} /> Em dia {dias !== null ? `(${dias} dias restantes)` : ''}
         </span>
       );
     }
     if (st === 'VENCENDO') {
       return (
-        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200 inline-flex items-center gap-1">
-          <Clock size={12} /> Vence em breve ({dias} dias)
+        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+          <Clock size={12} /> Atenção: vence em {dias} dias
         </span>
       );
     }
     if (st === 'SEM_VALIDADE') {
       return (
         <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
-          <AlertTriangle size={12} /> Sem validade cadastrada
+          <AlertTriangle size={12} /> Pendente de emissão
         </span>
       );
     }
     return (
       <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200 inline-flex items-center gap-1">
-        <AlertTriangle size={12} /> Vencida
+        <AlertTriangle size={12} /> Vencida: renovar para habilitar
       </span>
     );
   };
 
   const getRegularityBadge = (regularidade: CertidaoItem['regularidade']) => {
     if (regularidade === 'REGULAR') {
-      return <span className="mt-1 block text-[11px] font-bold text-emerald-700">Situação regular</span>;
+      return <span className="mt-1 block text-[11px] font-bold text-emerald-700">Situação 100% regular</span>;
     }
     if (regularidade === 'IRREGULAR') {
-      return <span className="mt-1 block text-[11px] font-bold text-red-700">Pendência encontrada</span>;
+      return <span className="mt-1 block text-[11px] font-bold text-red-700">Pendência fiscal ou cadastral</span>;
     }
     return null;
   };
@@ -204,8 +204,11 @@ export const CertidoesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-xs leading-5 text-blue-950">
-          Mantenha suas certidões (Receita Federal/PGFN, FGTS, Trabalhista, Estadual e Municipal) sempre atualizadas para evitar desclassificação na fase de habilitação.
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-5 py-4 text-xs leading-relaxed text-blue-950 flex items-start gap-3">
+          <ShieldCheck className="w-5 h-5 text-[#0070c0] shrink-0 mt-0.5" />
+          <div>
+            <strong className="font-bold text-[#081c3a]">Orientação da Luli:</strong> As 5 certidões de regularidade (Receita Federal/INSS, FGTS, Trabalhista CNDT, Estadual e Municipal) garantem que sua empresa possa assinar contratos públicos sem surpresas. Para microempresas e EPPs com pendência fiscal momentânea, a Lei 14.133/2021 assegura o direito de apresentar a certidão regularizada em até 5 dias úteis após a vitória.
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">

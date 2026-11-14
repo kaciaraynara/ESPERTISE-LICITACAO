@@ -381,7 +381,7 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
 
     const socket = io(socketUrl, {
       auth: { token: accessToken || 'anon-dev' },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'], // Polling primeiro para handshake seguro no Render
       reconnectionAttempts: 4,
       reconnectionDelay: 1000,
     });
