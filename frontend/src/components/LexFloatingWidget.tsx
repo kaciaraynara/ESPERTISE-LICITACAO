@@ -127,6 +127,19 @@ function resolveRouteGuidance(pathname: string): RouteGuidance {
     };
   }
 
+  if (path.includes('/fornecedores') || path.includes('/rede-fornecedores')) {
+    return {
+      screenLabel: 'Rede de Fornecedores',
+      nextStep:
+        'Cadastre seus fornecedores, consulte a regularidade do CNPJ e anexe cotações e notas para agilizar a formação do seu preço de venda com segurança.',
+      quickPrompts: [
+        'Como organizar meus fornecedores para cotar preços mais rápido?',
+        'Quais dados do fornecedor são essenciais antes de fechar a compra?',
+        'Como negociar prazos e preços com fornecedores para editais públicos?',
+      ],
+    };
+  }
+
   if (path.includes('/pos-vitoria') || path.includes('/contratos') || path.includes('/srp')) {
     return {
       screenLabel: 'Contratos e Entregas',
@@ -153,18 +166,18 @@ function resolveRouteGuidance(pathname: string): RouteGuidance {
 }
 
 function buildHumanFallbackReply(question: string, guidance: RouteGuidance): string {
-  return `Entendi sua dúvida sobre **"${question}"** aqui na tela de **${guidance.screenLabel}**! Vou te explicar de forma bem prática como funciona:
+  return `Oi! Entendi sua dúvida sobre **"${question}"** aqui na tela de **${guidance.screenLabel}**. Vamos direto ao ponto:
 
 1. **O que você deve fazer agora nesta etapa:**
    ${guidance.nextStep}
 
-2. **Prazos que você precisa ter sempre no radar:**
-   - **Antes da sessão (até 3 dias úteis antes):** é o prazo máximo para tirar dúvidas ou pedir correção de alguma regra do edital.
-   - **Na hora do desempate (Microempresa e EPP):** se o seu preço ficar até 5% acima do menor lance, você tem 5 minutos para dar um lance menor e assumir o 1º lugar.
+2. **Pontos de atenção que você não pode esquecer:**
+   - **Antes da sessão (até 3 dias úteis antes):** se alguma exigência do edital estiver confusa ou restritiva, é o prazo máximo para pedir esclarecimento ou impugnar.
+   - **Empate Ficto (ME e EPP):** se o seu preço ficar até 5% acima do 1º colocado no pregão, você ganha 5 minutos para cobrir a oferta e assumir a vitória.
    - **Depois de ganhar o item:** o pregoeiro abre o prazo (no mínimo 2 horas) para você enviar a proposta final ajustada com o valor vencedor.
-   - **Se precisar recorrer:** assim que o resultado sair, manifeste no chat do portal que deseja recorrer e depois envie o texto completo em até 3 dias úteis.
+   - **Proteção de Margem:** respeite sempre o seu limite mínimo de lance. Vencer com margem negativa causa prejuízo na entrega.
 
-Se quiser, me conte qual é o produto ou edital que você está olhando agora que eu te ajudo a montar a melhor estratégia!`;
+Conta comigo! Se quiser, pode colar um trecho do edital ou me fazer outra pergunta que eu te explico na hora.`;
 }
 
 export const LexFloatingWidget: React.FC = () => {
@@ -197,18 +210,30 @@ export const LexFloatingWidget: React.FC = () => {
 
   const [messages, setMessages] = useState<LexMessage[]>([
     {
-      id: 'welcome-lex',
+      id: 'welcome-luli',
       role: 'assistant',
       content:
-        'Oi! Eu sou o **Lex**, seu parceiro de licitações aqui na Expertise.\n\nPode falar comigo do seu jeito — seja sua primeira licitação ou sua centésima. Estou vendo em qual tela você está e vou te explicar tudo passo a passo: o que fazer agora, quais prazos vigiar e como proteger seu lucro. No que posso te ajudar?',
-      timestamp: new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+        'Oi! Eu sou a **Luli**, sua parceira de licitações aqui na Expertise.\n\nPode conversar comigo do seu jeito — seja sua primeira licitação ou sua centésima. Estou te acompanhando em cada tela para te guiar no passo a passo: o que fazer agora, quais prazos não perder e como proteger sua margem sem complicação. No que posso te ajudar hoje?',
+      timestamp: '',
     },
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Evita erro de hidratacao do React populando horario local apenas no cliente
+  useEffect(() => {
+    const clientTime = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === 'welcome-luli' && !msg.timestamp
+          ? { ...msg, timestamp: clientTime }
+          : msg,
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -224,25 +249,24 @@ export const LexFloatingWidget: React.FC = () => {
       setInputValue('');
     }
 
+    const now = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
     const userMsg: LexMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: question,
-      timestamp: new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      timestamp: now,
     };
 
-    const assistantMsgId = `lex-${Date.now() + 1}`;
+    const assistantMsgId = `luli-${Date.now() + 1}`;
     const placeholderAssistantMsg: LexMessage = {
       id: assistantMsgId,
       role: 'assistant',
       content: '',
-      timestamp: new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      timestamp: now,
     };
 
     setMessages((prev) => [...prev, userMsg, placeholderAssistantMsg]);
@@ -253,7 +277,7 @@ export const LexFloatingWidget: React.FC = () => {
         endpoint: '/lex/chat',
         pergunta: question,
         noticeId: detectedNoticeId,
-        contexto: `Responda de forma 100% humana, acolhedora, clara e detalhada (sem jargões difíceis), explicando passo a passo como um consultor real conversando com o usuário. Tela atual: ${guidance.screenLabel} (${location.pathname}). Orientação da tela: ${guidance.nextStep}`,
+        contexto: `Responda de forma 100% humana, acolhedora, clara e detalhada (sem jargões difíceis), explicando passo a passo como uma consultora experiente e colega de trabalho conversando com o usuário. Tela atual: ${guidance.screenLabel} (${location.pathname}). Orientação da tela: ${guidance.nextStep}`,
         messages: messages
           .slice(-6)
           .map((m) => ({ role: m.role, content: m.content }))
@@ -299,15 +323,16 @@ export const LexFloatingWidget: React.FC = () => {
   };
 
   const handleClearHistory = () => {
+    const clientTime = new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
     setMessages([
       {
         id: `welcome-${Date.now()}`,
         role: 'assistant',
         content: `Pronto, limpei nossa conversa! Continuo com você aqui na tela de **${guidance.screenLabel}**. Qual dúvida posso esclarecer agora?`,
-        timestamp: new Date().toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        timestamp: clientTime,
       },
     ]);
   };
@@ -322,7 +347,7 @@ export const LexFloatingWidget: React.FC = () => {
               : 'w-[92vw] sm:w-[440px] h-[640px] max-h-[84vh]'
           }`}
           role="dialog"
-          aria-label="Lex — Seu Guia de Licitações"
+          aria-label="Luli — Sua Guia de Licitações"
         >
           <div className="bg-[#081c3a] text-white px-4 py-3.5 flex items-center justify-between border-b-2 border-[#0070c0] shrink-0">
             <div className="flex items-center gap-3 min-w-0">
@@ -330,7 +355,7 @@ export const LexFloatingWidget: React.FC = () => {
                 {!imgError ? (
                   <img
                     src="/assets/mascote-3d.png"
-                    alt="Lex"
+                    alt="Luli"
                     className="w-9 h-9 object-contain"
                     onError={() => setImgError(true)}
                   />
@@ -341,14 +366,14 @@ export const LexFloatingWidget: React.FC = () => {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-white text-base truncate">
-                    Lex • Seu Guia
+                    Luli • Sua Guia
                   </span>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#0070c0] text-white">
                     Online
                   </span>
                 </div>
                 <p className="text-xs text-slate-200 truncate">
-                  Explicação passo a passo, prazos e apoio em todas as telas
+                  Apoio passo a passo, prazos e proteção de margem
                 </p>
               </div>
             </div>
@@ -430,7 +455,7 @@ export const LexFloatingWidget: React.FC = () => {
                   )}
                 </div>
                 <span className="text-xs text-slate-400 mt-1 px-1">
-                  {msg.role === 'user' ? 'Você' : 'Lex'} • {msg.timestamp}
+                  {msg.role === 'user' ? 'Você' : 'Luli'}{msg.timestamp ? ` • ${msg.timestamp}` : ''}
                 </span>
               </div>
             ))}
@@ -492,13 +517,13 @@ export const LexFloatingWidget: React.FC = () => {
           type="button"
           onClick={() => setIsOpen(true)}
           className="group flex items-center gap-3 pl-2.5 pr-4 py-2 rounded-full bg-[#081c3a] hover:bg-[#0070c0] text-white shadow-xl border-2 border-white transition-all duration-200 cursor-pointer"
-          aria-label="Falar com o Lex"
+          aria-label="Falar com a Luli"
         >
           <div className="relative w-10 h-10 rounded-full bg-white/15 flex items-center justify-center overflow-hidden shrink-0">
             {!imgError ? (
               <img
                 src="/assets/mascote-3d.png"
-                alt="Lex"
+                alt="Luli"
                 className="w-9 h-9 object-contain"
                 onError={() => setImgError(true)}
               />
@@ -509,7 +534,7 @@ export const LexFloatingWidget: React.FC = () => {
           </div>
           <div className="text-left">
             <div className="text-xs font-bold leading-tight text-white flex items-center gap-1.5">
-              <span>Fale com o Lex</span>
+              <span>Fale com a Luli</span>
               <span className="px-2 py-0.5 rounded-full bg-[#ff6600] text-white text-[11px] font-semibold">
                 Guia
               </span>

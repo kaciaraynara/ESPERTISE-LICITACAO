@@ -26,6 +26,8 @@ export const FORNECEDOR_ROUTES = {
   disputa_ao_vivo: `${FORNECEDOR_PREFIX}/disputa-ao-vivo`,
   defesas_recursos: `${FORNECEDOR_PREFIX}/defesas-recursos`,
   contencioso: `${FORNECEDOR_PREFIX}/defesas-recursos`,
+  fornecedores: '/fornecedores',
+  rede_fornecedores: '/fornecedores',
 
   // Sub-rotas e Aliases Operacionais
   proposta_criar: `${FORNECEDOR_PREFIX}/propostas/criar`,

@@ -97,6 +97,7 @@ const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));
 const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
 const RadarPage = React.lazy(() => import('./pages/RadarPage'));
 const ExpertiseFiscalPage = React.lazy(() => import('./pages/ExpertiseFiscalPage'));
+const RedeFornecedoresPage = React.lazy(() => import('./pages/RedeFornecedoresPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -370,6 +371,8 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.habilitacao} element={protectFeature('habilitacao', 'Habilitação', <HabilitacaoPage />)} />
             <Route path={FORNECEDOR_ROUTES.cofre} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
             <Route path={FORNECEDOR_ROUTES.certidoes} element={protectFeature('certidoes', 'Certidões', <CertidoesPage />)} />
+            <Route path="/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+            <Route path="/fornecedor/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
             <Route path={FORNECEDOR_ROUTES.srp} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
             <Route path={FORNECEDOR_ROUTES.academia} element={protectFeature('academia_licitante', 'Academia do Licitante', <AcademiaPage />)} />
             <Route

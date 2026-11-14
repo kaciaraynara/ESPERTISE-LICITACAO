@@ -3,25 +3,19 @@ import {
   Crosshair,
   ListChecks as QuadroIcon,
   Scales,
-  Trophy,
   MagnifyingGlass,
-  WarningCircle,
-  ChartLineUp,
   Robot,
-  Gavel,
-  CheckSquare,
   Vault,
   ShieldCheck,
-  Certificate,
   Receipt,
-  GraduationCap,
   FileText,
   Brain,
-  Eye,
   CreditCard,
   Gear,
   SignOut,
   CaretDown,
+  Users,
+  Buildings,
   type Icon,
 } from '@phosphor-icons/react';
 import { Pin, PinOff } from 'lucide-react';
@@ -44,31 +38,18 @@ export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.dashboard]: () => import('@/pages/DashboardPage'),
-  [FORNECEDOR_ROUTES.radar]: () => import('@/pages/RadarPage'),
-  [FORNECEDOR_ROUTES.historico_concorrentes]: () => import('@/pages/HistoricoConcorrentesPage'),
-  [FORNECEDOR_ROUTES.disputa_ao_vivo]: () => import('@/pages/DisputaAoVivoPage'),
-  [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
-  [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
-  [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
-  [FORNECEDOR_ROUTES.catalogo]: () => import('@/pages/Catalogo/CatalogoPage'),
-  [FORNECEDOR_ROUTES.prazos_alertas]: () => import('@/pages/PrazosAlertas/PrazosAlertasPage'),
-  [FORNECEDOR_ROUTES.defesas_recursos]: () => import('@/pages/Contencioso/ContenciosoHubPage'),
-  [FORNECEDOR_ROUTES.lex]: () => import('@/pages/Lex/LexAnalisePage'),
-  [FORNECEDOR_ROUTES.impugnacao]: () => import('@/pages/ImpugnacaoPage'),
-  [FORNECEDOR_ROUTES.recursos]: () => import('@/pages/RecursosPage'),
-  [FORNECEDOR_ROUTES.leitor_editais]: () => import('@/pages/LeitorEditaisPage'),
-  [FORNECEDOR_ROUTES.radar_nulidades]: () => import('@/pages/Nulidades/NulidadesPage'),
-  [FORNECEDOR_ROUTES.academia]: () => import('@/pages/Academia/AcademiaPage'),
-  [FORNECEDOR_ROUTES.gestao_pos_vitoria]: () => import('@/pages/GestaoPosVitoriaPage'),
-  [FORNECEDOR_ROUTES.gestao_contratual]: () => import('@/pages/GestaoContratualPage'),
-  [FORNECEDOR_ROUTES.expertise_fiscal]: () => import('@/pages/ExpertiseFiscalPage'),
-  [FORNECEDOR_ROUTES.cofre]: () => import('@/pages/CofrePage'),
-  [FORNECEDOR_ROUTES.certidoes]: () => import('@/pages/CertidoesPage'),
-  [FORNECEDOR_ROUTES.habilitacao]: () => import('@/pages/HabilitacaoPage'),
+  [FORNECEDOR_ROUTES.radar]: () => import('@/pages/LicitacoesPage'),
   [FORNECEDOR_ROUTES.srp]: () => import('@/pages/Srp/SrpPage'),
-  [FORNECEDOR_ROUTES.relatorios_estrategicos]: () => import('@/pages/Relatorios/RelatoriosPage'),
-  [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
+  [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
+  [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
+  [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
+  [FORNECEDOR_ROUTES.cofre]: () => import('@/pages/CofrePage'),
+  [FORNECEDOR_ROUTES.fornecedores]: () => import('@/pages/RedeFornecedoresPage'),
+  [FORNECEDOR_ROUTES.leitor_editais]: () => import('@/pages/LeitorEditaisPage'),
+  [FORNECEDOR_ROUTES.defesas_recursos]: () => import('@/pages/Contencioso/ContenciosoHubPage'),
+  [FORNECEDOR_ROUTES.empresa]: () => import('@/pages/EmpresaPage'),
   [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
+  [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
 };
 
 export function prefetchRoute(path: string) {
@@ -237,56 +218,55 @@ export interface StrategicHubConfig {
 
 const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
-    id: 'radar',
-    label: 'Radar & Oportunidades',
-    subtitle: 'Captação & Inteligência',
+    id: 'oportunidades',
+    label: 'Oportunidades',
+    subtitle: 'Radar e Registro de Preços',
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
+      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços', icon: Receipt, requiredFeature: 'srp_carona' },
     ],
   },
   {
     id: 'disputas',
-    label: 'Disputa ao Vivo',
-    subtitle: 'Acompanhamento & Lances',
+    label: 'Disputas',
+    subtitle: 'Gestão, Propostas e Sala',
     icon: QuadroIcon,
     items: [
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
-      { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
-      { path: FORNECEDOR_ROUTES.catalogo, label: 'Histórico de Compras', icon: Receipt, requiredFeature: 'catalogo_produtos' },
-      { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
+      { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
+      { path: FORNECEDOR_ROUTES.propostas, label: 'Gerador de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa', icon: Robot, requiredFeature: 'robo_lances' },
+    ],
+  },
+  {
+    id: 'documentos_fornecedores',
+    label: 'Documentos e Fornecedores',
+    subtitle: 'Cofre, Certidões e Parceiros',
+    icon: Vault,
+    items: [
+      { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre e Certidões', icon: ShieldCheck, requiredFeature: 'cofre_documentos' },
+      { path: FORNECEDOR_ROUTES.fornecedores, label: 'Rede de Fornecedores', icon: Users, requiredFeature: 'fornecedores' },
     ],
   },
   {
     id: 'defesas_recursos',
     label: 'Defesas e Recursos',
-    subtitle: 'Segurança e Recursos 14.133',
+    subtitle: 'Análises, Impugnações e Recursos',
     icon: Scales,
     items: [
-      { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Análise com o Luli', icon: Brain, requiredFeature: 'luli_ia_avancada' },
-      { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
-      { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
-      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
+      { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Análise de Editais', icon: Brain, requiredFeature: 'resumo_edital_completo' },
+      { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Impugnações e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
     ],
   },
   {
-    id: 'pos_vitoria',
-    label: 'Gestão Pós-Vitória & Garantias',
-    subtitle: 'Execução & Conformidade',
-    icon: Trophy,
+    id: 'configuracoes_empresa',
+    label: 'Configurações e Empresa',
+    subtitle: 'Dados e Preferências',
+    icon: Gear,
     items: [
-      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos', icon: Vault, requiredFeature: 'Meus Documentos' },
-      { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
-      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
-      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
-      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios e Resultados', icon: ChartLineUp, requiredFeature: 'Relatórios e Resultados' },
+      { path: FORNECEDOR_ROUTES.empresa, label: 'Minha Empresa', icon: Buildings, requiredFeature: 'empresa' },
+      { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear, requiredFeature: 'configuracoes' },
+      { path: FORNECEDOR_ROUTES.planos, label: 'Planos e Assinatura', icon: CreditCard, requiredFeature: 'planos' },
     ],
   },
 ];
@@ -526,7 +506,7 @@ export default function Sidebar() {
         style={{
           transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
         }}
-        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
+        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-[#081C3A] text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
           }`}
       >
         <div
@@ -601,7 +581,7 @@ export default function Sidebar() {
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
-              title={isCollapsed ? 'Página Inicial' : undefined}
+              title={isCollapsed ? 'Início (Central de Comando)' : undefined}
               className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
                 } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
                   ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
@@ -611,7 +591,8 @@ export default function Sidebar() {
               <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
               {!isCollapsed && (
                 <div className="min-w-0 flex-1 transition-opacity duration-300">
-                  <span className="block text-xs font-black tracking-tight">Página Inicial</span>
+                  <span className="block text-xs font-black tracking-tight">Início</span>
+                  <span className="block text-[10px] text-slate-400 font-normal">Central de Comando</span>
                 </div>
               )}
             </Link>
@@ -619,7 +600,7 @@ export default function Sidebar() {
 
           {!isCollapsed && (
             <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
-              Centrais Estratégicas
+              Módulos do Sistema
             </p>
           )}
 
@@ -633,32 +614,6 @@ export default function Sidebar() {
                 onToggle={() => toggleHub(hub.id)}
               />
             ))}
-          </div>
-
-          <div className="my-2.5 border-t border-white/10" />
-
-          <div className="space-y-1">
-            <Link
-              to={FORNECEDOR_ROUTES.planos}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.planos)}
-              title={isCollapsed ? 'Planos & Assinatura' : undefined}
-              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-            >
-              <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-              {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
-            </Link>
-
-            <Link
-              to={FORNECEDOR_ROUTES.configuracoes}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.configuracoes)}
-              title={isCollapsed ? 'Configurações' : undefined}
-              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-            >
-              <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-              {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
-            </Link>
           </div>
         </nav>
 
