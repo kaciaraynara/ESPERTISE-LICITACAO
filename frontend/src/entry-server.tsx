@@ -3,13 +3,14 @@ import { renderToString } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LandingPage from './pages/LandingPage';
-import AuthPages from './pages/AuthPages';
+import { LoginPage, RegisterPage } from './pages/AuthPages';
 import './styles/index.css';
 
 const publicPages: Record<string, React.ReactElement> = {
   '/': <LandingPage />,
-  '/login': <AuthPages />,
-  '/register': <AuthPages />,
+  '/login': <LoginPage />,
+  '/register': <RegisterPage />,
+  '/cadastro': <RegisterPage />,
 };
 
 export function render(url: string) {

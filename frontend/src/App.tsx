@@ -13,7 +13,7 @@ import {
 
 import DashboardLayout from './components/layout/DashboardLayout';
 import LandingPage from './pages/LandingPage';
-import AuthPages from './pages/AuthPages';
+import AuthPages, { LoginPage, RegisterPage } from './pages/AuthPages';
 import { PremiumFeatureGuard } from './components/monetization/PremiumFeatureGuard';
 import { CompanyProvider } from './contexts/CompanyContext';
 
@@ -130,7 +130,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 // ----------------------------------------------------
 // Não depende de mudanças de rota. Renovações durante o uso ficam a cargo
 // do interceptor 401 em services/api.ts (refresh sob demanda, deduplicado).
-const PUBLIC_PATHS = ['/', '/login', '/register', '/forgot-password', '/esqueci-senha', '/reset-password', '/redefinir-senha', '/auth/redefinir-senha', '/termos', '/privacidade'];
+const PUBLIC_PATHS = ['/', '/login', '/register', '/cadastro', '/forgot-password', '/esqueci-senha', '/reset-password', '/redefinir-senha', '/auth/redefinir-senha', '/termos', '/privacidade'];
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
 
 function isAccessTokenValid(token: string | null | undefined): boolean {
@@ -320,13 +320,14 @@ export default function App() {
           <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
           
           {/* Rotas de Autenticação */}
-          <Route path="/login" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/forgot-password" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/reset-password" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/auth/redefinir-senha" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/redefinir-senha" element={<PublicRoute><AuthPages /></PublicRoute>} />
-          <Route path="/esqueci-senha" element={<PublicRoute><AuthPages /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+          <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+          <Route path="/cadastro" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+          <Route path="/reset-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+          <Route path="/auth/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+          <Route path="/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+          <Route path="/esqueci-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
 
           {/* Rotas Seguras ERP */}
           <Route element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>

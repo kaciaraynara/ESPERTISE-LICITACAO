@@ -544,3 +544,7 @@ export function imprimirPropostaPdf(dados: DadosDocumentoProposta): boolean {
 
   return true;
 }
+
+export const gerarPropostaComercialPdf = imprimirPropostaPdf;
+export const gerarPropostaPDF = imprimirPropostaPdf;
+export default imprimirPropostaPdf;

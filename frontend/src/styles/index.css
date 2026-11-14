@@ -720,9 +720,7 @@ button {
   line-height: 1.5 !important;
 }
 /* Estilo Limpo e Moderno-Rústico (Campos em Pílula e Hierarquia Clara) */
-.expertise-pill-input,
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-select {
+.expertise-pill-input {
   border-radius: 9999px !important;
   border-color: #CBD5E1;
   background-color: #FFFFFF;
@@ -731,6 +729,34 @@ select {
   padding-right: 1rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select {
+  border-color: #CBD5E1;
+  background-color: #FFFFFF;
+  color: #081C3A;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Não sobrescreve classes utilitárias de padding como pl-10, pl-11, pl-12 */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([class*="pl-"]),
+select:not([class*="pl-"]) {
+  padding-left: 1rem;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([class*="pr-"]),
+select:not([class*="pr-"]) {
+  padding-right: 1rem;
+}
+
+/* Garante que utilitários de padding com ícones preservem espaçamento correto */
+input[class*="pl-10"] { padding-left: 2.5rem !important; }
+input[class*="pl-11"] { padding-left: 2.75rem !important; }
+input[class*="pl-12"] { padding-left: 3rem !important; }
+input[class*="pl-14"] { padding-left: 3.5rem !important; }
+input[class*="pr-10"] { padding-right: 2.5rem !important; }
+input[class*="pr-11"] { padding-right: 2.75rem !important; }
+input[class*="pr-12"] { padding-right: 3rem !important; }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
 select:focus,
