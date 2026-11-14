@@ -840,7 +840,7 @@ export default function DossieEditalModal({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 print:border-slate-400 print:text-slate-900">
                   <FileText className="w-3.5 h-3.5" />
-                  {titulo || 'Resumo Completo do Edital'}
+                  {titulo || 'Dossiê Estratégico do Edital'}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                   Lei 14.133/2021
@@ -877,7 +877,7 @@ export default function DossieEditalModal({
                 className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Baixar PDF</span>
+                <span>Baixar Dossiê em PDF</span>
               </button>
 
               <a
@@ -886,8 +886,17 @@ export default function DossieEditalModal({
                 rel="noopener noreferrer"
                 className="btn-link-pncp inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
-                <span>Ver no PNCP</span>
+                <span>Ver no Portal Oficial do PNCP ↗</span>
                 <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              <a
+                href={urlOficialPncp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-download-edital sr-only"
+              >
+                Acessar Edital Oficial no PNCP ↗
               </a>
 
               <button

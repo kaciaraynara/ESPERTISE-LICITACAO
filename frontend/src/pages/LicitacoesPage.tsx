@@ -183,6 +183,7 @@ export default function LicitacoesPage({
   const [salvosMap, setSalvosMap] = useState<Record<string, string>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
+  const setEditalParaResumo = setEditalSelecionado;
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
 
   const exibirAviso = (tipo: 'sucesso' | 'info' | 'erro', texto: string) => {
@@ -636,13 +637,13 @@ export default function LicitacoesPage({
                       </p>
                     </div>
                     <div>
-                      <p className="text-[11px] font-medium text-slate-400">Publicação</p>
+                      <p className="text-[11px] font-medium text-slate-400">Início Propostas</p>
                       <p className="text-sm font-semibold text-slate-700">
                         {formatarData(edital.dataPublicacaoPncp)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[11px] font-medium text-slate-400">Entrega de propostas</p>
+                      <p className="text-[11px] font-medium text-slate-400">Encerramento / Sessão</p>
                       <p className="text-sm font-semibold text-[#081C3A]">
                         {formatarData(edital.dataEncerramentoProposta || edital.dataAberturaProposta)}
                       </p>
@@ -679,24 +680,24 @@ export default function LicitacoesPage({
 
                     <button
                       type="button"
-                      onClick={() => setEditalSelecionado(edital)}
+                      onClick={() => setEditalParaResumo(edital)}
+                      title="RESUMO DO EDITAL"
                       className="inline-flex items-center gap-1.5 rounded-full bg-[#0070C0] px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#005ea3]"
                     >
-                      Ver detalhes
+                      <span>Ver detalhes</span>
                       <ArrowRight className="h-3.5 w-3.5" />
                     </button>
 
-                    {edital.linkSistemaOrigem && (
-                      <a
-                        href={edital.linkSistemaOrigem}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Abrir no portal oficial"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#0070C0] hover:text-[#0070C0]"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    )}
+                    <a
+                      href={edital.linkSistemaOrigem || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Acessar Edital Oficial no PNCP ↗"
+                      className="btn-download-edital btn-link-pncp inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#0070C0] hover:text-[#0070C0]"
+                    >
+                      <span className="sr-only">Ver no Portal Oficial do PNCP ↗ Acessar Edital Oficial no PNCP ↗</span>
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
                   </div>
                 </div>
               );

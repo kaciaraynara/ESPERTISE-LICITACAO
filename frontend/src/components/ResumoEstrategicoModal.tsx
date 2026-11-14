@@ -352,7 +352,7 @@ export default function ResumoEstrategicoModal({
       titulo: 'Conferência de Certidões e Documentos',
       prazo: `Antes de ${dataEncerramentoSessao}`,
       descricao:
-        'Verifique a validade das 5 certidões obrigatórias (Federal, FGTS, Trabalhista, Estadual e Municipal), Contrato Social e Balanço Patrimonial dos 2 últimos exercícios.',
+        'Verifique a validade das 5 certidões obrigatórias (Federal, FGTS, Trabalhista, Estadual e Municipal), Contrato Social e Demonstrações Contábeis dos 2 últimos exercícios.',
       acaoLabel: 'Conferir Certidões e Documentos',
       rota: '/fornecedor/certidoes',
     },
@@ -456,7 +456,7 @@ export default function ResumoEstrategicoModal({
                 rel="noopener noreferrer"
                 className="btn-link-pncp text-xs font-bold px-4 py-2 rounded-full border border-slate-200 hover:bg-slate-50 text-slate-700"
               >
-                <span>Abrir no PNCP Oficial</span>
+                <span>Ver no Portal Oficial do PNCP ↗</span>
               </a>
 
               <button
@@ -692,7 +692,7 @@ export default function ResumoEstrategicoModal({
                 ) : (
                   <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 text-center space-y-2">
                     <p className="text-xs font-semibold text-slate-700">
-                      Este órgão publicou os itens consolidados diretamente no arquivo PDF do edital.
+                      Valores globais consolidados no Termo de Referência oficial do certame no PNCP.
                     </p>
                     <button
                       type="button"
@@ -738,7 +738,7 @@ export default function ResumoEstrategicoModal({
                   </h3>
                   <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-700">
                     <li>Certidão Negativa de Falência expedida pelo distribuidor da sede.</li>
-                    <li>Balanço Patrimonial e DRE dos 2 últimos exercícios sociais (Art. 69, I).</li>
+                    <li>Demonstrações Contábeis e DRE dos 2 últimos exercícios sociais (Art. 69, I).</li>
                     <li>Índices de liquidez exigidos no edital (quando aplicável).</li>
                   </ul>
                 </div>
@@ -853,6 +853,10 @@ export default function ResumoEstrategicoModal({
             )}
           </div>
 
+          <div className="px-6 py-2 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-500">
+            Dados verificados e sincronizados via PNCP / Governo Federal. Acesse a fonte oficial para auditoria completa dos autos.
+          </div>
+
           <footer className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -861,7 +865,7 @@ export default function ResumoEstrategicoModal({
                 className="btn-download-edital inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-800 hover:bg-white text-xs font-bold rounded-full transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Baixar Edital / Anexos</span>
+                <span>Acessar Edital Oficial no PNCP ↗</span>
               </button>
 
               <button
