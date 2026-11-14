@@ -1,1113 +1,645 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  FileText,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
   Plus,
-  Sparkles,
-  Search,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Edit,
-  Edit3,
-  Eye,
-  X,
-  AlertCircle,
+  Trash2,
+  Download,
+  ShieldCheck,
+  TrendingUp,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { propostasApi, ProposalDto } from '@/services/api';
-import { EditalSelector, EditalOption } from '@/components/EditalSelector';
-import { useCompany } from '@/contexts/CompanyContext';
-import { InfoTooltip } from '@/components/common/InfoTooltip';
+import { crmApi } from '../../services/api';
+import { useCompany } from '../../contexts/CompanyContext';
+import { gerarPropostaComercialPdf } from '../../utils/pdfGenerator';
 
-interface CalendarEvent {
-  day: number;
-  month: number; // 0-indexed
-  year: number;
-  type: 'PRAZO_PROPOSTA' | 'ABERTURA_PROPOSTAS' | 'SESSAO_PUBLICA' | 'ENVIO_PROPOSTA';
-  title: string;
-  orgao: string;
-  time?: string;
+interface ItemProposta {
+  id: string;
+  numero: number;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  marcaModelo: string;
+  custoUnitario: number;
+  valorUnitario: number;
 }
 
-export const PropostasPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { selectedCompany, companyId: activeCompanyId, companies } = useCompany();
-  const [searchParams] = useSearchParams();
-  const editalUrlParam = searchParams.get('edital') || searchParams.get('id');
+const ETAPAS = [
+  { id: 1, label: 'Identificação' },
+  { id: 2, label: 'Itens' },
+  { id: 3, label: 'Valores' },
+  { id: 4, label: 'Documentos' },
+  { id: 5, label: 'Revisão' },
+];
 
-  const [propostas, setPropostas] = useState<ProposalDto[]>([]);
-  const [empresas, setEmpresas] = useState<any[]>([]);
-  const [termoBusca, setTermoBusca] = useState('');
-  const [carregandoDados, setCarregandoDados] = useState(true);
+function moeda(v: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+}
 
-  // Modal Unificado Criar Proposta com Chave Seletora
-  const [modalCriarAberto, setModalCriarAberto] = useState(Boolean(editalUrlParam));
-  const [modoPreenchimento, setModoPreenchimento] = useState<'automatico' | 'manual'>('automatico');
-  const [eventoSelecionado, setEventoSelecionado] = useState<CalendarEvent | null>(null);
+export default function PropostasPage() {
+  const { selectedCompany } = useCompany();
 
-  // Form Geral / Manual
-  const [companyId, setCompanyId] = useState(selectedCompany?.id ?? '');
-  const [titulo, setTitulo] = useState('Proposta Comercial Oficial');
+  const [etapa, setEtapa] = useState(1);
+  const [oportunidades, setOportunidades] = useState<any[]>([]);
+  const [editalEscolhidoId, setEditalEscolhidoId] = useState('');
+
+  // Etapa 1: Identificação
+  const [orgao, setOrgao] = useState('');
+  const [modalidade, setModalidade] = useState('Pregão Eletrônico');
+  const [numeroProcesso, setNumeroProcesso] = useState('');
+  const [dataAbertura, setDataAbertura] = useState('');
+  const [objeto, setObjeto] = useState('');
+
+  // Etapa 2 & 3: Itens e Valores
+  const [itens, setItens] = useState<ItemProposta[]>([
+    {
+      id: '1',
+      numero: 1,
+      descricao: '',
+      unidade: 'UN',
+      quantidade: 1,
+      marcaModelo: 'Fabricação Própria / Nacional',
+      custoUnitario: 0,
+      valorUnitario: 0,
+    },
+  ]);
+  const [margemPercentual, setMargemPercentual] = useState(20);
+  const [despesasPercentual, setDespesasPercentual] = useState(12);
+
+  // Etapa 4: Condições e Documentos
   const [validadeDias, setValidadeDias] = useState(60);
-  const [prazoEntregaDias, setPrazoEntregaDias] = useState(15);
-  const [savingManual, setSavingManual] = useState(false);
-
-  // Campos Modo Manual
-  const [orgaoManual, setOrgaoManual] = useState('');
-  const [numeroEditalManual, setNumeroEditalManual] = useState('');
-  const [objetoManual, setObjetoManual] = useState('');
-  const [criterioJulgamentoManual, setCriterioJulgamentoManual] = useState('menor_preco');
-
-  // Form Extração Automática / IA
-  const [editalSelecionado, setEditalSelecionado] = useState<EditalOption | null>(null);
-  const [lexNoticeId, setLexNoticeId] = useState(editalUrlParam || '');
-  const [extractingLex, setExtractingLex] = useState(false);
-  const [erroIaOcorrido, setErroIaOcorrido] = useState(false);
-  const [mensagemErroIa, setMensagemErroIa] = useState('');
-
-  const hoje = new Date();
-  const [mesAtualBase, setMesAtualBase] = useState(hoje.getMonth());
-  const [anoAtualBase, setAnoAtualBase] = useState(hoje.getFullYear());
-
-  const eventosCalendario = useMemo<CalendarEvent[]>(() => propostas.flatMap((proposta) => {
-    const dataLimite = proposta.procurementNotice?.closingAt;
-    if (!dataLimite) return [];
-
-    const data = new Date(`${dataLimite.slice(0, 10)}T00:00:00`);
-    if (Number.isNaN(data.getTime())) return [];
-
-    return [{
-      day: data.getDate(),
-      month: data.getMonth(),
-      year: data.getFullYear(),
-      type: 'PRAZO_PROPOSTA',
-      title: `Prazo da proposta — ${proposta.procurementNotice?.noticeNumber || proposta.titulo}`,
-      orgao: proposta.procurementNotice?.buyerName || 'Órgão não informado',
-    }];
-  }), [propostas]);
-
-  // Carregamento de Propostas Reais
-  const carregarDados = useCallback(async () => {
-    setCarregandoDados(true);
-    try {
-      const resProp = await propostasApi.listar();
-      const lista = resProp.data?.data || [];
-      setPropostas(Array.isArray(lista) ? lista : []);
-
-      if (Array.isArray(companies) && companies.length > 0) {
-        setEmpresas(companies);
-        if (activeCompanyId) {
-          setCompanyId(activeCompanyId);
-        } else {
-          setCompanyId(companies[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('[PropostasPage] Falha ao carregar propostas:', error);
-      toast.error('Não foi possível carregar as propostas. Tente novamente.');
-    } finally {
-      setCarregandoDados(false);
-    }
-  }, [activeCompanyId, companies]);
+  const [prazoEntrega, setPrazoEntrega] = useState('Até 15 dias úteis após o pedido oficial');
+  const [garantia, setGarantia] = useState('12 meses contra defeitos de fabricação');
+  const [declaracoesAceitas, setDeclaracoesAceitas] = useState(true);
+  const [geradoMsg, setGeradoMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    void carregarDados();
-  }, [activeCompanyId]);
+    crmApi
+      .getOportunidades()
+      .then((resp) => {
+        const lista = resp?.data?.items || resp?.data?.data || resp?.data || [];
+        if (Array.isArray(lista)) setOportunidades(lista);
+      })
+      .catch(() => {});
+  }, []);
 
-  // Seleção de Edital no Seletor
-  const handleSelectEdital = (ed: EditalOption) => {
-    setEditalSelecionado(ed);
-    setLexNoticeId(ed.id || ed.numeroEdital);
-    setErroIaOcorrido(false);
-    if (ed.orgao) setOrgaoManual(ed.orgao);
-    if (ed.numeroEdital) {
-      setNumeroEditalManual(ed.numeroEdital);
-      setTitulo(`Proposta Comercial - ${ed.numeroEdital}`);
-    }
-    if (ed.objeto) setObjetoManual(ed.objeto);
-  };
-
-  // Alternar com 1 clique para Modo Manual em caso de erro da IA
-  const handleFallbackParaManual = () => {
-    if (editalSelecionado) {
-      if (editalSelecionado.orgao) setOrgaoManual(editalSelecionado.orgao);
-      if (editalSelecionado.numeroEdital) {
-        setNumeroEditalManual(editalSelecionado.numeroEdital);
-        setTitulo(`Proposta Comercial - ${editalSelecionado.numeroEdital}`);
-      }
-      if (editalSelecionado.objeto) setObjetoManual(editalSelecionado.objeto);
-    }
-    setModoPreenchimento('manual');
-    setErroIaOcorrido(false);
-  };
-
-  // Criação manual
-  const handleCriarManual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    let targetCompany = companyId;
-    if (!targetCompany && empresas.length > 0) {
-      targetCompany = empresas[0].id;
-    }
-
-    if (!targetCompany) {
-      toast.error('Cadastre ou selecione uma empresa antes de criar a proposta.');
-      return;
-    }
-
-    setSavingManual(true);
-    try {
-      const res = await propostasApi.criarRascunho({
-        companyId: targetCompany,
-        procurementNoticeId: editalSelecionado?.id || undefined,
-        titulo: titulo.trim() || 'Proposta Comercial Oficial',
-        validadeDias: Number(validadeDias) || 60,
-        prazoEntregaDias: Number(prazoEntregaDias) || 15,
-        criterioJulgamento: criterioJulgamentoManual,
-      });
-
-      toast.success('Rascunho de proposta criado! Agora você pode editar os itens livremente.');
-      setModalCriarAberto(false);
-      const newId = res.data?.data?.id;
-      if (newId) {
-        navigate(`/fornecedor/propostas/${newId}`);
-      } else {
-        await carregarDados();
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Erro ao criar proposta.');
-    } finally {
-      setSavingManual(false);
-    }
-  };
-
-  // Preenchimento via LEX IA (Modo Automático)
-  const handlePreencherViaLex = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!lexNoticeId.trim()) {
-      toast.error('Selecione um edital salvo para o preenchimento automático.');
-      return;
-    }
-
-    setExtractingLex(true);
-    setErroIaOcorrido(false);
-    setMensagemErroIa('');
-
-    try {
-      const res = await propostasApi.preencherPropostaViaLex({
-        noticeId: lexNoticeId.trim(),
-        companyId: companyId || undefined,
-        autoCreate: true,
-      });
-
-      toast.success('Proposta gerada com sucesso com itens e cálculos automáticos!');
-      setModalCriarAberto(false);
-      const createdProposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
-      if (createdProposalId) {
-        navigate(`/fornecedor/propostas/${createdProposalId}`);
-      } else {
-        await carregarDados();
-      }
-    } catch (err: any) {
-      console.error('[PropostasPage] Falha no preenchimento automático:', err);
-      setErroIaOcorrido(true);
-      const msg = err.response?.data?.message || 'Não foi possível conectar ao serviço de IA no momento.';
-      setMensagemErroIa(msg);
-      toast.error('Não foi possível gerar via IA. Alterne para o Modo Manual em 1 clique.');
-    } finally {
-      setExtractingLex(false);
-    }
-  };
-
-  // Filtragem de propostas
-  const propostasFiltradas = useMemo(() => {
-    if (!termoBusca.trim()) return propostas;
-    const termo = termoBusca.toLowerCase();
-    return propostas.filter(
-      (p) =>
-        p.titulo?.toLowerCase().includes(termo) ||
-        p.procurementNotice?.buyerName?.toLowerCase().includes(termo) ||
-        p.procurementNotice?.noticeNumber?.toLowerCase().includes(termo)
+  const handleSelecionarOportunidade = (id: string) => {
+    setEditalEscolhidoId(id);
+    const op = oportunidades.find((o) => String(o.id) === id);
+    if (!op) return;
+    const notice = op.notice || {};
+    setOrgao(notice.orgaoEntidade?.razaoSocial || notice.orgaoNome || '');
+    setModalidade(notice.modalidadeNome || notice.modalidade || 'Pregão Eletrônico');
+    setNumeroProcesso(notice.numeroCompra ? `${notice.numeroCompra}/${notice.anoCompra || ''}` : '');
+    setDataAbertura(
+      notice.dataEncerramentoProposta
+        ? new Date(notice.dataEncerramentoProposta).toLocaleDateString('pt-BR')
+        : ''
     );
-  }, [propostas, termoBusca]);
-
-  // Contadores para os 4 KPI Cards Oficiais (dados reais do banco)
-  const contagemEmAndamento = useMemo(
-    () => propostas.filter((p) => !['SUBMETIDA', 'CANCELADA', 'ARQUIVADA'].includes(p.status)).length,
-    [propostas]
-  );
-  const contagemEnviadas = useMemo(
-    () => propostas.filter((p) => p.status === 'SUBMETIDA').length,
-    [propostas]
-  );
-  const editaisVinculados = useMemo(
-    () => new Set(propostas.map((proposta) => proposta.procurementNoticeId).filter(Boolean)).size,
-    [propostas],
-  );
-
-  const formatarMoeda = (val: number | null | undefined) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val) || 0);
-
-  const statusLabel: Record<string, string> = {
-    RASCUNHO: 'Rascunho',
-    EM_PREENCHIMENTO: 'Em preenchimento',
-    PENDENTE_DE_DADOS: 'Dados pendentes',
-    PENDENTE_DE_REVISAO: 'Pendente de revisão',
-    EM_REVISAO: 'Em revisão',
-    AJUSTES_SOLICITADOS: 'Ajustes solicitados',
-    APROVADA: 'Aprovada',
-    EXPORTADA: 'Exportada',
-    SUBMETIDA: 'Submetida',
-    CANCELADA: 'Cancelada',
-    ARQUIVADA: 'Arquivada',
+    setObjeto(notice.objetoCompra || notice.objeto || op.notes || '');
   };
 
-  // Funções Auxiliares do Calendário
-  const nomesMeses = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-
-  const getDiasDoMes = (ano: number, mes: number) => {
-    const totalDias = new Date(ano, mes + 1, 0).getDate();
-    const primeiroDiaSemana = new Date(ano, mes, 1).getDay(); // 0 = Domingo
-    return { totalDias, primeiroDiaSemana };
+  const adicionarItem = () => {
+    setItens((prev) => [
+      ...prev,
+      {
+        id: String(Date.now()),
+        numero: prev.length + 1,
+        descricao: '',
+        unidade: 'UN',
+        quantidade: 1,
+        marcaModelo: 'Conforme especificação do edital',
+        custoUnitario: 0,
+        valorUnitario: 0,
+      },
+    ]);
   };
 
-  const mes1Info = getDiasDoMes(anoAtualBase, mesAtualBase);
-  const mes2Info = getDiasDoMes(
-    mesAtualBase === 11 ? anoAtualBase + 1 : anoAtualBase,
-    (mesAtualBase + 1) % 12
-  );
-
-  const getEventosDia = (dia: number, mes: number, ano: number) => {
-    return eventosCalendario.filter(
-      (e) => e.day === dia && e.month === mes && e.year === ano
+  const atualizarItem = (id: string, campo: keyof ItemProposta, valor: any) => {
+    setItens((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const atualizado = { ...item, [campo]: valor };
+        if (campo === 'custoUnitario') {
+          const fator = 1 + (margemPercentual + despesasPercentual) / 100;
+          atualizado.valorUnitario = Number((Number(valor || 0) * fator).toFixed(2));
+        }
+        return atualizado;
+      })
     );
   };
 
-  const getDotClass = (type: CalendarEvent['type']) => {
-    switch (type) {
-      case 'PRAZO_PROPOSTA':
-        return 'bg-brand-blue'; // blue dot
-      case 'ABERTURA_PROPOSTAS':
-        return 'bg-brand-orange'; // orange dot
-      case 'SESSAO_PUBLICA':
-        return 'bg-brand-dark'; // dark navy dot
-      case 'ENVIO_PROPOSTA':
-        return 'border-2 border-brand-blue bg-white'; // hollow blue circle
-    }
+  const removerItem = (id: string) => {
+    if (itens.length === 1) return;
+    setItens((prev) => prev.filter((i) => i.id !== id).map((item, idx) => ({ ...item, numero: idx + 1 })));
+  };
+
+  const aplicarMargemEmTodos = () => {
+    const fator = 1 + (margemPercentual + despesasPercentual) / 100;
+    setItens((prev) =>
+      prev.map((item) => ({
+        ...item,
+        valorUnitario: Number((item.custoUnitario * fator).toFixed(2)),
+      }))
+    );
+  };
+
+  const totalGeral = useMemo(
+    () => itens.reduce((acc, item) => acc + item.quantidade * item.valorUnitario, 0),
+    [itens]
+  );
+
+  const handleGerarPdf = () => {
+    gerarPropostaComercialPdf({
+      empresa: {
+        razaoSocial: selectedCompany?.razaoSocial || 'Empresa Licitante',
+        cnpj: selectedCompany?.cnpj || '',
+        endereco: selectedCompany?.endereco || '',
+        cidadeUf: [selectedCompany?.cidade, selectedCompany?.uf].filter(Boolean).join(' - '),
+        telefone: selectedCompany?.telefone || '',
+        email: selectedCompany?.email || '',
+      },
+      orgao: orgao || 'Órgão Licitante',
+      numeroProcesso: numeroProcesso || '001/2026',
+      modalidade,
+      objeto: objeto || 'Fornecimento conforme especificações do edital',
+      validadeDias,
+      prazoEntrega,
+      garantia,
+      itens: itens.map((i) => ({
+        numero: i.numero,
+        descricao: i.descricao || 'Item conforme termo de referência',
+        unidade: i.unidade,
+        quantidade: i.quantidade,
+        marca: i.marcaModelo,
+        valorUnitario: i.valorUnitario,
+        valorTotal: i.quantidade * i.valorUnitario,
+      })),
+    });
+    setGeradoMsg('Proposta comercial gerada com sucesso!');
   };
 
   return (
-    <div className="min-h-screen bg-brand-light text-slate-800 p-6 md:p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* Cabeçalho + Rascunho salvo */}
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
+              Gerador de propostas
+            </h1>
+            <p className="mt-1 text-lg font-bold text-[#081C3A]">
+              Prepare sua proposta com clareza
+            </p>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Do edital selecionado à proposta final, em etapas simples e organizadas para a sua empresa.
+            </p>
+          </div>
 
-        {/* ===================================================================
-            1. CABEÇALHO & SEARCH BAR (IDÊNTICO À ARTE)
-        =================================================================== */}
-        <div className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="inline-flex items-center gap-3 self-start rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
             <div>
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
-                Gerador de Propostas
-              </h1>
-              <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
-                Monte e gerencie suas propostas de forma rápida, segura e padronizada.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                id="btn-preencher-proposta-lex"
-                onClick={() => {
-                  setModoPreenchimento('automatico');
-                  setModalCriarAberto(true);
-                }}
-                className="px-4 py-2.5 rounded-xl bg-brand-dark hover:bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
-              >
-                <Sparkles size={16} className="text-brand-orange" />
-                Preenchimento Automático
-              </button>
-
-              <button
-                id="btn-criar-proposta"
-                onClick={() => {
-                  setModoPreenchimento('automatico');
-                  setModalCriarAberto(true);
-                }}
-                className="px-4 py-2.5 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
-              >
-                <Plus size={16} />
-                Criar Proposta
-              </button>
-            </div>
-          </div>
-
-          {/* BARRA DE BUSCA EM DESTAQUE COM BOTÃO "BUSCAR" (ARTE OFICIAL) */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-sm flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text"
-                value={termoBusca}
-                onChange={(e) => setTermoBusca(e.target.value)}
-                placeholder="Buscar por licitação, edital ou número do processo..."
-                className="w-full pl-11 pr-4 py-2.5 text-xs md:text-sm bg-transparent rounded-xl focus:outline-none text-slate-800 placeholder:text-slate-400 font-medium"
-              />
-            </div>
-            <button
-              onClick={() => { }}
-              className="px-6 py-2.5 bg-brand-orange hover:bg-orange-600 text-white font-black text-xs md:text-sm rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
-            >
-              Buscar
-            </button>
-          </div>
-        </div>
-
-        {/* ===================================================================
-            2. OS 4 KPI CARDS OFICIAIS DE DESEMPENHO
-        =================================================================== */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* CARD 1: Propostas em andamento */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-            <p className="text-xs font-bold text-slate-500">Propostas em andamento</p>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-slate-900 tracking-tight">
-                {contagemEmAndamento}
-              </span>
-              <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                Em elaboração
-              </span>
-            </div>
-          </div>
-
-          {/* CARD 2: Propostas enviadas */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-            <p className="text-xs font-bold text-slate-500">Propostas enviadas</p>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-brand-dark tracking-tight">
-                {contagemEnviadas}
-              </span>
-              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                Últimos 30 dias
-              </span>
-            </div>
-          </div>
-
-          {/* CARD 3: Modelos padrão */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-            <p className="text-xs font-bold text-slate-500">Propostas cadastradas</p>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-brand-orange tracking-tight">
-                {propostas.length}
-              </span>
-              <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                Registradas
-              </span>
-            </div>
-          </div>
-
-          {/* CARD 4: Taxa de sucesso */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-            <p className="text-xs font-bold text-slate-500">Editais vinculados</p>
-            <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-emerald-700 tracking-tight">
-                {editaisVinculados}
-              </span>
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                Nas propostas
-              </span>
+              <p className="text-xs font-bold text-[#081C3A]">Rascunho salvo</p>
+              <p className="text-[11px] text-slate-500">Suas alterações estão seguras • Agora</p>
             </div>
           </div>
         </div>
 
-        {/* ===================================================================
-            3. TABELA "MINHAS PROPOSTAS" (EXATA À ARTE)
-        =================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-base">Minhas Propostas</h3>
-            <span className="text-xs font-bold text-slate-500">
-              Mostrando {propostasFiltradas.length} propostas
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 uppercase font-black tracking-wider text-[10px] bg-slate-50/70">
-                  <th className="py-3.5 px-5">Edital / Licitação</th>
-                  <th className="py-3.5 px-4">Órgão</th>
-                  <th className="py-3.5 px-4">Prazo</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-5 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {propostasFiltradas.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center">
-                      <p className="font-bold text-slate-700">
-                        {carregandoDados
-                          ? 'Carregando propostas...'
-                          : termoBusca
-                            ? 'Nenhuma proposta corresponde à busca.'
-                            : 'Sua próxima venda pública começa com uma proposta estratégica.'}
-                      </p>
-                      {!carregandoDados && propostas.length === 0 && (
-                        <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
-                          <Link
-                            to="/fornecedor/radar"
-                            className="rounded-lg bg-brand-dark px-4 py-2 text-xs font-bold text-white"
-                          >
-                            Encontrar edital no Radar
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setModoPreenchimento('manual');
-                              setModalCriarAberto(true);
-                            }}
-                            disabled={empresas.length === 0}
-                            className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 disabled:opacity-50 cursor-pointer hover:bg-slate-50"
-                          >
-                            Criar proposta manual
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                )}
-                {propostasFiltradas.map((prop) => {
-                  const enviada = prop.status === 'SUBMETIDA';
-                  const statusAtual = statusLabel[prop.status] || prop.status;
-                  return (
-                    <tr key={prop.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-5">
-                        <Link
-                          to={`/fornecedor/propostas/${prop.id}`}
-                          className="font-black text-slate-900 hover:text-brand-orange transition-colors block text-xs"
-                        >
-                          {prop.procurementNotice?.noticeNumber || prop.titulo}
-                        </Link>
-                        <span className="text-[11px] text-slate-400 font-medium block truncate max-w-md">
-                          {prop.titulo} · <span className="font-bold text-slate-700">
-                            {prop.valorTotalProposto == null ? 'Total pendente' : formatarMoeda(prop.valorTotalProposto)}
-                          </span>
-                        </span>
-                      </td>
-
-                      <td className="py-4 px-4 font-bold text-slate-700">
-                        {prop.procurementNotice?.buyerName || 'Não vinculado'}
-                      </td>
-
-                      <td className="py-4 px-4 text-slate-600 font-medium">
-                        {(prop.procurementNotice as any)?.closingAt
-                          ? new Intl.DateTimeFormat('pt-BR').format(new Date((prop.procurementNotice as any).closingAt))
-                          : 'Não informado'}
-                      </td>
-
-                      <td className="py-4 px-4 text-center">
-                        {!enviada ? (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                            {statusAtual}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {statusAtual}
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-4 px-5 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <Link
-                            to={`/fornecedor/propostas/${prop.id}`}
-                            className="px-3 py-1.5 rounded-lg bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all"
-                          >
-                            <Edit size={12} />
-                            Continuar
-                          </Link>
-                          <Link
-                            to={`/fornecedor/propostas/${prop.id}`}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
-                          >
-                            <Eye size={12} />
-                            Visualizar
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ===================================================================
-            4. WIDGET "CALENDÁRIO DE LICITAÇÕES" (EXATO À ARTE)
-        =================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-              <Calendar size={18} className="text-[#EA580C]" />
-              Calendário de Licitações
-            </h3>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (mesAtualBase === 0) {
-                    setMesAtualBase(11);
-                    setAnoAtualBase(anoAtualBase - 1);
-                  } else {
-                    setMesAtualBase(mesAtualBase - 1);
-                  }
-                }}
-                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-all cursor-pointer"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="text-xs font-bold text-slate-700 min-w-[120px] text-center">
-                {nomesMeses[mesAtualBase]} / {nomesMeses[(mesAtualBase + 1) % 12]} {anoAtualBase}
-              </span>
-              <button
-                onClick={() => {
-                  if (mesAtualBase === 11) {
-                    setMesAtualBase(0);
-                    setAnoAtualBase(anoAtualBase + 1);
-                  } else {
-                    setMesAtualBase(mesAtualBase + 1);
-                  }
-                }}
-                className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-all cursor-pointer"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* GRID DUAL-MONTH DO CALENDÁRIO OPERACIONAL */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* MÊS 1 */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-black text-slate-900 text-center uppercase tracking-wider">
-                {nomesMeses[mesAtualBase]}
-              </h4>
-              <div className="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase">
-                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-700">
-                {Array.from({ length: mes1Info.primeiroDiaSemana }).map((_, i) => (
-                  <div key={`empty-1-${i}`} className="p-2" />
-                ))}
-                {Array.from({ length: mes1Info.totalDias }).map((_, i) => {
-                  const dia = i + 1;
-                  const eventos = getEventosDia(dia, mesAtualBase, anoAtualBase);
-                  const temEvento = eventos.length > 0;
-                  return (
-                    <button
-                      key={`day-1-${dia}`}
-                      onClick={() => temEvento && setEventoSelecionado(eventos[0])}
-                      className={`p-2 rounded-xl transition-all relative flex flex-col items-center justify-center ${temEvento
-                        ? 'bg-slate-100 hover:bg-orange-50 font-black text-slate-900 cursor-pointer shadow-2xs'
-                        : 'hover:bg-slate-50'
-                        }`}
-                    >
-                      <span>{dia}</span>
-                      {temEvento && (
-                        <div className="flex items-center gap-0.5 mt-0.5">
-                          {eventos.map((ev, evIdx) => (
-                            <span
-                              key={evIdx}
-                              className={`h-1.5 w-1.5 rounded-full ${getDotClass(ev.type)}`}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* MÊS 2 */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-black text-slate-900 text-center uppercase tracking-wider">
-                {nomesMeses[(mesAtualBase + 1) % 12]}
-              </h4>
-              <div className="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 uppercase">
-                <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-700">
-                {Array.from({ length: mes2Info.primeiroDiaSemana }).map((_, i) => (
-                  <div key={`empty-2-${i}`} className="p-2" />
-                ))}
-                {Array.from({ length: mes2Info.totalDias }).map((_, i) => {
-                  const dia = i + 1;
-                  const mes2 = (mesAtualBase + 1) % 12;
-                  const ano2 = mesAtualBase === 11 ? anoAtualBase + 1 : anoAtualBase;
-                  const eventos = getEventosDia(dia, mes2, ano2);
-                  const temEvento = eventos.length > 0;
-                  return (
-                    <button
-                      key={`day-2-${dia}`}
-                      onClick={() => temEvento && setEventoSelecionado(eventos[0])}
-                      className={`p-2 rounded-xl transition-all relative flex flex-col items-center justify-center ${temEvento
-                        ? 'bg-slate-100 hover:bg-orange-50 font-black text-slate-900 cursor-pointer shadow-2xs'
-                        : 'hover:bg-slate-50'
-                        }`}
-                    >
-                      <span>{dia}</span>
-                      {temEvento && (
-                        <div className="flex items-center gap-0.5 mt-0.5">
-                          {eventos.map((ev, evIdx) => (
-                            <span
-                              key={evIdx}
-                              className={`h-1.5 w-1.5 rounded-full ${getDotClass(ev.type)}`}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* LEGENDA OFICIAL DOS 4 TIPOS DE EVENTOS (EXATA À ARTE) */}
-          <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-center gap-6 text-xs font-bold text-slate-600">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-blue-600" />
-              <span>Prazo de proposta</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#EA580C]" />
-              <span>Abertura de propostas</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#0A2540]" />
-              <span>Sessão pública</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full border-2 border-blue-600 bg-white" />
-              <span>Envio de proposta</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* =======================================================================
-          MODAL DETALHES DO EVENTO DO CALENDÁRIO
-      ======================================================================= */}
-      {eventoSelecionado && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${getDotClass(eventoSelecionado.type)}`} />
-                <h3 className="font-black text-slate-900 text-sm">
-                  {eventoSelecionado.type.replace('_', ' ')}
-                </h3>
-              </div>
-              <button
-                onClick={() => setEventoSelecionado(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400">Título do Evento</p>
-                <p className="font-bold text-slate-900 text-sm">{eventoSelecionado.title}</p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400">Órgão Licitante</p>
-                <p className="font-medium text-slate-700">{eventoSelecionado.orgao}</p>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div>
-                  <p className="text-[10px] font-black uppercase text-slate-400">Data Agendada</p>
-                  <p className="font-bold text-slate-800">
-                    {eventoSelecionado.day} de {nomesMeses[eventoSelecionado.month]} de {eventoSelecionado.year}
-                  </p>
-                </div>
-                {eventoSelecionado.time && (
-                  <div>
-                    <p className="text-[10px] font-black uppercase text-slate-400">Horário Limite</p>
-                    <p className="font-bold text-brand-orange">{eventoSelecionado.time}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => setEventoSelecionado(null)}
-                className="px-4 py-2 bg-brand-dark text-white text-xs font-bold rounded-xl hover:bg-slate-900"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =======================================================================
-          MODAL CRIAR PROPOSTA (UNIFICADO COM CHAVE SELETORA AUTOMÁTICO / MANUAL)
-      ======================================================================= */}
-      {modalCriarAberto && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            {/* Cabeçalho do Modal */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <span className="p-2 bg-brand-dark text-white rounded-xl shadow-xs">
-                  {modoPreenchimento === 'automatico' ? (
-                    <Sparkles size={18} className="text-brand-orange" />
-                  ) : (
-                    <Edit3 size={18} className="text-brand-orange" />
-                  )}
-                </span>
-                <div>
-                  <h3 className="font-black text-slate-900 text-sm md:text-base">
-                    Criar Proposta Comercial
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Conformidade com a Lei Federal nº 14.133/2021
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setModalCriarAberto(false);
-                  setErroIaOcorrido(false);
-                }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
-                title="Fechar"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* CHAVE SELETORA CLARA: [Modo Automático] ou [Modo Manual] */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">
-                Modo de Preenchimento
-              </label>
-              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  id="tab-modo-automatico"
-                  onClick={() => setModoPreenchimento('automatico')}
-                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    modoPreenchimento === 'automatico'
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles size={15} className={modoPreenchimento === 'automatico' ? 'text-brand-orange' : 'text-slate-400'} />
-                  Modo Automático
-                </button>
-                <button
-                  type="button"
-                  id="tab-modo-manual"
-                  onClick={() => setModoPreenchimento('manual')}
-                  className={`py-2 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    modoPreenchimento === 'manual'
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-black'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Edit3 size={15} className={modoPreenchimento === 'manual' ? 'text-brand-orange' : 'text-slate-400'} />
-                  Modo Manual
-                </button>
-              </div>
-            </div>
-
-            {/* SELEÇÃO DA EMPRESA EMITENTE (Comum para ambos os modos) */}
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Empresa Proponente / Emitente
-              </label>
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-                disabled={empresas.length === 0}
-                className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-              >
-                {empresas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.razaoSocial || (c as any).razao_social} ({c.cnpj})
-                  </option>
-                ))}
-                {empresas.length === 0 && (
-                  <option value="">Nenhuma empresa cadastrada</option>
-                )}
-              </select>
-              {empresas.length === 0 && (
-                <p className="mt-1 text-[11px] text-red-600">
-                  Cadastre uma empresa antes de criar a proposta.
-                </p>
-              )}
-            </div>
-
-            {/* CONTEÚDO ESPECÍFICO DO MODO AUTOMÁTICO */}
-            {modoPreenchimento === 'automatico' && (
-              <form onSubmit={handlePreencherViaLex} className="space-y-4">
-                {/* Seletor de editais com os editais salvos */}
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Selecione o Edital Salvo ou Disputa
-                  </label>
-                  <EditalSelector
-                    onSelectEdital={handleSelectEdital}
-                    selectedId={lexNoticeId}
-                  />
-                </div>
-
-                {/* Card de Preview de Dados Auto-Preenchidos */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs">
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-brand-orange" />
-                      Preenchimento Automático do Sistema:
-                    </span>
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      Conectado
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1">
-                    <div>
-                      <strong className="text-slate-800">Órgão Licitante:</strong>{' '}
-                      <span className="text-slate-900 font-medium">
-                        {editalSelecionado?.orgao || 'Selecione um edital acima'}
-                      </span>
-                    </div>
-                    <div>
-                      <strong className="text-slate-800">Número da Licitação:</strong>{' '}
-                      <span className="text-slate-900 font-medium">
-                        {editalSelecionado?.numeroEdital || 'Selecione um edital acima'}
-                      </span>
-                    </div>
-                    <div>
-                      <strong className="text-slate-800">Empresa:</strong>{' '}
-                      <span className="text-slate-900 font-medium">
-                        {empresas.find((c) => c.id === companyId)?.razaoSocial || empresas[0]?.razaoSocial || 'Empresa ativa'}
-                      </span>
-                    </div>
-                    <div>
-                      <strong className="text-slate-800">Cálculo de Itens:</strong>{' '}
-                      <span className="text-emerald-700 font-bold">
-                        Puxa itens e valores calculados
-                      </span>
-                    </div>
-                    {editalSelecionado?.objeto && (
-                      <div className="sm:col-span-2">
-                        <strong className="text-slate-800">Objeto:</strong>{' '}
-                        <span className="text-slate-700 line-clamp-2">
-                          {editalSelecionado.objeto}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* ALERTA AMIGÁVEL SE OCORREU ERRO NA IA (COM 1 CLIQUE PARA MODO MANUAL) */}
-                {erroIaOcorrido && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2 animate-fadeIn">
-                    <div className="flex items-center gap-2 text-amber-800 font-bold">
-                      <AlertCircle size={16} className="text-amber-600 shrink-0" />
-                      <span>Não foi possível conectar ao serviço de IA no momento</span>
-                    </div>
-                    <p className="text-amber-700 text-[11px] leading-relaxed">
-                      {mensagemErroIa || 'O serviço de extração automática não pôde processar este edital no momento.'}
-                    </p>
+        {/* Grade Principal */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Card Principal com Stepper de 5 Etapas */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8">
+            {/* Stepper */}
+            <div className="mb-8 flex items-center justify-between">
+              {ETAPAS.map((step, idx) => {
+                const ativa = etapa === step.id;
+                const concluida = etapa > step.id;
+                return (
+                  <React.Fragment key={step.id}>
                     <button
                       type="button"
-                      onClick={handleFallbackParaManual}
-                      className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-lg text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                      onClick={() => setEtapa(step.id)}
+                      className="flex flex-col items-center gap-2 text-center"
                     >
-                      <Edit3 size={14} />
-                      Preencher no Modo Manual (1 clique)
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition ${
+                          ativa
+                            ? 'bg-[#FF6600] text-white shadow-sm'
+                            : concluida
+                            ? 'bg-[#0070C0] text-white'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {step.id}
+                      </div>
+                      <span
+                        className={`text-xs font-bold ${
+                          ativa ? 'text-[#081C3A]' : 'text-slate-400'
+                        }`}
+                      >
+                        {step.label}
+                      </span>
                     </button>
+                    {idx < ETAPAS.length - 1 && (
+                      <div
+                        className={`mx-2 h-0.5 flex-1 ${
+                          etapa > step.id ? 'bg-[#0070C0]' : 'bg-slate-200'
+                        }`}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* ETAPA 1: Identificação */}
+            {etapa === 1 && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#081C3A]">Identificação do edital</h2>
+                  <p className="text-xs text-slate-500">
+                    Selecione uma oportunidade salva ou confirme os dados do edital para iniciar sua proposta.
+                  </p>
+                </div>
+
+                {oportunidades.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">
+                      Carregar edital salvo na Gestão de Disputas
+                    </label>
+                    <select
+                      value={editalEscolhidoId}
+                      onChange={(e) => handleSelecionarOportunidade(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#081C3A] outline-none focus:border-[#0070C0]"
+                    >
+                      <option value="">-- Selecione um edital salvo (opcional) --</option>
+                      {oportunidades.map((op) => (
+                        <option key={op.id} value={op.id}>
+                          {op.notice?.orgaoEntidade?.razaoSocial || 'Órgão'} —{' '}
+                          {(op.notice?.objetoCompra || op.notes || 'Edital').slice(0, 70)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
-                {/* Botões do Rodapé no Modo Automático */}
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalCriarAberto(false);
-                      setErroIaOcorrido(false);
-                    }}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={extractingLex || !lexNoticeId.trim() || !companyId}
-                    className="px-5 py-2.5 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all"
-                  >
-                    {extractingLex ? (
-                      <>
-                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Calculando e gerando proposta...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={14} /> Gerar Proposta Automática
-                      </>
-                    )}
-                  </button>
+                <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-500">Órgão</label>
+                    <input
+                      type="text"
+                      value={orgao}
+                      onChange={(e) => setOrgao(e.target.value)}
+                      placeholder="Ex: Prefeitura Municipal"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0070C0]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-500">Data de abertura</label>
+                    <input
+                      type="text"
+                      value={dataAbertura}
+                      onChange={(e) => setDataAbertura(e.target.value)}
+                      placeholder="Ex: 20/11/2026 às 09:00"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0070C0]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-500">Modalidade</label>
+                    <input
+                      type="text"
+                      value={modalidade}
+                      onChange={(e) => setModalidade(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0070C0]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-500">Número do processo</label>
+                    <input
+                      type="text"
+                      value={numeroProcesso}
+                      onChange={(e) => setNumeroProcesso(e.target.value)}
+                      placeholder="Ex: 014/2026"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0070C0]"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-bold text-slate-500">Objeto</label>
+                    <textarea
+                      rows={2}
+                      value={objeto}
+                      onChange={(e) => setObjeto(e.target.value)}
+                      placeholder="Descreva o objeto da licitação"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#0070C0]"
+                    />
+                  </div>
                 </div>
-              </form>
+              </div>
             )}
 
-            {/* CONTEÚDO ESPECÍFICO DO MODO MANUAL */}
-            {modoPreenchimento === 'manual' && (
-              <form onSubmit={handleCriarManual} className="space-y-4">
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900 leading-relaxed font-medium">
-                  <strong>Modo Manual Ativo:</strong> Todos os campos abaixo estão editáveis para você preencher ou alterar itens livremente.
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Título da Proposta
-                  </label>
-                  <input
-                    type="text"
-                    value={titulo}
-                    onChange={(e) => setTitulo(e.target.value)}
-                    required
-                    placeholder="Ex: Proposta Comercial - Pregão 45/2026"
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ETAPA 2: Itens */}
+            {etapa === 2 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Órgão Licitante
-                    </label>
-                    <input
-                      type="text"
-                      value={orgaoManual}
-                      onChange={(e) => setOrgaoManual(e.target.value)}
-                      placeholder="Ex: Tribunal Regional Federal"
-                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-                    />
+                    <h2 className="text-xl font-extrabold text-[#081C3A]">Itens da proposta</h2>
+                    <p className="text-xs text-slate-500">
+                      Informe os produtos ou serviços, quantidades e marca ofertada.
+                    </p>
                   </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Número do Edital / Licitação
-                    </label>
-                    <input
-                      type="text"
-                      value={numeroEditalManual}
-                      onChange={(e) => setNumeroEditalManual(e.target.value)}
-                      placeholder="Ex: Pregão Eletrônico 12/2026"
-                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Objeto da Licitação
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={objetoManual}
-                    onChange={(e) => setObjetoManual(e.target.value)}
-                    placeholder="Descrição do objeto da contratação..."
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Critério de Julgamento
-                  </label>
-                  <select
-                    value={criterioJulgamentoManual}
-                    onChange={(e) => setCriterioJulgamentoManual(e.target.value)}
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]"
+                  <button
+                    type="button"
+                    onClick={adicionarItem}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#0070C0] px-4 py-2 text-xs font-bold text-white hover:bg-[#005ea3]"
                   >
-                    <option value="menor_preco">Menor Preço</option>
-                    <option value="maior_desconto">Maior Desconto</option>
-                    <option value="melhor_tecnica">Melhor Técnica</option>
-                    <option value="tecnica_e_preco">Técnica e Preço</option>
-                    <option value="maior_lance">Maior Lance</option>
-                    <option value="maior_retorno_economico">Maior Retorno Econômico</option>
-                  </select>
+                    <Plus className="h-4 w-4" />
+                    Adicionar item
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  {itens.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold text-[#0070C0]">Item #{item.numero}</span>
+                        {itens.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removerItem(item.id)}
+                            className="text-slate-400 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={item.descricao}
+                        onChange={(e) => atualizarItem(item.id, 'descricao', e.target.value)}
+                        placeholder="Descrição completa do item conforme edital"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-[#0070C0]"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <input
+                          type="text"
+                          value={item.unidade}
+                          onChange={(e) => atualizarItem(item.id, 'unidade', e.target.value)}
+                          placeholder="Unidade (UN, CX)"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.quantidade}
+                          onChange={(e) => atualizarItem(item.id, 'quantidade', Number(e.target.value))}
+                          placeholder="Quantidade"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={item.marcaModelo}
+                          onChange={(e) => atualizarItem(item.id, 'marcaModelo', e.target.value)}
+                          placeholder="Marca / Modelo"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ETAPA 3: Valores */}
+            {etapa === 3 && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#081C3A]">Formação de preços</h2>
+                  <p className="text-xs text-slate-500">
+                    Informe seu custo de compra ou produção e defina sua margem segura de lucro.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 sm:grid-cols-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1">
-                      <span>Validade da Proposta (Dias)</span>
-                      <InfoTooltip text="Prazo oficial durante o qual seus preços permanecem congelados para o órgão público." />
-                    </label>
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">Impostos e Frete (%)</label>
+                    <input
+                      type="number"
+                      value={despesasPercentual}
+                      onChange={(e) => setDespesasPercentual(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">Margem de Lucro (%)</label>
+                    <input
+                      type="number"
+                      value={margemPercentual}
+                      onChange={(e) => setMargemPercentual(Number(e.target.value))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={aplicarMargemEmTodos}
+                      className="w-full rounded-xl bg-[#0070C0] py-2.5 text-xs font-bold text-white hover:bg-[#005ea3]"
+                    >
+                      Calcular preços sugeridos
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {itens.map((item) => (
+                    <div key={item.id} className="grid grid-cols-12 items-center gap-3 rounded-2xl border border-slate-200 p-3.5">
+                      <div className="col-span-5">
+                        <p className="truncate text-xs font-bold text-[#081C3A]">
+                          #{item.numero} {item.descricao || 'Item'}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {item.quantidade} {item.unidade}
+                        </p>
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[10px] font-bold text-slate-400">Seu custo (R\$)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.custoUnitario}
+                          onChange={(e) => atualizarItem(item.id, 'custoUnitario', Number(e.target.value))}
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-400">Preço unitário</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.valorUnitario}
+                          onChange={(e) => atualizarItem(item.id, 'valorUnitario', Number(e.target.value))}
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-[#0070C0]"
+                        />
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-[10px] font-bold text-slate-400">Subtotal</p>
+                        <p className="text-xs font-extrabold text-[#081C3A]">
+                          {moeda(item.quantidade * item.valorUnitario)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ETAPA 4: Documentos e Condições */}
+            {etapa === 4 && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#081C3A]">Condições e declarações legais</h2>
+                  <p className="text-xs text-slate-500">
+                    Confirme os prazos comerciais e as declarações obrigatórias da Lei 14.133/2021.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">Validade da proposta (dias)</label>
                     <input
                       type="number"
                       value={validadeDias}
                       onChange={(e) => setValidadeDias(Number(e.target.value))}
-                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm"
                     />
                   </div>
-
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Prazo de Entrega (Dias)
-                    </label>
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">Prazo de entrega</label>
                     <input
-                      type="number"
-                      value={prazoEntregaDias}
-                      onChange={(e) => setPrazoEntregaDias(Number(e.target.value))}
-                      className="w-full py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                      type="text"
+                      value={prazoEntrega}
+                      onChange={(e) => setPrazoEntrega(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-bold text-[#081C3A]">Garantia e assistência</label>
+                    <input
+                      type="text"
+                      value={garantia}
+                      onChange={(e) => setGarantia(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm"
                     />
                   </div>
                 </div>
 
-                {/* Botões do Rodapé no Modo Manual */}
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalCriarAberto(false);
-                      setErroIaOcorrido(false);
-                    }}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingManual || !titulo.trim() || !companyId}
-                    className="px-5 py-2.5 bg-brand-orange hover:bg-orange-600 disabled:bg-slate-300 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all"
-                  >
-                    {savingManual ? 'Criando Rascunho...' : 'Criar Proposta Manual'}
-                  </button>
-                </div>
-              </form>
+                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={declaracoesAceitas}
+                    onChange={(e) => setDeclaracoesAceitas(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Incluir automaticamente todas as declarações exigidas pela Lei 14.133/2021 (pleno conhecimento do edital, inexistência de fatos impeditivos, cumprimento do art. 7º XXXIII da CF e enquadramento ME/EPP quando aplicável).
+                  </span>
+                </label>
+              </div>
             )}
+
+            {/* ETAPA 5: Revisão Final */}
+            {etapa === 5 && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-[#081C3A]">Revisão final</h2>
+                  <p className="text-xs text-slate-500">
+                    Confira os dados abaixo e clique em Gerar Proposta em PDF para baixar o documento pronto.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 space-y-2 text-sm">
+                  <p><strong>Empresa:</strong> {selectedCompany?.razaoSocial || 'Sua empresa'}</p>
+                  <p><strong>Órgão:</strong> {orgao || 'A informar'} • <strong>Processo:</strong> {numeroProcesso || 'A informar'}</p>
+                  <p><strong>Itens:</strong> {itens.length} item(ns) • <strong>Valor Global:</strong> <span className="font-extrabold text-[#0070C0]">{moeda(totalGeral)}</span></p>
+                  <p><strong>Validade:</strong> {validadeDias} dias • <strong>Entrega:</strong> {prazoEntrega}</p>
+                </div>
+
+                {geradoMsg && (
+                  <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
+                    {geradoMsg}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGerarPdf}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0070C0] py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#005ea3]"
+                >
+                  <Download className="h-4 w-4" />
+                  Gerar Proposta Comercial em PDF
+                </button>
+              </div>
+            )}
+
+            {/* Rodapé de navegação entre etapas */}
+            <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
+              <button
+                type="button"
+                onClick={() => setEtapa((e) => Math.max(1, e - 1))}
+                disabled={etapa === 1}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2.5 text-xs font-bold text-slate-600 disabled:opacity-40"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Etapa anterior
+              </button>
+
+              {etapa < 5 && (
+                <button
+                  type="button"
+                  onClick={() => setEtapa((e) => Math.min(5, e + 1))}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FF6600] px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#e55b00]"
+                >
+                  Próxima etapa
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Card lateral direito do modelo */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-4">
+            <h3 className="text-xl font-extrabold leading-snug text-[#081C3A]">
+              Uma proposta mais organizada e competitiva
+            </h3>
+
+            <div className="mt-6 space-y-5">
+              <div className="flex items-start gap-3">
+                <FileText className="mt-0.5 h-5 w-5 shrink-0 text-[#0070C0]" />
+                <p className="text-sm font-semibold text-[#081C3A]">
+                  Siga as etapas com orientação passo a passo
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#0070C0]" />
+                <p className="text-sm font-semibold text-[#081C3A]">
+                  Valide preços e exigências em tempo real
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <TrendingUp className="mt-0.5 h-5 w-5 shrink-0 text-[#0070C0]" />
+                <p className="text-sm font-semibold text-[#081C3A]">
+                  Gere um documento pronto para enviar no portal
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-slate-100 bg-[#F8FAFC] p-5 text-center">
+              <p className="text-xs font-semibold text-slate-400">Valor total atual da proposta</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#0070C0]">{moeda(totalGeral)}</p>
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
-};
-
-export default PropostasPage;
+}

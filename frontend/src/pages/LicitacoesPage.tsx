@@ -1,1638 +1,708 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-    Search, Filter, RefreshCw, Building2, Calendar,
-    MapPin, AlertTriangle,
-    ChevronDown, Clock, Download, FileText,
-    Plus, CheckCircle2, TrendingUp, X, DollarSign,
-} from '@components/icons/phosphor-compat';
-import { lexApi, licitacoesApi, crmApi, propostasApi, noticesApi } from '../services/api';
-import { useCompany } from '@/contexts/CompanyContext';
-import EditalQuickViewModal, { type QuickViewNotice } from '@/components/EditalQuickViewModal';
-import DossieEditalModal, { type DossieEditalData } from '@/components/DossieEditalModal';
-import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
-import { buildOfficialPncpPortalUrl, formatPncpDateBR } from '@/utils/pncp';
-import { InfoTooltip } from '@/components/common/InfoTooltip';
-import toast from 'react-hot-toast';
+  Search,
+  Building2,
+  MapPin,
+  FileText,
+  Calendar,
+  SlidersHorizontal,
+  RefreshCw,
+  Check,
+  Bookmark,
+  ExternalLink,
+  Sparkles,
+  ArrowRight,
+  Gavel,
+  Scale,
+  Zap,
+  Award,
+  X,
+} from 'lucide-react';
+import { licitacoesApi, crmApi } from '../services/api';
+import { useCompany } from '../contexts/CompanyContext';
+import DossieEditalModal from '../components/DossieEditalModal';
 
-type Licitacao = {
-    id: string;
-    objeto: string;
-    objetoCompra?: string;
-    informacaoComplementar?: string | null;
-    orgao: string;
-    nomeOrgao?: string;
-    cnpjOrgao?: string | null;
-    anoCompra?: number | string;
-    sequencialCompra?: number | string;
-    uf?: string;
-    municipio?: string;
-    valor_estimado?: number | null;
-    valorEstimado?: number | null;
-    valorTotalEstimado?: number | null;
-    data_abertura?: string | null;
-    dataAbertura?: string | null;
-    dataAberturaProposta?: string | null;
-    data_encerramento?: string | null;
-    dataEncerramento?: string | null;
-    dataEncerramentoProposta?: string | null;
-    dataLimiteProposta?: string | null;
-    dataSessaoDisputa?: string | null;
-    data_publicacao?: string | null;
-    dataPublicacao?: string | null;
-    dataPublicacaoPncp?: string | null;
-    modalidade?: string;
-    nomeModalidade?: string | null;
-    modalidadeNome?: string | null;
-    situacao?: string;
-    link?: string;
-    linkSistemaOrigem?: string;
-    documento_url?: string | null;
-    linkDownloadEdital?: string | null;
-    numeroControlePNCP?: string;
-    numeroEdital?: string | null;
-    fonte?: string;
-    score?: { pontuacao: number; nivel: string };
-    processo?: string;
-    numeroCompra?: string;
-};
+interface EditalItem {
+  id: string;
+  numeroControlePNCP?: string;
+  numeroCompra?: string;
+  anoCompra?: number;
+  objetoCompra?: string;
+  objeto?: string;
+  modalidadeNome?: string;
+  modalidade?: string;
+  orgaoEntidade?: {
+    razaoSocial?: string;
+    cnpj?: string;
+  };
+  orgaoNome?: string;
+  orgaoCnpj?: string;
+  unidadeOrgao?: {
+    municipioNome?: string;
+    ufSigla?: string;
+  };
+  municipio?: string;
+  uf?: string;
+  dataPublicacaoPncp?: string;
+  dataAberturaProposta?: string;
+  dataEncerramentoProposta?: string;
+  valorTotalEstimado?: number;
+  valorEstimado?: number;
+  linkSistemaOrigem?: string;
+  srp?: boolean;
+  viabilidade?: number;
+  scoreViabilidade?: number;
+  matchScore?: number;
+}
 
-type Meta = {
-    total: number;
-    pagina: number;
-    tamanhoPagina: number;
-    totalPaginas: number;
-    fonte?: 'cache' | 'pncp' | 'comprasgov' | 'mista' | 'vazio';
-    aviso?: string;
-    perfilRadar?: {
-        cnaes?: string[];
-        cnae_principal?: string | null;
-        palavras_chave?: string[];
-        regioes?: string[];
-    } | null;
-};
-
-type SearchFilters = {
-    busca: string;
-    cnpj: string;
-    cnae: string;
-    uf: string;
-    modalidade: string;
-};
-
-export const ITEMS_PER_LOAD = 100;
-
-const FILTROS_RAPIDOS_RADAR = [
-    { label: 'Todas', valor: 'Todos' },
-    { label: 'Pregão Eletrônico', valor: 'Pregão Eletrônico' },
-    { label: 'Dispensa', valor: 'Dispensa' },
-    { label: 'Concorrência', valor: 'Concorrência' },
-    { label: 'Credenciamento', valor: 'Credenciamento' },
-    { label: 'Registro de Preços (SRP)', valor: 'Registro de Preços (SRP)' },
-] as const;
-
-const MODALIDADES = [
-    'Todos',
-    'Pregão Eletrônico',
-    'Dispensa',
-    'Concorrência',
-    'Credenciamento',
-    'Registro de Preços (SRP)',
-    'Inexigibilidade',
-    'Leilão Eletrônico',
-    'Concurso',
-    'Diálogo Competitivo',
+const MODALIDADES_RAPIDAS = [
+  { id: 'TODAS', label: 'Todas', icon: FileText },
+  { id: 'PREGAO', label: 'Pregão', icon: Gavel },
+  { id: 'CONCORRENCIA', label: 'Concorrência', icon: Scale },
+  { id: 'DISPENSA', label: 'Dispensa', icon: Zap },
+  { id: 'CREDENCIAMENTO', label: 'Credenciamento', icon: Award },
+  { id: 'SRP', label: 'Registro de Preços', icon: Bookmark },
 ];
+
 const UFS = [
-    'Todos', 'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
-    'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-export interface ViabilidadeCalculada {
-    percentual: number;
-    badgeClass: string;
-    barClass: string;
-    texto: string;
-    status: string;
-    subtexto: string;
-    parecer: string;
-    recomendacao: string;
+function formatarMoeda(valor?: number): string {
+  if (!valor || Number.isNaN(valor)) return 'Sigiloso / Consultar';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(valor);
 }
 
-export function calcularViabilidadeEdital(item: Licitacao): ViabilidadeCalculada {
-    let score = item.score?.pontuacao;
-    if (score == null || typeof score !== 'number' || score <= 0) {
-        let pontos = 0;
+function formatarData(dataStr?: string): string {
+  if (!dataStr) return 'Ver no edital';
+  const d = new Date(dataStr);
+  if (Number.isNaN(d.getTime())) return 'Ver no edital';
+  return d.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
 
-        const dataLimite = item.dataLimiteProposta || item.dataEncerramentoProposta || item.dataEncerramento || item.data_encerramento;
-        let dias = 15;
-        if (dataLimite) {
-            dias = Math.ceil((new Date(dataLimite).getTime() - Date.now()) / 86400000);
-        }
-        if (dias >= 10) {
-            pontos += 40;
-        } else if (dias >= 5) {
-            pontos += 30;
-        } else if (dias >= 2) {
-            pontos += 20;
-        } else if (dias >= 0) {
-            pontos += 10;
-        }
+function extrairPalavraChaveRamo(empresa: any): string {
+  const textoBase =
+    empresa?.cnaeDescricao ||
+    empresa?.ramoAtividade ||
+    empresa?.cnaePrincipal ||
+    empresa?.atividadePrincipal ||
+    '';
 
-        const val = item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null;
-        if (val != null && Number(val) > 0) {
-            pontos += 30;
-        } else {
-            pontos += 15;
-        }
+  if (!textoBase) return '';
 
-        const objLen = (item.objetoCompra || item.objeto || '').trim().length;
-        if (objLen >= 100) {
-            pontos += 15;
-        } else if (objLen >= 30) {
-            pontos += 10;
-        } else {
-            pontos += 5;
-        }
+  const stopWords = new Set([
+    'comercio', 'varejista', 'atacadista', 'servicos', 'artigos',
+    'outros', 'produtos', 'geral', 'ltda', 'me', 'epp', 'eireli',
+    'nao', 'especificados', 'anteriormente', 'de', 'da', 'do', 'dos', 'das', 'e', 'em', 'para',
+  ]);
 
-        const mod = (item.nomeModalidade || item.modalidadeNome || item.modalidade || '').toLowerCase();
-        if (mod.includes('dispensa') || mod.includes('inexigibilidade')) {
-            pontos += 15;
-        } else if (mod.includes('pregão') || mod.includes('pregao')) {
-            pontos += 15;
-        } else {
-            pontos += 10;
-        }
+  const palavras = String(textoBase)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((p) => p.length > 3 && !stopWords.has(p));
 
-        score = Math.min(100, Math.max(15, pontos));
+  return palavras[0] || '';
+}
+
+function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
+  const existente = edital.scoreViabilidade ?? edital.viabilidade ?? edital.matchScore;
+  if (typeof existente === 'number' && existente > 0) {
+    return Math.min(99, Math.max(20, Math.round(existente)));
+  }
+
+  let pontos = 68;
+  const objeto = (edital.objetoCompra || edital.objeto || '').toLowerCase();
+  const ramo = extrairPalavraChaveRamo(empresa);
+
+  if (ramo && objeto.includes(ramo)) {
+    pontos += 22;
+  }
+
+  const ufEmpresa = empresa?.uf || empresa?.estado;
+  const ufEdital = edital.unidadeOrgao?.ufSigla || edital.uf;
+  if (ufEmpresa && ufEdital && ufEmpresa.toUpperCase() === ufEdital.toUpperCase()) {
+    pontos += 7;
+  }
+
+  const encerramento = edital.dataEncerramentoProposta
+    ? new Date(edital.dataEncerramentoProposta).getTime()
+    : 0;
+  if (encerramento > Date.now()) {
+    const dias = (encerramento - Date.now()) / (1000 * 60 * 60 * 24);
+    if (dias >= 3) pontos += 3;
+    else if (dias < 1) pontos -= 12;
+  }
+
+  return Math.min(98, Math.max(35, pontos));
+}
+
+export default function LicitacoesPage() {
+  const { selectedCompany } = useCompany();
+
+  const [editais, setEditais] = useState<EditalItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [carregando, setCarregando] = useState(true);
+  const [sincronizando, setSincronizando] = useState(false);
+
+  const [palavraChave, setPalavraChave] = useState('');
+  const [ufSelecionada, setUfSelecionada] = useState('');
+  const [orgaoFiltro, setOrgaoFiltro] = useState('');
+  const [modalidadeAtiva, setModalidadeAtiva] = useState('TODAS');
+  const [dataPublicacao, setDataPublicacao] = useState('');
+  const [ordenacao, setOrdenacao] = useState<'relevancia' | 'recentes' | 'maior_valor'>('relevancia');
+  const [mostrarFiltrosExtras, setMostrarFiltrosExtras] = useState(false);
+
+  const [salvosMap, setSalvosMap] = useState<Record<string, string>>({});
+  const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
+  const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
+
+  const exibirAviso = (tipo: 'sucesso' | 'info' | 'erro', texto: string) => {
+    setAviso({ tipo, texto });
+    setTimeout(() => setAviso(null), 5000);
+  };
+
+  const carregarSalvos = useCallback(async () => {
+    try {
+      const resp = await crmApi.getOportunidades();
+      const lista = resp?.data?.items || resp?.data?.data || resp?.data || [];
+      if (Array.isArray(lista)) {
+        const mapa: Record<string, string> = {};
+        lista.forEach((op: any) => {
+          const nId = op.noticeId || op.editalId || op.notice?.id;
+          if (nId && op.id) {
+            mapa[String(nId)] = String(op.id);
+          }
+        });
+        setSalvosMap(mapa);
+      }
+    } catch {
+      // Silencioso para não interromper a navegação
     }
+  }, []);
 
-    if (score >= 75) {
-        return {
-            percentual: score,
-            badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-            barClass: 'bg-emerald-500',
-            texto: `${score}% • Alta Viabilidade (Vá em frente!)`,
-            status: 'Alta Viabilidade',
-            subtexto: 'Vá em frente!',
-            parecer: 'Margem estimada saudável, prazo operacional confortável e alta aderência às exigências da contratação.',
-            recomendacao: 'Recomendado cadastrar proposta e preparar lances competitivos com antecedência.',
+  const buscarEditais = useCallback(
+    async (termoOverride?: string) => {
+      setCarregando(true);
+      try {
+        const q = termoOverride !== undefined ? termoOverride : palavraChave;
+        const params: Record<string, any> = {
+          limit: 60,
         };
-    } else if (score >= 50) {
-        return {
-            percentual: score,
-            badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
-            barClass: 'bg-amber-500',
-            texto: `${score}% • Viabilidade Média (Atenção aos prazos)`,
-            status: 'Viabilidade Média',
-            subtexto: 'Atenção aos prazos',
-            parecer: 'Oportunidade interessante, porém requer atenção imediata ao cronograma de envio e à cotação com fornecedores.',
-            recomendacao: 'Verificar certidões obrigatórias e calcular custos com precisão antes de confirmar a disputa.',
-        };
-    } else {
-        return {
-            percentual: score,
-            badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
-            barClass: 'bg-rose-500',
-            texto: `${score}% • Risco Alto (Prazo curto ou margem apertada)`,
-            status: 'Risco Alto',
-            subtexto: 'Prazo curto ou margem apertada',
-            parecer: 'Janela de envio muito estreita ou valor de referência com margem bruta reduzida.',
-            recomendacao: 'Avalie criteriosamente se a equipe tem tempo hábil de habilitação sem comprometer a rentabilidade.',
-        };
+        if (q.trim()) params.q = q.trim();
+        if (ufSelecionada) params.uf = ufSelecionada;
+        if (orgaoFiltro.trim()) params.orgao = orgaoFiltro.trim();
+        if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP') {
+          params.modalidade = modalidadeAtiva;
+        }
+        if (modalidadeAtiva === 'SRP') {
+          params.srp = true;
+        }
+        if (dataPublicacao) {
+          params.dataPublicacao = dataPublicacao;
+        }
+
+        const resposta = await licitacoesApi.listar(params);
+        const lista =
+          resposta?.data?.items ||
+          resposta?.data?.data ||
+          (Array.isArray(resposta?.data) ? resposta.data : []);
+
+        setEditais(lista);
+        setTotal(resposta?.data?.total || lista.length);
+      } catch {
+        exibirAviso('erro', 'Não foi possível carregar os editais agora. Tente atualizar em instantes.');
+      } finally {
+        setCarregando(false);
+      }
+    },
+    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao]
+  );
+
+  useEffect(() => {
+    carregarSalvos();
+    buscarEditais();
+  }, [carregarSalvos, buscarEditais]);
+
+  const handleSincronizarPncp = async () => {
+    setSincronizando(true);
+    try {
+      await licitacoesApi.sincronizar({
+        q: palavraChave.trim() || undefined,
+        uf: ufSelecionada || undefined,
+      });
+      await buscarEditais();
+      exibirAviso('sucesso', 'Base de editais atualizada com sucesso!');
+    } catch {
+      exibirAviso('info', 'O portal nacional demorou para responder. Exibindo os editais mais recentes da base.');
+    } finally {
+      setSincronizando(false);
     }
-}
+  };
 
-function resolveEditalDownloadUrl(item: Licitacao): string {
-    return buildOfficialPncpPortalUrl(item);
-}
+  const handleUsarMeuRamo = () => {
+    const termoRamo = extrairPalavraChaveRamo(selectedCompany);
+    if (!termoRamo) {
+      exibirAviso('info', 'Cadastre o ramo de atividade da sua empresa para usar o filtro automático.');
+      return;
+    }
+    setPalavraChave(termoRamo);
+    buscarEditais(termoRamo);
+    exibirAviso('sucesso', `Filtrando oportunidades compatíveis com "${termoRamo}".`);
+  };
 
-export default function LicitacoesPage({
-    modalidadeInicial = 'Todos',
-    tituloCustomizado,
-}: {
-    modalidadeInicial?: string;
-    tituloCustomizado?: string;
-} = {}) {
-    const navigate = useNavigate();
-    const { selectedCompany } = useCompany();
+  const handleLimparFiltros = () => {
+    setPalavraChave('');
+    setUfSelecionada('');
+    setOrgaoFiltro('');
+    setModalidadeAtiva('TODAS');
+    setDataPublicacao('');
+    buscarEditais('');
+  };
 
-    const [editais, setEditais] = useState<Licitacao[]>([]);
-    const licitacoes = editais;
-    const [editalSelecionado, setEditalSelecionado] = useState<QuickViewNotice | null>(null);
-    const [editalParaResumo, setEditalParaResumo] = useState<DossieEditalData | null>(null);
-    const [editalParaViabilidade, setEditalParaViabilidade] = useState<Licitacao | null>(null);
-    const [resumoRapido, setResumoRapido] = useState<Record<string, unknown> | null>(null);
-    const [gerandoResumo, setGerandoResumo] = useState(false);
-    const [criandoProposta, setCriandoProposta] = useState(false);
-    const [carregandoDetalhesEdital, setCarregandoDetalhesEdital] = useState(false);
-    const [erroDetalhesEdital, setErroDetalhesEdital] = useState<string | null>(null);
-    const [meta, setMeta] = useState<Meta | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [carregandoMais, setCarregandoMais] = useState(false);
-    const [temMais, setTemMais] = useState(true);
-    const sentinelRef = useRef<HTMLDivElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
+  const handleAlternarSalvar = async (edital: EditalItem) => {
+    const idEdital = String(edital.id);
+    const oportunidadeId = salvosMap[idEdital];
+    setSalvandoId(idEdital);
 
-    const [busca, setBusca] = useState('');
-    const [cnpjFiltro, setCnpjFiltro] = useState('');
-    const [cnaeFiltro, setCnaeFiltro] = useState('');
-    const [ufSel, setUfSel] = useState('');
-    const [modalidadeSel, setModalidadeSel] = useState(modalidadeInicial);
-
-    const [filtrosAplicados, setFiltrosAplicados] = useState<SearchFilters>({
-        busca: '',
-        cnpj: '',
-        cnae: '',
-        uf: '',
-        modalidade: modalidadeInicial,
-    });
-
-    const handleSelecionarModalidadeInstantanea = (novaModalidade: string) => {
-        setModalidadeSel(novaModalidade);
-        setFiltrosAplicados((prev) => ({
-            ...prev,
-            busca: busca.trim(),
-            cnpj: sanitizeCnpj(cnpjFiltro),
-            cnae: cnaeFiltro.trim(),
-            uf: ufSel,
-            modalidade: novaModalidade,
+    try {
+      if (oportunidadeId) {
+        await crmApi.removeOportunidade(oportunidadeId);
+        setSalvosMap((prev) => {
+          const novo = { ...prev };
+          delete novo[idEdital];
+          return novo;
+        });
+        exibirAviso('info', 'Edital removido das suas oportunidades salvas.');
+      } else {
+        const resp = await crmApi.createOportunidade({
+          noticeId: idEdital,
+          stage: 'ANALISE',
+          notes: edital.objetoCompra || edital.objeto || '',
+        });
+        const novoId = resp?.data?.id || resp?.data?.data?.id || idEdital;
+        setSalvosMap((prev) => ({
+          ...prev,
+          [idEdital]: String(novoId),
         }));
-    };
-
-    useEffect(() => {
-        if (!modalidadeInicial) return;
-        setModalidadeSel(modalidadeInicial);
-        setFiltrosAplicados((prev) => {
-            if (prev.modalidade === modalidadeInicial) return prev;
-            return {
-                ...prev,
-                modalidade: modalidadeInicial,
-            };
-        });
-    }, [modalidadeInicial]);
-
-    const [showFiltros, setShowFiltros] = useState(false);
-    const [pagina, setPagina] = useState(1);
-    const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
-    const [salvandoId, setSalvandoId] = useState<string | null>(null);
-    const [salvosCrmIds, setSalvosCrmIds] = useState<Set<string>>(new Set());
-    const [sincronizandoManual, setSincronizandoManual] = useState(false);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            const trimmed = busca.trim();
-            setFiltrosAplicados((prev) => {
-                if (prev.busca === trimmed) return prev;
-                return { ...prev, busca: trimmed };
-            });
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [busca]);
-
-    const explicarEdital = async () => {
-        if (!editalSelecionado) return;
-        setGerandoResumo(true);
-        try {
-            const response = await lexApi.resumo({ edital_id: editalSelecionado.id });
-            const result = response.data?.data;
-            if (!result || typeof result !== 'object') {
-                throw new Error('A IA não retornou um resumo válido para este edital.');
-            }
-            setResumoRapido(result as Record<string, unknown>);
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || error.message || 'Não foi possível explicar este edital agora.');
-        } finally {
-            setGerandoResumo(false);
-        }
-    };
-
-    const criarPropostaAutomatica = async () => {
-        if (!editalSelecionado) return;
-        if (!selectedCompany?.id) {
-            toast.error('Selecione uma empresa antes de criar a proposta.');
-            return;
-        }
-
-        setCriandoProposta(true);
-        try {
-            const response = await propostasApi.preencherPropostaViaLex({
-                noticeId: editalSelecionado.id,
-                companyId: selectedCompany.id,
-                autoCreate: true,
-            });
-            const proposalId = response.data?.data?.proposalId || response.data?.data?.proposal?.id;
-            if (!proposalId) {
-                throw new Error('A proposta foi processada, mas o sistema não retornou o identificador para abri-la.');
-            }
-            toast.success('Tabela criada com itens e preços de referência. Revise custos e valores antes de enviar.');
-            const noticeQuery = `?edital=${encodeURIComponent(editalSelecionado.id)}`;
-            setEditalSelecionado(null);
-            setResumoRapido(null);
-            navigate(`/fornecedor/propostas/${proposalId}${noticeQuery}`);
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || error.message || 'Não foi possível montar a proposta deste edital.');
-        } finally {
-            setCriandoProposta(false);
-        }
-    };
-
-    useEffect(() => {
-        const noticeId = editalSelecionado?.id;
-        if (!noticeId) return undefined;
-
-        let active = true;
-        setCarregandoDetalhesEdital(true);
-        setErroDetalhesEdital(null);
-        noticesApi.getById(noticeId)
-            .then((response) => {
-                if (!active) return;
-                const detail = response.data?.data;
-                if (!detail || typeof detail !== 'object') {
-                    setErroDetalhesEdital('Não foi possível carregar os detalhes do edital.');
-                    return;
-                }
-                setEditalSelecionado((current) => current?.id === noticeId
-                    ? {
-                        ...current,
-                        uf: detail.uf ?? current.uf,
-                        municipio: detail.municipality ?? current.municipio,
-                        situacao: detail.status ?? current.situacao,
-                        dataPublicacao: detail.publishedAt ?? current.dataPublicacao,
-                        dataEncerramento: detail.closingAt ?? current.dataEncerramento,
-                        fonte: detail.source ?? current.fonte,
-                        itens: Array.isArray(detail.items) ? detail.items : [],
-                    }
-                    : current);
-            })
-            .catch((error: any) => {
-                if (!active) return;
-                const is404 = error.response?.status === 404;
-                const message = is404
-                    ? 'Edital não encontrado na fonte oficial (PNCP).'
-                    : (error.response?.data?.message || error.message || 'Não foi possível carregar os detalhes do edital.');
-                setErroDetalhesEdital(message);
-                toast.error(message, { id: 'edital-detail-error' });
-            })
-            .finally(() => {
-                if (active) setCarregandoDetalhesEdital(false);
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [editalSelecionado?.id]);
-
-    useEffect(() => {
-        try {
-            const stored = JSON.parse(localStorage.getItem('expertise_editais_salvos') || '[]');
-            if (Array.isArray(stored) && stored.length > 0) {
-                setSalvosCrmIds(new Set(stored));
-            }
-        } catch {}
-
-        crmApi.getOportunidades()
-            .then((res) => {
-                const ids = new Set<string>();
-                const list = res.data?.data || [];
-                list.forEach((item: any) => {
-                    if (item.noticeId) ids.add(item.noticeId);
-                    if (item.notice?.id) ids.add(item.notice.id);
-                    if (item.notice?.externalId) ids.add(item.notice.externalId);
-                });
-                setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
-            })
-            .catch(() => {});
-
-        licitacoesApi.listarSalvos()
-            .then((res) => {
-                const ids = new Set<string>();
-                const list = res.data?.data || [];
-                list.forEach((item: any) => {
-                    if (item.id) ids.add(item.id);
-                    if (item.noticeId) ids.add(item.noticeId);
-                    if (item.numeroControlePNCP) ids.add(item.numeroControlePNCP);
-                });
-                setSalvosCrmIds((prev) => new Set([...prev, ...ids]));
-            })
-            .catch(() => {});
-    }, []);
-
-    const handleSalvarParaDisputar = async (e?: React.MouseEvent, item?: Licitacao | DossieEditalData) => {
-        if (e) e.stopPropagation();
-        const target = item || editalParaResumo;
-        if (!target) return;
-
-        if (salvosCrmIds.has(target.id)) {
-            toast('Edital já adicionado à sua lista de propostas.');
-            return;
-        }
-
-        setSalvosCrmIds((prev) => new Set([...prev, target.id]));
-        setSalvandoId(target.id);
-
-        try {
-            const anyTarget = target as any;
-            const urlOficialPncp = buildOfficialPncpPortalUrl(anyTarget);
-
-            await licitacoesApi.salvar({
-                id: target.id,
-                numeroControlePNCP: anyTarget.numeroControlePNCP || anyTarget.numero_processo || anyTarget.numeroEdital || target.id,
-                orgao: anyTarget.orgao || anyTarget.buyerName || 'Órgão Licitante',
-                cnpjOrgao: anyTarget.cnpjOrgao || anyTarget.buyerDocument,
-                modalidade: anyTarget.modalidade || anyTarget.modality || 'Pregão Eletrônico',
-                objeto: anyTarget.objeto || anyTarget.object || 'Objeto da contratação pública',
-                valorEstimado: anyTarget.valorEstimado ?? anyTarget.valor_estimado ?? anyTarget.estimatedValue ?? null,
-                dataLimite: anyTarget.dataEncerramento || anyTarget.data_encerramento || anyTarget.dataAbertura || anyTarget.data_abertura || null,
-                urlOficialPncp,
-                uf: anyTarget.uf,
-                municipio: anyTarget.municipio,
-                itens: Array.isArray(anyTarget.itens) ? anyTarget.itens : undefined,
-            }).catch(() => {
-                return crmApi.createOportunidade({ noticeId: target.id });
-            });
-
-            try {
-                const storedKey = 'expertise_editais_salvos';
-                const current: string[] = JSON.parse(localStorage.getItem(storedKey) || '[]');
-                if (!current.includes(target.id)) {
-                    localStorage.setItem(storedKey, JSON.stringify([...current, target.id]));
-                }
-
-                const detailsKey = 'expertise_editais_salvos_detalhes';
-                const currentDetails: any[] = JSON.parse(localStorage.getItem(detailsKey) || '[]');
-                if (!currentDetails.some((d: any) => d.id === target.id)) {
-                    currentDetails.push({
-                        id: target.id,
-                        numeroControlePNCP: anyTarget.numeroControlePNCP || target.id,
-                        numeroEdital: anyTarget.numero_processo || anyTarget.numeroEdital || anyTarget.numeroProcesso || `Edital #${target.id.slice(0, 8)}`,
-                        orgao: anyTarget.orgao || anyTarget.buyerName || 'Órgão Licitante',
-                        cnpjOrgao: anyTarget.cnpjOrgao || anyTarget.buyerDocument,
-                        modalidade: anyTarget.modalidade || anyTarget.modality || 'Pregão Eletrônico',
-                        dataCertame: anyTarget.data_abertura ? String(anyTarget.data_abertura).slice(0, 10) : undefined,
-                        objeto: anyTarget.objeto || anyTarget.object,
-                        valorEstimado: anyTarget.valor_estimado || anyTarget.valorEstimado || anyTarget.valor_total_estimado || anyTarget.estimatedValue,
-                        urlOficialPncp,
-                        itens: Array.isArray(anyTarget.itens) ? anyTarget.itens : [],
-                    });
-                    localStorage.setItem(detailsKey, JSON.stringify(currentDetails));
-                }
-            } catch {}
-
-            toast.success('Edital adicionado à sua lista de propostas');
-        } catch (err: any) {
-            if (err?.response?.status === 409) {
-                toast.success('Edital adicionado à sua lista de propostas');
-            } else {
-                toast.error(err?.response?.data?.message || 'Erro ao adicionar edital à lista de propostas.');
-            }
-        } finally {
-            setSalvandoId(null);
-        }
-    };
-
-    const buscarLicitacoes = useCallback(async (pg = 1, _sincronizarPncp = false, isReset = true) => {
-        if (isReset || pg === 1) {
-            setLoading(true);
-            setTemMais(true);
-        } else {
-            setCarregandoMais(true);
-        }
-
-        const pncpModMap: Record<string, number> = {
-            'Pregão Eletrônico': 6,
-            'Concorrência': 4,
-            'Dispensa de Licitação': 8,
-            'Dispensa Eletrônica': 8,
-            'Dispensa': 8,
-            'Inexigibilidade': 9,
-            'Leilão Eletrônico': 1,
-            'Leilão': 1,
-            'Concurso': 3,
-            'Diálogo Competitivo': 2,
-            'Credenciamento': 12,
-            'Pré-Qualificação Técnica': 13,
-            'Pré-Qualificação': 13,
-            'Procedimento de Manifestação de Interesse (PMI)': 15,
-            'PMI': 15,
-            'Registro Cadastral Unificado': 16,
-            'Registro Cadastral': 16,
-        };
-        const isSrpFilter =
-            filtrosAplicados.modalidade === 'Sistema de Registro de Preços' ||
-            filtrosAplicados.modalidade === 'SRP / Registro de Preços' ||
-            filtrosAplicados.modalidade === 'Registro de Preços (SRP)';
-
-        const futureDate = new Date(Date.now() + 60 * 86_400_000);
-        const dataFinalYYYYMMDD = [
-            futureDate.getFullYear(),
-            String(futureDate.getMonth() + 1).padStart(2, '0'),
-            String(futureDate.getDate()).padStart(2, '0'),
-        ].join('');
-
-        try {
-            const params: Record<string, any> = {
-                pagina: pg,
-                tamanhoPagina: ITEMS_PER_LOAD,
-                dataFinal: dataFinalYYYYMMDD,
-                endpoint: 'proposta',
-                tempoReal: _sincronizarPncp,
-                local: !_sincronizarPncp,
-            };
-            if (filtrosAplicados.busca.trim()) {
-                params.busca = filtrosAplicados.busca.trim();
-                params.palavraChave = filtrosAplicados.busca.trim();
-            }
-            if (filtrosAplicados.cnpj.trim()) {
-                params.cnpj = filtrosAplicados.cnpj.trim();
-            }
-            if (filtrosAplicados.cnae?.trim()) {
-                params.cnae = filtrosAplicados.cnae.trim();
-            }
-            if (filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos') {
-                params.uf = filtrosAplicados.uf;
-            }
-            if (
-                filtrosAplicados.modalidade &&
-                filtrosAplicados.modalidade !== 'Todos' &&
-                filtrosAplicados.modalidade !== 'Todas as Contratações'
-            ) {
-                if (isSrpFilter) {
-                    params.srp = true;
-                } else {
-                    const modCode = pncpModMap[filtrosAplicados.modalidade];
-                    if (modCode) {
-                        params.codigoModalidadeContratacao = modCode;
-                        params.modalidade = modCode;
-                    }
-                }
-            }
-
-            const { data } = await licitacoesApi.listar(params);
-
-            if (data && (Array.isArray(data.items) || Array.isArray(data.data))) {
-                const rawItems: Licitacao[] = (Array.isArray(data.items) ? data.items : data.data) || [];
-                const termoBusca = filtrosAplicados.busca.trim().toLowerCase();
-                const filteredByTerm = termoBusca
-                    ? rawItems.filter((item) => {
-                        const objText = String(item.objetoCompra || item.objeto || '').toLowerCase();
-                        const infoComp = String(item.informacaoComplementar || '').toLowerCase();
-                        return objText.includes(termoBusca) || infoComp.includes(termoBusca);
-                    })
-                    : rawItems;
-
-                const now = new Date();
-                const validItems = filteredByTerm.filter((item) => {
-                    const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento;
-                    if (!encStr) return true;
-                    const encDate = new Date(encStr);
-                    return !isNaN(encDate.getTime()) ? encDate >= now : true;
-                });
-
-                validItems.sort((a, b) => {
-                    const anoA = Number(a.anoCompra) || (a.dataPublicacao ? new Date(a.dataPublicacao).getFullYear() : 0);
-                    const anoB = Number(b.anoCompra) || (b.dataPublicacao ? new Date(b.dataPublicacao).getFullYear() : 0);
-                    if (anoB !== anoA) {
-                        return anoB - anoA;
-                    }
-                    const pubA = (a.dataPublicacao || a.data_publicacao) ? new Date(a.dataPublicacao || a.data_publicacao!).getTime() : 0;
-                    const pubB = (b.dataPublicacao || b.data_publicacao) ? new Date(b.dataPublicacao || b.data_publicacao!).getTime() : 0;
-                    return pubB - pubA;
-                });
-
-                const items = validItems;
-
-                const totalOficial = Number((data.meta?.totalRegistros ?? data.totalRegistros ?? data.total) ?? items.length);
-                const total = termoBusca ? items.length : totalOficial;
-                const totalPgs = data.meta?.totalPaginas ?? (Math.ceil(total / ITEMS_PER_LOAD) || 1);
-
-                if (isReset || pg === 1) {
-                    setEditais(items);
-                    const mainEl = document.getElementById('main-content') || window;
-                    if ('scrollTo' in mainEl) {
-                        mainEl.scrollTo({ top: 0, behavior: 'instant' });
-                    }
-                } else {
-                    setEditais((prev) => {
-                        const existingIds = new Set(prev.map((e) => e.numeroControlePNCP || e.id));
-                        const fresh = items.filter((e) => !existingIds.has(e.numeroControlePNCP || e.id));
-                        return [...prev, ...fresh];
-                    });
-                }
-
-                if (items.length < ITEMS_PER_LOAD || pg >= totalPgs) {
-                    setTemMais(false);
-                } else {
-                    setTemMais(true);
-                }
-
-                setMeta({
-                    total,
-                    pagina: pg,
-                    tamanhoPagina: ITEMS_PER_LOAD,
-                    totalPaginas: totalPgs,
-                    fonte: 'pncp',
-                    perfilRadar: data.meta?.perfilRadar ?? data.perfilRadar,
-                    aviso: (isReset && items.length === 0)
-                        ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
-                        : data.meta?.aviso,
-                });
-                setPagina(pg);
-                setUltimaAtualizacao(new Date());
-
-                const BG_SYNC_INTERVAL_MS = 10 * 60 * 1000;
-                const lastBgSync = Number(sessionStorage.getItem('last_pncp_bg_sync') || '0');
-                if (!_sincronizarPncp && (Date.now() - lastBgSync > BG_SYNC_INTERVAL_MS)) {
-                    sessionStorage.setItem('last_pncp_bg_sync', String(Date.now()));
-                    void (async () => {
-                        try {
-                            await licitacoesApi.sincronizar({
-                                pagina: 1,
-                                uf: params.uf,
-                                modalidade: params.modalidade,
-                                busca: params.busca,
-                                cnpj: params.cnpj,
-                                cnae: params.cnae,
-                            });
-                            const refetch = await licitacoesApi.listar(params);
-                            const fresh = (Array.isArray(refetch?.data?.items) ? refetch.data.items : refetch?.data?.data) || [];
-                            if (fresh.length > 0) {
-                                setEditais(fresh);
-                                setUltimaAtualizacao(new Date());
-                            }
-                        } catch {}
-                    })();
-                }
-            } else {
-                if (isReset || pg === 1) {
-                    setEditais([]);
-                    setMeta({
-                        total: 0,
-                        pagina: pg,
-                        tamanhoPagina: ITEMS_PER_LOAD,
-                        totalPaginas: 0,
-                        fonte: 'vazio',
-                        aviso: 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.',
-                    });
-                }
-                setTemMais(false);
-            }
-        } catch (err: any) {
-            const aviso = err?.response?.data?.message || 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.';
-            if (isReset || pg === 1) {
-                setEditais([]);
-                setMeta({
-                    total: 0,
-                    pagina: pg,
-                    tamanhoPagina: ITEMS_PER_LOAD,
-                    totalPaginas: 0,
-                    fonte: 'vazio',
-                    aviso,
-                });
-            }
-            setTemMais(false);
-        } finally {
-            setLoading(false);
-            setCarregandoMais(false);
-        }
-    }, [filtrosAplicados]);
-
-    useEffect(() => {
-        void buscarLicitacoes(1, false, true);
-    }, [buscarLicitacoes]);
-
-    useEffect(() => {
-        const sentinel = sentinelRef.current;
-        if (!sentinel) return;
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                const first = entries[0];
-                if (first.isIntersecting && !loading && !carregandoMais && temMais) {
-                    setPagina((prev) => {
-                        const proxima = prev + 1;
-                        void buscarLicitacoes(proxima, false, false);
-                        return proxima;
-                    });
-                }
-            },
-            { rootMargin: '300px' }
-        );
-
-        observer.observe(sentinel);
-        return () => observer.disconnect();
-    }, [loading, carregandoMais, temMais, buscarLicitacoes]);
-
-    useEffect(() => {
-        const mainEl = document.getElementById('main-content') || containerRef.current;
-        if (mainEl) {
-            mainEl.focus({ preventScroll: true });
-        }
-    }, []);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) {
-                const target = e.target as HTMLElement | null;
-                if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) {
-                    return;
-                }
-                const scrollTarget = document.getElementById('main-content') || window;
-                const delta = e.key === 'ArrowUp' ? -140 : e.key === 'ArrowDown' ? 140 : e.key === 'PageUp' ? -450 : 450;
-                if ('scrollBy' in scrollTarget) {
-                    scrollTarget.scrollBy({ top: delta, behavior: 'smooth' });
-                }
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
-    const handleBuscar = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!isValidCnpj(cnpjFiltro, { optional: true })) {
-            toast.error('CNPJ inválido. Se preenchido, informe os 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX).');
-            return;
-        }
-        const nextFilters: SearchFilters = {
-            busca: busca.trim(),
-            cnpj: sanitizeCnpj(cnpjFiltro),
-            cnae: cnaeFiltro.trim(),
-            uf: ufSel,
-            modalidade: modalidadeSel,
-        };
-        if (
-            nextFilters.busca === filtrosAplicados.busca
-            && nextFilters.cnpj === filtrosAplicados.cnpj
-            && nextFilters.cnae === filtrosAplicados.cnae
-            && nextFilters.uf === filtrosAplicados.uf
-            && nextFilters.modalidade === filtrosAplicados.modalidade
-        ) {
-            void buscarLicitacoes(1, false, true);
-            return;
-        }
-        setFiltrosAplicados(nextFilters);
-    };
-
-    const aplicarPerfilEmpresaAtiva = () => {
-        if (!selectedCompany) {
-            toast.error('Nenhuma empresa ativa selecionada.');
-            return;
-        }
-        const rawCnae = selectedCompany.cnaePrincipal || selectedCompany.cnae_principal || (meta?.perfilRadar?.cnaes?.[0] ?? '');
-        const cnaeDesc = rawCnae.replace(/^\d+[\s-]*/, '').trim();
-        const palavrasIgnoradas = new Set(['comercio', 'varejista', 'atacadista', 'artigos', 'produtos', 'servicos', 'geral', 'outros', 'para', 'de', 'da', 'do', 'dos', 'das', 'e', 'em']);
-        const palavraRamo = cnaeDesc
-            .split(/[\s,;/.-]+/)
-            .find((p) => p.length > 3 && !palavrasIgnoradas.has(p.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) || '';
-
-        const nextUf = selectedCompany.uf && UFS.includes(selectedCompany.uf.toUpperCase())
-            ? selectedCompany.uf.toUpperCase()
-            : 'Todos';
-
-        setCnpjFiltro('');
-        setCnaeFiltro(rawCnae);
-        setBusca(palavraRamo);
-        setUfSel(nextUf);
-        setFiltrosAplicados({
-            busca: palavraRamo,
-            cnpj: '',
-            cnae: rawCnae.trim(),
-            uf: nextUf,
-            modalidade: modalidadeSel,
-        });
-        toast.success(
-            palavraRamo
-                ? `Buscando editais para o seu ramo (${palavraRamo})!`
-                : 'Filtros ajustados para o ramo da empresa ativa.',
-        );
-    };
-
-    const limparFiltros = () => {
-        const defaultMod = modalidadeInicial || 'Todos';
-        const nextFilters: SearchFilters = {
-            busca: '',
-            cnpj: '',
-            cnae: '',
-            uf: '',
-            modalidade: defaultMod,
-        };
-        setBusca('');
-        setCnpjFiltro('');
-        setCnaeFiltro('');
-        setUfSel('');
-        setModalidadeSel(defaultMod);
-        if (
-            nextFilters.busca === filtrosAplicados.busca
-            && nextFilters.cnpj === filtrosAplicados.cnpj
-            && nextFilters.cnae === filtrosAplicados.cnae
-            && nextFilters.uf === filtrosAplicados.uf
-            && nextFilters.modalidade === filtrosAplicados.modalidade
-        ) {
-            void buscarLicitacoes(1, false, true);
-            return;
-        }
-        setFiltrosAplicados(nextFilters);
-    };
-
-    const handleSincronizarPncpManual = async () => {
-        setSincronizandoManual(true);
-        try {
-            await licitacoesApi.sincronizar({
-                pagina: 1,
-                uf: filtrosAplicados.uf && filtrosAplicados.uf !== 'Todos' ? filtrosAplicados.uf : undefined,
-                modalidade: filtrosAplicados.modalidade && filtrosAplicados.modalidade !== 'Todos' ? filtrosAplicados.modalidade : undefined,
-                busca: filtrosAplicados.busca || undefined,
-                cnpj: filtrosAplicados.cnpj || undefined,
-                cnae: filtrosAplicados.cnae || undefined,
-            });
-            sessionStorage.setItem('last_pncp_bg_sync', String(Date.now()));
-            toast.success('Sincronização com o PNCP realizada com sucesso!');
-        } catch {
-            toast('Sincronização iniciada. Atualizando dados locais...');
-        } finally {
-            setSincronizandoManual(false);
-            void buscarLicitacoes(1, false, true);
-        }
-    };
-
-    const abrirResumoDoEdital = (item: Licitacao) => {
-        const urlOficialPncp = buildOfficialPncpPortalUrl(item);
-        const downloadUrl = resolveEditalDownloadUrl(item);
-        const dataInicioRecebimento = item.dataAberturaProposta || item.dataAbertura || item.data_abertura || null;
-        const dataFimRecebimento = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento || item.data_encerramento || null;
-
-        setEditalParaResumo({
-            ...item,
-            id: item.id || item.numeroControlePNCP || `edital-${Date.now()}`,
-            orgao: item.nomeOrgao || item.orgao || 'Órgão Licitante',
-            objeto: item.objetoCompra || item.objeto || 'Objeto não informado pelo órgão',
-            valorTotalEstimado: item.valorTotalEstimado ?? item.valorEstimado ?? item.valor_estimado ?? null,
-            dataInicioRecebimento,
-            dataFimRecebimento,
-            urlOficialPncp,
-            downloadUrl,
-            itens: Array.isArray((item as any).itens) ? (item as any).itens : [],
-        });
-    };
-
-    const formatVal = (v?: number | null) => {
-        const num = v != null ? Number(v) : null;
-        if (num != null && Number.isFinite(num) && num > 0) {
-            return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        }
-        return 'Orçamento Sigiloso / Ver Itens';
-    };
-
-    const diasRestantes = (d?: string | null) => {
-        if (!d) return null;
-        return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
-    };
-
-    const tituloPagina = tituloCustomizado
-        ? tituloCustomizado
-        : modalidadeInicial && modalidadeInicial !== 'Todos'
-            ? `${modalidadeInicial} em Aberto`
-            : 'Radar de Editais';
-
-    return (
-        <div ref={containerRef} className="flex flex-col w-full h-auto bg-brand-light focus:outline-none">
-            <div className="bg-white border-b border-gray-100 px-6 lg:px-8 py-5 relative z-1 shadow-2xs">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                        <div>
-                            <h1 className="text-2xl md:text-3xl font-bold text-[#0B192C] tracking-tight">{tituloPagina}</h1>
-                            <p className="text-sm font-normal text-[#334155] mt-1">Editais disponíveis para o seu negócio disputar</p>
-                            <div className="flex flex-wrap items-center gap-3 mt-1.5">
-                                {meta?.total != null ? (
-                                    <p className="text-xs font-medium text-slate-500 flex items-center gap-2">
-                                        Exibindo <span className="font-bold text-brand-blue">{editais.length.toLocaleString('pt-BR')}</span> de <span className="font-bold text-brand-blue">{meta.total.toLocaleString('pt-BR')}</span> editais encontrados
-                                        {ultimaAtualizacao && (
-                                            <span className="text-xs text-slate-400">· Sincronizado às {ultimaAtualizacao.toLocaleTimeString('pt-BR')}</span>
-                                        )}
-                                    </p>
-                                ) : (
-                                    <p className="text-xs font-medium text-slate-500">Consulta direta e oficial ao Portal Nacional de Contratações Públicas (PNCP)</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2.5">
-                            {selectedCompany && (
-                                <button
-                                    type="button"
-                                    onClick={aplicarPerfilEmpresaAtiva}
-                                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-brand-blue text-xs font-bold uppercase tracking-wider rounded-xl transition-all border border-brand-blue/20 shrink-0"
-                                    title="Preencher filtros com CNPJ, CNAE e UF da empresa ativa"
-                                >
-                                    <Building2 className="w-3.5 h-3.5" weight="bold" />
-                                    Usar Meu CNAE
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={handleSincronizarPncpManual}
-                                disabled={loading || sincronizandoManual}
-                                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-dark hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoManual ? 'animate-spin' : ''}`} weight="bold" />
-                                {sincronizandoManual ? 'Sincronizando...' : 'Sincronizar PNCP'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 mb-4">
-                        {FILTROS_RAPIDOS_RADAR.map((filtro) => {
-                            const ativo =
-                                modalidadeSel === filtro.valor ||
-                                (filtro.valor === 'Todos' && (modalidadeSel === 'Todos' || !modalidadeSel));
-                            return (
-                                <button
-                                    key={filtro.label}
-                                    type="button"
-                                    onClick={() => handleSelecionarModalidadeInstantanea(filtro.valor)}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${ativo
-                                            ? 'bg-[#0B192C] text-white border-[#0B192C] shadow-xs'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    {filtro.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <form onSubmit={handleBuscar} className="space-y-3">
-                        <div className="flex gap-3 flex-wrap">
-                            <div className="relative flex-1 min-w-[260px]">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" weight="bold" />
-                                <input
-                                    type="text"
-                                    value={busca}
-                                    onChange={e => setBusca(e.target.value)}
-                                    placeholder="Palavras-chave (ex: informática, engenharia, limpeza, medicamentos)..."
-                                    className="w-full pl-11 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none transition-all shadow-xs"
-                                />
-                            </div>
-                            <div className="w-40 min-w-[140px]">
-                                <select
-                                    id="licitacoes-uf-topo"
-                                    aria-label="Filtrar licitações por Estado/UF"
-                                    value={ufSel}
-                                    onChange={e => {
-                                        const novaUf = e.target.value === 'Todos' ? '' : e.target.value;
-                                        setUfSel(novaUf);
-                                        setFiltrosAplicados(prev => ({
-                                            ...prev,
-                                            uf: novaUf,
-                                        }));
-                                    }}
-                                    className="w-full h-full py-3 px-3 bg-white border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10 outline-none transition-all cursor-pointer"
-                                >
-                                    {UFS.map(u => (
-                                        <option key={u} value={u === 'Todos' ? '' : u}>
-                                            {u === 'Todos' ? 'Todas as UFs (Brasil)' : `Estado: ${u}`}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="px-7 py-3 bg-brand-orange hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 shadow-md shadow-brand-orange/20 cursor-pointer"
-                            >
-                                Buscar Editais
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowFiltros(!showFiltros)}
-                                className="flex items-center gap-2 px-4 py-3 bg-white border-2 border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-xl hover:border-slate-300 transition-all cursor-pointer"
-                            >
-                                <Filter className="w-4 h-4" />
-                                Filtros Avançados
-                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFiltros ? 'rotate-180' : ''}`} />
-                            </button>
-                        </div>
-
-                        {showFiltros && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-slate-100 animate-in fade-in duration-150">
-                                <div>
-                                    <label htmlFor="licitacoes-cnpj-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                                        CNPJ
-                                    </label>
-                                    <input
-                                        id="licitacoes-cnpj-filter"
-                                        type="text"
-                                        maxLength={18}
-                                        value={cnpjFiltro}
-                                        onChange={e => setCnpjFiltro(formatCnpjMask(e.target.value))}
-                                        placeholder={selectedCompany?.cnpj ? formatCnpjMask(selectedCompany.cnpj) : 'XX.XXX.XXX/XXXX-XX'}
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="licitacoes-cnae-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                                        <span>CNAE / Ramo de Atividade</span>
-                                        <InfoTooltip text="Código da atividade econômica da sua empresa para filtrar editais compatíveis com seu objeto social." />
-                                    </label>
-                                    <input
-                                        id="licitacoes-cnae-filter"
-                                        type="text"
-                                        value={cnaeFiltro}
-                                        onChange={e => setCnaeFiltro(e.target.value)}
-                                        placeholder={selectedCompany?.cnaePrincipal || meta?.perfilRadar?.cnaes?.[0] || 'Ex: 6201-5/01 ou Engenharia'}
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-blue"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="licitacoes-modalidade-filter" className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                                        <span>Modalidade Específica</span>
-                                        <InfoTooltip text="Modalidade ou procedimento de contratação pública." />
-                                    </label>
-                                    <select
-                                        id="licitacoes-modalidade-filter"
-                                        aria-label="Filtrar licitações por modalidade"
-                                        value={modalidadeSel}
-                                        onChange={e => handleSelecionarModalidadeInstantanea(e.target.value)}
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-brand-blue"
-                                    >
-                                        {MODALIDADES.map(m => <option key={m} value={m}>{m}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="flex items-end gap-2">
-                                    <button
-                                        type="submit"
-                                        disabled={loading}
-                                        className="flex-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
-                                    >
-                                        Aplicar Filtros
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={limparFiltros}
-                                        className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"
-                                    >
-                                        Limpar
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </form>
-                </div>
-            </div>
-
-            <div className="flex-1 px-6 lg:px-8 py-6">
-                <div className="max-w-7xl mx-auto">
-                    {meta?.aviso && !loading && (
-                        <div className={`mb-5 rounded-xl p-4 flex items-start gap-3 animate-in fade-in duration-200 ${meta.fonte === 'cache'
-                            ? 'bg-blue-50/40 border border-brand-blue/20'
-                            : 'bg-brand-orange/10 border border-brand-orange/50'
-                            }`}>
-                            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-brand-blue" />
-                            <div>
-                                <p className="text-sm font-bold text-brand-blue">
-                                    {meta.fonte === 'cache' ? 'Sincronização PNCP' : 'Aviso de conectividade'}
-                                </p>
-                                <p className="text-xs mt-0.5 text-slate-600">
-                                    {meta.aviso}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {loading && licitacoes.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-24 gap-4">
-                            <div className="relative">
-                                <div className="w-12 h-12 border-4 border-[#0A2540]/20 rounded-lg" />
-                                <div className="w-12 h-12 border-4 border-[#0A2540] border-t-transparent rounded-lg animate-spin absolute inset-0" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-sm font-bold text-slate-800">Consultando Portal Nacional de Contratações Públicas (PNCP)...</p>
-                                <p className="text-xs text-slate-500 mt-1">Aplicando filtros reais de CNPJ, CNAE, Palavras-chave e UF</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {!loading && licitacoes.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-16 px-6 gap-5 text-center max-w-lg mx-auto bg-slate-50/80 rounded-3xl border-2 border-dashed border-slate-200">
-                            <div className="relative p-4 rounded-3xl bg-white shadow-md border border-slate-100">
-                                <FileText className="w-14 h-14 text-[#0A2540]" weight="duotone" />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                                    Nenhuma contratação encontrada diretamente no PNCP para estes filtros.
-                                </h3>
-                                <p className="text-xs text-slate-500 leading-relaxed max-w-md">
-                                    A consulta aos dados locais não retornou registros. Ajuste os filtros de Palavras-chave, UF ou Modalidade e clique em Sincronizar PNCP.
-                                </p>
-                            </div>
-
-                            <div className="flex items-center gap-3 pt-2 w-full justify-center">
-                                <button
-                                    type="button"
-                                    onClick={limparFiltros}
-                                    className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
-                                >
-                                    Limpar Filtros
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleSincronizarPncpManual}
-                                    disabled={sincronizandoManual}
-                                    className="px-5 py-2.5 bg-brand-blue hover:bg-blue-900 disabled:opacity-60 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center gap-2"
-                                >
-                                    <RefreshCw className={`w-3.5 h-3.5 ${sincronizandoManual ? 'animate-spin' : ''}`} weight="bold" />
-                                    {sincronizandoManual ? 'Sincronizando...' : 'Sincronizar PNCP Agora'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {licitacoes.length > 0 && (
-                        <div className={`bg-white border border-slate-200 rounded-2xl shadow-xs h-auto overflow-visible transition-opacity duration-200 ${loading ? 'opacity-85' : 'opacity-100'}`}>
-                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
-                                    <span className="text-xs font-medium text-[#334155]">
-                                        {loading ? (
-                                            <span className="font-semibold text-amber-700 flex items-center gap-1.5">
-                                                <RefreshCw className="w-3 h-3 animate-spin inline" weight="bold" />
-                                                Atualizando lista de editais...
-                                            </span>
-                                        ) : (
-                                            <>Base PNCP / SICAF: <span className="font-semibold text-emerald-700">Sincronizada</span></>
-                                        )}
-                                    </span>
-                                </div>
-                                {meta?.total != null && (
-                                    <span className="text-xs font-semibold text-slate-500">
-                                        Exibindo {editais.length.toLocaleString('pt-BR')} de {meta.total.toLocaleString('pt-BR')} editais encontrados
-                                    </span>
-                                )}
-                            </div>
-                            <div className="w-full h-auto overflow-visible rounded-b-2xl">
-                                <table className="w-full table-fixed text-left border-collapse h-auto overflow-visible">
-                                    <thead>
-                                        <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                                            <th className="w-[15%] py-3.5 px-3">Edital / PNCP</th>
-                                            <th className="w-[16%] py-3.5 px-3">Órgão / Município</th>
-                                            <th className="w-[14%] py-3.5 px-3">Prazos</th>
-                                            <th className="w-[23%] py-3.5 px-3">Objeto Completo</th>
-                                            <th className="w-[15%] py-3.5 px-3 text-right">Valor & Viabilidade</th>
-                                            <th className="w-[17%] py-3.5 px-3 text-center">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 text-sm">
-                                        {licitacoes.map((item, i) => {
-                                            const viab = calcularViabilidadeEdital(item);
-                                            const numeroEdital =
-                                                item.numeroControlePNCP ||
-                                                item.numeroEdital ||
-                                                item.numeroCompra ||
-                                                item.processo ||
-                                                item.id;
-                                            const nomeOrgaoExibido =
-                                                item.nomeOrgao ||
-                                                item.orgao ||
-                                                'Órgão Público';
-                                            const objetoCompraExibido =
-                                                item.objetoCompra ||
-                                                item.objeto ||
-                                                '';
-                                            const modalidadeExibida =
-                                                item.nomeModalidade ||
-                                                item.modalidadeNome ||
-                                                item.modalidade;
-                                            const inicioPropostaExibido =
-                                                item.dataAbertura ||
-                                                item.data_abertura;
-                                            const encerramentoPropostaExibido =
-                                                item.dataEncerramento ||
-                                                item.data_encerramento;
-                                            const publicacaoPncpExibida =
-                                                item.dataPublicacao ||
-                                                item.data_publicacao;
-                                            const dias = diasRestantes(encerramentoPropostaExibido);
-                                            const urgente = dias !== null && dias >= 0 && dias <= 3;
-                                            const valorExibido =
-                                                item.valorTotalEstimado ??
-                                                item.valorEstimado ??
-                                                item.valor_estimado;
-                                            const auditPortalHref = buildOfficialPncpPortalUrl(item);
-
-                                            return (
-                                                <tr
-                                                    key={item.id || i}
-                                                    onClick={() => abrirResumoDoEdital(item)}
-                                                    className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
-                                                >
-                                                    <td className="py-4 px-3 align-top">
-                                                        <div className="flex flex-col gap-1 w-full">
-                                                            <span className="font-mono text-[11px] font-semibold text-[#0B192C] bg-slate-100 px-2 py-0.5 rounded-md break-all inline-block w-fit max-w-full">
-                                                                {numeroEdital}
-                                                            </span>
-                                                            {item.numeroEdital && item.numeroEdital !== numeroEdital && (
-                                                                <span className="font-mono text-[10px] text-slate-400 break-all">
-                                                                    Compra: {item.numeroEdital}
-                                                                </span>
-                                                            )}
-                                                            <a
-                                                                href={auditPortalHref}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                onClick={e => e.stopPropagation()}
-                                                                className="btn-auditoria-pncp btn-link-pncp inline-flex items-center gap-1 text-[11px] font-medium text-brand-blue hover:text-blue-800 hover:underline mt-1 w-fit"
-                                                                title="Ver no Portal Oficial do PNCP ↗"
-                                                            >
-                                                                <span>Ver no Portal Oficial do PNCP ↗</span>
-                                                            </a>
-                                                        </div>
-                                                    </td>
-
-                                                    <td className="py-4 px-3 align-top">
-                                                        <div className="font-semibold text-[#0B192C] text-xs leading-snug break-words">
-                                                            {nomeOrgaoExibido}
-                                                        </div>
-                                                        {item.cnpjOrgao && (
-                                                            <div className="text-[10px] font-mono text-slate-500 mt-0.5 break-all">
-                                                                CNPJ: {item.cnpjOrgao}
-                                                            </div>
-                                                        )}
-                                                        {(item.municipio || item.uf) && (
-                                                            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500 mt-1">
-                                                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" weight="bold" />
-                                                                <span className="break-words">{[item.municipio, item.uf].filter(Boolean).join(' / ')}</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
-
-                                                    <td className="py-4 px-3 align-top">
-                                                        <div className="flex flex-col gap-1 text-xs">
-                                                            <div className="flex items-center gap-1 font-medium text-slate-600">
-                                                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                                <span className="text-[11px] break-words">
-                                                                    Início Propostas: {inicioPropostaExibido ? formatPncpDateBR(inicioPropostaExibido, true) : 'Ver no edital'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1 font-bold text-brand-blue">
-                                                                <Clock className="w-3.5 h-3.5 text-brand-blue shrink-0" weight="bold" />
-                                                                <span className="text-[11px] break-words">
-                                                                    Encerramento / Sessão: {encerramentoPropostaExibido ? formatPncpDateBR(encerramentoPropostaExibido, true) : 'Ver no edital'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-normal">
-                                                                <span className="break-words">
-                                                                    Divulgação PNCP: {publicacaoPncpExibida ? formatPncpDateBR(publicacaoPncpExibida, false) : '—'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        {urgente && (
-                                                            <span className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-brand-orange bg-orange-50 border border-brand-orange/30 uppercase tracking-wider w-fit">
-                                                                <Clock className="w-3 h-3 shrink-0" weight="bold" />
-                                                                {dias === 0 ? 'Encerra Hoje' : `${dias}d restantes`}
-                                                            </span>
-                                                        )}
-                                                    </td>
-
-                                                    <td className="py-4 px-3 align-top">
-                                                        {modalidadeExibida && (
-                                                            <div className="mb-1.5">
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wider inline-block">
-                                                                    {modalidadeExibida}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        <p className="whitespace-normal break-words text-xs leading-relaxed font-normal text-[#334155] group-hover:text-brand-blue transition-colors">
-                                                            {objetoCompraExibido}
-                                                        </p>
-                                                    </td>
-
-                                                    <td className="py-4 px-3 align-top text-right" onClick={e => e.stopPropagation()}>
-                                                        <div className="flex flex-col gap-2">
-                                                            <div>
-                                                                <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                                                                    Valor Estimado
-                                                                </span>
-                                                                {valorExibido != null && Number.isFinite(Number(valorExibido)) && Number(valorExibido) > 0 ? (
-                                                                    <span className="text-xs sm:text-sm font-bold text-[#0B192C] break-words">
-                                                                        {formatVal(valorExibido)}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 break-words mt-0.5">
-                                                                        Orçamento Sigiloso / Ver Itens
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex flex-col gap-1 items-end">
-                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${viab.badgeClass} max-w-full`}>
-                                                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${viab.percentual >= 75 ? 'bg-emerald-500' : viab.percentual >= 50 ? 'bg-amber-500' : 'bg-rose-500'
-                                                                        }`} />
-                                                                    <span className="truncate">{viab.percentual}% • {viab.status}</span>
-                                                                </span>
-                                                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full ${viab.barClass} rounded-full transition-all`}
-                                                                        style={{ width: `${viab.percentual}%` }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-
-                                                    <td className="py-4 px-3 align-top text-center" onClick={e => e.stopPropagation()}>
-                                                        <div className="flex flex-col gap-2 w-full">
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    abrirResumoDoEdital(item);
-                                                                }}
-                                                                className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#0B192C] border border-blue-200 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all shadow-2xs cursor-pointer"
-                                                                title="Resumo do Edital - Abrir com itens, prazos e checklist"
-                                                            >
-                                                                <FileText className="w-3.5 h-3.5 shrink-0 text-brand-blue" weight="bold" />
-                                                                <span className="truncate">Resumo do Edital</span>
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={e => void handleSalvarParaDisputar(e, item)}
-                                                                disabled={salvosCrmIds.has(item.id) || salvandoId === item.id}
-                                                                className={`w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all border ${salvosCrmIds.has(item.id)
-                                                                    ? 'bg-[#DCFCE7] border-emerald-300 text-[#166534] cursor-default'
-                                                                    : 'bg-[#F97316] text-white hover:brightness-95 hover:-translate-y-0.5 border-transparent shadow-xs cursor-pointer'
-                                                                    }`}
-                                                                title={salvosCrmIds.has(item.id) ? 'Edital já adicionado' : 'Salvar edital para gerar proposta'}
-                                                            >
-                                                                {salvandoId === item.id ? (
-                                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-                                                                ) : salvosCrmIds.has(item.id) ? (
-                                                                    <>
-                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#166534] shrink-0" weight="bold" />
-                                                                        <span className="truncate">Salvo ✓</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Plus className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                                                                        <span className="truncate">Salvar p/ Proposta</span>
-                                                                    </>
-                                                                )}
-                                                            </button>
-
-                                                            <a
-                                                                href={buildOfficialPncpPortalUrl(item)}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                onClick={e => e.stopPropagation()}
-                                                                className="btn-download-edital w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-2 border border-[#0B192C] text-[#0B192C] hover:bg-[#0B192C]/5 bg-transparent text-[11px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                                                                title="Acessar Edital Oficial no PNCP ↗"
-                                                            >
-                                                                <Download className="w-3.5 h-3.5 shrink-0" weight="bold" />
-                                                                <span className="truncate">Edital no PNCP ↗</span>
-                                                            </a>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {!loading && licitacoes.length > 0 && (
-                        <div ref={sentinelRef} className="py-8 flex flex-col items-center justify-center gap-2">
-                            {carregandoMais && (
-                                <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-white border border-slate-200 shadow-md text-slate-700 text-xs font-bold animate-pulse">
-                                    <RefreshCw className="w-4 h-4 text-brand-orange animate-spin" />
-                                    <span>Carregando mais 100 editais (página {pagina + 1})...</span>
-                                </div>
-                            )}
-                            {!temMais && (
-                                <p className="text-xs font-semibold text-slate-400">
-                                    Todos os {editais.length.toLocaleString('pt-BR')} editais disponíveis foram carregados ({pagina} {pagina === 1 ? 'página' : 'páginas'}).
-                                </p>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <DossieEditalModal
-                titulo="Resumo do Edital"
-                isOpen={Boolean(editalParaResumo)}
-                onClose={() => setEditalParaResumo(null)}
-                edital={editalParaResumo}
-                isSalvo={Boolean(editalParaResumo && salvosCrmIds.has(editalParaResumo.id))}
-                isSalvando={Boolean(editalParaResumo && salvandoId === editalParaResumo.id)}
-                onSalvar={(target) => void handleSalvarParaDisputar(undefined, target)}
-            />
-
-            {editalParaViabilidade && (() => {
-                const viab = calcularViabilidadeEdital(editalParaViabilidade);
-                const valTotal = Number(
-                    editalParaViabilidade.valorTotalEstimado ??
-                    editalParaViabilidade.valorEstimado ??
-                    editalParaViabilidade.valor_estimado ??
-                    0
-                );
-                const possuiValorReal = valTotal > 0;
-                const estimativaEdital = possuiValorReal ? valTotal : null;
-                const precoMinimoSustentavel = estimativaEdital ? Math.round(estimativaEdital * 0.72) : null;
-                const nossoPreco = estimativaEdital ? Math.round(estimativaEdital * 0.85) : null;
-                const margemBrutaEstimada = nossoPreco && precoMinimoSustentavel ? nossoPreco - precoMinimoSustentavel : null;
-                const margemPercentual = nossoPreco && margemBrutaEstimada ? Math.round((margemBrutaEstimada / nossoPreco) * 100) : null;
-
-                return (
-                    <div
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto"
-                        onClick={() => setEditalParaViabilidade(null)}
-                    >
-                        <div
-                            className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="bg-[#0B192C] text-white p-5 flex items-start justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <TrendingUp className="w-5 h-5 text-emerald-400" weight="bold" />
-                                        <h3 className="text-lg font-bold tracking-tight text-white">
-                                            Painel de Viabilidade & Preços
-                                        </h3>
-                                    </div>
-                                    <p className="text-xs text-slate-300">
-                                        {editalParaViabilidade.nomeOrgao || editalParaViabilidade.orgao || 'Órgão Licitante'} · Edital {editalParaViabilidade.numeroControlePNCP || editalParaViabilidade.id}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setEditalParaViabilidade(null)}
-                                    className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-                                    aria-label="Fechar painel de viabilidade"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="p-6 space-y-6 max-h-[calc(85vh-140px)] overflow-y-auto">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center font-black text-xl text-[#0B192C]">
-                                            {viab.percentual}%
-                                        </div>
-                                        <div>
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold border ${viab.badgeClass}`}>
-                                                {viab.texto}
-                                            </span>
-                                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                                {viab.parecer}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                                            <DollarSign className="w-4 h-4 text-brand-blue" />
-                                            Formação de Preço Sustentável vs. Estimativa do Órgão
-                                        </h4>
-                                    </div>
-
-                                    {possuiValorReal && estimativaEdital && precoMinimoSustentavel && nossoPreco && margemBrutaEstimada != null && margemPercentual != null ? (
-                                        <>
-                                            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="font-semibold text-slate-700">Preço Mínimo Sustentável (Custos + Piso)</span>
-                                                    <span className="font-bold text-amber-600">{formatVal(precoMinimoSustentavel)}</span>
-                                                </div>
-                                                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                                                        style={{ width: `${Math.round((precoMinimoSustentavel / estimativaEdital) * 100)}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1.5 p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="font-semibold text-emerald-900">Preço Sugerido de Disputa (Nosso Preço)</span>
-                                                    <span className="font-bold text-emerald-700">{formatVal(nossoPreco)}</span>
-                                                </div>
-                                                <div className="h-3 w-full bg-emerald-200/60 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                                                        style={{ width: `${Math.round((nossoPreco / estimativaEdital) * 100)}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1.5 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
-                                                <div className="flex justify-between text-xs">
-                                                    <span className="font-semibold text-[#0B192C]">Valor Estimado do Edital (Teto do Órgão)</span>
-                                                    <span className="font-bold text-[#0B192C]">{formatVal(estimativaEdital)}</span>
-                                                </div>
-                                                <div className="h-3 w-full bg-blue-200/60 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-[#0B192C] rounded-full transition-all duration-500 w-full" />
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-3 pt-2">
-                                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                                                        Margem Bruta Estimada
-                                                    </span>
-                                                    <span className="text-base font-extrabold text-emerald-600">
-                                                        {formatVal(margemBrutaEstimada)}
-                                                    </span>
-                                                </div>
-                                                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                                                        Margem Percentual
-                                                    </span>
-                                                    <span className="text-base font-extrabold text-brand-blue">
-                                                        {margemPercentual}% de Margem
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
-                                            Este edital possui <strong>orçamento sigiloso no PNCP</strong>. Clique em <strong>Gerar Proposta Comercial</strong> abaixo para importar os itens do Termo de Referência e calcular sua margem real a partir do seu custo unitário.
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed">
-                                    <span className="font-bold text-[#0B192C] block mb-1">Recomendação Comercial:</span>
-                                    {viab.recomendacao}
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const ed = editalParaViabilidade;
-                                        setEditalParaViabilidade(null);
-                                        abrirResumoDoEdital(ed);
-                                    }}
-                                    className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
-                                >
-                                    Abrir Resumo Completo
-                                </button>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const id = editalParaViabilidade.id;
-                                            setEditalParaViabilidade(null);
-                                            navigate(`/fornecedor/propostas?edital=${encodeURIComponent(id)}`);
-                                        }}
-                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
-                                    >
-                                        Gerar Proposta Comercial
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditalParaViabilidade(null)}
-                                        className="px-4 py-2 bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all"
-                                    >
-                                        Fechar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })()}
-
-            <AnimatePresence>
-                {editalSelecionado && (
-                    <EditalQuickViewModal
-                        key={editalSelecionado.id}
-                        notice={editalSelecionado}
-                        summary={resumoRapido}
-                        isGeneratingSummary={gerandoResumo}
-                        isCreatingProposal={criandoProposta}
-                        isLoadingDetails={carregandoDetalhesEdital}
-                        detailsError={erroDetalhesEdital}
-                        hasActiveCompany={Boolean(selectedCompany?.id)}
-                        onClose={() => {
-                            setEditalSelecionado(null);
-                            setResumoRapido(null);
-                        }}
-                        onExplain={() => void explicarEdital()}
-                        onCreateProposal={() => void criarPropostaAutomatica()}
-                    />
-                )}
-            </AnimatePresence>
+        exibirAviso('sucesso', 'Edital salvo na sua Gestão de Disputas!');
+      }
+    } catch {
+      exibirAviso('erro', 'Não foi possível atualizar este edital nos seus processos.');
+    } finally {
+      setSalvandoId(null);
+    }
+  };
+
+  const editaisOrdenados = useMemo(() => {
+    const comScore = editais.map((item) => ({
+      ...item,
+      _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
+    }));
+
+    if (ordenacao === 'relevancia') {
+      return comScore.sort((a, b) => b._scoreCalculado - a._scoreCalculado);
+    }
+    if (ordenacao === 'maior_valor') {
+      return comScore.sort(
+        (a, b) =>
+          (b.valorTotalEstimado || b.valorEstimado || 0) -
+          (a.valorTotalEstimado || a.valorEstimado || 0)
+      );
+    }
+    return comScore.sort((a, b) => {
+      const da = new Date(a.dataPublicacaoPncp || 0).getTime();
+      const db = new Date(b.dataPublicacaoPncp || 0).getTime();
+      return db - da;
+    });
+  }, [editais, selectedCompany, ordenacao]);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* Cabeçalho principal */}
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
+              Radar de editais
+            </h1>
+            <p className="mt-1 text-lg font-bold text-[#081C3A]">
+              Encontre oportunidades compatíveis com seu negócio
+            </p>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Pesquise, filtre e compare editais públicos com escore de viabilidade em um só lugar.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleUsarMeuRamo}
+              className="inline-flex items-center gap-2 rounded-full border border-[#0070C0]/30 bg-white px-4 py-2.5 text-sm font-semibold text-[#0070C0] shadow-sm transition hover:bg-blue-50"
+            >
+              <Sparkles className="h-4 w-4" />
+              Filtrar pelo Meu Ramo
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSincronizarPncp}
+              disabled={sincronizando}
+              className="inline-flex items-center gap-2 rounded-full bg-[#081C3A] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f2b56] disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
+              {sincronizando ? 'Atualizando...' : 'Atualizar PNCP'}
+            </button>
+          </div>
         </div>
-    );
+
+        {/* Barra de aviso contextual */}
+        {aviso && (
+          <div
+            className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm font-medium ${
+              aviso.tipo === 'sucesso'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : aviso.tipo === 'erro'
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-blue-200 bg-blue-50 text-blue-800'
+            }`}
+          >
+            <span>{aviso.texto}</span>
+            <button type="button" onClick={() => setAviso(null)} className="ml-4 opacity-70 hover:opacity-100">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Bloco de busca e filtros */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscarEditais();
+            }}
+            className="flex flex-col gap-3 md:flex-row"
+          >
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={palavraChave}
+                onChange={(e) => setPalavraChave(e.target.value)}
+                placeholder="Buscar editais por produto, serviço ou objeto (ex: vestuário, informática)..."
+                className="w-full rounded-full border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-sm text-[#081C3A] outline-none transition focus:border-[#0070C0] focus:bg-white"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF6600] px-7 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00]"
+            >
+              Buscar editais
+            </button>
+          </form>
+
+          {/* Pílulas de filtros rápidos */}
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <div className="relative">
+              <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={orgaoFiltro}
+                onChange={(e) => setOrgaoFiltro(e.target.value)}
+                placeholder="Órgão comprador"
+                className="rounded-full border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0]"
+              />
+            </div>
+
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <select
+                value={ufSelecionada}
+                onChange={(e) => setUfSelecionada(e.target.value)}
+                className="appearance-none rounded-full border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0]"
+              >
+                <option value="">Todos os Estados</option>
+                {UFS.map((uf) => (
+                  <option key={uf} value={uf}>
+                    Estado: {uf}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMostrarFiltrosExtras((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-[#0070C0] hover:text-[#0070C0]"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Data de publicação
+            </button>
+
+            {(palavraChave || ufSelecionada || orgaoFiltro || modalidadeAtiva !== 'TODAS' || dataPublicacao) && (
+              <button
+                type="button"
+                onClick={handleLimparFiltros}
+                className="px-3 py-2 text-xs font-semibold text-[#FF6600] hover:underline"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+
+          {mostrarFiltrosExtras && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                <Calendar className="h-4 w-4 text-[#0070C0]" />
+                Publicado a partir de:
+                <input
+                  type="date"
+                  value={dataPublicacao}
+                  onChange={(e) => setDataPublicacao(e.target.value)}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-[#0070C0]"
+                />
+              </label>
+            </div>
+          )}
+
+          {/* Cards de modalidade */}
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {MODALIDADES_RAPIDAS.map((mod) => {
+              const Icon = mod.icon;
+              const ativa = modalidadeAtiva === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  type="button"
+                  onClick={() => setModalidadeAtiva(mod.id)}
+                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-semibold transition ${
+                    ativa
+                      ? 'border-[#0070C0] bg-blue-50/70 text-[#0070C0] shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${ativa ? 'text-[#0070C0]' : 'text-slate-500'}`} />
+                  <span>{mod.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Barra de contagem e ordenação */}
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <p className="text-sm font-semibold text-slate-600">
+            <span className="text-[#081C3A]">{total}</span> resultados encontrados
+          </p>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">Ordenar por</span>
+            <select
+              value={ordenacao}
+              onChange={(e) => setOrdenacao(e.target.value as any)}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0]"
+            >
+              <option value="relevancia">Maior viabilidade</option>
+              <option value="recentes">Mais recentes</option>
+              <option value="maior_valor">Maior valor estimado</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Lista de editais em cards horizontais limpos */}
+        {carregando ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white p-5" />
+            ))}
+          </div>
+        ) : editaisOrdenados.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+            <FileText className="mx-auto h-10 w-10 text-slate-300" />
+            <h3 className="mt-3 text-base font-bold text-[#081C3A]">
+              Nenhum edital encontrado para esses filtros
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Tente limpar os filtros ou buscar novos editais diretamente no Portal Nacional.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleLimparFiltros}
+                className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Limpar filtros
+              </button>
+              <button
+                type="button"
+                onClick={handleSincronizarPncp}
+                className="rounded-full bg-[#0070C0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#005ea3]"
+              >
+                Buscar no PNCP agora
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {editaisOrdenados.map((edital) => {
+              const idStr = String(edital.id);
+              const estaSalvo = Boolean(salvosMap[idStr]);
+              const orgao =
+                edital.orgaoEntidade?.razaoSocial || edital.orgaoNome || 'Órgão Público';
+              const uf = edital.unidadeOrgao?.ufSigla || edital.uf || 'BR';
+              const municipio = edital.unidadeOrgao?.municipioNome || edital.municipio || '';
+              const modalidade = edital.modalidadeNome || edital.modalidade || 'Pregão Eletrônico';
+              const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
+              const valor = edital.valorTotalEstimado ?? edital.valorEstimado;
+              const score = edital._scoreCalculado;
+
+              const corScore =
+                score >= 80
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : score >= 60
+                  ? 'bg-blue-50 text-[#0070C0] border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200';
+
+              const labelScore =
+                score >= 80 ? 'Alta viabilidade' : score >= 60 ? 'Boa viabilidade' : 'Avaliar requisitos';
+
+              return (
+                <div
+                  key={idStr}
+                  className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#0070C0]/40 hover:shadow-md lg:flex-row lg:items-center"
+                >
+                  {/* Bloco esquerdo: ícone + objeto + órgão + modalidade */}
+                  <div className="flex flex-1 items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0070C0]">
+                      <FileText className="h-6 w-6" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#081C3A]">
+                          {modalidade}
+                        </span>
+                        {edital.srp && (
+                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
+                            Registro de Preços
+                          </span>
+                        )}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${corScore}`}
+                        >
+                          {score}% • {labelScore}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-1.5 line-clamp-2 text-base font-bold text-[#081C3A]">
+                        {objeto}
+                      </h3>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">
+                        {orgao}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bloco central: UF, Publicação, Entrega e Valor */}
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-3 sm:grid-cols-4 lg:border-t-0 lg:pt-0">
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-400">UF</p>
+                      <p className="text-sm font-bold text-[#081C3A]">
+                        {municipio ? `${municipio} - ${uf}` : uf}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-400">Publicação</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {formatarData(edital.dataPublicacaoPncp)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-400">Entrega de propostas</p>
+                      <p className="text-sm font-semibold text-[#081C3A]">
+                        {formatarData(edital.dataEncerramentoProposta || edital.dataAberturaProposta)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-400">Valor estimado</p>
+                      <p className="text-sm font-bold text-[#0070C0]">{formatarMoeda(valor)}</p>
+                    </div>
+                  </div>
+
+                  {/* Bloco direito: Ações */}
+                  <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleAlternarSalvar(edital)}
+                      disabled={salvandoId === idStr}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition ${
+                        estaSalvo
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                          : 'border-slate-200 bg-white text-[#081C3A] hover:border-[#0070C0] hover:text-[#0070C0]'
+                      }`}
+                    >
+                      {estaSalvo ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          Salvo (Remover)
+                        </>
+                      ) : (
+                        <>
+                          <Bookmark className="h-3.5 w-3.5" />
+                          Salvar
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditalSelecionado(edital)}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#0070C0] px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#005ea3]"
+                    >
+                      Ver detalhes
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+
+                    {edital.linkSistemaOrigem && (
+                      <a
+                        href={edital.linkSistemaOrigem}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Abrir no portal oficial"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#0070C0] hover:text-[#0070C0]"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal de Dossiê do Edital */}
+      {editalSelecionado && (
+        <DossieEditalModal
+          isOpen={Boolean(editalSelecionado)}
+          onClose={() => setEditalSelecionado(null)}
+          edital={editalSelecionado}
+        />
+      )}
+    </div>
+  );
 }
