@@ -39,7 +39,7 @@ export const PrecificacaoPage: React.FC = () => {
       });
 
       const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
-      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e BDI!');
+      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e formação de preço segura!');
       if (proposalId) {
         navigate(`/fornecedor/propostas/${proposalId}`);
       } else {
@@ -402,7 +402,7 @@ export const PrecificacaoPage: React.FC = () => {
                   Transformar Precificação em Proposta Oficial
                 </h4>
                 <p className="text-xs text-emerald-800 mt-1">
-                  Transfere todos os itens reais do PNCP precificados com o BDI direto para a Fábrica de Propostas.
+                  Transfere todos os itens reais do PNCP precificados com a margem segura direto para a Fábrica de Propostas.
                 </p>
               </div>
               <button

@@ -600,7 +600,7 @@ export default function RedeFornecedoresPage() {
                       onClick={() => setSelecionadoId(f.id)}
                       className={`grid w-full grid-cols-12 items-center px-5 py-4 text-left text-sm transition ${
                         ativo
-                          ? 'bg-blue-50/50 ring-1 ring-inset ring-[#0070C0]/40'
+                          ? 'bg-orange-50/40 ring-2 ring-inset ring-[#FF6600] rounded-2xl'
                           : 'hover:bg-slate-50'
                       }`}
                     >
@@ -823,14 +823,25 @@ export default function RedeFornecedoresPage() {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setModalNotaAberto(true)}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0070C0] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#005ea3]"
-                >
-                  <QrCode className="h-4 w-4" />
-                  Ler QR Code ou Anexar Nota Fiscal
-                </button>
+                <div className="mt-6 flex flex-col gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => abrirEdicao(selecionado)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#FF6600] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#e05a00] cursor-pointer"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Editar fornecedor
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setModalNotaAberto(true)}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-[#081C3A] shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    <QrCode className="h-4 w-4 text-[#0070C0]" />
+                    Ler QR Code ou Anexar Nota Fiscal
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-sm text-slate-400">

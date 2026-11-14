@@ -120,15 +120,15 @@ export const AcademiaPage: React.FC = () => {
       id: '2',
       numero: 2,
       titulo: 'Como precificar sem tomar prejuízo',
-      subtitulo: 'Entenda custos diretos, frete, impostos e defina seu Stop-Loss antes de abrir a Sala de Disputas.',
+      subtitulo: 'Entenda custos diretos, frete, impostos e defina sua Proteção de Margem antes de abrir a Sala de Disputas.',
       icone: Calculator,
-      tags: ['Precificação', 'Stop-Loss', 'BDI', 'Gestão Financeira'],
+      tags: ['Precificação', 'Proteção de Margem', 'Encargos e Tributos', 'Gestão Financeira'],
       conteudo: {
         introducao:
           'Ganhar licitação com preço inexequível é garantia de multa, suspensão cadastral e falência. Precificar para o setor público exige considerar impostos na fonte, prazos de pagamento e retenções.',
         topicos: [
           {
-            titulo: '1. A Fórmula do Preço Mínimo (Stop-Loss)',
+            titulo: '1. A Fórmula do Preço Mínimo Seguro (Proteção de Margem)',
             descricao:
               'Nunca entre em uma disputa sem saber o seu menor lance matematicamente seguro:',
             detalhes: [
@@ -164,7 +164,7 @@ export const AcademiaPage: React.FC = () => {
           },
         ],
         dicaOuro:
-          'Dica de Ouro: Na Sala de Disputas, o concorrente que derruba o preço 50% abaixo do mercado quase sempre será inabilitado por proposta inexequível ou abandonará o contrato. Mantenha a disciplina no seu Stop-Loss e aguarde o chamamento do segundo lugar!',
+          'Dica de Ouro: Na Sala de Disputas, o concorrente que derruba o preço 50% abaixo do mercado quase sempre será inabilitado por proposta inexequível ou abandonará o contrato. Mantenha a disciplina na sua Proteção de Margem e aguarde o chamamento do segundo lugar!',
       },
     },
     {
@@ -308,7 +308,7 @@ export const AcademiaPage: React.FC = () => {
         <Search size={18} className="text-slate-400 shrink-0" />
         <input
           type="text"
-          placeholder="Pesquisar nos guias: certidões grátis, stop-loss, pregão aberto, recurso TCU..."
+          placeholder="Pesquisar nos guias: certidões grátis, proteção de margem, pregão aberto, recurso TCU..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-[#0B192C] focus:outline-none focus:ring-2 focus:ring-[#0B192C]"
