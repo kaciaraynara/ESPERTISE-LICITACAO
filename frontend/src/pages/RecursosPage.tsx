@@ -37,8 +37,9 @@ export default function RecursosPage() {
     e.preventDefault();
     const empresa = selectedCompany?.razaoSocial || 'Empresa Licitante Proponente';
     const cnpj = selectedCompany?.cnpj || 'CNPJ não informado';
-    const endereco = selectedCompany?.cidade ? `${selectedCompany.cidade}/${selectedCompany.estado || 'UF'}` : 'Sede da Empresa';
-    const representante = selectedCompany?.nome || selectedCompany?.representanteLegal || 'Representante Legal';
+    const compAny = selectedCompany as any;
+    const endereco = compAny?.cidade ? `${compAny.cidade}/${compAny.estado || 'UF'}` : 'Sede da Empresa';
+    const representante = compAny?.nome || compAny?.representanteLegal || 'Representante Legal';
 
     const texto = [
       `ILUSTRÍSSIMO(A) SENHOR(A) PREGOEIRO(A) / AGENTE DE CONTRATAÇÃO DA COMISSÃO DE CONTRATAÇÃO`,

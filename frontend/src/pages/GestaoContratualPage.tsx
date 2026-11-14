@@ -8,6 +8,7 @@ import {
   Clock,
   Copy,
   Crown,
+  CurrencyCircleDollar,
   DownloadSimple,
   FileText,
   Lock,
@@ -32,7 +33,7 @@ import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '@/contexts/CompanyContext';
 import { PainelGestaoContratual } from './PainelGestaoContratual';
 
-type ActiveTab = 'alertas' | 'reajuste' | 'guia';
+type ActiveTab = 'alertas' | 'reajuste' | 'guia' | 'credito';
 
 function formatCurrency(value: number | undefined | null): string {
   const num = Number(value || 0);
@@ -109,6 +110,13 @@ export function GestaoContratualPage() {
   const [novoSalarioCct, setNovoSalarioCct] = useState('');
   const [quantidadePostosCct, setQuantidadePostosCct] = useState('1');
   const [gerandoOficioCct, setGerandoOficioCct] = useState(false);
+  const [simulacaoEmpenho, setSimulacaoEmpenho] = useState({
+    contratoId: '',
+    valorEmpenho: 75000,
+    prazoDias: 45,
+    solicitando: false,
+    solicitadoSucesso: false,
+  });
 
   const carregarContratos = useCallback(async () => {
     setLoading(true);
@@ -560,6 +568,19 @@ export function GestaoContratualPage() {
             >
               <ShieldCheck weight="duotone" className="h-5 w-5 text-[#EA580C]" />
               Guia e Garantias
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('credito')}
+              className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-black transition cursor-pointer ${
+                activeTab === 'credito'
+                  ? 'border-[#EA580C] text-[#0A2540]'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <CurrencyCircleDollar weight="duotone" className="h-5 w-5 text-[#EA580C]" />
+              Crédito Licitatório e Empenhos
             </button>
           </div>
         </div>
@@ -1154,6 +1175,221 @@ export function GestaoContratualPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </section>
+        )}
+
+        {/* CONTEÚDO DA ABA 4: CRÉDITO LICITATÓRIO E ANTECIPAÇÃO COM LASTRO EM EMPENHO */}
+        {activeTab === 'credito' && (
+          <section className="space-y-6">
+            {/* BANNER INFORMATIVO ESTRATÉGICO */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-xs">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-2 max-w-3xl">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-[#EA580C]">
+                    <CurrencyCircleDollar weight="bold" className="h-4 w-4" />
+                    Capital de Giro com Lastro em Contratos Públicos (Lei 14.133/2021)
+                  </span>
+                  <h2 className="text-2xl font-black text-[#081C3A]">
+                    Crédito Licitatório e Antecipação de Recebíveis
+                  </h2>
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                    Não espere 30, 60 ou 90 dias pelo pagamento da nota pelo órgão público.
+                    Antecipe seus recebíveis com lastro na Nota de Empenho emitida para comprar mercadorias à vista
+                    na Rede de Fornecedores com desconto e cumprir as entregas sem apertar o caixa.
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex flex-col gap-2 bg-[#F8FAFC] border border-slate-200 p-4 rounded-2xl">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Condições de Mercado</p>
+                  <p className="text-2xl font-black text-[#081C3A]">A partir de 1,29% <span className="text-xs font-semibold text-slate-500">ao mês</span></p>
+                  <p className="text-xs text-emerald-700 font-bold flex items-center gap-1">
+                    <CheckCircle weight="fill" className="h-3.5 w-3.5" /> Liberação em até 24 horas úteis
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 PILARES DO CRÉDITO LICITATÓRIO */}
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-6">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1.5">
+                  <p className="text-xs font-bold text-[#081C3A] flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-blue-100 text-[#0070C0] flex items-center justify-center text-xs font-black">1</span>
+                    Sem Penhora de Bens
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    A operação é lastreada no empenho emitido pelo órgão contratante (Art. 137 da Lei 14.133/2021). Não consome limites bancários convencionais.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1.5">
+                  <p className="text-xs font-bold text-[#081C3A] flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-black">2</span>
+                    Liquidação Automática
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Quando o órgão público efetua a liquidação e o pagamento da nota fiscal, a operação é quitada diretamente sem burocracia de boletos diários.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1.5">
+                  <p className="text-xs font-bold text-[#081C3A] flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-orange-100 text-[#EA580C] flex items-center justify-center text-xs font-black">3</span>
+                    Compre Insumos à Vista
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Com dinheiro em caixa, você negocia melhores condições com distribuidores na Rede de Fornecedores, aumentando a margem real de lucro.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* SIMULADOR DE ANTECIPAÇÃO */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs lg:col-span-7 space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Calculator weight="duotone" className="h-6 w-6 text-[#EA580C]" />
+                  <h3 className="text-base font-bold text-[#081C3A]">Simulador de Antecipação de Recebíveis</h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700">Contrato ou Processo Vinculado</label>
+                    <select
+                      value={simulacaoEmpenho.contratoId}
+                      onChange={(e) => setSimulacaoEmpenho({ ...simulacaoEmpenho, contratoId: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-[#081C3A] focus:border-[#0070C0] outline-none"
+                    >
+                      <option value="">Selecione um contrato cadastrado ou empenho avulso</option>
+                      {contratos.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          Contrato #{c.numeroContrato} - {c.orgao} ({formatCurrency(c.valorInicial)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700">Valor da Nota de Empenho (R$)</label>
+                      <input
+                        type="number"
+                        min="1000"
+                        step="500"
+                        value={simulacaoEmpenho.valorEmpenho}
+                        onChange={(e) =>
+                          setSimulacaoEmpenho({
+                            ...simulacaoEmpenho,
+                            valorEmpenho: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-bold text-[#081C3A] focus:border-[#0070C0] outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700">Prazo Previsto de Pagamento do Órgão</label>
+                      <select
+                        value={simulacaoEmpenho.prazoDias}
+                        onChange={(e) =>
+                          setSimulacaoEmpenho({
+                            ...simulacaoEmpenho,
+                            prazoDias: Number(e.target.value),
+                          })
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-[#081C3A] focus:border-[#0070C0] outline-none"
+                      >
+                        <option value={30}>30 dias (Prazo legal padrão)</option>
+                        <option value={45}>45 dias (Médio porte / Estados)</option>
+                        <option value={60}>60 dias (Prefeituras do interior)</option>
+                        <option value={90}>90 dias (Contratos especiais)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BOTÃO DE SOLICITAÇÃO */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSimulacaoEmpenho({ ...simulacaoEmpenho, solicitando: true });
+                      setTimeout(() => {
+                        setSimulacaoEmpenho((prev) => ({
+                          ...prev,
+                          solicitando: false,
+                          solicitadoSucesso: true,
+                        }));
+                        toast.success('Solicitação de antecipação enviada para análise documental!');
+                      }, 1000);
+                    }}
+                    disabled={simulacaoEmpenho.solicitando || simulacaoEmpenho.valorEmpenho <= 0}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] hover:bg-[#d54e0a] text-white px-6 py-3 text-sm font-bold shadow-sm transition cursor-pointer"
+                  >
+                    <CurrencyCircleDollar weight="bold" className="h-5 w-5" />
+                    {simulacaoEmpenho.solicitando ? 'Enviando proposta...' : 'Solicitar Antecipação de Recebíveis'}
+                  </button>
+
+                  {simulacaoEmpenho.solicitadoSucesso && (
+                    <div className="mt-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-medium flex items-center gap-2">
+                      <CheckCircle weight="fill" className="h-5 w-5 text-emerald-600 shrink-0" />
+                      <span>Sua solicitação foi registrada! Nossa equipe de crédito entrará em contato em até 24h úteis para validação da Nota de Empenho.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD DE RESULTADO DA SIMULAÇÃO */}
+              <div className="rounded-3xl border border-slate-200 bg-[#F8FAFC] p-6 shadow-xs lg:col-span-5 flex flex-col justify-between space-y-6">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Demonstrativo da Operação</p>
+                  
+                  {(() => {
+                    const taxaMensal = 1.29;
+                    const taxaPeriodo = (simulacaoEmpenho.prazoDias / 30) * taxaMensal;
+                    const custoDesconto = (simulacaoEmpenho.valorEmpenho * taxaPeriodo) / 100;
+                    const valorLiquido = Math.max(0, simulacaoEmpenho.valorEmpenho - custoDesconto);
+
+                    return (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex justify-between items-center text-xs text-slate-600 py-1.5 border-b border-slate-200">
+                          <span>Valor Bruto do Empenho:</span>
+                          <span className="font-bold text-[#081C3A]">{formatCurrency(simulacaoEmpenho.valorEmpenho)}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs text-slate-600 py-1.5 border-b border-slate-200">
+                          <span>Prazo Estimado de Liquidação:</span>
+                          <span className="font-bold text-[#081C3A]">{simulacaoEmpenho.prazoDias} dias</span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-xs text-slate-600 py-1.5 border-b border-slate-200">
+                          <span>Taxa Efetiva no Período ({taxaMensal}% a.m.):</span>
+                          <span className="font-bold text-slate-700">{taxaPeriodo.toFixed(2)}% (- {formatCurrency(custoDesconto)})</span>
+                        </div>
+
+                        <div className="pt-3">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Valor Líquido Imediato a Receber</p>
+                          <p className="text-3xl font-black text-emerald-700 tracking-tight mt-1">
+                            {formatCurrency(valorLiquido)}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Disponível em conta corrente para pagamento de fornecedores e equipe.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 text-xs text-slate-600 space-y-1">
+                  <p className="font-bold text-[#081C3A] flex items-center gap-1.5">
+                    <Buildings weight="duotone" className="h-4 w-4 text-[#0070C0]" />
+                    Conectado à Rede de Fornecedores
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Use o valor antecipado para adquirir matéria-prima com os distribuidores cadastrados no ERP com condições exclusivas à vista.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
         )}

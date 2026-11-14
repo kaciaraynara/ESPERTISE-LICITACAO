@@ -320,6 +320,9 @@ function createProtectedAdminSubRouter(): Router {
   subRouter.get('/super/metrics', requireRbacAdmin as RequestHandler, handle(superAdminController.getMetrics.bind(superAdminController) as RequestHandler));
   subRouter.get('/super/users', requireRbacAdmin as RequestHandler, handle(superAdminController.listUsers.bind(superAdminController) as RequestHandler));
   subRouter.post('/super/email', requireRbacAdmin as RequestHandler, handle(superAdminController.sendEmail.bind(superAdminController) as RequestHandler));
+  subRouter.post('/super/users/:userId/free-access', requireRbacAdmin as RequestHandler, handle(superAdminController.toggleFreeAccess.bind(superAdminController) as RequestHandler));
+  subRouter.post('/super/users/:userId/expertise-fiscal', requireRbacAdmin as RequestHandler, handle(superAdminController.toggleExpertiseFiscal.bind(superAdminController) as RequestHandler));
+  subRouter.get('/super/telemetry', requireRbacAdmin as RequestHandler, handle(superAdminController.getSystemTelemetry.bind(superAdminController) as RequestHandler));
 
   // Data Platform Admin
   subRouter.get('/data-platform/jobs', requireDataPlatformAdmin as RequestHandler, handle(dataPlatformAdmin.listJobs.bind(dataPlatformAdmin) as RequestHandler));

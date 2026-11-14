@@ -31,6 +31,37 @@ export class SuperAdminController {
       return res.status(404).json({ success: false, error: err.message });
     }
   }
+
+  async toggleFreeAccess(req: Request, res: Response) {
+    const { userId } = req.params;
+    const { grant, plan } = req.body;
+    try {
+      const result = await this.service.toggleFreeAccess(userId, Boolean(grant), plan || 'MASTER');
+      return res.json({ success: true, data: result });
+    } catch (err: any) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+  }
+
+  async toggleExpertiseFiscal(req: Request, res: Response) {
+    const { userId } = req.params;
+    const { active } = req.body;
+    try {
+      const result = await this.service.toggleExpertiseFiscal(userId, Boolean(active));
+      return res.json({ success: true, data: result });
+    } catch (err: any) {
+      return res.status(400).json({ success: false, error: err.message });
+    }
+  }
+
+  async getSystemTelemetry(req: Request, res: Response) {
+    try {
+      const result = await this.service.getSystemTelemetry();
+      return res.json({ success: true, data: result });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
 }
 
 export const superAdminController = new SuperAdminController();

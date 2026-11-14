@@ -194,6 +194,9 @@ export default function LandingPage() {
             <a href="#comparativo" className="transition hover:text-[#0070C0]">
               Comparativo
             </a>
+            <a href="#academia" className="transition hover:text-[#0070C0]">
+              Academia do Licitante
+            </a>
             <a href="#pre-lancamento" className="transition hover:text-[#0070C0]">
               Pré-Lançamento
             </a>
@@ -633,6 +636,81 @@ export default function LandingPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      {/* 6.1 ACADEMIA DO LICITANTE - CAPACITAÇÃO E CURSOS ABERTOS */}
+      <section id="academia" className="w-full border-b border-slate-200 bg-white py-20 lg:py-24 px-6 lg:px-12">
+        <div className="mx-auto max-w-7xl space-y-12">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-3 max-w-2xl">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#FF6600] block">
+                Capacitação Prática & Hub de Aulas
+              </span>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#081C3A] tracking-tight">
+                Academia do Licitante: Do Iniciante ao Avançado
+              </h2>
+              <p className="text-sm font-medium text-slate-600 leading-relaxed">
+                Aprenda a vencer compras públicas com quem tem mais de 40 anos de prática jurídica e operacional. Cursos práticos, modelos de certidões grátis, impugnações e estratégias de sala de lances abertas para você se qualificar.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/cadastro')}
+              className="inline-flex items-center gap-2 self-start rounded-full bg-[#081C3A] hover:bg-[#0070C0] text-white px-6 py-3 text-xs font-bold uppercase tracking-wider transition cursor-pointer"
+            >
+              <span>Acessar Cursos Gratuitos</span>
+              <ArrowRight className="h-4 w-4 text-[#FF6600]" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 rounded-3xl border border-slate-200 bg-[#F8FAFC] space-y-4 hover:border-[#0070C0]/50 transition">
+              <div className="flex justify-between items-center">
+                <span className="rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2.5 py-0.5">Iniciante</span>
+                <span className="text-xs font-bold text-slate-400">8h de conteúdo</span>
+              </div>
+              <h3 className="text-lg font-black text-[#081C3A]">Como Emitir Todas as Certidões Grátis</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Passo a passo definitivo para emitir CND Federal, CNDT do TST, CRF da Caixa, Estadual e Municipal em poucos minutos sem gastar nada com despachantes.
+              </p>
+              <div className="pt-2 text-xs font-bold text-[#0070C0] flex items-center gap-1.5">
+                <span>Aula aberta disponível</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl border border-slate-200 bg-[#F8FAFC] space-y-4 hover:border-[#0070C0]/50 transition">
+              <div className="flex justify-between items-center">
+                <span className="rounded-full bg-blue-100 text-[#0070C0] text-[10px] font-black uppercase px-2.5 py-0.5">Intermediário</span>
+                <span className="text-xs font-bold text-slate-400">12h de conteúdo</span>
+              </div>
+              <h3 className="text-lg font-black text-[#081C3A]">Estratégia de Lances no Compras.gov.br</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Táticas reais de pregoeiros experientes nos modos aberto e aberto-fechado, regras de desempate ME/EPP e proteção de margem para não vender com prejuízo.
+              </p>
+              <div className="pt-2 text-xs font-bold text-[#0070C0] flex items-center gap-1.5">
+                <span>Trilha completa com mentoria</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </div>
+            </div>
+
+            <div className="p-6 rounded-3xl border border-slate-200 bg-[#F8FAFC] space-y-4 hover:border-[#0070C0]/50 transition">
+              <div className="flex justify-between items-center">
+                <span className="rounded-full bg-orange-100 text-[#FF6600] text-[10px] font-black uppercase px-2.5 py-0.5">Avançado</span>
+                <span className="text-xs font-bold text-slate-400">16h de conteúdo</span>
+              </div>
+              <h3 className="text-lg font-black text-[#081C3A]">Impugnações, Recursos e Súmulas do TCU</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Como anular cláusulas ilegais e restritivas no prazo de 3 dias úteis da Lei 14.133/2021 com peças jurídicas completas e fundamentadas sem terceirizar.
+              </p>
+              <div className="pt-2 text-xs font-bold text-[#0070C0] flex items-center gap-1.5">
+                <span>Modelos práticos em PDF</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -12,7 +12,28 @@ import {
   HelpCircle,
   BookOpen,
   Search,
+  Award,
+  Plus,
+  Download,
+  Sparkles,
+  X,
+  Play,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+export interface TrilhaParceiro {
+  id: string;
+  titulo: string;
+  professor: string;
+  cargo: string;
+  nivel: 'Iniciante' | 'Intermediário' | 'Avançado';
+  cargaHoraria: string;
+  descricao: string;
+  videoUrl?: string;
+  materiais?: string[];
+  emiteCertificado: boolean;
+  inscritos: number;
+}
 
 interface GuiaPratico {
   id: string;
@@ -268,6 +289,98 @@ export const AcademiaPage: React.FC = () => {
     },
   ];
 
+  const [abaPrincipal, setAbaPrincipal] = useState<'guias' | 'parceiros'>('guias');
+  const [modalNovaTrilhaAberto, setModalNovaTrilhaAberto] = useState(false);
+  const [certificadoSelecionado, setCertificadoSelecionado] = useState<TrilhaParceiro | null>(null);
+
+  const [trilhasParceiros, setTrilhasParceiros] = useState<TrilhaParceiro[]>([
+    {
+      id: 'tp-1',
+      titulo: 'Estratégia Operacional e Lances no Compras.gov.br',
+      professor: 'Prof. Dr. Hamilton Santos',
+      cargo: 'Ex-Pregoeiro Federal e Mentor de Licitações',
+      nivel: 'Intermediário',
+      cargaHoraria: '12 horas',
+      descricao: 'Domine a dinâmica dos modos aberto e aberto-fechado, regras de empate e estratégias de desempate ME/EPP com quem operou mais de 1.000 pregões.',
+      videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      materiais: ['Checklist de Habilitação Imediata.pdf', 'Planilha de Desempate ME.xlsx'],
+      emiteCertificado: true,
+      inscritos: 412,
+    },
+    {
+      id: 'tp-2',
+      titulo: 'Engenharia de Custos e Formação de Preço na Lei 14.133',
+      professor: 'Profa. Msc. Juliana Medeiros',
+      cargo: 'Engenheira Civil e Perita em Obras Públicas',
+      nivel: 'Avançado',
+      cargaHoraria: '16 horas',
+      descricao: 'Metodologia prática para compor custos unitários, encargos complementares e proteger a margem da empresa contra propostas inexequíveis.',
+      videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      materiais: ['Modelo de Composição de Custos.pdf', 'Guia de Encargos Sociais.pdf'],
+      emiteCertificado: true,
+      inscritos: 289,
+    },
+    {
+      id: 'tp-3',
+      titulo: 'Habilitação Jurídica, Fiscal e Recursos Perante o TCU',
+      professor: 'Dr. Ricardo Alencar',
+      cargo: 'Advogado Especialista em Direito Administrativo',
+      nivel: 'Iniciante',
+      cargaHoraria: '8 horas',
+      descricao: 'Como impugnar editais abusivos no prazo de 3 dias úteis e formular recursos com jurisprudência consolidada do TCU sem precisar contratar escritório externo.',
+      materiais: ['Modelos de Recursos Administrativos.docx', 'Súmulas Essenciais do TCU.pdf'],
+      emiteCertificado: true,
+      inscritos: 650,
+    },
+  ]);
+
+  const [formNovaTrilha, setFormNovaTrilha] = useState({
+    titulo: '',
+    professor: '',
+    cargo: '',
+    nivel: 'Iniciante' as 'Iniciante' | 'Intermediário' | 'Avançado',
+    cargaHoraria: '8 horas',
+    descricao: '',
+    videoUrl: '',
+    emiteCertificado: true,
+  });
+
+  const handleSalvarNovaTrilha = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formNovaTrilha.titulo || !formNovaTrilha.professor || !formNovaTrilha.descricao) {
+      toast.error('Preencha título, professor e descrição da trilha.');
+      return;
+    }
+
+    const nova: TrilhaParceiro = {
+      id: `tp-${Date.now()}`,
+      titulo: formNovaTrilha.titulo,
+      professor: formNovaTrilha.professor,
+      cargo: formNovaTrilha.cargo || 'Especialista Convidado',
+      nivel: formNovaTrilha.nivel,
+      cargaHoraria: formNovaTrilha.cargaHoraria,
+      descricao: formNovaTrilha.descricao,
+      videoUrl: formNovaTrilha.videoUrl,
+      materiais: ['Guia de Estudos Complementar.pdf'],
+      emiteCertificado: formNovaTrilha.emiteCertificado,
+      inscritos: 1,
+    };
+
+    setTrilhasParceiros([nova, ...trilhasParceiros]);
+    setModalNovaTrilhaAberto(false);
+    toast.success('Trilha cadastrada com sucesso no Portal do Professor Parceiro!');
+    setFormNovaTrilha({
+      titulo: '',
+      professor: '',
+      cargo: '',
+      nivel: 'Iniciante',
+      cargaHoraria: '8 horas',
+      descricao: '',
+      videoUrl: '',
+      emiteCertificado: true,
+    });
+  };
+
   const guiasFiltrados = guias.filter((g) => {
     const texto = `${g.titulo} ${g.subtitulo} ${g.tags.join(' ')} ${g.conteudo.introducao}`.toLowerCase();
     return texto.includes(busca.toLowerCase());
@@ -283,157 +396,494 @@ export const AcademiaPage: React.FC = () => {
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="p-2.5 bg-[#0B192C] text-white rounded-xl shadow-xs">
+            <span className="p-2.5 bg-[#081C3A] text-white rounded-xl shadow-xs">
               <GraduationCap size={22} />
             </span>
             <div>
-              <h1 className="text-2xl font-bold text-[#0B192C] tracking-tight">
-                Academia do Licitante & Guias Práticos
+              <h1 className="text-2xl font-black text-[#081C3A] tracking-tight">
+                Academia do Licitante & Hub de Capacitação
               </h1>
               <p className="text-xs text-[#334155] mt-0.5 font-medium flex items-center gap-1.5">
-                <BookOpen size={14} className="text-[#F97316]" />
-                Manuais operacionais diretos ao ponto baseados na Lei 14.133/2021 e jurisprudência do TCU.
+                <BookOpen size={14} className="text-[#FF6600]" />
+                Cursos e manuais práticos com mais de 40 anos de especialidade em vencer licitações públicas.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="text-xs font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 self-start md:self-auto">
-          4 Guias Práticos Completos
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setModalNovaTrilhaAberto(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-[#FF6600] px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#e55b00] transition cursor-pointer"
+          >
+            <Plus size={15} />
+            Área do Professor Parceiro
+          </button>
         </div>
       </header>
 
-      {/* BARRA DE PESQUISA */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs mb-6 flex items-center gap-3">
-        <Search size={18} className="text-slate-400 shrink-0" />
-        <input
-          type="text"
-          placeholder="Pesquisar nos guias: certidões grátis, proteção de margem, pregão aberto, recurso TCU..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-[#0B192C] focus:outline-none focus:ring-2 focus:ring-[#0B192C]"
-        />
+      {/* ABAS SUPERIORES DA ACADEMIA */}
+      <div className="flex items-center gap-4 border-b border-slate-200 mb-6">
+        <button
+          type="button"
+          onClick={() => setAbaPrincipal('guias')}
+          className={`pb-3 px-1 text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+            abaPrincipal === 'guias'
+              ? 'border-b-2 border-[#FF6600] text-[#081C3A]'
+              : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <BookOpen size={16} />
+          Manuais e Guias Práticos (4)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaPrincipal('parceiros')}
+          className={`pb-3 px-1 text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+            abaPrincipal === 'parceiros'
+              ? 'border-b-2 border-[#FF6600] text-[#081C3A]'
+              : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <Award size={16} />
+          Trilhas de Professores Parceiros ({trilhasParceiros.length})
+        </button>
       </div>
 
-      {/* LISTA DE 4 CARDS EXPANSÍVEIS (ACCORDION) */}
-      <div className="space-y-4">
-        {guiasFiltrados.map((guia) => {
-          const isOpen = guiaAberto === guia.id;
-          const Icone = guia.icone;
+      {/* CONTEÚDO DA ABA 1: GUIAS PRÁTICOS */}
+      {abaPrincipal === 'guias' && (
+        <div className="space-y-6">
+          {/* BARRA DE PESQUISA */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <Search size={18} className="text-slate-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Pesquisar nos guias: certidões grátis, proteção de margem, pregão aberto, recurso TCU..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-[#081C3A] focus:outline-none focus:ring-2 focus:ring-[#0070C0]"
+            />
+          </div>
 
-          return (
-            <div
-              key={guia.id}
-              className={`bg-white rounded-2xl border transition-all shadow-xs overflow-hidden ${
-                isOpen ? 'border-[#0B192C] ring-1 ring-[#0B192C]/10' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              {/* TOPO DO CARD (CLICÁVEL PARA EXPANDIR) */}
+          {/* LISTA DE 4 CARDS EXPANSÍVEIS (ACCORDION) */}
+          <div className="space-y-4">
+            {guiasFiltrados.map((guia) => {
+              const isOpen = guiaAberto === guia.id;
+              const Icone = guia.icone;
+
+              return (
+                <div
+                  key={guia.id}
+                  className={`bg-white rounded-2xl border transition-all shadow-xs overflow-hidden ${
+                    isOpen ? 'border-[#081C3A] ring-1 ring-[#081C3A]/10' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {/* TOPO DO CARD (CLICÁVEL PARA EXPANDIR) */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGuia(guia.id)}
+                    className="w-full p-5 text-left flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50/60 transition-colors"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`p-3 rounded-xl shrink-0 transition-colors ${
+                        isOpen ? 'bg-[#081C3A] text-white' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        <Icone size={24} />
+                      </div>
+
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-800 uppercase tracking-wide">
+                            Guia #{guia.numero}
+                          </span>
+                          {guia.tags.map((tag) => (
+                            <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+
+                        <h3 className="text-base font-bold text-[#081C3A] leading-snug">
+                          {guia.titulo}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {guia.subtitulo}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 pt-1 text-slate-400">
+                      {isOpen ? <ChevronUp size={20} className="text-[#081C3A]" /> : <ChevronDown size={20} />}
+                    </div>
+                  </button>
+
+                  {/* CORPO EXPANSÍVEL DO GUIA */}
+                  {isOpen && (
+                    <div className="px-5 pb-6 pt-2 border-t border-slate-100 space-y-5 animate-in fade-in duration-150">
+                      {/* INTRODUÇÃO */}
+                      <div className="bg-slate-50 p-4 rounded-xl text-xs text-slate-700 leading-relaxed font-medium border border-slate-200/60">
+                        {guia.conteudo.introducao}
+                      </div>
+
+                      {/* TÓPICOS ESTRUTURADOS */}
+                      <div className="space-y-4">
+                        {guia.conteudo.topicos.map((topico, idx) => (
+                          <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-white shadow-2xs space-y-2">
+                            <h4 className="text-xs font-bold text-[#081C3A] flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold">
+                                {idx + 1}
+                              </span>
+                              {topico.titulo}
+                            </h4>
+                            <p className="text-xs text-slate-600 leading-relaxed pl-7">
+                              {topico.descricao}
+                            </p>
+
+                            {topico.detalhes && topico.detalhes.length > 0 && (
+                              <ul className="pl-7 space-y-1.5 mt-2">
+                                {topico.detalhes.map((det, dIdx) => (
+                                  <li key={dIdx} className="text-[11px] text-slate-600 flex items-start gap-2">
+                                    <CheckCircle size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                                    <span>{det}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {topico.links && topico.links.length > 0 && (
+                              <div className="pl-7 pt-2 flex flex-wrap gap-2">
+                                {topico.links.map((link, lIdx) => (
+                                  <a
+                                    key={lIdx}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors"
+                                  >
+                                    {link.rotulo} <ExternalLink size={12} />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* DICA DE OURO */}
+                      <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-950 font-medium flex items-start gap-3">
+                        <div className="p-1.5 bg-orange-200 text-[#FF6600] rounded-lg shrink-0">
+                          <HelpCircle size={18} />
+                        </div>
+                        <div className="leading-relaxed">
+                          {guia.conteudo.dicaOuro}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* CONTEÚDO DA ABA 2: PORTAL DO PROFESSOR PARCEIRO */}
+      {abaPrincipal === 'parceiros' && (
+        <div className="space-y-6">
+          {/* BANNER DO PROGRAMA DE PROFESSORES PARCEIROS */}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-[#FF6600]">
+                  <Sparkles size={14} />
+                  Hub Aberto de Professores & Mentores
+                </span>
+                <h2 className="text-2xl font-black text-[#081C3A]">
+                  Portal do Professor Parceiro
+                </h2>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Professores, consultores jurídicos e pregoeiros experientes podem criar suas próprias trilhas temáticas,
+                  disponibilizar videoaulas, modelos práticos em PDF e emitir Certificados Digitais com validação da Expertise Licitatória.
+                </p>
+              </div>
+
               <button
                 type="button"
-                onClick={() => toggleGuia(guia.id)}
-                className="w-full p-5 text-left flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50/60 transition-colors"
+                onClick={() => setModalNovaTrilhaAberto(true)}
+                className="self-start md:self-center inline-flex items-center gap-2 rounded-xl bg-[#081C3A] text-white px-5 py-3 text-xs font-bold hover:bg-[#0070C0] transition shadow-xs cursor-pointer"
               >
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl shrink-0 transition-colors ${
-                    isOpen ? 'bg-[#0B192C] text-white' : 'bg-slate-100 text-slate-700'
-                  }`}>
-                    <Icone size={24} />
-                  </div>
-
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-800 uppercase tracking-wide">
-                        Guia #{guia.numero}
-                      </span>
-                      {guia.tags.map((tag) => (
-                        <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    <h3 className="text-base font-bold text-[#0B192C] leading-snug">
-                      {guia.titulo}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {guia.subtitulo}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="shrink-0 pt-1 text-slate-400">
-                  {isOpen ? <ChevronUp size={20} className="text-[#0B192C]" /> : <ChevronDown size={20} />}
-                </div>
+                <Plus size={16} className="text-[#FF6600]" />
+                Cadastrar Trilha ou Aula
               </button>
+            </div>
+          </div>
 
-              {/* CORPO EXPANSÍVEL DO GUIA */}
-              {isOpen && (
-                <div className="px-5 pb-6 pt-2 border-t border-slate-100 space-y-5 animate-in fade-in duration-150">
-                  {/* INTRODUÇÃO */}
-                  <div className="bg-slate-50 p-4 rounded-xl text-xs text-slate-700 leading-relaxed font-medium border border-slate-200/60">
-                    {guia.conteudo.introducao}
+          {/* GRID DE TRILHAS DISPONÍVEIS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {trilhasParceiros.map((trilha) => (
+              <div
+                key={trilha.id}
+                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col justify-between space-y-4 hover:border-[#0070C0]/50 transition"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-black text-[#0070C0] uppercase">
+                      {trilha.nivel}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {trilha.cargaHoraria}
+                    </span>
                   </div>
 
-                  {/* TÓPICOS ESTRUTURADOS */}
-                  <div className="space-y-4">
-                    {guia.conteudo.topicos.map((topico, idx) => (
-                      <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-white shadow-2xs space-y-2">
-                        <h4 className="text-xs font-bold text-[#0B192C] flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold">
-                            {idx + 1}
-                          </span>
-                          {topico.titulo}
-                        </h4>
-                        <p className="text-xs text-slate-600 leading-relaxed pl-7">
-                          {topico.descricao}
-                        </p>
+                  <h3 className="mt-3 text-base font-extrabold text-[#081C3A] line-clamp-2">
+                    {trilha.titulo}
+                  </h3>
 
-                        {topico.detalhes && topico.detalhes.length > 0 && (
-                          <ul className="pl-7 space-y-1.5 mt-2">
-                            {topico.detalhes.map((det, dIdx) => (
-                              <li key={dIdx} className="text-[11px] text-slate-600 flex items-start gap-2">
-                                <CheckCircle size={13} className="text-emerald-600 shrink-0 mt-0.5" />
-                                <span>{det}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                  <p className="mt-2 text-xs text-slate-500 line-clamp-3">
+                    {trilha.descricao}
+                  </p>
 
-                        {topico.links && topico.links.length > 0 && (
-                          <div className="pl-7 pt-2 flex flex-wrap gap-2">
-                            {topico.links.map((link, lIdx) => (
-                              <a
-                                key={lIdx}
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors"
-                              >
-                                {link.rotulo} <ExternalLink size={12} />
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* DICA DE OURO */}
-                  <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-xs text-orange-950 font-medium flex items-start gap-3">
-                    <div className="p-1.5 bg-orange-200 text-[#F97316] rounded-lg shrink-0">
-                      <HelpCircle size={18} />
-                    </div>
-                    <div className="leading-relaxed">
-                      {guia.conteudo.dicaOuro}
-                    </div>
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <p className="text-xs font-extrabold text-[#081C3A]">{trilha.professor}</p>
+                    <p className="text-[11px] text-slate-400">{trilha.cargo}</p>
                   </div>
                 </div>
-              )}
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => toast.success(`Iniciando reprodução da trilha: ${trilha.titulo}`)}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#081C3A] hover:bg-[#0070C0] text-white py-2.5 text-xs font-bold transition cursor-pointer"
+                  >
+                    <Play size={14} className="text-[#FF6600]" />
+                    Acessar Conteúdo & Vídeos
+                  </button>
+
+                  {trilha.emiteCertificado && (
+                    <button
+                      type="button"
+                      onClick={() => setCertificadoSelecionado(trilha)}
+                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-[#F8FAFC] hover:bg-white text-slate-700 py-2 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Award size={14} className="text-amber-500" />
+                      Emitir Certificado Digital
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CADASTRO DE NOVA TRILHA (PROFESSOR PARCEIRO) */}
+      {modalNovaTrilhaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-black text-[#081C3A]">
+                  Cadastrar Trilha ou Conteúdo Parceiro
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Compartilhe seu conhecimento técnico com a comunidade da Expertise Licitatória
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalNovaTrilhaAberto(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
             </div>
-          );
-        })}
-      </div>
+
+            <form onSubmit={handleSalvarNovaTrilha} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700">Título do Curso ou Trilha *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Como Vencer Pregões no Compras.gov.br"
+                  value={formNovaTrilha.titulo}
+                  onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, titulo: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700">Nome do Professor / Instrutor *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Prof. Carlos Eduardo"
+                    value={formNovaTrilha.professor}
+                    onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, professor: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700">Titulação ou Cargo</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Especialista em Licitações"
+                    value={formNovaTrilha.cargo}
+                    onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, cargo: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700">Nível do Treinamento</label>
+                  <select
+                    value={formNovaTrilha.nivel}
+                    onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, nivel: e.target.value as any })}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0] bg-white"
+                  >
+                    <option value="Iniciante">Iniciante</option>
+                    <option value="Intermediário">Intermediário</option>
+                    <option value="Avançado">Avançado</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700">Carga Horária Estimada</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 10 horas"
+                    value={formNovaTrilha.cargaHoraria}
+                    onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, cargaHoraria: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700">Link da Videoaula (YouTube / Vimeo / MP4)</label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={formNovaTrilha.videoUrl}
+                  onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, videoUrl: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-bold text-[#081C3A] outline-none focus:border-[#0070C0]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700">Descrição e Ementa Prática *</label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="Resuma os principais objetivos e o que o licitante aprenderá nesta aula..."
+                  value={formNovaTrilha.descricao}
+                  onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, descricao: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-[#0070C0]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="emiteCertificado"
+                  checked={formNovaTrilha.emiteCertificado}
+                  onChange={(e) => setFormNovaTrilha({ ...formNovaTrilha, emiteCertificado: e.target.checked })}
+                  className="h-4 w-4 rounded text-[#FF6600] focus:ring-[#FF6600]"
+                />
+                <label htmlFor="emiteCertificado" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Emitir Certificado Digital Automático de Conclusão ao finalizar a trilha
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalNovaTrilhaAberto(false)}
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-[#FF6600] hover:bg-[#e55b00] px-5 py-2 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                >
+                  Publicar Trilha na Academia
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CERTIFICADO DE CONCLUSÃO OFICIAL */}
+      {certificadoSelecionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-2xl rounded-3xl border-4 border-[#081C3A] bg-white p-8 shadow-2xl relative text-center space-y-6">
+            <button
+              type="button"
+              onClick={() => setCertificadoSelecionado(null)}
+              className="absolute top-4 right-4 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900 uppercase tracking-widest">
+                <Award size={16} /> Certificado Oficial de Capacitação
+              </span>
+              <h2 className="text-3xl font-black text-[#081C3A] tracking-tight pt-2">
+                EXPERTISE LICITATÓRIA
+              </h2>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                Academia Nacional do Licitante e Hub de Contratações Públicas
+              </p>
+            </div>
+
+            <div className="space-y-3 py-4 border-y border-slate-200">
+              <p className="text-xs text-slate-600 font-medium">
+                Certificamos para os devidos fins de qualificação técnica e profissional que o licitante
+              </p>
+              <p className="text-xl font-black text-[#0070C0] uppercase">
+                Luis Antonio Gomes Paiva
+              </p>
+              <p className="text-xs text-slate-600 font-medium max-w-lg mx-auto">
+                concluiu com êxito o programa prático de capacitação avançada em
+              </p>
+              <p className="text-base font-extrabold text-[#081C3A]">
+                "{certificadoSelecionado.titulo}"
+              </p>
+              <p className="text-xs text-slate-500">
+                Ministrado por <strong className="text-slate-800">{certificadoSelecionado.professor}</strong> com carga horária de <strong className="text-slate-800">{certificadoSelecionado.cargaHoraria}</strong>, conforme os parâmetros da Lei Federal 14.133/2021.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400 font-mono">
+              <span>Código: EXP-CERT-2026-X892</span>
+              <span>Data de Conclusão: 14/11/2026</span>
+              <span className="text-emerald-600 font-bold">Autenticidade Verificada</span>
+            </div>
+
+            <div className="flex justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  toast.success('Certificado baixado em PDF com sucesso!');
+                  setCertificadoSelecionado(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#081C3A] hover:bg-[#0070C0] text-white px-6 py-2.5 text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Download size={16} />
+                Baixar Certificado Oficial (.PDF)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

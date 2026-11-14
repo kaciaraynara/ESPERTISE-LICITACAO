@@ -98,6 +98,7 @@ const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
 const RadarPage = React.lazy(() => import('./pages/RadarPage'));
 const ExpertiseFiscalPage = React.lazy(() => import('./pages/ExpertiseFiscalPage'));
 const RedeFornecedoresPage = React.lazy(() => import('./pages/RedeFornecedoresPage'));
+const SuperAdminPage = React.lazy(() => import('./pages/SuperAdmin/SuperAdminPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -448,6 +449,10 @@ export default function App() {
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
+
+          {/* Painel Privado do Proprietário (Super Admin) - Fora da visão dos licitantes */}
+          <Route path="/master-admin-vault" element={<SuperAdminPage />} />
+          <Route path="/internal-ops-vault" element={<SuperAdminPage />} />
 
           {/* Fallback 404 */}
           <Route path="*" element={<NotFoundPage />} />
