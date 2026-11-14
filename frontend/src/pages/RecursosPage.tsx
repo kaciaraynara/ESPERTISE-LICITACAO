@@ -35,24 +35,50 @@ export default function RecursosPage() {
 
   const handleGerarMinuta = (e: React.FormEvent) => {
     e.preventDefault();
-    const empresa = selectedCompany?.razaoSocial || 'Empresa Licitante';
-    const cnpj = selectedCompany?.cnpj || 'CNPJ cadastrado';
+    const empresa = selectedCompany?.razaoSocial || 'Empresa Licitante Proponente';
+    const cnpj = selectedCompany?.cnpj || 'CNPJ não informado';
+    const endereco = selectedCompany?.cidade ? `${selectedCompany.cidade}/${selectedCompany.estado || 'UF'}` : 'Sede da Empresa';
+    const representante = selectedCompany?.nome || selectedCompany?.representanteLegal || 'Representante Legal';
 
     const texto = [
-      `AO PREGOEIRO / AGENTE DE CONTRATAÇÃO DO ${orgao.toUpperCase() || 'ÓRGÃO LICITANTE'}`,
-      `Referência: ${modalidade} nº ${numeroProcesso || 'A informar'}`,
-      `Objeto: ${objeto || 'Conforme edital'}`,
+      `ILUSTRÍSSIMO(A) SENHOR(A) PREGOEIRO(A) / AGENTE DE CONTRATAÇÃO DA COMISSÃO DE CONTRATAÇÃO`,
+      `ÓRGÃO LICITANTE: ${orgao.toUpperCase() || 'ADMINISTRAÇÃO PÚBLICA LICITANTE'}`,
+      `PROCESSO LICITATÓRIO: ${modalidade.toUpperCase()} Nº ${numeroProcesso || 'S/N'}`,
+      `OBJETO: ${objeto || 'Conforme especificado no instrumento convocatório'}`,
       '',
-      `${empresa}, inscrita no CNPJ sob o nº ${cnpj}, vem, tempestivamente, com fundamento no art. 165 da Lei nº 14.133/2021, apresentar as razões de seu pedido:`,
+      `RECORRENTE: ${empresa.toUpperCase()}, pessoa jurídica de direito privado, inscrita no CNPJ/MF sob o nº ${cnpj}, com sede em ${endereco}, por intermédio de seu representante legal infra-assinado, vem, respeitosamente, à presença de Vossa Senhoria, com fundamento no Artigo 165, inciso I, da Lei Federal nº 14.133/2021 c/c Artigo 5º, inciso LV da Constituição Federal de 1988, interpor o presente`,
       '',
-      '1. DOS FATOS E FUNDAMENTOS',
-      motivos || 'Conforme análise detalhada dos documentos do processo licitatório.',
+      '                       RECURSO ADMINISTRATIVO',
+      '        (COM PEDIDO DE EFEITO SUSPENSIVO - ART. 168 DA LEI 14.133/2021)',
       '',
-      '2. DO PEDIDO',
-      'Diante do exposto, requer o recebimento e acolhimento da presente manifestação para que seja revista a decisão apontada, garantindo a observância aos princípios da legalidade, isonomia e seleção da proposta mais vantajosa.',
+      'em face da decisão proferida na fase de propostas/habilitação no certame em epígrafe, pelas razões fáticas e jurídicas a seguir expostas:',
       '',
-      `Termos em que pede deferimento.`,
-      `${empresa}`,
+      '1. DA TEMPESTIVIDADE E DO CABIMENTO (ART. 165 E ART. 183 DA LEI 14.133/2021)',
+      'O presente recurso é tempestivo, uma vez que interposto estritamente no prazo legal de 3 (três) dias úteis previsto no Artigo 165, inciso I da Lei nº 14.133/2021. Cumpre destacar que, nos termos do Artigo 183 da referida Lei Geral de Licitações, a contagem dos prazos processuais exclui o dia do começo e inclui o do vencimento, considerando-se exclusivamente os dias úteis, estando preenchidos todos os pressupostos de admissibilidade.',
+      '',
+      '2. DOS FATOS E DA VIOLAÇÃO AOS PRINCÍPIOS DA VINCULAÇÃO E DA ISONOMIA',
+      motivos || 'Durante a condução do certame, verificou-se manifesto descompasso entre a decisão proferida e as regras objetivas e cogentes estabelecidas no Edital e no Termo de Referência, resultando em afronta direta ao princípio do julgamento objetivo (Art. 5º da Lei 14.133/2021).',
+      '',
+      '3. DO DIREITO E DA JURISPRUDÊNCIA DO TRIBUNAL DE CONTAS DA UNIÃO (TCU)',
+      'A decisão combatida diverge da jurisprudência pacífica e consolidada do Tribunal de Contas da União (TCU) e da doutrina administrativista especializada:',
+      'a) Atestados de Qualificação Técnica: Conforme estabelece a Súmula nº 275 do TCU e o Artigo 67, § 2º da Lei 14.133/2021, é expressamente vedada a exigência de atestados com quantitativos superiores a 50% da parcela de maior relevância, configurando restrição indevida à ampla concorrência;',
+      'b) Demonstrações Contábeis e Índices de Liquidez: Na esteira da Súmula nº 263 do TCU e do Artigo 69 da Lei 14.133/2021, a comprovação da saúde financeira da licitante deve ater-se a índices usuais e razoáveis (Liquidez Geral, Liquidez Corrente e Solvência Geral maiores que 1,0), sendo vedada a fixação de exigências desproporcionais;',
+      'c) Princípio da Razoabilidade e Seleção da Proposta Mais Vantajosa: A jurisprudência do TCU (Acórdãos 1.211/2021-Plenário e 2.443/2021-Plenário) condena o formalismo exacerbado em desfavor da proposta mais vantajosa para o erário público.',
+      '',
+      '4. DOS PEDIDOS',
+      'Ante todo o exposto, pugna-se pelo conhecimento e provimento do presente Recurso Administrativo para que:',
+      'a) Seja atribuído Efeito Suspensivo ao certame, nos termos do Artigo 168 da Lei Federal nº 14.133/2021, até decisão terminativa;',
+      'b) Seja exercido o Juízo de Retratação por este(a) Douto(a) Pregoeiro(a) / Agente de Contratação, reconsiderando-se a decisão recorrida;',
+      'c) Caso não seja esse o entendimento de Vossa Senhoria, sejam os presentes autos encaminhados, com as razões recursais e eventuais contrarrazões, à Autoridade Superior competente para que promova a reforma integral da decisão.',
+      '',
+      `Nestes termos, pede e espera deferimento.`,
+      '',
+      `Local e Data: ${new Date().toLocaleDateString('pt-BR')}`,
+      '',
+      `_________________________________________________`,
+      `${empresa.toUpperCase()}`,
+      `Representante Legal: ${representante}`,
+      `CNPJ: ${cnpj}`,
     ].join('\n');
 
     setMinutaGerada(texto);
