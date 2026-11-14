@@ -67,14 +67,14 @@ export default function DashboardPage() {
   const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
     queryKey: ['dashboard', 'metrics', selectedCompany?.id],
     queryFn: async () => {
-      const res = await dashboardApi.getMetrics(selectedCompany?.id);
+      const res = await dashboardApi.getMetrics()
       return (res.data?.data || res.data || {}) as DashboardMetrics;
     },
     staleTime: 60_000,
   });
 
   const primeiroNome =
-    (user?.apelido || user?.nome || selectedCompany?.nomeFantasia || 'Empresa')
+    (user?.nome || selectedCompany?.nomeFantasia || 'Empresa')
       .trim()
       .split(/\s+/)[0];
 

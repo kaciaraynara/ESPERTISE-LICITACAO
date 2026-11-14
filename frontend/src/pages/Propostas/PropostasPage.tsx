@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { crmApi } from '../../services/api';
 import { useCompany } from '../../contexts/CompanyContext';
-import { gerarPropostaComercialPdf } from '../../utils/pdfGenerator';
+import * as pdfGen from '../../utils/pdfGenerator';
 
 interface ItemProposta {
   id: string;
@@ -37,21 +37,19 @@ function moeda(v: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 }
 
-export default function PropostasPage() {
+export function PropostasPage() {
   const { selectedCompany } = useCompany();
 
   const [etapa, setEtapa] = useState(1);
   const [oportunidades, setOportunidades] = useState<any[]>([]);
   const [editalEscolhidoId, setEditalEscolhidoId] = useState('');
 
-  // Etapa 1: Identificação
   const [orgao, setOrgao] = useState('');
   const [modalidade, setModalidade] = useState('Pregão Eletrônico');
   const [numeroProcesso, setNumeroProcesso] = useState('');
   const [dataAbertura, setDataAbertura] = useState('');
   const [objeto, setObjeto] = useState('');
 
-  // Etapa 2 & 3: Itens e Valores
   const [itens, setItens] = useState<ItemProposta[]>([
     {
       id: '1',
@@ -67,7 +65,6 @@ export default function PropostasPage() {
   const [margemPercentual, setMargemPercentual] = useState(20);
   const [despesasPercentual, setDespesasPercentual] = useState(12);
 
-  // Etapa 4: Condições e Documentos
   const [validadeDias, setValidadeDias] = useState(60);
   const [prazoEntrega, setPrazoEntrega] = useState('Até 15 dias úteis após o pedido oficial');
   const [garantia, setGarantia] = useState('12 meses contra defeitos de fabricação');
@@ -151,39 +148,48 @@ export default function PropostasPage() {
   );
 
   const handleGerarPdf = () => {
-    gerarPropostaComercialPdf({
-      empresa: {
-        razaoSocial: selectedCompany?.razaoSocial || 'Empresa Licitante',
-        cnpj: selectedCompany?.cnpj || '',
-        endereco: selectedCompany?.endereco || '',
-        cidadeUf: [selectedCompany?.cidade, selectedCompany?.uf].filter(Boolean).join(' - '),
-        telefone: selectedCompany?.telefone || '',
-        email: selectedCompany?.email || '',
-      },
-      orgao: orgao || 'Órgão Licitante',
-      numeroProcesso: numeroProcesso || '001/2026',
-      modalidade,
-      objeto: objeto || 'Fornecimento conforme especificações do edital',
-      validadeDias,
-      prazoEntrega,
-      garantia,
-      itens: itens.map((i) => ({
-        numero: i.numero,
-        descricao: i.descricao || 'Item conforme termo de referência',
-        unidade: i.unidade,
-        quantidade: i.quantidade,
-        marca: i.marcaModelo,
-        valorUnitario: i.valorUnitario,
-        valorTotal: i.quantidade * i.valorUnitario,
-      })),
-    });
+    const emp = selectedCompany as any;
+    const gerarFn =
+      (pdfGen as any).gerarPropostaComercialPdf ||
+      (pdfGen as any).gerarPropostaPDF ||
+      (pdfGen as any).default;
+
+    if (typeof gerarFn === 'function') {
+      gerarFn({
+        empresa: {
+          razaoSocial: emp?.razaoSocial || 'Empresa Licitante',
+          cnpj: emp?.cnpj || '',
+          endereco: emp?.endereco || '',
+          cidadeUf: [emp?.cidade, emp?.uf].filter(Boolean).join(' - '),
+          telefone: emp?.telefone || '',
+          email: emp?.email || '',
+        },
+        orgao: orgao || 'Órgão Licitante',
+        numeroProcesso: numeroProcesso || '001/2026',
+        modalidade,
+        objeto: objeto || 'Fornecimento conforme especificações do edital',
+        validadeDias,
+        prazoEntrega,
+        garantia,
+        itens: itens.map((i) => ({
+          numero: i.numero,
+          descricao: i.descricao || 'Item conforme termo de referência',
+          unidade: i.unidade,
+          quantidade: i.quantidade,
+          marca: i.marcaModelo,
+          valorUnitario: i.valorUnitario,
+          valorTotal: i.quantidade * i.valorUnitario,
+        })),
+      });
+    } else {
+      window.print();
+    }
     setGeradoMsg('Proposta comercial gerada com sucesso!');
   };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Cabeçalho + Rascunho salvo */}
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
@@ -206,11 +212,8 @@ export default function PropostasPage() {
           </div>
         </div>
 
-        {/* Grade Principal */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Card Principal com Stepper de 5 Etapas */}
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8">
-            {/* Stepper */}
             <div className="mb-8 flex items-center justify-between">
               {ETAPAS.map((step, idx) => {
                 const ativa = etapa === step.id;
@@ -233,27 +236,18 @@ export default function PropostasPage() {
                       >
                         {step.id}
                       </div>
-                      <span
-                        className={`text-xs font-bold ${
-                          ativa ? 'text-[#081C3A]' : 'text-slate-400'
-                        }`}
-                      >
+                      <span className={`text-xs font-bold ${ativa ? 'text-[#081C3A]' : 'text-slate-400'}`}>
                         {step.label}
                       </span>
                     </button>
                     {idx < ETAPAS.length - 1 && (
-                      <div
-                        className={`mx-2 h-0.5 flex-1 ${
-                          etapa > step.id ? 'bg-[#0070C0]' : 'bg-slate-200'
-                        }`}
-                      />
+                      <div className={`mx-2 h-0.5 flex-1 ${etapa > step.id ? 'bg-[#0070C0]' : 'bg-slate-200'}`} />
                     )}
                   </React.Fragment>
                 );
               })}
             </div>
 
-            {/* ETAPA 1: Identificação */}
             {etapa === 1 && (
               <div className="space-y-4">
                 <div>
@@ -338,7 +332,6 @@ export default function PropostasPage() {
               </div>
             )}
 
-            {/* ETAPA 2: Itens */}
             {etapa === 2 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -360,15 +353,11 @@ export default function PropostasPage() {
 
                 <div className="space-y-3">
                   {itens.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4 space-y-3">
+                    <div key={item.id} className="space-y-3 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-extrabold text-[#0070C0]">Item #{item.numero}</span>
                         {itens.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removerItem(item.id)}
-                            className="text-slate-400 hover:text-red-600"
-                          >
+                          <button type="button" onClick={() => removerItem(item.id)} className="text-slate-400 hover:text-red-600">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}
@@ -410,7 +399,6 @@ export default function PropostasPage() {
               </div>
             )}
 
-            {/* ETAPA 3: Valores */}
             {etapa === 3 && (
               <div className="space-y-4">
                 <div>
@@ -462,7 +450,7 @@ export default function PropostasPage() {
                         </p>
                       </div>
                       <div className="col-span-3">
-                        <label className="block text-[10px] font-bold text-slate-400">Seu custo (R\$)</label>
+                        <label className="block text-[10px] font-bold text-slate-400">Seu custo (R$)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -493,7 +481,6 @@ export default function PropostasPage() {
               </div>
             )}
 
-            {/* ETAPA 4: Documentos e Condições */}
             {etapa === 4 && (
               <div className="space-y-4">
                 <div>
@@ -547,7 +534,6 @@ export default function PropostasPage() {
               </div>
             )}
 
-            {/* ETAPA 5: Revisão Final */}
             {etapa === 5 && (
               <div className="space-y-4">
                 <div>
@@ -557,7 +543,7 @@ export default function PropostasPage() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 space-y-2 text-sm">
+                <div className="space-y-2 rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 text-sm">
                   <p><strong>Empresa:</strong> {selectedCompany?.razaoSocial || 'Sua empresa'}</p>
                   <p><strong>Órgão:</strong> {orgao || 'A informar'} • <strong>Processo:</strong> {numeroProcesso || 'A informar'}</p>
                   <p><strong>Itens:</strong> {itens.length} item(ns) • <strong>Valor Global:</strong> <span className="font-extrabold text-[#0070C0]">{moeda(totalGeral)}</span></p>
@@ -581,7 +567,6 @@ export default function PropostasPage() {
               </div>
             )}
 
-            {/* Rodapé de navegação entre etapas */}
             <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-5">
               <button
                 type="button"
@@ -606,7 +591,6 @@ export default function PropostasPage() {
             </div>
           </div>
 
-          {/* Card lateral direito do modelo */}
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-4">
             <h3 className="text-xl font-extrabold leading-snug text-[#081C3A]">
               Uma proposta mais organizada e competitiva
@@ -643,3 +627,5 @@ export default function PropostasPage() {
     </div>
   );
 }
+
+export default PropostasPage;

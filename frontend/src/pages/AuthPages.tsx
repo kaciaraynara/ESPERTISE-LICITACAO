@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Search, TrendingUp, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
 import { FORNECEDOR_ROUTES } from '../routes';
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://espertise-licitacao.onrender.com/api';
+
 export function LoginPage() {
-  const { login } = useAuth() as any;
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -19,10 +19,21 @@ export function LoginPage() {
     setErro(null);
     setCarregando(true);
     try {
-      await login(email, senha);
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: senha }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'E-mail ou senha inválidos. Confira seus dados.');
+      }
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+      }
       navigate(FORNECEDOR_ROUTES.dashboard);
     } catch (err: any) {
-      setErro(err?.response?.data?.message || 'E-mail ou senha inválidos. Confira seus dados.');
+      setErro(err?.message || 'E-mail ou senha inválidos. Confira seus dados.');
     } finally {
       setCarregando(false);
     }
@@ -36,7 +47,6 @@ export function LoginPage() {
         </Link>
 
         <div className="mt-12 grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
-          {/* Lado esquerdo */}
           <div className="space-y-4 lg:col-span-6">
             <h1 className="text-4xl font-extrabold leading-tight text-[#081C3A] sm:text-5xl">
               Seu próximo resultado começa aqui
@@ -46,7 +56,6 @@ export function LoginPage() {
             </p>
           </div>
 
-          {/* Card de Login */}
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-lg lg:col-span-6">
             <h2 className="text-2xl font-extrabold text-[#081C3A]">Acesse sua conta</h2>
             <p className="mt-1 text-sm text-slate-500">Entre para acompanhar suas oportunidades.</p>
@@ -119,7 +128,6 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
-  const { register } = useAuth() as any;
   const navigate = useNavigate();
 
   const [etapa, setEtapa] = useState<1 | 2>(1);
@@ -161,19 +169,30 @@ export function RegisterPage() {
     setErro(null);
     setCarregando(true);
     try {
-      await register({
-        name: nome,
-        email,
-        password: senha,
-        razaoSocial,
-        cnpj,
-        telefone,
-        setor,
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: nome,
+          email,
+          password: senha,
+          razaoSocial,
+          cnpj,
+          telefone,
+          setor,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || 'Não foi possível concluir o cadastro. Verifique os dados.');
+      }
+      if (data?.token) {
+        localStorage.setItem('token', data.token);
+      }
       setEtapa(2);
       setTimeout(() => navigate(FORNECEDOR_ROUTES.dashboard), 1200);
     } catch (err: any) {
-      setErro(err?.response?.data?.message || 'Não foi possível concluir o cadastro. Verifique os dados.');
+      setErro(err?.message || 'Não foi possível concluir o cadastro. Verifique os dados.');
     } finally {
       setCarregando(false);
     }
@@ -182,7 +201,6 @@ export function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        {/* Topo */}
         <header className="flex items-center justify-between">
           <Link to="/" className="text-lg font-extrabold text-[#081C3A]">
             EXPERTISE LICITATÓRIA
@@ -196,7 +214,6 @@ export function RegisterPage() {
         </header>
 
         <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12">
-          {/* Lado esquerdo */}
           <div className="space-y-6 lg:col-span-5">
             <div>
               <h1 className="text-4xl font-extrabold leading-tight text-[#081C3A]">
@@ -218,10 +235,9 @@ export function RegisterPage() {
             </div>
           </div>
 
-          {/* Formulário */}
           <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-lg lg:col-span-7">
             {etapa === 2 ? (
-              <div className="py-12 text-center space-y-3">
+              <div className="space-y-3 py-12 text-center">
                 <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
                 <h2 className="text-2xl font-extrabold text-[#081C3A]">Conta criada com sucesso!</h2>
                 <p className="text-sm text-slate-500">Abrindo seu painel da Expertise...</p>
@@ -340,4 +356,8 @@ export function RegisterPage() {
       </div>
     </div>
   );
+}
+
+export default function AuthPages() {
+  return <LoginPage />;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Search,
   Building2,
@@ -53,6 +53,11 @@ interface EditalItem {
   viabilidade?: number;
   scoreViabilidade?: number;
   matchScore?: number;
+}
+
+interface LicitacoesPageProps {
+  tituloCustomizado?: string;
+  modalidadeInicial?: string;
 }
 
 const MODALIDADES_RAPIDAS = [
@@ -148,7 +153,10 @@ function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
   return Math.min(98, Math.max(35, pontos));
 }
 
-export default function LicitacoesPage() {
+export default function LicitacoesPage({
+  tituloCustomizado,
+  modalidadeInicial,
+}: LicitacoesPageProps) {
   const { selectedCompany } = useCompany();
 
   const [editais, setEditais] = useState<EditalItem[]>([]);
@@ -159,7 +167,15 @@ export default function LicitacoesPage() {
   const [palavraChave, setPalavraChave] = useState('');
   const [ufSelecionada, setUfSelecionada] = useState('');
   const [orgaoFiltro, setOrgaoFiltro] = useState('');
-  const [modalidadeAtiva, setModalidadeAtiva] = useState('TODAS');
+  const [modalidadeAtiva, setModalidadeAtiva] = useState(() => {
+    const m = (modalidadeInicial || '').toLowerCase();
+    if (m.includes('pregão') || m.includes('pregao')) return 'PREGAO';
+    if (m.includes('concorr')) return 'CONCORRENCIA';
+    if (m.includes('dispensa')) return 'DISPENSA';
+    if (m.includes('credenc')) return 'CREDENCIAMENTO';
+    if (m.includes('srp') || m.includes('registro')) return 'SRP';
+    return 'TODAS';
+  });
   const [dataPublicacao, setDataPublicacao] = useState('');
   const [ordenacao, setOrdenacao] = useState<'relevancia' | 'recentes' | 'maior_valor'>('relevancia');
   const [mostrarFiltrosExtras, setMostrarFiltrosExtras] = useState(false);
@@ -189,7 +205,7 @@ export default function LicitacoesPage() {
         setSalvosMap(mapa);
       }
     } catch {
-      // Silencioso para não interromper a navegação
+      // Silencioso
     }
   }, []);
 
@@ -198,9 +214,7 @@ export default function LicitacoesPage() {
       setCarregando(true);
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
-        const params: Record<string, any> = {
-          limit: 60,
-        };
+        const params: Record<string, any> = { limit: 60 };
         if (q.trim()) params.q = q.trim();
         if (ufSelecionada) params.uf = ufSelecionada;
         if (orgaoFiltro.trim()) params.orgao = orgaoFiltro.trim();
@@ -332,11 +346,10 @@ export default function LicitacoesPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Cabeçalho principal */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
-              Radar de editais
+              {tituloCustomizado || 'Radar de editais'}
             </h1>
             <p className="mt-1 text-lg font-bold text-[#081C3A]">
               Encontre oportunidades compatíveis com seu negócio
@@ -368,7 +381,6 @@ export default function LicitacoesPage() {
           </div>
         </div>
 
-        {/* Barra de aviso contextual */}
         {aviso && (
           <div
             className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -386,7 +398,6 @@ export default function LicitacoesPage() {
           </div>
         )}
 
-        {/* Bloco de busca e filtros */}
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <form
             onSubmit={(e) => {
@@ -414,7 +425,6 @@ export default function LicitacoesPage() {
             </button>
           </form>
 
-          {/* Pílulas de filtros rápidos */}
           <div className="mt-4 flex flex-wrap items-center gap-2.5">
             <div className="relative">
               <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -478,7 +488,6 @@ export default function LicitacoesPage() {
             </div>
           )}
 
-          {/* Cards de modalidade */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {MODALIDADES_RAPIDAS.map((mod) => {
               const Icon = mod.icon;
@@ -502,7 +511,6 @@ export default function LicitacoesPage() {
           </div>
         </div>
 
-        {/* Barra de contagem e ordenação */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-semibold text-slate-600">
             <span className="text-[#081C3A]">{total}</span> resultados encontrados
@@ -522,7 +530,6 @@ export default function LicitacoesPage() {
           </div>
         </div>
 
-        {/* Lista de editais em cards horizontais limpos */}
         {carregando ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
@@ -584,7 +591,6 @@ export default function LicitacoesPage() {
                   key={idStr}
                   className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#0070C0]/40 hover:shadow-md lg:flex-row lg:items-center"
                 >
-                  {/* Bloco esquerdo: ícone + objeto + órgão + modalidade */}
                   <div className="flex flex-1 items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0070C0]">
                       <FileText className="h-6 w-6" />
@@ -616,7 +622,6 @@ export default function LicitacoesPage() {
                     </div>
                   </div>
 
-                  {/* Bloco central: UF, Publicação, Entrega e Valor */}
                   <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-3 sm:grid-cols-4 lg:border-t-0 lg:pt-0">
                     <div>
                       <p className="text-[11px] font-medium text-slate-400">UF</p>
@@ -642,7 +647,6 @@ export default function LicitacoesPage() {
                     </div>
                   </div>
 
-                  {/* Bloco direito: Ações */}
                   <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
                     <button
                       type="button"
@@ -695,12 +699,21 @@ export default function LicitacoesPage() {
         )}
       </div>
 
-      {/* Modal de Dossiê do Edital */}
       {editalSelecionado && (
         <DossieEditalModal
           isOpen={Boolean(editalSelecionado)}
           onClose={() => setEditalSelecionado(null)}
-          edital={editalSelecionado}
+          edital={{
+            ...(editalSelecionado as any),
+            orgao:
+              editalSelecionado.orgaoEntidade?.razaoSocial ||
+              editalSelecionado.orgaoNome ||
+              'Órgão Público',
+            objeto:
+              editalSelecionado.objetoCompra ||
+              editalSelecionado.objeto ||
+              'Objeto não informado',
+          }}
         />
       )}
     </div>

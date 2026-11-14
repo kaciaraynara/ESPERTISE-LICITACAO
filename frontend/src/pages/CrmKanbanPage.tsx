@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FileSearch,
@@ -121,7 +121,7 @@ export default function CrmKanbanPage() {
     const proximo = COLUNAS[idx + 1].id;
     setMovendoId(op.id);
     try {
-      await crmApi.moveOportunidade(op.id, proximo);
+      await crmApi.moveOportunidade(op.id, { stage: proximo });
       setOportunidades((prev) =>
         prev.map((item) => (item.id === op.id ? { ...item, stage: proximo } : item))
       );
