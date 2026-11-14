@@ -219,22 +219,26 @@ export function montarTextoPlanoProposta(dados: DadosDocumentoProposta): string 
   return lines.join('\n');
 }
 
-export function construirHtmlPdfProposta(dados: DadosDocumentoProposta): string {
+export function construirHtmlPdfProposta(dados: any): string {
   const { proposta, orgaoLicitante, numeroEdital, objetoLicitacao, modalidadeEdital, itens, totalCalculado } = dados;
 
-  const razaoSocial = proposta?.company?.razaoSocial || 'EMPRESA PROPONENTE';
-  const nomeFantasia = proposta?.company?.nomeFantasia || razaoSocial;
-  const cnpj = proposta?.company?.cnpj || 'Não informado';
-  const email = proposta?.company?.email || 'Não informado';
-  const telefone = proposta?.company?.telefone || 'Não informado';
-  const orgao = orgaoLicitante || 'Órgão Licitante Promotor';
-  const obj = objetoLicitacao || 'Objeto da contratação pública conforme Edital';
-  const num = numeroEdital || 'S/N';
-  const mod = modalidadeEdital || 'Pregão Eletrônico (Lei nº 14.133/2021)';
+  const emp = (dados as any).empresa || proposta?.company;
+  const razaoSocial = emp?.razaoSocial || proposta?.company?.razaoSocial || 'EMPRESA PROPONENTE';
+  const nomeFantasia = emp?.nomeFantasia || proposta?.company?.nomeFantasia || razaoSocial;
+  const cnpj = emp?.cnpj || proposta?.company?.cnpj || 'Não informado';
+  const email = emp?.email || proposta?.company?.email || 'Não informado';
+  const telefone = emp?.telefone || proposta?.company?.telefone || 'Não informado';
+  const endereco = emp?.endereco || proposta?.company?.endereco || '';
+  const cidadeUf = emp?.cidadeUf || [emp?.cidade, emp?.uf].filter(Boolean).join(' - ') || 'Brasil';
+
+  const orgao = orgaoLicitante || (dados as any).orgao || 'Órgão Licitante Promotor';
+  const obj = objetoLicitacao || (dados as any).objeto || 'Objeto da contratação pública conforme Edital';
+  const num = numeroEdital || (dados as any).numeroProcesso || 'S/N';
+  const mod = modalidadeEdital || (dados as any).modalidade || 'Pregão Eletrônico (Lei nº 14.133/2021)';
   const criterio = proposta?.criterioJulgamento?.replace(/_/g, ' ') || 'Menor Preço';
-  const validade = proposta?.validadeDias || 60;
-  const entrega = proposta?.prazoEntregaDias || 15;
-  const garantia = proposta?.garantia || 'Garantia legal e contratual mínima de 12 (doze) meses contra vícios, defeitos de fabricação ou falhas de execução.';
+  const validade = (dados as any).validadeDias || proposta?.validadeDias || 60;
+  const entrega = (dados as any).prazoEntrega || proposta?.prazoEntregaDias || 15;
+  const garantia = (dados as any).garantia || proposta?.garantia || 'Garantia legal e contratual mínima de 12 (doze) meses contra vícios, defeitos de fabricação ou falhas de execução.';
   const pagamento = proposta?.condicoesPagamento || 'Em até 30 (trinta) dias corridos após o recebimento definitivo e atesto da Nota Fiscal em conta vinculada ao CNPJ da proponente.';
 
   const dataExtenso = new Date().toLocaleDateString('pt-BR', {
@@ -243,12 +247,37 @@ export function construirHtmlPdfProposta(dados: DadosDocumentoProposta): string 
     year: 'numeric',
   });
 
-  const somaCustosDiretos = itens.reduce((acc, it) => acc + (Number(it.custoDireto) || 0) * (Number(it.quantidade) || 1), 0);
-  const diferencaBruta = Math.max(0, totalCalculado - somaCustosDiretos);
+  const rawItens: any[] = Array.isArray(itens) ? itens : [];
+  const somaCustosDiretos = rawItens.reduce(
+    (acc, it) => acc + (Number(it.custoDireto ?? it.custoUnitario ?? 0) * (Number(it.quantidade) || 1)),
+    0
+  );
+  const totalFinalCalculado =
+    Number(totalCalculado) ||
+    rawItens.reduce((acc, it) => {
+      const itemTot =
+        it.precoTotalProposto !== undefined && it.precoTotalProposto !== null
+          ? Number(it.precoTotalProposto)
+          : it.valorTotal !== undefined && it.valorTotal !== null
+          ? Number(it.valorTotal)
+          : (Number(it.quantidade || 1) * Number(it.precoUnitarioProposto ?? it.valorUnitario ?? 0));
+      return acc + (Number(itemTot) || 0);
+    }, 0);
+  const diferencaBruta = Math.max(0, totalFinalCalculado - somaCustosDiretos);
 
-  const rowsItensHtml = itens
+  const rowsItensHtml = rawItens
     .map((it, idx) => {
-      const marcaModelo = [it.marca, it.modelo].filter(Boolean).join(' / ') || 'Conforme Edital';
+      const marcaModelo =
+        it.marca ||
+        it.marcaModelo ||
+        [it.marca, it.modelo].filter(Boolean).join(' / ') ||
+        'Conforme Edital';
+      const custo = Number(it.custoDireto ?? it.custoUnitario ?? 0);
+      const encargos = Number(it.encargosPercentual ?? it.despesasPercentual ?? 0);
+      const margem = Number(it.margemLucroPercentual ?? it.margemPercentual ?? 0);
+      const unitario = Number(it.precoUnitarioProposto ?? it.valorUnitario ?? 0);
+      const totalItem = Number(it.precoTotalProposto ?? it.valorTotal ?? (Number(it.quantidade || 1) * unitario));
+
       return `
       <tr>
         <td style="text-align:center; font-weight:bold;">${it.numero || idx + 1}</td>
@@ -257,11 +286,11 @@ export function construirHtmlPdfProposta(dados: DadosDocumentoProposta): string 
           <span style="font-size:8pt; color:#475569;">Marca/Modelo: ${escapeHtml(marcaModelo)}</span>
         </td>
         <td style="text-align:center;">${it.quantidade} ${escapeHtml(it.unidade)}</td>
-        <td style="text-align:right;">${formatarMoeda(it.custoDireto)}</td>
-        <td style="text-align:right;">${Number(it.encargosPercentual ?? it.bdiPercentual ?? 0)}%</td>
-        <td style="text-align:right;">${Number(it.margemLucroPercentual ?? 0)}%</td>
-        <td style="text-align:right; font-weight:bold;">${formatarMoeda(it.precoUnitarioProposto)}</td>
-        <td style="text-align:right; font-weight:bold; color:#081C3A;">${formatarMoeda(it.precoTotalProposto)}</td>
+        <td style="text-align:right;">${formatarMoeda(custo)}</td>
+        <td style="text-align:right;">${encargos}%</td>
+        <td style="text-align:right;">${margem}%</td>
+        <td style="text-align:right; font-weight:bold;">${formatarMoeda(unitario)}</td>
+        <td style="text-align:right; font-weight:bold; color:#081C3A;">${formatarMoeda(totalItem)}</td>
       </tr>`;
     })
     .join('');
@@ -445,8 +474,8 @@ export function construirHtmlPdfProposta(dados: DadosDocumentoProposta): string 
             <td><strong>Enquadramento Legal:</strong> ${proposta?.declaracaoMeEpp ? 'ME / EPP (LC nº 123/2006)' : 'Ampla Concorrência'}</td>
           </tr>
           <tr>
-            <td><strong>E-mail Oficial:</strong> ${escapeHtml(email)}</td>
-            <td><strong>Telefone Comercial:</strong> ${escapeHtml(telefone)}</td>
+            <td><strong>Endereço / Sede:</strong> ${escapeHtml([endereco, cidadeUf].filter(Boolean).join(' - ') || 'Brasil')}</td>
+            <td><strong>Contatos:</strong> ${escapeHtml([telefone, email].filter(Boolean).join(' | ') || 'Não informado')}</td>
           </tr>
         </table>
 
@@ -528,21 +557,52 @@ export function construirHtmlPdfProposta(dados: DadosDocumentoProposta): string 
   `;
 }
 
-export function imprimirPropostaPdf(dados: DadosDocumentoProposta): boolean {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    return false;
+export function imprimirPropostaPdf(dados: any): boolean {
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return false;
+      const html = construirHtmlPdfProposta(dados);
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 300);
+      return true;
+    }
+
+    const html = construirHtmlPdfProposta(dados);
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe);
+        } catch {
+          // Limpeza do iframe
+        }
+      }, 1500);
+    }, 300);
+
+    return true;
+  } catch {
+    window.print();
+    return true;
   }
-
-  const html = construirHtmlPdfProposta(dados);
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 300);
-
-  return true;
 }
 
 export const gerarPropostaComercialPdf = imprimirPropostaPdf;

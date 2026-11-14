@@ -15,12 +15,12 @@ export interface ApiResponse<T> {
 export const taxService = {
   /**
    * POST /api/tax/simulate-bdi
-   * Simula em tempo real o Split Payment e a margem líquida sob o IVA Dual
+   * Simula em tempo real a retenção tributária e a margem líquida sob a Reforma Tributária
    */
   async simulateBdi(payload: SimulateBdiInput): Promise<SimulateBdiResult> {
     const response = await api.post<ApiResponse<SimulateBdiResult>>('/tax/simulate-bdi', payload);
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.message || 'Falha ao processar simulação tributária de BDI.');
+      throw new Error(response.data.message || 'Falha ao processar simulação tributária de encargos e margem.');
     }
     return response.data.data;
   },

@@ -268,7 +268,7 @@ export default function LicitacaoDetalhePage() {
       });
 
       const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
-      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e BDI!');
+      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e encargos!');
       if (proposalId) {
         navigate(`/fornecedor/propostas/${proposalId}`);
       } else {
@@ -944,7 +944,7 @@ export default function LicitacaoDetalhePage() {
                       Itens Oficiais da Contratação (PNCP) & Formação de Preço
                     </h3>
                     <p className="text-xs text-brand-blue/70">
-                      Itens extraídos em tempo real do portal governamental e precificados com BDI, Split Payment e Stop-Loss.
+                      Itens extraídos em tempo real do portal governamental e precificados com encargos, retenção tributária e proteção de margem.
                     </p>
                   </div>
                   <div className="text-right">
@@ -975,7 +975,7 @@ export default function LicitacaoDetalhePage() {
                           <th className="py-3 px-3 text-right w-28">Ref. PNCP</th>
                           <th className="py-3 px-3 text-right w-28">Total PNCP</th>
                           <th className="py-3 px-3 text-right w-28">Custo Base</th>
-                          <th className="py-3 px-3 text-right w-28 text-rose-700">Stop-Loss</th>
+                          <th className="py-3 px-3 text-right w-28 text-rose-700">Valor Mínimo</th>
                           <th className="py-3 px-3 text-right w-28 text-emerald-700">Preço Alvo</th>
                         </tr>
                       </thead>

@@ -89,7 +89,7 @@ export default function ExpertiseFiscalPage() {
   const [simulandoReforma, setSimulandoReforma] = useState(false);
   const [reformaResult, setReformaResult] = useState<any>(null);
 
-  // Estados da Aba 4 (BDI & Trava de 5 Etapas)
+  // Estados da Aba 4 (Encargos & Trava de 5 Etapas)
   const [selectedEdital, setSelectedEdital] = useState<EditalOption | null>(
     initialNoticeParam ? ({ id: initialNoticeParam, numeroControlePNCP: initialNoticeParam, orgao: 'Edital Conectado' } as EditalOption) : null,
   );
@@ -244,7 +244,7 @@ export default function ExpertiseFiscalPage() {
     }
   };
 
-  // Simulação BDI & Precificação com Trava de 5 Etapas
+  // Simulação de Encargos & Precificação com Trava de 5 Etapas
   const handleSimularBdi = async (e: React.FormEvent) => {
     e.preventDefault();
     if (custoDireto <= 0) {
@@ -420,7 +420,7 @@ export default function ExpertiseFiscalPage() {
             Inteligência Tributária & Blindagem Fiscal de Licitações
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-            Auditoria automatizada de notas fiscais, scanner de retenções indevidas (IN 1.234/12 & INSS), simulador da Reforma Tributária e BDI com Trava de 5 Etapas.
+            Auditoria automatizada de notas fiscais, scanner de retenções indevidas (IN 1.234/12 & INSS), simulador da Reforma Tributária e Encargos com Trava de 5 Etapas.
           </p>
         </div>
 
@@ -781,7 +781,7 @@ export default function ExpertiseFiscalPage() {
                       <th className="py-2.5 px-3">Sentido</th>
                       <th className="py-2.5 px-3">Data Emissão</th>
                       <th className="py-2.5 px-3">Valor Total</th>
-                      <th className="py-2.5 px-3">Hash SHA-256</th>
+                      <th className="py-2.5 px-3">Código de Autenticidade</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1598,7 +1598,7 @@ export default function ExpertiseFiscalPage() {
               Simulador da Reforma Tributária nas Licitações (EC 132/23 & LC 214/25)
             </h2>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              Avalie como a substituição de PIS/COFINS/ICMS/ISS pelo IVA Dual (CBS + IBS) e o mecanismo de <strong>Split Payment</strong> afetarão o fluxo de caixa dos seus contratos com o governo.
+              Avalie como a substituição de PIS/COFINS/ICMS/ISS pela Reforma Tributária (CBS + IBS) e a <strong>Retenção Automática de Tributos</strong> afetarão o fluxo de caixa dos seus contratos com o governo.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -1690,9 +1690,9 @@ export default function ExpertiseFiscalPage() {
                   </div>
                 </div>
 
-                {/* Cenário Pleno IVA Dual */}
+                {/* Cenário Pleno Reforma Tributária */}
                 <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-5 space-y-3">
-                  <span className="text-xs font-black uppercase text-indigo-700 block">IVA Dual Pleno & Split Payment</span>
+                  <span className="text-xs font-black uppercase text-indigo-700 block">Reforma Tributária Plena & Retenção Automática</span>
                   <div className="border-b border-indigo-100 pb-3">
                     <span className="text-3xl font-black text-indigo-900">
                       {reformaResult.cenarioPlenoIvaDual?.aliquotaEfetivaFinalPercent?.toFixed(2)}%
@@ -1700,7 +1700,7 @@ export default function ExpertiseFiscalPage() {
                     <span className="text-xs text-indigo-700 block">{reformaResult.cenarioPlenoIvaDual?.reducerDescription}</span>
                   </div>
                   <div className="space-y-1 text-xs text-slate-700">
-                    <p>Retenção Split Payment: <strong>R$ {reformaResult.cenarioPlenoIvaDual?.retencaoSplitPaymentGoverno?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
+                    <p>Retenção Automática de Tributos: <strong>R$ {reformaResult.cenarioPlenoIvaDual?.retencaoSplitPaymentGoverno?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
                     <p>Crédito s/ Insumos: <strong className="text-emerald-600">- R$ {reformaResult.cenarioPlenoIvaDual?.creditoFinanceiroInsumos?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
                     <p className="pt-1 font-bold text-slate-900">Recebimento Líquido: R$ {reformaResult.cenarioPlenoIvaDual?.fluxoCaixaLiquidoPosSplitPayment?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                   </div>
@@ -1712,14 +1712,14 @@ export default function ExpertiseFiscalPage() {
       )}
 
       {/* =====================================================================
-          ABA 4: BDI & TRAVA DE 5 ETAPAS (MÓDULO 04 - CRUZAMENTO TRIBUTAÇÃO X LICITAÇÃO)
+          ABA 4: ENCARGOS & MARGEM COM TRAVA DE 5 ETAPAS (MÓDULO 04 - CRUZAMENTO TRIBUTAÇÃO X LICITAÇÃO)
           ===================================================================== */}
       {activeTab === 'bdi_proposta' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-xs">
             <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
               <Calculator className="w-5 h-5 text-brand-orange" weight="bold" />
-              Precificação Estratégica & BDI com Trava de 5 Etapas
+              Precificação Estratégica & Encargos com Trava de 5 Etapas
             </h2>
             <p className="text-xs text-slate-500 font-medium mt-1">
               Conecte a proposta a um edital da plataforma e simule lado a lado o <strong>Cenário A (Padrão)</strong> e o <strong>Cenário B (Otimizado com Crédito Validado)</strong>, mantendo a exequibilidade legal do Art. 59 da Lei 14.133/2021.
@@ -2012,7 +2012,7 @@ export default function ExpertiseFiscalPage() {
                   type="text"
                   value={motivoAlteracaoTributaria}
                   onChange={(e) => setMotivoAlteracaoTributaria(e.target.value)}
-                  placeholder="Ex: Majoração de alíquota efetiva em TaxRuleVersion ou transição do IVA Dual (LC 214/2025)"
+                  placeholder="Ex: Majoração de alíquota efetiva em TaxRuleVersion ou transição da Reforma Tributária (LC 214/2025)"
                   className="w-full p-2.5 rounded-xl border border-slate-200 bg-white"
                 />
               </div>

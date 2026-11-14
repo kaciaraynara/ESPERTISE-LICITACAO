@@ -189,7 +189,7 @@ Analise criteriosamente o seguinte edital e estruture um relatório de auditoria
 3. AUDITORIA DE CLÁUSULAS RESTRITIVAS / ABUSIVAS: Aponte com precisão exigências que podem violar o princípio da ampla competitividade (ex: exigência de certidões além do Art. 68, certificações dispensáveis antes da assinatura do contrato, atestados restritivos segundo Súmulas e Acórdãos do TCU).
 4. REQUISITOS DE HABILITAÇÃO: Jurídica, Fiscal/Trabalhista, Econômico-Financeira e Técnica.
 5. CHECKLIST DE CONFORMIDADE PARA O LICITANTE: Relação dos documentos obrigatórios indispensáveis para não sofrer inabilitação.
-6. DIRETRIZES PARA A PROPOSTA & PRECIFICAÇÃO: Recomendações estratégicas de preço, prazos de validade e stop-loss.
+6. DIRETRIZES PARA A PROPOSTA & PRECIFICAÇÃO: Recomendações estratégicas de preço, prazos de validade e proteção de margem.
 
 TEXTO DO EDITAL / DOCUMENTO:
 ${editalTexto.slice(0, 12000)}`;
@@ -523,7 +523,7 @@ ${editalTexto.slice(0, 12000)}`;
                     { tit: '1. Diagnóstico', desc: 'Auditar cláusulas e restrições.', link: `/leitor-editais?edital=${selectedEditalId}` },
                     { tit: '2. Documentos', desc: 'Conferir 5 certidões no cofre.', link: '/cofre' },
                     { tit: '3. Impugnação', desc: 'Protocolar até 3 dias antes.', link: `/impugnacao?edital=${selectedEditalId}` },
-                    { tit: '4. Precificação', desc: 'Simular Stop-Loss e custos.', link: `/precificacao?edital=${selectedEditalId}` },
+                    { tit: '4. Precificação', desc: 'Simular proteção de margem e custos.', link: `/precificacao?edital=${selectedEditalId}` },
                     { tit: '5. Proposta', desc: 'Gerar PDF com declarações.', link: `/propostas/criar?edital=${selectedEditalId}` },
                     { tit: '6. Envio', desc: 'Cadastrar no portal oficial.', link: ficha?.linkOficialPncp || '#' },
                     { tit: '7. Disputa', desc: 'Monitorar lances e recursos.', link: `/disputa?edital=${selectedEditalId}` },
