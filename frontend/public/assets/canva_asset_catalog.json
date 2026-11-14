@@ -1,0 +1,708 @@
+{
+  "total_icons": 58,
+  "icons": [
+    {
+      "filename": "icon_01_b0ebb2b1.png",
+      "rel_path": "/assets/canva_icons/icon_01_b0ebb2b1.png",
+      "uuid": "b0ebb2b1-6c78-4009-b48d-ded3a0073d73",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_02_2bb3a755.png",
+      "rel_path": "/assets/canva_icons/icon_02_2bb3a755.png",
+      "uuid": "2bb3a755-1563-4e41-9603-0117021661e3",
+      "width": 81,
+      "height": 99
+    },
+    {
+      "filename": "icon_03_f1a54e1a.png",
+      "rel_path": "/assets/canva_icons/icon_03_f1a54e1a.png",
+      "uuid": "f1a54e1a-4808-478c-8a53-53056bff92cb",
+      "width": 101,
+      "height": 59
+    },
+    {
+      "filename": "icon_04_beb47b02.png",
+      "rel_path": "/assets/canva_icons/icon_04_beb47b02.png",
+      "uuid": "beb47b02-e93a-4c2b-96ea-1c4777379e23",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_05_6c58972f.png",
+      "rel_path": "/assets/canva_icons/icon_05_6c58972f.png",
+      "uuid": "6c58972f-5147-4ce8-9879-6c0bce2c22ce",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_06_6cdd0b89.png",
+      "rel_path": "/assets/canva_icons/icon_06_6cdd0b89.png",
+      "uuid": "6cdd0b89-4eab-4e15-9a5d-0c757705201b",
+      "width": 60,
+      "height": 21
+    },
+    {
+      "filename": "icon_07_c5b27328.png",
+      "rel_path": "/assets/canva_icons/icon_07_c5b27328.png",
+      "uuid": "c5b27328-f9d6-441d-b600-6e5a558345d3",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_08_d3c68a1d.png",
+      "rel_path": "/assets/canva_icons/icon_08_d3c68a1d.png",
+      "uuid": "d3c68a1d-6116-4c17-8953-7da9402dfe0c",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_09_273e34e8.png",
+      "rel_path": "/assets/canva_icons/icon_09_273e34e8.png",
+      "uuid": "273e34e8-a945-4381-ba64-25791ab2210b",
+      "width": 40,
+      "height": 21
+    },
+    {
+      "filename": "icon_10_ac010eed.png",
+      "rel_path": "/assets/canva_icons/icon_10_ac010eed.png",
+      "uuid": "ac010eed-bc93-47a3-8480-fde5ee95aaf4",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_11_5c640ec8.png",
+      "rel_path": "/assets/canva_icons/icon_11_5c640ec8.png",
+      "uuid": "5c640ec8-a605-445e-9efe-eb25a6d102eb",
+      "width": 21,
+      "height": 21
+    },
+    {
+      "filename": "icon_12_ea35edf1.png",
+      "rel_path": "/assets/canva_icons/icon_12_ea35edf1.png",
+      "uuid": "ea35edf1-170f-461a-b081-952a2c8d3cd5",
+      "width": 61,
+      "height": 59
+    },
+    {
+      "filename": "icon_13_5b2af155.png",
+      "rel_path": "/assets/canva_icons/icon_13_5b2af155.png",
+      "uuid": "5b2af155-c76b-46ae-bb45-ac24eae31942",
+      "width": 61,
+      "height": 59
+    },
+    {
+      "filename": "icon_14_3e6a1c93.png",
+      "rel_path": "/assets/canva_icons/icon_14_3e6a1c93.png",
+      "uuid": "3e6a1c93-589e-4143-89ba-bd5f20370942",
+      "width": 61,
+      "height": 59
+    },
+    {
+      "filename": "icon_15_34d48ede.png",
+      "rel_path": "/assets/canva_icons/icon_15_34d48ede.png",
+      "uuid": "34d48ede-f75a-4347-b126-865d02cea035",
+      "width": 80,
+      "height": 99
+    },
+    {
+      "filename": "icon_16_92162f8e.png",
+      "rel_path": "/assets/canva_icons/icon_16_92162f8e.png",
+      "uuid": "92162f8e-9746-497a-a081-c9d7b299b663",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_17_23eb4f40.png",
+      "rel_path": "/assets/canva_icons/icon_17_23eb4f40.png",
+      "uuid": "23eb4f40-17c6-4fde-91ea-2a8cf97262dc",
+      "width": 61,
+      "height": 60
+    },
+    {
+      "filename": "icon_18_335a6e10.png",
+      "rel_path": "/assets/canva_icons/icon_18_335a6e10.png",
+      "uuid": "335a6e10-1158-4ac8-a24a-edc3838e70f1",
+      "width": 61,
+      "height": 41
+    },
+    {
+      "filename": "icon_19_2a8581a1.png",
+      "rel_path": "/assets/canva_icons/icon_19_2a8581a1.png",
+      "uuid": "2a8581a1-0942-4d9c-a49e-16a4ef9ad276",
+      "width": 41,
+      "height": 20
+    },
+    {
+      "filename": "icon_20_735025e7.png",
+      "rel_path": "/assets/canva_icons/icon_20_735025e7.png",
+      "uuid": "735025e7-8f6c-4c25-8d9a-b2b8911b6f3a",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_21_1b7da8de.png",
+      "rel_path": "/assets/canva_icons/icon_21_1b7da8de.png",
+      "uuid": "1b7da8de-4f68-48e3-9582-cdf2cb5ade8e",
+      "width": 61,
+      "height": 41
+    },
+    {
+      "filename": "icon_22_b5d8fe4c.png",
+      "rel_path": "/assets/canva_icons/icon_22_b5d8fe4c.png",
+      "uuid": "b5d8fe4c-a1dc-4333-8a3f-6b273f1d6bf3",
+      "width": 60,
+      "height": 60
+    },
+    {
+      "filename": "icon_23_84bc563e.png",
+      "rel_path": "/assets/canva_icons/icon_23_84bc563e.png",
+      "uuid": "84bc563e-d255-4fbd-82f5-d78e3bc45779",
+      "width": 61,
+      "height": 59
+    },
+    {
+      "filename": "icon_24_55b41a16.png",
+      "rel_path": "/assets/canva_icons/icon_24_55b41a16.png",
+      "uuid": "55b41a16-ee06-4326-83ab-bae343ba1c46",
+      "width": 60,
+      "height": 60
+    },
+    {
+      "filename": "icon_25_f48a241d.png",
+      "rel_path": "/assets/canva_icons/icon_25_f48a241d.png",
+      "uuid": "f48a241d-8dc8-414a-902b-665e41054bec",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_26_8705ff22.png",
+      "rel_path": "/assets/canva_icons/icon_26_8705ff22.png",
+      "uuid": "8705ff22-cfc5-41a4-b8ca-82b59b58a66f",
+      "width": 21,
+      "height": 40
+    },
+    {
+      "filename": "icon_27_d2abfc36.png",
+      "rel_path": "/assets/canva_icons/icon_27_d2abfc36.png",
+      "uuid": "d2abfc36-a0ef-46c5-b3ad-4296467843b3",
+      "width": 41,
+      "height": 21
+    },
+    {
+      "filename": "icon_28_4175b6ea.png",
+      "rel_path": "/assets/canva_icons/icon_28_4175b6ea.png",
+      "uuid": "4175b6ea-ecd7-4391-8509-6a5ffd9a5466",
+      "width": 61,
+      "height": 60
+    },
+    {
+      "filename": "icon_29_a50dd75d.png",
+      "rel_path": "/assets/canva_icons/icon_29_a50dd75d.png",
+      "uuid": "a50dd75d-f301-48ee-85ab-b8b944fd4c97",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_30_8f13728b.png",
+      "rel_path": "/assets/canva_icons/icon_30_8f13728b.png",
+      "uuid": "8f13728b-0014-4177-96fc-defdd156fedf",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_31_9d6a917e.png",
+      "rel_path": "/assets/canva_icons/icon_31_9d6a917e.png",
+      "uuid": "9d6a917e-6134-437f-9a12-3ffab981b39a",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_32_2987c86a.png",
+      "rel_path": "/assets/canva_icons/icon_32_2987c86a.png",
+      "uuid": "2987c86a-8629-4413-8488-433cd91312d3",
+      "width": 40,
+      "height": 41
+    },
+    {
+      "filename": "icon_33_a5063628.png",
+      "rel_path": "/assets/canva_icons/icon_33_a5063628.png",
+      "uuid": "a5063628-2cfa-41de-ba31-52958fd47795",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_34_2d0ae1aa.png",
+      "rel_path": "/assets/canva_icons/icon_34_2d0ae1aa.png",
+      "uuid": "2d0ae1aa-69e9-4efe-b88b-bc299255408d",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_35_edf9ede4.png",
+      "rel_path": "/assets/canva_icons/icon_35_edf9ede4.png",
+      "uuid": "edf9ede4-3f3c-44d1-806f-050e7ce47619",
+      "width": 41,
+      "height": 21
+    },
+    {
+      "filename": "icon_36_8f34dad2.png",
+      "rel_path": "/assets/canva_icons/icon_36_8f34dad2.png",
+      "uuid": "8f34dad2-d3d0-4919-baad-19b09f68c276",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_37_9e9e4860.png",
+      "rel_path": "/assets/canva_icons/icon_37_9e9e4860.png",
+      "uuid": "9e9e4860-8c84-4397-8e86-f0d39fc11468",
+      "width": 61,
+      "height": 40
+    },
+    {
+      "filename": "icon_38_be130f0e.png",
+      "rel_path": "/assets/canva_icons/icon_38_be130f0e.png",
+      "uuid": "be130f0e-5f24-4b6a-9290-da5db2f87ced",
+      "width": 80,
+      "height": 21
+    },
+    {
+      "filename": "icon_39_f1aea85e.png",
+      "rel_path": "/assets/canva_icons/icon_39_f1aea85e.png",
+      "uuid": "f1aea85e-3485-4559-9b78-b8d26564b039",
+      "width": 61,
+      "height": 60
+    },
+    {
+      "filename": "icon_40_f0e93f09.png",
+      "rel_path": "/assets/canva_icons/icon_40_f0e93f09.png",
+      "uuid": "f0e93f09-e2a3-4095-a1f7-44be417445ba",
+      "width": 80,
+      "height": 99
+    },
+    {
+      "filename": "icon_41_652a85c2.png",
+      "rel_path": "/assets/canva_icons/icon_41_652a85c2.png",
+      "uuid": "652a85c2-bc2d-4fe5-8982-be3e451dee84",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_42_ee8962a1.png",
+      "rel_path": "/assets/canva_icons/icon_42_ee8962a1.png",
+      "uuid": "ee8962a1-f24d-469a-b1b0-c5fe547328d0",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_43_d520d676.png",
+      "rel_path": "/assets/canva_icons/icon_43_d520d676.png",
+      "uuid": "d520d676-4f2d-48fe-9803-94b7d36a9718",
+      "width": 40,
+      "height": 41
+    },
+    {
+      "filename": "icon_44_5078b711.png",
+      "rel_path": "/assets/canva_icons/icon_44_5078b711.png",
+      "uuid": "5078b711-8902-476e-88da-f74674f86ca2",
+      "width": 101,
+      "height": 60
+    },
+    {
+      "filename": "icon_45_5485890a.png",
+      "rel_path": "/assets/canva_icons/icon_45_5485890a.png",
+      "uuid": "5485890a-ad34-415f-b960-0a8e3957ff25",
+      "width": 61,
+      "height": 60
+    },
+    {
+      "filename": "icon_46_305f71e6.png",
+      "rel_path": "/assets/canva_icons/icon_46_305f71e6.png",
+      "uuid": "305f71e6-06e8-4d99-94c1-b1d22bd91bfc",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_47_52ce6cf7.png",
+      "rel_path": "/assets/canva_icons/icon_47_52ce6cf7.png",
+      "uuid": "52ce6cf7-3d62-43c3-b59a-6c2856486499",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_48_3b3c27d3.png",
+      "rel_path": "/assets/canva_icons/icon_48_3b3c27d3.png",
+      "uuid": "3b3c27d3-6044-436c-a8be-072a1dd0042e",
+      "width": 61,
+      "height": 60
+    },
+    {
+      "filename": "icon_49_c98a1a72.png",
+      "rel_path": "/assets/canva_icons/icon_49_c98a1a72.png",
+      "uuid": "c98a1a72-f893-4e8c-83da-e6e7000f1bd5",
+      "width": 60,
+      "height": 40
+    },
+    {
+      "filename": "icon_50_202b9c92.png",
+      "rel_path": "/assets/canva_icons/icon_50_202b9c92.png",
+      "uuid": "202b9c92-b6ea-4e19-b38c-587460b0d282",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_51_b2bbc5eb.png",
+      "rel_path": "/assets/canva_icons/icon_51_b2bbc5eb.png",
+      "uuid": "b2bbc5eb-f0ab-4678-81b0-36937382e5b9",
+      "width": 41,
+      "height": 60
+    },
+    {
+      "filename": "icon_52_f1dda62e.png",
+      "rel_path": "/assets/canva_icons/icon_52_f1dda62e.png",
+      "uuid": "f1dda62e-7623-4792-8109-1fe901a06d54",
+      "width": 21,
+      "height": 41
+    },
+    {
+      "filename": "icon_53_806cf567.png",
+      "rel_path": "/assets/canva_icons/icon_53_806cf567.png",
+      "uuid": "806cf567-6d5c-4e0b-9be4-34a755a9b0e2",
+      "width": 41,
+      "height": 59
+    },
+    {
+      "filename": "icon_54_2ca360ee.png",
+      "rel_path": "/assets/canva_icons/icon_54_2ca360ee.png",
+      "uuid": "2ca360ee-15fb-4667-9bee-0f52bf912d96",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "filename": "icon_55_e32b3503.png",
+      "rel_path": "/assets/canva_icons/icon_55_e32b3503.png",
+      "uuid": "e32b3503-6955-4c0d-9af3-4247b9caace6",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_56_5b56087a.png",
+      "rel_path": "/assets/canva_icons/icon_56_5b56087a.png",
+      "uuid": "5b56087a-dd41-491d-bdd4-579a893b434b",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_57_1d3ce88c.png",
+      "rel_path": "/assets/canva_icons/icon_57_1d3ce88c.png",
+      "uuid": "1d3ce88c-59d9-4047-8b1c-a319333d97c9",
+      "width": 41,
+      "height": 40
+    },
+    {
+      "filename": "icon_58_ced892aa.png",
+      "rel_path": "/assets/canva_icons/icon_58_ced892aa.png",
+      "uuid": "ced892aa-adeb-4f0f-8ba8-3cf7d1b29532",
+      "width": 61,
+      "height": 41
+    }
+  ],
+  "total_graphics": 42,
+  "graphics": [
+    {
+      "filename": "image_01_1f419d4e.png",
+      "rel_path": "/assets/canva_images/image_01_1f419d4e.png",
+      "uuid": "1f419d4e-866f-4358-81e5-a5831888bc28",
+      "width": 1673,
+      "height": 940
+    },
+    {
+      "filename": "image_02_777db8bf.png",
+      "rel_path": "/assets/canva_images/image_02_777db8bf.png",
+      "uuid": "777db8bf-6879-4430-b9d7-7d7b19484dd4",
+      "width": 340,
+      "height": 158
+    },
+    {
+      "filename": "image_03_7f7f8227.png",
+      "rel_path": "/assets/canva_images/image_03_7f7f8227.png",
+      "uuid": "7f7f8227-4910-4857-98ae-b67e10b093b3",
+      "width": 1673,
+      "height": 940
+    },
+    {
+      "filename": "image_04_2fe8b0dc.png",
+      "rel_path": "/assets/canva_images/image_04_2fe8b0dc.png",
+      "uuid": "2fe8b0dc-bbe4-4ebf-9ca2-bc46c7e20da8",
+      "width": 499,
+      "height": 40
+    },
+    {
+      "filename": "image_05_0698eab4.png",
+      "rel_path": "/assets/canva_images/image_05_0698eab4.png",
+      "uuid": "0698eab4-01c9-4de1-849b-ed4414132d56",
+      "width": 259,
+      "height": 803
+    },
+    {
+      "filename": "image_06_3123172c.png",
+      "rel_path": "/assets/canva_images/image_06_3123172c.png",
+      "uuid": "3123172c-0f68-4faf-8186-ce11e45e0484",
+      "width": 738,
+      "height": 824
+    },
+    {
+      "filename": "image_07_aee2d5ec.png",
+      "rel_path": "/assets/canva_images/image_07_aee2d5ec.png",
+      "uuid": "aee2d5ec-1478-4acc-b0dc-763fb6486c81",
+      "width": 539,
+      "height": 99
+    },
+    {
+      "filename": "image_08_37fdcd2e.png",
+      "rel_path": "/assets/canva_images/image_08_37fdcd2e.png",
+      "uuid": "37fdcd2e-4bcc-4546-b0ea-e3c078352904",
+      "width": 240,
+      "height": 236
+    },
+    {
+      "filename": "image_09_af08b3bb.png",
+      "rel_path": "/assets/canva_images/image_09_af08b3bb.png",
+      "uuid": "af08b3bb-5057-457e-8d01-0af26b444d99",
+      "width": 220,
+      "height": 236
+    },
+    {
+      "filename": "image_10_2b637300.png",
+      "rel_path": "/assets/canva_images/image_10_2b637300.png",
+      "uuid": "2b637300-4eb6-4a63-bc28-16d068a64108",
+      "width": 220,
+      "height": 236
+    },
+    {
+      "filename": "image_11_04e5bbdd.png",
+      "rel_path": "/assets/canva_images/image_11_04e5bbdd.png",
+      "uuid": "04e5bbdd-fd62-438b-9192-f5c4c91f3e91",
+      "width": 339,
+      "height": 60
+    },
+    {
+      "filename": "image_12_bb8901ef.png",
+      "rel_path": "/assets/canva_images/image_12_bb8901ef.png",
+      "uuid": "bb8901ef-bbf8-4664-b55f-5cfdb4390c57",
+      "width": 678,
+      "height": 79
+    },
+    {
+      "filename": "image_13_98dacf56.png",
+      "rel_path": "/assets/canva_images/image_13_98dacf56.png",
+      "uuid": "98dacf56-2847-4cba-8f6d-c690cf113418",
+      "width": 539,
+      "height": 79
+    },
+    {
+      "filename": "image_14_89fa6442.png",
+      "rel_path": "/assets/canva_images/image_14_89fa6442.png",
+      "uuid": "89fa6442-15d8-4aa9-af6c-364b99eaca41",
+      "width": 459,
+      "height": 275
+    },
+    {
+      "filename": "image_15_763fde8c.png",
+      "rel_path": "/assets/canva_images/image_15_763fde8c.png",
+      "uuid": "763fde8c-e96e-457e-b159-74596f3cfcd4",
+      "width": 21,
+      "height": 138
+    },
+    {
+      "filename": "image_16_f6f3d9d5.png",
+      "rel_path": "/assets/canva_images/image_16_f6f3d9d5.png",
+      "uuid": "f6f3d9d5-7ef4-4803-b96c-9631362df828",
+      "width": 340,
+      "height": 60
+    },
+    {
+      "filename": "image_17_9e807d48.png",
+      "rel_path": "/assets/canva_images/image_17_9e807d48.png",
+      "uuid": "9e807d48-3bad-4cbb-905c-b6c6422b2d14",
+      "width": 599,
+      "height": 60
+    },
+    {
+      "filename": "image_18_88f04bf9.png",
+      "rel_path": "/assets/canva_images/image_18_88f04bf9.png",
+      "uuid": "88f04bf9-f2a5-4188-a831-34fc386fbc8d",
+      "width": 180,
+      "height": 40
+    },
+    {
+      "filename": "image_19_e4247419.png",
+      "rel_path": "/assets/canva_images/image_19_e4247419.png",
+      "uuid": "e4247419-65c9-4123-a088-e96861029ff9",
+      "width": 539,
+      "height": 99
+    },
+    {
+      "filename": "image_20_3176873e.png",
+      "rel_path": "/assets/canva_images/image_20_3176873e.png",
+      "uuid": "3176873e-08b2-460f-835f-5982fe2e942d",
+      "width": 937,
+      "height": 569
+    },
+    {
+      "filename": "image_21_043476ea.png",
+      "rel_path": "/assets/canva_images/image_21_043476ea.png",
+      "uuid": "043476ea-6ffd-4a33-8f47-dcd3d00f2722",
+      "width": 1673,
+      "height": 940
+    },
+    {
+      "filename": "image_22_bb0123b8.png",
+      "rel_path": "/assets/canva_images/image_22_bb0123b8.png",
+      "uuid": "bb0123b8-8730-4d76-871b-10b5b83225f5",
+      "width": 180,
+      "height": 40
+    },
+    {
+      "filename": "image_23_8c71ecef.png",
+      "rel_path": "/assets/canva_images/image_23_8c71ecef.png",
+      "uuid": "8c71ecef-7bec-45c9-8b97-4fe81d4a6714",
+      "width": 340,
+      "height": 60
+    },
+    {
+      "filename": "image_24_4f27c50f.png",
+      "rel_path": "/assets/canva_images/image_24_4f27c50f.png",
+      "uuid": "4f27c50f-3f3e-43d2-ab52-db6d822f7eb1",
+      "width": 360,
+      "height": 79
+    },
+    {
+      "filename": "image_25_5390c061.png",
+      "rel_path": "/assets/canva_images/image_25_5390c061.png",
+      "uuid": "5390c061-add2-4d9b-a10e-6d8304f2cc5a",
+      "width": 339,
+      "height": 60
+    },
+    {
+      "filename": "image_26_1c4bd48b.png",
+      "rel_path": "/assets/canva_images/image_26_1c4bd48b.png",
+      "uuid": "1c4bd48b-40b7-4260-8cc2-dedebee74457",
+      "width": 220,
+      "height": 79
+    },
+    {
+      "filename": "image_27_99377acd.png",
+      "rel_path": "/assets/canva_images/image_27_99377acd.png",
+      "uuid": "99377acd-cc0f-4e23-8df0-0848eb182c95",
+      "width": 220,
+      "height": 236
+    },
+    {
+      "filename": "image_28_def4ae25.png",
+      "rel_path": "/assets/canva_images/image_28_def4ae25.png",
+      "uuid": "def4ae25-da59-4005-9dbb-e8f117b1496b",
+      "width": 678,
+      "height": 40
+    },
+    {
+      "filename": "image_29_dce79174.png",
+      "rel_path": "/assets/canva_images/image_29_dce79174.png",
+      "uuid": "dce79174-5192-466a-be8a-f627a48216ad",
+      "width": 1673,
+      "height": 940
+    },
+    {
+      "filename": "image_30_23cb6d7c.png",
+      "rel_path": "/assets/canva_images/image_30_23cb6d7c.png",
+      "uuid": "23cb6d7c-8cc7-4b2d-a214-f066c22db7e0",
+      "width": 679,
+      "height": 726
+    },
+    {
+      "filename": "image_31_a0c67c4d.png",
+      "rel_path": "/assets/canva_images/image_31_a0c67c4d.png",
+      "uuid": "a0c67c4d-4c94-4aa2-b1ce-96764dc62c11",
+      "width": 439,
+      "height": 197
+    },
+    {
+      "filename": "image_32_cd48aa9c.png",
+      "rel_path": "/assets/canva_images/image_32_cd48aa9c.png",
+      "uuid": "cd48aa9c-f530-45da-a228-a34fdf867963",
+      "width": 678,
+      "height": 80
+    },
+    {
+      "filename": "image_33_b373a3be.png",
+      "rel_path": "/assets/canva_images/image_33_b373a3be.png",
+      "uuid": "b373a3be-7ed8-45a1-9ddd-0ba4cd519652",
+      "width": 339,
+      "height": 59
+    },
+    {
+      "filename": "image_34_e410c773.png",
+      "rel_path": "/assets/canva_images/image_34_e410c773.png",
+      "uuid": "e410c773-17cc-4c4a-ba98-bf6b1dae15c5",
+      "width": 260,
+      "height": 79
+    },
+    {
+      "filename": "image_35_0872abd7.png",
+      "rel_path": "/assets/canva_images/image_35_0872abd7.png",
+      "uuid": "0872abd7-a773-47fe-b390-465bf65b516d",
+      "width": 260,
+      "height": 79
+    },
+    {
+      "filename": "image_36_894b939d.png",
+      "rel_path": "/assets/canva_images/image_36_894b939d.png",
+      "uuid": "894b939d-25dc-420b-bbf5-fad6cfb3463f",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "filename": "image_37_a7aa9041.png",
+      "rel_path": "/assets/canva_images/image_37_a7aa9041.png",
+      "uuid": "a7aa9041-d2f0-47f1-a22d-2ad712016dd8",
+      "width": 259,
+      "height": 157
+    },
+    {
+      "filename": "image_38_75324802.png",
+      "rel_path": "/assets/canva_images/image_38_75324802.png",
+      "uuid": "75324802-5d81-4353-a8f9-fe350da72cba",
+      "width": 579,
+      "height": 784
+    },
+    {
+      "filename": "image_39_ac3c62d8.png",
+      "rel_path": "/assets/canva_images/image_39_ac3c62d8.png",
+      "uuid": "ac3c62d8-8369-4091-9fed-3758a92f5584",
+      "width": 340,
+      "height": 59
+    },
+    {
+      "filename": "image_40_9f8c4834.png",
+      "rel_path": "/assets/canva_images/image_40_9f8c4834.png",
+      "uuid": "9f8c4834-398b-4dbc-8959-7bb73ddb9645",
+      "width": 279,
+      "height": 236
+    },
+    {
+      "filename": "image_41_2af71ad0.png",
+      "rel_path": "/assets/canva_images/image_41_2af71ad0.png",
+      "uuid": "2af71ad0-9b68-4b88-bbc9-4d2f120d6144",
+      "width": 698,
+      "height": 197
+    },
+    {
+      "filename": "image_42_068fafc1.png",
+      "rel_path": "/assets/canva_images/image_42_068fafc1.png",
+      "uuid": "068fafc1-d9dc-4429-909c-79a49f29be47",
+      "width": 21,
+      "height": 138
+    }
+  ]
+}

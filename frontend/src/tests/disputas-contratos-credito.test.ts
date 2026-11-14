@@ -64,3 +64,4 @@ describe('STEP 4: Gestão de Disputas, Sala de Disputa Espelhada, Contratos & Cr
     expect(transports[1]).toBe('websocket'); // Upgrade transparente para realtime
   });
 });
+
