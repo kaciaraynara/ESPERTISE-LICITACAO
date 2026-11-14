@@ -9,10 +9,11 @@ import {
   Clock,
   FileText,
   ListChecks,
-  BarChart3,
   Search,
-  Settings,
+  ShieldCheck,
   TrendingUp,
+  Gavel,
+  Vault,
 } from 'lucide-react';
 import { dashboardApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '@/routes';
@@ -20,6 +21,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useAuthStore } from '@/store/auth.store';
 
 interface DashboardMetrics {
+  companyName?: string;
   atencaoImediataCount?: number;
   certidoesVencendoCount?: number;
   prazosUrgentesCount?: number;
@@ -29,6 +31,8 @@ interface DashboardMetrics {
   crmOportunidades?: number;
   statsRadar?: {
     editaisAtivos?: number;
+    valorTotalEstimado?: number;
+    orgaosCompradores?: number;
   };
   recomendacoes?: Array<{
     id: string;
@@ -67,25 +71,34 @@ export default function DashboardPage() {
   const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
     queryKey: ['dashboard', 'metrics', selectedCompany?.id],
     queryFn: async () => {
-      const res = await dashboardApi.getMetrics()
+      const res = await dashboardApi.getMetrics();
       return (res.data?.data || res.data || {}) as DashboardMetrics;
     },
     staleTime: 60_000,
   });
 
-  const primeiroNome =
-    (user?.nome || selectedCompany?.nomeFantasia || 'Empresa')
-      .trim()
-      .split(/\s+/)[0];
+  const nomeEmpresa =
+    selectedCompany?.nomeFantasia?.trim() ||
+    selectedCompany?.razaoSocial?.trim() ||
+    metrics?.companyName ||
+    user?.apelido?.trim() ||
+    user?.nome?.trim() ||
+    'Sua Empresa';
 
-  const oportunidadesAbertas =
+  // 4 Indicadores Reais do dashboardApi.getMetrics()
+  const editaisCompativeis =
     metrics?.statsRadar?.editaisAtivos ?? metrics?.editaisMonitorados ?? 0;
-  const processosAndamento =
+  const disputasEmAndamento =
     metrics?.crmOportunidades ?? metrics?.propostasCriadas ?? 0;
-  const alertasAtivos =
-    metrics?.prazosUrgentesCount ?? metrics?.prazosEstaSemana ?? 0;
-  const tarefasPendentes =
-    metrics?.atencaoImediataCount ?? metrics?.certidoesVencendoCount ?? 0;
+  const certidoesVencendo = metrics?.certidoesVencendoCount ?? 0;
+  const certidoesEmDia =
+    certidoesVencendo === 0
+      ? '5 de 5'
+      : `${Math.max(0, 5 - certidoesVencendo)} de 5`;
+  const proximosPrazos =
+    metrics?.prazosEstaSemana ??
+    metrics?.prazosUrgentesCount ??
+    (metrics?.prazosCriticos?.length ?? 0);
 
   const recomendacoes = Array.isArray(metrics?.recomendacoes)
     ? metrics.recomendacoes.slice(0, 4)
@@ -112,20 +125,24 @@ export default function DashboardPage() {
               type="text"
               value={termoBusca}
               onChange={(e) => setTermoBusca(e.target.value)}
-              placeholder="Buscar editais, órgãos ou palavras-chave..."
+              placeholder="Buscar editais, órgãos ou produtos no radar..."
               className="w-full bg-white border border-slate-200 rounded-full pl-11 pr-4 py-2.5 text-sm text-[#081C3A] placeholder:text-slate-400 shadow-2xs focus:outline-none focus:border-[#0070C0]"
             />
           </div>
         </form>
 
-        {/* SAUDAÇÃO + BANNER LATERAL */}
+        {/* SAUDAÇÃO PERSONALIZADA COM A EMPRESA ATIVA */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           <div className="lg:col-span-7 space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 text-xs font-bold text-[#0070C0]">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Painel da Empresa Ativa</span>
+            </div>
             <h1 className="text-3xl sm:text-4xl font-black text-[#081C3A] tracking-tight">
-              Olá, {primeiroNome}!
+              Olá, {nomeEmpresa}!
             </h1>
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
-              Aqui está o panorama da sua jornada em licitações. Acompanhe suas oportunidades e avance com mais estratégia.
+              Central de comando das suas licitações públicas. Acompanhe seus indicadores em tempo real e avance com segurança na Lei 14.133/2021.
             </p>
           </div>
 
@@ -139,7 +156,7 @@ export default function DashboardPage() {
                   Mais oportunidades para o crescimento da sua empresa
                 </p>
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0070C0]">
-                  Explorar editais abertos
+                  Explorar editais no radar
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </span>
               </div>
@@ -150,86 +167,90 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* VISÃO GERAL (4 CARDS) + ACESSO RÁPIDO */}
+        {/* 4 INDICADORES REAIS + ATALHOS RÁPIDOS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 space-y-3">
-            <h2 className="text-lg font-bold text-[#081C3A]">Visão geral</h2>
+            <h2 className="text-lg font-bold text-[#081C3A]">Visão geral em tempo real</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* 1. EDITAIS COMPATÍVEIS */}
               <Link
                 to={FORNECEDOR_ROUTES.radar}
                 className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
               >
                 <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-slate-50 text-[#081C3A]">
+                  <div className="p-2 rounded-xl bg-blue-50 text-[#0070C0]">
                     <FileText className="w-5 h-5" />
                   </div>
                   <span className="text-xl font-black text-[#081C3A]">
-                    {isLoading ? '...' : oportunidadesAbertas.toLocaleString('pt-BR')}
+                    {isLoading ? '...' : editaisCompativeis.toLocaleString('pt-BR')}
                   </span>
                 </div>
                 <div className="flex items-end justify-between gap-2 mt-4">
                   <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Oportunidades em aberto
+                    Editais compatíveis
                   </span>
                   <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
+              {/* 2. DISPUTAS EM ANDAMENTO */}
               <Link
                 to={FORNECEDOR_ROUTES.disputas}
                 className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
               >
                 <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-slate-50 text-[#081C3A]">
+                  <div className="p-2 rounded-xl bg-amber-50 text-[#FF6600]">
                     <Clock className="w-5 h-5" />
                   </div>
                   <span className="text-xl font-black text-[#081C3A]">
-                    {isLoading ? '...' : processosAndamento}
+                    {isLoading ? '...' : disputasEmAndamento}
                   </span>
                 </div>
                 <div className="flex items-end justify-between gap-2 mt-4">
                   <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Processos em andamento
+                    Disputas em andamento
                   </span>
                   <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
+              {/* 3. CERTIDÕES EM DIA */}
+              <Link
+                to={FORNECEDOR_ROUTES.cofre}
+                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <span className="text-lg font-black text-[#081C3A]">
+                    {isLoading ? '...' : certidoesEmDia}
+                  </span>
+                </div>
+                <div className="flex items-end justify-between gap-2 mt-4">
+                  <span className="text-xs font-semibold text-slate-700 leading-snug">
+                    Certidões em dia
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </Link>
+
+              {/* 4. PRÓXIMOS PRAZOS */}
               <Link
                 to={FORNECEDOR_ROUTES.prazos_alertas}
                 className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
               >
                 <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-slate-50 text-[#081C3A]">
+                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
                     <Bell className="w-5 h-5" />
                   </div>
                   <span className="text-xl font-black text-[#081C3A]">
-                    {isLoading ? '...' : alertasAtivos}
+                    {isLoading ? '...' : proximosPrazos}
                   </span>
                 </div>
                 <div className="flex items-end justify-between gap-2 mt-4">
                   <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Alertas ativos
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </Link>
-
-              <Link
-                to={FORNECEDOR_ROUTES.certidoes}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-slate-50 text-[#081C3A]">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <span className="text-xl font-black text-[#081C3A]">
-                    {isLoading ? '...' : tarefasPendentes}
-                  </span>
-                </div>
-                <div className="flex items-end justify-between gap-2 mt-4">
-                  <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Tarefas pendentes
+                    Próximos prazos
                   </span>
                   <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
                 </div>
@@ -237,17 +258,17 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ACESSO RÁPIDO */}
+          {/* ATALHOS RÁPIDOS PARA O FLUXO PRINCIPAL */}
           <div className="lg:col-span-4 space-y-3">
-            <h2 className="text-lg font-bold text-[#081C3A]">Acesso rápido</h2>
+            <h2 className="text-lg font-bold text-[#081C3A]">Atalhos estratégicos</h2>
             <div className="bg-white rounded-2xl border border-slate-200/80 divide-y divide-slate-100 shadow-2xs overflow-hidden">
               <Link
                 to={FORNECEDOR_ROUTES.radar}
                 className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors"
               >
                 <span className="flex items-center gap-3 text-sm font-semibold text-[#081C3A]">
-                  <FileText className="w-4 h-4 text-[#FF6600]" />
-                  Buscar editais
+                  <Search className="w-4 h-4 text-[#0070C0]" />
+                  1. Buscar editais no radar
                 </span>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
@@ -257,27 +278,37 @@ export default function DashboardPage() {
               >
                 <span className="flex items-center gap-3 text-sm font-semibold text-[#081C3A]">
                   <ListChecks className="w-4 h-4 text-[#081C3A]" />
-                  Gerenciar processos
+                  2. Gestão de disputas
                 </span>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
               <Link
-                to={FORNECEDOR_ROUTES.prazos_alertas}
+                to={FORNECEDOR_ROUTES.propostas}
                 className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors"
               >
                 <span className="flex items-center gap-3 text-sm font-semibold text-[#081C3A]">
-                  <Settings className="w-4 h-4 text-[#081C3A]" />
-                  Configurar alertas
+                  <FileText className="w-4 h-4 text-[#FF6600]" />
+                  3. Gerador de propostas
                 </span>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
               <Link
-                to={FORNECEDOR_ROUTES.relatorios_estrategicos}
+                to={FORNECEDOR_ROUTES.robo_lances}
                 className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors"
               >
                 <span className="flex items-center gap-3 text-sm font-semibold text-[#081C3A]">
-                  <BarChart3 className="w-4 h-4 text-[#081C3A]" />
-                  Acessar relatórios
+                  <Gavel className="w-4 h-4 text-[#081C3A]" />
+                  4. Sala de disputa
+                </span>
+                <ArrowRight className="w-4 h-4 text-slate-400" />
+              </Link>
+              <Link
+                to={FORNECEDOR_ROUTES.cofre}
+                className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors"
+              >
+                <span className="flex items-center gap-3 text-sm font-semibold text-[#081C3A]">
+                  <Vault className="w-4 h-4 text-[#0070C0]" />
+                  5. Cofre e certidões
                 </span>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
@@ -296,7 +327,7 @@ export default function DashboardPage() {
                 to={FORNECEDOR_ROUTES.radar}
                 className="inline-flex items-center gap-1 text-xs font-bold text-[#0070C0] hover:underline"
               >
-                Ver todas <ArrowRight className="w-3.5 h-3.5" />
+                Ver todas no radar <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
@@ -330,55 +361,24 @@ export default function DashboardPage() {
                   </Link>
                 ))
               ) : (
-                <>
+                <div className="p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-blue-50 text-[#0070C0] flex items-center justify-center mx-auto">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#081C3A]">Nenhum edital salvo no radar</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                      Explore as oportunidades abertas no Radar de Editais e salve aquelas que combinam com seu produto ou serviço.
+                    </p>
+                  </div>
                   <Link
                     to={FORNECEDOR_ROUTES.radar}
-                    className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#0070C0] text-white text-xs font-bold rounded-full hover:bg-[#005ea3] transition shadow-xs"
                   >
-                    <div className="flex items-center gap-3.5">
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[#081C3A]">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-[#081C3A]">Editais recentes</p>
-                        <p className="text-xs text-slate-500">Novas oportunidades de seu interesse</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                    Abrir Radar de Editais
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
-
-                  <Link
-                    to={FORNECEDOR_ROUTES.radar}
-                    className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[#081C3A]">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-[#081C3A]">Oportunidades recomendadas</p>
-                        <p className="text-xs text-slate-500">Com base no ramo da sua empresa</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </Link>
-
-                  <Link
-                    to={FORNECEDOR_ROUTES.editais_monitorados}
-                    className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[#081C3A]">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-[#081C3A]">Acompanhamento personalizado</p>
-                        <p className="text-xs text-slate-500">Editais que você salvou para disputar</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  </Link>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -405,8 +405,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <FileText className="w-4 h-4 text-[#081C3A]" />
                   <div>
-                    <p className="text-sm font-bold text-[#081C3A]">Em análise</p>
-                    <p className="text-xs text-slate-500">Acompanhe o andamento das etapas</p>
+                    <p className="text-sm font-bold text-[#081C3A]">Gestão de disputas</p>
+                    <p className="text-xs text-slate-500">Acompanhe etapas e oportunidades salvas</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -419,8 +419,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <Clock className="w-4 h-4 text-[#081C3A]" />
                   <div>
-                    <p className="text-sm font-bold text-[#081C3A]">Prazos próximos</p>
-                    <p className="text-xs text-slate-500">Fique atento aos próximos vencimentos</p>
+                    <p className="text-sm font-bold text-[#081C3A]">Próximos vencimentos</p>
+                    <p className="text-xs text-slate-500">Alertas de prazos de proposta e impugnação</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -433,8 +433,8 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-4 h-4 text-[#081C3A]" />
                   <div>
-                    <p className="text-sm font-bold text-[#081C3A]">Propostas salvas</p>
-                    <p className="text-xs text-slate-500">Revise e finalize suas propostas</p>
+                    <p className="text-sm font-bold text-[#081C3A]">Gerador de propostas</p>
+                    <p className="text-xs text-slate-500">Monte planilhas com trava de margem</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />

@@ -912,10 +912,10 @@ export default function DossieEditalModal({
                   </div>
                   <div>
                     <h2 className="text-xs font-black uppercase tracking-wider text-[#0B192C]">
-                      Resumo Explicativo e Prazos
+                      Entenda este Edital em Linguagem Simples
                     </h2>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Visão direta do objeto, porte e urgência para participar
+                      Visão humana do que o órgão está comprando, porte da compra e como se preparar
                     </p>
                   </div>
                 </div>
@@ -931,18 +931,37 @@ export default function DossieEditalModal({
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-normal">
-                  <strong className="text-[#0B192C] font-semibold">Resumo do Objeto: </strong>
-                  {objetoCompleto.length > 280 ? `${objetoCompleto.slice(0, 280).trim()}...` : objetoCompleto}
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-white rounded-xl p-3 border border-slate-200/80 md:col-span-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                    O que o órgão está comprando
+                  </span>
+                  <p className="text-xs sm:text-[13px] text-slate-800 leading-relaxed font-normal">
+                    {objetoCompleto}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-slate-200/80 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                      Prazos que você não pode perder
+                    </span>
+                    <p className="text-xs text-slate-700">
+                      <strong>Envio de Proposta:</strong><br />
+                      <span className="text-orange-600 font-bold">{formatDataHora(prazoLimiteEnvio)}</span>
+                    </p>
+                    <p className="text-xs text-slate-700 mt-2">
+                      <strong>Disputa de Lances:</strong><br />
+                      <span className="text-[#0070C0] font-bold">{formatDataHora(prazoSessaoDisputa)}</span>
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-white/80 rounded-xl p-3 border border-blue-100/80 flex items-start gap-2.5">
+              <div className="bg-white/90 rounded-xl p-3.5 border border-blue-100 flex items-start gap-3">
                 <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-[11px] leading-relaxed text-slate-600">
-                  <strong className="text-slate-800 font-bold">Orientação Prática: </strong>
-                  Confira suas certidões e declarações antes do envio. Cadastre a proposta até {formatDataHora(prazoLimiteEnvio)} e deixe seus custos definidos para a sessão de lances em {formatDataHora(prazoSessaoDisputa)}.
+                <div className="text-xs leading-relaxed text-slate-700">
+                  <strong className="text-slate-900 font-bold">Orientação Prática: </strong>
+                  Antes de enviar a proposta, confira no checklist abaixo se suas 5 certidões obrigatórias estão em dia. Defina seu preço mínimo com antecedência e respeite o limite de segurança para nunca vencer com margem negativa.
                 </div>
               </div>
             </div>

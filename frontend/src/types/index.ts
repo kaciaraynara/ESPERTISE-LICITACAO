@@ -6,6 +6,8 @@ export interface User {
   tenant_id?: string;
   email: string;
   nome: string | null;
+  apelido?: string | null;
+  comoGostariaDeSerChamado?: string | null;
   telefone: string | null;
   plano: PlanoUsuario;
   planType?: 'BASIC' | 'MEDIUM' | 'MASTER' | string | null;

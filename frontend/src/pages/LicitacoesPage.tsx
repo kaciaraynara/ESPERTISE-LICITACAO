@@ -156,7 +156,7 @@ function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
 export default function LicitacoesPage({
   tituloCustomizado,
   modalidadeInicial,
-}: LicitacoesPageProps) {
+}: LicitacoesPageProps = {}) {
   const { selectedCompany } = useCompany();
 
   const [editais, setEditais] = useState<EditalItem[]>([]);
@@ -253,14 +253,19 @@ export default function LicitacoesPage({
   const handleSincronizarPncp = async () => {
     setSincronizando(true);
     try {
-      await licitacoesApi.sincronizar({
-        q: palavraChave.trim() || undefined,
-        uf: ufSelecionada || undefined,
-      });
+      await Promise.race([
+        licitacoesApi.sincronizar({
+          q: palavraChave.trim() || undefined,
+          uf: ufSelecionada || undefined,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT_PNCP')), 15000)
+        ),
+      ]);
       await buscarEditais();
       exibirAviso('sucesso', 'Base de editais atualizada com sucesso!');
     } catch {
-      exibirAviso('info', 'O portal nacional demorou para responder. Exibindo os editais mais recentes da base.');
+      exibirAviso('info', 'O portal nacional está com resposta lenta no momento. Exibindo os editais mais recentes disponíveis na base.');
     } finally {
       setSincronizando(false);
     }
@@ -273,6 +278,7 @@ export default function LicitacoesPage({
       return;
     }
     setPalavraChave(termoRamo);
+    setOrgaoFiltro(''); // NUNCA preencher CNPJ da empresa usuária no filtro de órgão comprador!
     buscarEditais(termoRamo);
     exibirAviso('sucesso', `Filtrando oportunidades compatíveis com "${termoRamo}".`);
   };
