@@ -297,8 +297,8 @@ const PRIMARY_NAV_ITEMS: NavItemDef[] = [
   { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle },
   { path: FORNECEDOR_ROUTES.srp_carona, label: 'SRP e Carona', icon: Copy },
   { path: FORNECEDOR_ROUTES.editais_monitorados, label: 'Editais Monitorados', icon: BookmarkSimple },
-  { path: FORNECEDOR_ROUTES.estrategia_disputa, label: 'Central de Estratégia e Alert...', icon: Crosshair },
-  { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances (Em Implan...', icon: Robot },
+  { path: FORNECEDOR_ROUTES.estrategia_disputa, label: 'Central de Estratégia e Alertas', icon: Crosshair },
+  { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances (Em Implantação)', icon: Robot },
   { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: CurrencyDollar },
   { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText },
   { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos', icon: ListBullets },
@@ -317,8 +317,8 @@ export default function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
-  const displayName = getUserDisplayName(user, 'Luis Antonio Gomes Paiva');
-  const userEmail = user?.email || 'luiscidgomes2020@gmail.com';
+  const displayName = getUserDisplayName(user, user?.nome || user?.name || user?.razao_social || 'Usuário');
+  const userEmail = user?.email || 'usuario@empresa.com.br';
 
   const [isPinned, setIsPinned] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;

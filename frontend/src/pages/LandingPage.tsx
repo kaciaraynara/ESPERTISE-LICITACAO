@@ -676,9 +676,8 @@ export default function LandingPage() {
                 >
                   <span className="text-sm font-bold text-[#081C3A] pr-4">{faq.q}</span>
                   <ChevronDown
-                    className={`h-5 w-5 text-slate-500 transition-transform duration-200 shrink-0 ${
-                      activeFaq === idx ? 'rotate-180 text-[#0070C0]' : ''
-                    }`}
+                    className={`h-5 w-5 text-slate-500 transition-transform duration-200 shrink-0 ${activeFaq === idx ? 'rotate-180 text-[#0070C0]' : ''
+                      }`}
                   />
                 </button>
                 <AnimatePresence>
