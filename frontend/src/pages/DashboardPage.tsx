@@ -167,92 +167,112 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 4 INDICADORES REAIS + ATALHOS RÁPIDOS */}
+        {/* 4 INDICADORES REAIS DO MODELO CANVA (SLIDE 04) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 space-y-3">
             <h2 className="text-lg font-bold text-[#081C3A]">Visão geral em tempo real</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {/* 1. EDITAIS COMPATÍVEIS */}
+              {/* 1. OPORTUNIDADES EM ABERTO */}
               <Link
                 to={FORNECEDOR_ROUTES.radar}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
+                className="group relative bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:border-[#FF6600] transition-all flex flex-col justify-between min-h-[136px] overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-blue-50 text-[#0070C0]">
-                    <FileText className="w-5 h-5" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#FF6600]" />
+                <div className="flex items-start justify-between pl-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Oportunidades
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-orange-50 text-[#FF6600]">
+                    <Search className="w-4 h-4" />
                   </div>
-                  <span className="text-xl font-black text-[#081C3A]">
+                </div>
+                <div className="pl-1 my-1">
+                  <span className="text-2xl font-black text-[#081C3A]">
                     {isLoading ? '...' : editaisCompativeis.toLocaleString('pt-BR')}
                   </span>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Editais compatíveis</p>
                 </div>
-                <div className="flex items-end justify-between gap-2 mt-4">
-                  <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Editais compatíveis
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                <div className="flex items-center justify-between gap-1 pl-1 pt-2 border-t border-slate-100 text-[11px] font-bold text-[#FF6600]">
+                  <span>Ver todas</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
-              {/* 2. DISPUTAS EM ANDAMENTO */}
+              {/* 2. PROCESSOS EM ANDAMENTO */}
               <Link
                 to={FORNECEDOR_ROUTES.disputas}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
+                className="group relative bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[136px] overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-amber-50 text-[#FF6600]">
-                    <Clock className="w-5 h-5" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#0070C0]" />
+                <div className="flex items-start justify-between pl-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Em andamento
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-blue-50 text-[#0070C0]">
+                    <Clock className="w-4 h-4" />
                   </div>
-                  <span className="text-xl font-black text-[#081C3A]">
+                </div>
+                <div className="pl-1 my-1">
+                  <span className="text-2xl font-black text-[#081C3A]">
                     {isLoading ? '...' : disputasEmAndamento}
                   </span>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Disputas e cotações</p>
                 </div>
-                <div className="flex items-end justify-between gap-2 mt-4">
-                  <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Disputas em andamento
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                <div className="flex items-center justify-between gap-1 pl-1 pt-2 border-t border-slate-100 text-[11px] font-bold text-[#0070C0]">
+                  <span>Acompanhar</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
-              {/* 3. CERTIDÕES EM DIA */}
+              {/* 3. ALERTAS ATIVOS (CERTIDÕES E RISCOS) */}
               <Link
                 to={FORNECEDOR_ROUTES.cofre}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
+                className="group relative bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:border-amber-500 transition-all flex flex-col justify-between min-h-[136px] overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                    <CheckCircle2 className="w-5 h-5" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500" />
+                <div className="flex items-start justify-between pl-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Certidões
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+                    <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <span className="text-lg font-black text-[#081C3A]">
+                </div>
+                <div className="pl-1 my-1">
+                  <span className="text-2xl font-black text-[#081C3A]">
                     {isLoading ? '...' : certidoesEmDia}
                   </span>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Habilitação regular</p>
                 </div>
-                <div className="flex items-end justify-between gap-2 mt-4">
-                  <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Certidões em dia
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                <div className="flex items-center justify-between gap-1 pl-1 pt-2 border-t border-slate-100 text-[11px] font-bold text-amber-600">
+                  <span>Conferir cofre</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
 
-              {/* 4. PRÓXIMOS PRAZOS */}
+              {/* 4. TAREFAS PENDENTES / PRÓXIMOS PRAZOS */}
               <Link
                 to={FORNECEDOR_ROUTES.prazos_alertas}
-                className="group bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs hover:border-[#0070C0] transition-all flex flex-col justify-between min-h-[132px]"
+                className="group relative bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:border-emerald-500 transition-all flex flex-col justify-between min-h-[136px] overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-                    <Bell className="w-5 h-5" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500" />
+                <div className="flex items-start justify-between pl-1">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Prazos
+                  </span>
+                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                    <Bell className="w-4 h-4" />
                   </div>
-                  <span className="text-xl font-black text-[#081C3A]">
+                </div>
+                <div className="pl-1 my-1">
+                  <span className="text-2xl font-black text-[#081C3A]">
                     {isLoading ? '...' : proximosPrazos}
                   </span>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Compromissos ativos</p>
                 </div>
-                <div className="flex items-end justify-between gap-2 mt-4">
-                  <span className="text-xs font-semibold text-slate-700 leading-snug">
-                    Próximos prazos
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-[#0070C0] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                <div className="flex items-center justify-between gap-1 pl-1 pt-2 border-t border-slate-100 text-[11px] font-bold text-emerald-600">
+                  <span>Ver agenda</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
             </div>

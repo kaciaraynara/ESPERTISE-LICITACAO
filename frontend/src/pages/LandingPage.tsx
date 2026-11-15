@@ -178,8 +178,8 @@ export default function LandingPage() {
               <span className="text-lg font-black tracking-tight text-[#081C3A]">
                 EXPERTISE LICITATÓRIA
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#0070C0]">
-                Gestão Estratégica em Compras Públicas
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6600]">
+                Especialidade em Vencer Licitações
               </span>
             </div>
           </Link>
@@ -233,15 +233,15 @@ export default function LandingPage() {
             <div className="space-y-6 lg:col-span-7">
               <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-[#FF6600]">
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>Pré-Lançamento Oficial • Vagas Antecipadas</span>
+                <span>Mais de 40 anos de especialidade em compras públicas</span>
               </div>
 
               <h1 className="text-3xl font-black tracking-tight text-[#081C3A] sm:text-4xl lg:text-5xl leading-[1.15]">
-                Pare de perder licitações por <span className="text-[#0070C0]">certidão vencida</span> ou por vender no <span className="text-[#FF6600]">prejuízo</span>.
+                Transforme licitações em <span className="text-[#FF6600]">oportunidades de crescimento</span> para sua empresa.
               </h1>
 
               <p className="max-w-2xl text-base font-medium leading-relaxed text-slate-600 sm:text-lg">
-                A Expertise Licitatória encontra as compras públicas certas no PNCP, acompanha a validade de todos os seus documentos de habilitação e protege o seu lucro com trava técnica de preços.
+                Encontre editais estratégicos, organize seus processos em um só lugar e aumente suas chances de vitória com preço seguro e documentação sempre em dia.
               </p>
 
               {/* 4 Destaques Principais */}
@@ -252,15 +252,15 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
-                  <span>Editais filtrados pelo seu ramo</span>
+                  <span>Editais compatíveis com seu ramo</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
-                  <span>Preço mínimo seguro para lances</span>
+                  <span>Preço seguro com margem protegida</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
-                  <span>Guia prático em todas as etapas</span>
+                  <span>Orientações passo a passo em cada fase</span>
                 </div>
               </div>
 
@@ -271,7 +271,7 @@ export default function LandingPage() {
                   onClick={() => navigate('/cadastro')}
                   className="inline-flex items-center justify-center gap-3 rounded-xl bg-[#FF6600] px-8 py-4.5 text-sm font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-[#e55b00] hover:-translate-y-0.5 cursor-pointer"
                 >
-                  <span>Garantir Acesso Antecipado</span>
+                  <span>Começar Agora</span>
                   <ArrowRight className="h-5 w-5" />
                 </button>
 
@@ -284,7 +284,7 @@ export default function LandingPage() {
               </div>
 
               <p className="text-xs font-medium text-slate-500">
-                Cadastro rápido pelo CNPJ. Sem comissão sobre contratos conquistados.
+                Cadastro simples e seguro. Sem cobrança de comissões sobre suas vitórias.
               </p>
             </div>
 
@@ -492,6 +492,43 @@ export default function LandingPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3.1 CARDS DE DESTAQUE DO MODELO CANVA (SLIDE 01) */}
+      <section className="w-full bg-white py-12 border-b border-slate-200 px-6 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50/40 p-7 space-y-3 transition hover:shadow-md">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6600] text-white shadow-sm">
+                <Search className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-extrabold text-[#081C3A]">Encontre editais com mais estratégia</h3>
+              <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                Identifique oportunidades alinhadas com o perfil e o ramo da sua empresa, sem perder tempo procurando em dezenas de portais diferentes.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-7 space-y-3 transition hover:shadow-md">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0070C0] text-white shadow-sm">
+                <FileText className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-extrabold text-[#081C3A]">Conduza todo o processo em um só lugar</h3>
+              <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                Da triagem do edital até a elaboração da proposta com organização, clareza e controle rigoroso de datas e prazos.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-7 space-y-3 transition hover:shadow-md">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#081C3A] text-white shadow-sm">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-extrabold text-[#081C3A]">Mais segurança para a sua empresa</h3>
+              <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                Menos retrabalho, documentação sempre em dia e decisões bem embasadas com mais de 40 anos de especialidade em compras públicas.
+              </p>
             </div>
           </div>
         </div>
