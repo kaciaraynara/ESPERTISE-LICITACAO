@@ -142,7 +142,7 @@ function extrairPalavraChaveRamo(empresa: any): string {
   const palavras = String(textoBase)
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/[^a-zA-Z\s]/g, ' ')
     .toLowerCase()
     .split(/\s+/)
     .filter((p) => p.length > 3 && !/^\d+$/.test(p) && !stopWords.has(p));
