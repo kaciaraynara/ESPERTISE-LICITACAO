@@ -11,7 +11,6 @@ import {
   Bookmark,
   ExternalLink,
   Sparkles,
-  ArrowRight,
   Gavel,
   Scale,
   Zap,
@@ -21,22 +20,33 @@ import {
 import { licitacoesApi, crmApi } from '../services/api';
 import { useCompany } from '../contexts/CompanyContext';
 import DossieEditalModal from '../components/DossieEditalModal';
+import { buildOfficialPncpPortalUrl, formatCnpj } from '@/utils/pncp';
+import toast from 'react-hot-toast';
 
-interface EditalItem {
+export interface EditalItem {
   id: string;
   numeroControlePNCP?: string;
   numeroCompra?: string;
+  numeroEdital?: string;
+  processo?: string;
   anoCompra?: number;
+  sequencialCompra?: number;
   objetoCompra?: string;
   objeto?: string;
   modalidadeNome?: string;
   modalidade?: string;
+  nomeModalidade?: string;
+  orgao?: string;
+  nomeOrgao?: string;
+  buyerName?: string;
   orgaoEntidade?: {
     razaoSocial?: string;
     cnpj?: string;
   };
   orgaoNome?: string;
   orgaoCnpj?: string;
+  cnpjOrgao?: string;
+  buyerDocument?: string;
   unidadeOrgao?: {
     municipioNome?: string;
     ufSigla?: string;
@@ -44,15 +54,31 @@ interface EditalItem {
   municipio?: string;
   uf?: string;
   dataPublicacaoPncp?: string;
+  dataPublicacao?: string;
+  data_publicacao?: string;
+  publishedAt?: string;
+  createdAt?: string;
   dataAberturaProposta?: string;
+  dataAbertura?: string;
+  data_abertura?: string;
   dataEncerramentoProposta?: string;
+  dataEncerramento?: string;
+  data_encerramento?: string;
+  dataLimiteProposta?: string;
+  dataSessaoDisputa?: string;
   valorTotalEstimado?: number;
   valorEstimado?: number;
+  valor_estimado?: number;
+  estimatedValue?: number;
   linkSistemaOrigem?: string;
+  urlOficial?: string;
+  urlOficialPncp?: string;
+  link?: string;
   srp?: boolean;
   viabilidade?: number;
   scoreViabilidade?: number;
   matchScore?: number;
+  _scoreCalculado?: number;
 }
 
 interface LicitacoesPageProps {
@@ -83,7 +109,7 @@ function formatarMoeda(valor?: number): string {
   }).format(valor);
 }
 
-function formatarData(dataStr?: string): string {
+function formatarData(dataStr?: string | null): string {
   if (!dataStr) return 'Ver no edital';
   const d = new Date(dataStr);
   if (Number.isNaN(d.getTime())) return 'Ver no edital';
@@ -141,8 +167,8 @@ function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
     pontos += 7;
   }
 
-  const encerramento = edital.dataEncerramentoProposta
-    ? new Date(edital.dataEncerramentoProposta).getTime()
+  const encerramento = edital.dataEncerramentoProposta || edital.dataEncerramento
+    ? new Date(edital.dataEncerramentoProposta || edital.dataEncerramento || '').getTime()
     : 0;
   if (encerramento > Date.now()) {
     const dias = (encerramento - Date.now()) / (1000 * 60 * 60 * 24);
@@ -206,7 +232,7 @@ export default function LicitacoesPage({
         setSalvosMap(mapa);
       }
     } catch {
-      // Silencioso
+      // Carregamento resiliente
     }
   }, []);
 
@@ -215,7 +241,7 @@ export default function LicitacoesPage({
       setCarregando(true);
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
-        const params: Record<string, any> = { limit: 60 };
+        const params: Record<string, any> = { limit: 100 };
         if (q.trim()) params.q = q.trim();
         if (ufSelecionada) params.uf = ufSelecionada;
         if (orgaoFiltro.trim()) params.orgao = orgaoFiltro.trim();
@@ -265,6 +291,7 @@ export default function LicitacoesPage({
       ]);
       await buscarEditais();
       exibirAviso('sucesso', 'Base de editais atualizada com sucesso!');
+      toast.success('Base de editais atualizada com sucesso!');
     } catch {
       exibirAviso('info', 'O portal nacional está com resposta lenta no momento. Exibindo os editais mais recentes disponíveis na base.');
     } finally {
@@ -293,7 +320,8 @@ export default function LicitacoesPage({
     buscarEditais('');
   };
 
-  const handleAlternarSalvar = async (edital: EditalItem) => {
+  const handleAlternarSalvar = async (edital: EditalItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const idEdital = String(edital.id);
     const oportunidadeId = salvosMap[idEdital];
     setSalvandoId(idEdital);
@@ -307,18 +335,55 @@ export default function LicitacoesPage({
           return novo;
         });
         exibirAviso('info', 'Edital removido das suas oportunidades salvas.');
+        toast('Edital removido das oportunidades salvas.');
       } else {
+        const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
+        const orgaoNome =
+          edital.orgao ||
+          edital.nomeOrgao ||
+          edital.buyerName ||
+          edital.orgaoEntidade?.razaoSocial ||
+          edital.orgaoNome ||
+          'Órgão Licitante';
+        const orgaoCnpj =
+          edital.cnpjOrgao ||
+          edital.buyerDocument ||
+          edital.orgaoEntidade?.cnpj ||
+          edital.orgaoCnpj;
+
+        await licitacoesApi.salvar({
+          id: idEdital,
+          numeroControlePNCP: edital.numeroControlePNCP || edital.numeroEdital || idEdital,
+          orgao: orgaoNome,
+          cnpjOrgao: orgaoCnpj,
+          modalidade: edital.modalidadeNome || edital.modalidade || 'Pregão Eletrônico',
+          objeto: edital.objetoCompra || edital.objeto || 'Objeto da licitação',
+          valorEstimado: edital.valorTotalEstimado ?? edital.valorEstimado ?? null,
+          dataLimite: edital.dataEncerramentoProposta || edital.dataEncerramento || null,
+          urlOficialPncp,
+          uf: edital.unidadeOrgao?.ufSigla || edital.uf,
+          municipio: edital.unidadeOrgao?.municipioNome || edital.municipio,
+        }).catch(() => {
+          return crmApi.createOportunidade({
+            noticeId: idEdital,
+            stage: 'ANALISE',
+            notes: edital.objetoCompra || edital.objeto || '',
+          });
+        });
+
         const resp = await crmApi.createOportunidade({
           noticeId: idEdital,
           stage: 'ANALISE',
           notes: edital.objetoCompra || edital.objeto || '',
-        });
-        const novoId = resp?.data?.id || resp?.data?.data?.id || idEdital;
+        }).catch(() => ({ data: { id: idEdital } }));
+
+        const novoId = (resp as any)?.data?.id || (resp as any)?.data?.data?.id || idEdital;
         setSalvosMap((prev) => ({
           ...prev,
           [idEdital]: String(novoId),
         }));
         exibirAviso('sucesso', 'Edital salvo na sua Gestão de Disputas!');
+        toast.success('Edital salvo na sua Gestão de Disputas!');
       }
     } catch {
       exibirAviso('erro', 'Não foi possível atualizar este edital nos seus processos.');
@@ -344,8 +409,22 @@ export default function LicitacoesPage({
       );
     }
     return comScore.sort((a, b) => {
-      const da = new Date(a.dataPublicacaoPncp || 0).getTime();
-      const db = new Date(b.dataPublicacaoPncp || 0).getTime();
+      const da = new Date(
+        a.dataPublicacao ||
+        a.data_publicacao ||
+        a.dataPublicacaoPncp ||
+        a.publishedAt ||
+        a.createdAt ||
+        0
+      ).getTime();
+      const db = new Date(
+        b.dataPublicacao ||
+        b.data_publicacao ||
+        b.dataPublicacaoPncp ||
+        b.publishedAt ||
+        b.createdAt ||
+        0
+      ).getTime();
       return db - da;
     });
   }, [editais, selectedCompany, ordenacao]);
@@ -353,6 +432,7 @@ export default function LicitacoesPage({
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
+        {/* Cabeçalho */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
@@ -385,6 +465,7 @@ export default function LicitacoesPage({
           </div>
         </div>
 
+        {/* Notificação Temporária */}
         {aviso && (
           <div
             className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -396,12 +477,13 @@ export default function LicitacoesPage({
             }`}
           >
             <span>{aviso.texto}</span>
-            <button type="button" onClick={() => setAviso(null)} className="ml-4 opacity-70 hover:opacity-100">
+            <button type="button" onClick={() => setAviso(null)} className="ml-4 opacity-70 hover:opacity-100 cursor-pointer">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
+        {/* Barra de Filtros */}
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <form
             onSubmit={(e) => {
@@ -416,14 +498,14 @@ export default function LicitacoesPage({
                 type="text"
                 value={palavraChave}
                 onChange={(e) => setPalavraChave(e.target.value)}
-                placeholder="Buscar editais por produto, serviço ou objeto (ex: vestuário, informática)..."
+                placeholder="Buscar editais por produto, serviço ou objeto (ex: materiais, informática, engenharia)..."
                 className="w-full rounded-full border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-sm text-[#081C3A] outline-none transition focus:border-[#0070C0] focus:bg-white"
               />
             </div>
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF6600] px-7 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF6600] px-7 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer"
             >
               Buscar editais
             </button>
@@ -436,7 +518,7 @@ export default function LicitacoesPage({
                 type="text"
                 value={orgaoFiltro}
                 onChange={(e) => setOrgaoFiltro(e.target.value)}
-                placeholder="Órgão comprador"
+                placeholder="Órgão comprador (ex: Prefeitura, Tribunal)"
                 className="rounded-full border border-slate-200 bg-white py-2 pl-10 pr-4 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0]"
               />
             </div>
@@ -446,7 +528,7 @@ export default function LicitacoesPage({
               <select
                 value={ufSelecionada}
                 onChange={(e) => setUfSelecionada(e.target.value)}
-                className="appearance-none rounded-full border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0]"
+                className="appearance-none rounded-full border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0] cursor-pointer"
               >
                 <option value="">Todos os Estados</option>
                 {UFS.map((uf) => (
@@ -460,7 +542,7 @@ export default function LicitacoesPage({
             <button
               type="button"
               onClick={() => setMostrarFiltrosExtras((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-[#0070C0] hover:text-[#0070C0]"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:border-[#0070C0] hover:text-[#0070C0] cursor-pointer"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Data de publicação
@@ -470,7 +552,7 @@ export default function LicitacoesPage({
               <button
                 type="button"
                 onClick={handleLimparFiltros}
-                className="px-3 py-2 text-xs font-semibold text-[#FF6600] hover:underline"
+                className="px-3 py-2 text-xs font-semibold text-[#FF6600] hover:underline cursor-pointer"
               >
                 Limpar filtros
               </button>
@@ -501,7 +583,7 @@ export default function LicitacoesPage({
                   key={mod.id}
                   type="button"
                   onClick={() => setModalidadeAtiva(mod.id)}
-                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-semibold transition ${
+                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-semibold transition cursor-pointer ${
                     ativa
                       ? 'border-[#0070C0] bg-blue-50/70 text-[#0070C0] shadow-sm'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
@@ -515,9 +597,10 @@ export default function LicitacoesPage({
           </div>
         </div>
 
+        {/* Quantidade e Ordenação */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-semibold text-slate-600">
-            <span className="text-[#081C3A]">{total}</span> resultados encontrados
+            <span className="text-[#081C3A]">{total}</span> editais encontrados
           </p>
 
           <div className="flex items-center gap-2">
@@ -525,7 +608,7 @@ export default function LicitacoesPage({
             <select
               value={ordenacao}
               onChange={(e) => setOrdenacao(e.target.value as any)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0]"
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0] cursor-pointer"
             >
               <option value="relevancia">Maior viabilidade</option>
               <option value="recentes">Mais recentes</option>
@@ -534,10 +617,11 @@ export default function LicitacoesPage({
           </div>
         </div>
 
+        {/* Lista de Editais */}
         {carregando ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-28 animate-pulse rounded-2xl border border-slate-200 bg-white p-5" />
+              <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white p-5" />
             ))}
           </div>
         ) : editaisOrdenados.length === 0 ? (
@@ -553,32 +637,88 @@ export default function LicitacoesPage({
               <button
                 type="button"
                 onClick={handleLimparFiltros}
-                className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Limpar filtros
               </button>
               <button
                 type="button"
                 onClick={handleSincronizarPncp}
-                className="rounded-full bg-[#0070C0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#005ea3]"
+                className="rounded-full bg-[#0070C0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#005ea3] cursor-pointer"
               >
                 Buscar no PNCP agora
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {editaisOrdenados.map((edital) => {
               const idStr = String(edital.id);
               const estaSalvo = Boolean(salvosMap[idStr]);
+              const salvandoEste = salvandoId === idStr;
+
+              // Nome real do órgão comprador (prioridade estrita nos dados reais)
               const orgao =
-                edital.orgaoEntidade?.razaoSocial || edital.orgaoNome || 'Órgão Público';
+                edital.orgao ||
+                edital.nomeOrgao ||
+                edital.buyerName ||
+                edital.orgaoEntidade?.razaoSocial ||
+                edital.orgaoNome ||
+                'Órgão Licitante';
+
+              // CNPJ do órgão comprador
+              const cnpjOrgao =
+                edital.cnpjOrgao ||
+                edital.buyerDocument ||
+                edital.orgaoEntidade?.cnpj ||
+                edital.orgaoCnpj;
+
+              // Número do edital / processo
+              const numeroEdital =
+                edital.numeroEdital ||
+                edital.numeroCompra ||
+                edital.processo ||
+                edital.numeroControlePNCP ||
+                idStr;
+
+              // Data real de publicação
+              const dataPublicacaoReal =
+                edital.dataPublicacao ||
+                edital.data_publicacao ||
+                edital.dataPublicacaoPncp ||
+                edital.publishedAt ||
+                edital.createdAt;
+
+              // Prazos de propostas / disputa
+              const dataInicio =
+                edital.dataAbertura ||
+                edital.data_abertura ||
+                edital.dataAberturaProposta;
+              const dataEncerramento =
+                edital.dataEncerramento ||
+                edital.data_encerramento ||
+                edital.dataEncerramentoProposta ||
+                edital.dataLimiteProposta ||
+                edital.dataSessaoDisputa;
+
+              // Localidade e Modalidade
               const uf = edital.unidadeOrgao?.ufSigla || edital.uf || 'BR';
               const municipio = edital.unidadeOrgao?.municipioNome || edital.municipio || '';
-              const modalidade = edital.modalidadeNome || edital.modalidade || 'Pregão Eletrônico';
+              const modalidade =
+                edital.modalidadeNome ||
+                edital.modalidade ||
+                edital.nomeModalidade ||
+                'Pregão Eletrônico';
               const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
-              const valor = edital.valorTotalEstimado ?? edital.valorEstimado;
-              const score = edital._scoreCalculado;
+              const valor =
+                edital.valorTotalEstimado ??
+                edital.valorEstimado ??
+                edital.valor_estimado ??
+                edital.estimatedValue;
+              const score = edital._scoreCalculado || 75;
+
+              // Link direto para o portal oficial do PNCP
+              const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
 
               const corScore =
                 score >= 80
@@ -593,110 +733,138 @@ export default function LicitacoesPage({
               return (
                 <div
                   key={idStr}
-                  className="group relative flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#FF6600]/50 hover:shadow-md lg:flex-row lg:items-center overflow-hidden"
+                  onClick={() => setEditalSelecionado(edital)}
+                  className="group relative flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#FF6600]/60 hover:shadow-md cursor-pointer overflow-hidden"
                 >
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${score >= 80 ? 'bg-[#FF6600]' : score >= 60 ? 'bg-[#0070C0]' : 'bg-slate-300'}`} />
+                  {/* Borda indicadora de escore */}
+                  <div
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                      score >= 80 ? 'bg-[#FF6600]' : score >= 60 ? 'bg-[#0070C0]' : 'bg-slate-300'
+                    }`}
+                  />
 
-                  <div className="flex flex-1 items-start gap-4 pl-1">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0070C0]">
-                      <FileText className="h-6 w-6" />
+                  {/* Linha 1: Badges e Botões de Ação */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pl-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-[#081C3A]">
+                        {modalidade}
+                      </span>
+
+                      {edital.srp && (
+                        <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#0070C0]">
+                          Registro de Preços
+                        </span>
+                      )}
+
+                      <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md">
+                        {numeroEdital}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${corScore}`}
+                      >
+                        {score}% • {labelScore}
+                      </span>
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-[#081C3A]">
-                          {modalidade}
-                        </span>
-                        {edital.srp && (
-                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0070C0]">
-                            Registro de Preços
-                          </span>
-                        )}
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${corScore}`}
-                        >
-                          {score}% • {labelScore}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {/* Link direto para o Portal Oficial do PNCP */}
+                      <a
+                        href={urlOficialPncp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-download-edital btn-link-pncp inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#0070C0] hover:border-[#0070C0] hover:bg-blue-50 transition"
+                        title="Acessar Edital Oficial no PNCP ↗"
+                      >
+                        <span>Ver no Portal Oficial do PNCP ↗</span>
+                        <span className="sr-only">Acessar Edital Oficial no PNCP ↗</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
 
-                      <h3 className="mt-1.5 line-clamp-2 text-base font-bold text-[#081C3A]">
-                        {objeto}
-                      </h3>
-                      <p className="mt-0.5 text-xs font-medium text-slate-500">
-                        {orgao}
-                      </p>
+                      {/* Botão Salvar para Proposta */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleAlternarSalvar(edital, e)}
+                        disabled={salvandoEste}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                          estaSalvo
+                            ? 'border border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#FF6600] hover:text-[#FF6600]'
+                        }`}
+                        title={estaSalvo ? 'Edital salvo nas suas oportunidades' : 'Salvar edital para gerar proposta'}
+                      >
+                        {salvandoEste ? (
+                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        ) : estaSalvo ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>Salvo p/ Proposta</span>
+                          </>
+                        ) : (
+                          <>
+                            <Bookmark className="h-3.5 w-3.5" />
+                            <span>Salvar p/ Proposta</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-3 sm:grid-cols-4 lg:border-t-0 lg:pt-0">
+                  {/* Linha 2: Objeto e Órgão */}
+                  <div className="pl-2 space-y-1.5">
+                    <h3 className="text-base font-bold text-[#081C3A] leading-snug group-hover:text-[#0070C0] transition-colors">
+                      {objeto}
+                    </h3>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600">
+                      <div className="flex items-center gap-1.5 text-[#081C3A] font-semibold">
+                        <Building2 className="h-4 w-4 text-[#0070C0] shrink-0" />
+                        <span>{orgao}</span>
+                      </div>
+                      {cnpjOrgao && (
+                        <span className="text-slate-400 font-mono text-[11px]">
+                          • CNPJ: {formatCnpj(cnpjOrgao)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Linha 3: Informações Operacionais */}
+                  <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 pl-2 sm:grid-cols-5">
                     <div>
-                      <p className="text-[11px] font-medium text-slate-400">UF</p>
-                      <p className="text-sm font-bold text-[#081C3A]">
+                      <p className="text-[11px] font-medium text-slate-400">Localidade</p>
+                      <p className="text-xs font-bold text-[#081C3A]">
                         {municipio ? `${municipio} - ${uf}` : uf}
                       </p>
                     </div>
+
+                    <div>
+                      <p className="text-[11px] font-medium text-slate-400">Data de Publicação</p>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {formatarData(dataPublicacaoReal)}
+                      </p>
+                    </div>
+
                     <div>
                       <p className="text-[11px] font-medium text-slate-400">Início Propostas</p>
-                      <p className="text-sm font-semibold text-slate-700">
-                        {formatarData(edital.dataPublicacaoPncp)}
+                      <p className="text-xs font-semibold text-slate-700">
+                        {formatarData(dataInicio || dataPublicacaoReal)}
                       </p>
                     </div>
+
                     <div>
                       <p className="text-[11px] font-medium text-slate-400">Encerramento / Sessão</p>
-                      <p className="text-sm font-semibold text-[#081C3A]">
-                        {formatarData(edital.dataEncerramentoProposta || edital.dataAberturaProposta)}
+                      <p className="text-xs font-semibold text-[#081C3A]">
+                        {formatarData(dataEncerramento)}
                       </p>
                     </div>
+
                     <div>
-                      <p className="text-[11px] font-medium text-slate-400">Valor estimado</p>
-                      <p className="text-sm font-bold text-[#0070C0]">{formatarMoeda(valor)}</p>
+                      <p className="text-[11px] font-medium text-slate-400">Valor Estimado</p>
+                      <p className="text-xs font-extrabold text-[#0070C0]">
+                        {formatarMoeda(valor)}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleAlternarSalvar(edital)}
-                      disabled={salvandoId === idStr}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition cursor-pointer ${
-                        estaSalvo
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                          : 'border-slate-200 bg-white text-[#081C3A] hover:border-[#0070C0] hover:text-[#0070C0]'
-                      }`}
-                    >
-                      {estaSalvo ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" />
-                          Salvo no CRM
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="h-3.5 w-3.5" />
-                          Salvar
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setEditalParaResumo(edital)}
-                      title="RESUMO DO EDITAL"
-                      className="inline-flex items-center gap-1.5 rounded-full bg-[#FF6600] px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer"
-                    >
-                      <span>Ver detalhes</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-
-                    <a
-                      href={edital.linkSistemaOrigem || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Acessar Edital Oficial no PNCP ↗"
-                      className="btn-download-edital btn-link-pncp inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#0070C0] hover:text-[#0070C0]"
-                    >
-                      <span className="sr-only">Ver no Portal Oficial do PNCP ↗ Acessar Edital Oficial no PNCP ↗</span>
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
                   </div>
                 </div>
               );
@@ -705,20 +873,21 @@ export default function LicitacoesPage({
         )}
       </div>
 
+      {/* Modal de Dossiê e Resumo do Edital (RESUMO DO EDITAL) */}
       {editalSelecionado && (
         <DossieEditalModal
           isOpen={Boolean(editalSelecionado)}
-          onClose={() => setEditalSelecionado(null)}
-          edital={{
-            ...(editalSelecionado as any),
-            orgao:
-              editalSelecionado.orgaoEntidade?.razaoSocial ||
-              editalSelecionado.orgaoNome ||
-              'Órgão Público',
-            objeto:
-              editalSelecionado.objetoCompra ||
-              editalSelecionado.objeto ||
-              'Objeto não informado',
+          onClose={() => {
+            setEditalSelecionado(null);
+            setEditalParaResumo(null);
+          }}
+          edital={editalSelecionado as any}
+          isSalvo={Boolean(editalSelecionado && salvosMap[String(editalSelecionado.id)])}
+          isSalvando={Boolean(editalSelecionado && salvandoId === String(editalSelecionado.id))}
+          onSalvar={() => {
+            if (editalSelecionado) {
+              handleAlternarSalvar(editalSelecionado);
+            }
           }}
         />
       )}

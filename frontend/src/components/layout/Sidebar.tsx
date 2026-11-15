@@ -1,41 +1,41 @@
 import {
   House,
-  GraduationCap,
-  MagnifyingGlass,
-  Kanban,
-  Eye,
-  CheckCircle,
-  ChartBar,
-  WarningCircle,
-  Copy,
-  BookmarkSimple,
   Crosshair,
+  ListChecks as QuadroIcon,
+  Scales,
+  Trophy,
+  MagnifyingGlass,
+  WarningCircle,
+  ChartLineUp,
   Robot,
-  CurrencyDollar,
+  Gavel,
+  CheckSquare,
+  Vault,
+  ShieldCheck,
+  Certificate,
+  Receipt,
+  GraduationCap,
   FileText,
-  ListBullets,
-  Clock,
   Brain,
-  ChartPie,
+  Eye,
   CreditCard,
   Gear,
   SignOut,
-  Vault,
-  ShieldCheck,
-  Receipt,
-  Scales,
+  CaretDown,
   Users,
   Buildings,
   type Icon,
 } from '@phosphor-icons/react';
 import { Pin, PinOff } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import BrandLogo from '@components/brand/BrandLogo';
 import { useLogout } from '@/hooks';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useAuthStore } from '@/store/auth.store';
+import { useNavigationStore } from '@/store/navigation.store';
 import type { User } from '@/types';
 import { getUserDisplayName } from '@/utils';
 
@@ -47,17 +47,32 @@ export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.dashboard]: () => import('@/pages/DashboardPage'),
   [FORNECEDOR_ROUTES.radar]: () => import('@/pages/LicitacoesPage'),
-  [FORNECEDOR_ROUTES.srp]: () => import('@/pages/Srp/SrpPage'),
+  [FORNECEDOR_ROUTES.historico_concorrentes]: () => import('@/pages/HistoricoConcorrentesPage'),
+  ['/fornecedores']: () => import('@/pages/RedeFornecedoresPage'),
+  [FORNECEDOR_ROUTES.disputa_ao_vivo]: () => import('@/pages/DisputaAoVivoPage'),
   [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
-  [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
   [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
-  [FORNECEDOR_ROUTES.cofre]: () => import('@/pages/CofrePage'),
-  [FORNECEDOR_ROUTES.fornecedores]: () => import('@/pages/RedeFornecedoresPage'),
-  [FORNECEDOR_ROUTES.leitor_editais]: () => import('@/pages/LeitorEditaisPage'),
+  [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
+  [FORNECEDOR_ROUTES.catalogo]: () => import('@/pages/Catalogo/CatalogoPage'),
+  [FORNECEDOR_ROUTES.prazos_alertas]: () => import('@/pages/PrazosAlertas/PrazosAlertasPage'),
   [FORNECEDOR_ROUTES.defesas_recursos]: () => import('@/pages/Contencioso/ContenciosoHubPage'),
-  [FORNECEDOR_ROUTES.empresa]: () => import('@/pages/EmpresaPage'),
-  [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
+  [FORNECEDOR_ROUTES.lex]: () => import('@/pages/Lex/LexAnalisePage'),
+  [FORNECEDOR_ROUTES.impugnacao]: () => import('@/pages/ImpugnacaoPage'),
+  [FORNECEDOR_ROUTES.recursos]: () => import('@/pages/RecursosPage'),
+  [FORNECEDOR_ROUTES.leitor_editais]: () => import('@/pages/LeitorEditaisPage'),
+  [FORNECEDOR_ROUTES.radar_nulidades]: () => import('@/pages/Nulidades/NulidadesPage'),
+  [FORNECEDOR_ROUTES.academia]: () => import('@/pages/Academia/AcademiaPage'),
+  [FORNECEDOR_ROUTES.gestao_pos_vitoria]: () => import('@/pages/GestaoPosVitoriaPage'),
+  [FORNECEDOR_ROUTES.gestao_contratual]: () => import('@/pages/GestaoContratualPage'),
+  [FORNECEDOR_ROUTES.expertise_fiscal]: () => import('@/pages/ExpertiseFiscalPage'),
+  [FORNECEDOR_ROUTES.cofre]: () => import('@/pages/CofrePage'),
+  [FORNECEDOR_ROUTES.certidoes]: () => import('@/pages/CertidoesPage'),
+  [FORNECEDOR_ROUTES.habilitacao]: () => import('@/pages/HabilitacaoPage'),
+  [FORNECEDOR_ROUTES.srp]: () => import('@/pages/Srp/SrpPage'),
+  [FORNECEDOR_ROUTES.relatorios_estrategicos]: () => import('@/pages/Relatorios/RelatoriosPage'),
   [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
+  [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
+  [FORNECEDOR_ROUTES.empresa]: () => import('@/pages/EmpresaPage'),
 };
 
 export function prefetchRoute(path: string) {
@@ -226,99 +241,207 @@ export interface StrategicHubConfig {
 
 export const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
-    id: 'oportunidades',
-    label: 'Oportunidades',
-    subtitle: 'Radar e Registro de Preços',
+    id: 'radar',
+    label: 'Radar & Oportunidades',
+    subtitle: 'Captação & Inteligência',
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços', icon: Receipt, requiredFeature: 'srp_carona' },
+      { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
+      { path: '/fornecedores', label: 'Rede de Fornecedores', icon: Users, requiredFeature: 'fornecedores' },
     ],
   },
   {
     id: 'disputas',
-    label: 'Disputas',
-    subtitle: 'Gestão, Propostas e Sala',
-    icon: Kanban,
+    label: 'Disputa ao Vivo',
+    subtitle: 'Acompanhamento & Lances',
+    icon: QuadroIcon,
     items: [
-      { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: Kanban, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.propostas, label: 'Gerador de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa', icon: Robot, requiredFeature: 'robo_lances' },
-    ],
-  },
-  {
-    id: 'documentos_fornecedores',
-    label: 'Documentos e Fornecedores',
-    subtitle: 'Cofre, Certidões e Parceiros',
-    icon: Vault,
-    items: [
-      { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre e Certidões', icon: ShieldCheck, requiredFeature: 'cofre_documentos' },
-      { path: '/fornecedores', label: 'Rede de Fornecedores', icon: Users, requiredFeature: 'fornecedores' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
+      { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
+      { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Serviços', icon: Receipt, requiredFeature: 'catalogo_produtos' },
+      { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
   },
   {
     id: 'defesas_recursos',
     label: 'Defesas e Recursos',
-    subtitle: 'Análises, Impugnações e Recursos',
+    subtitle: 'Segurança e Recursos 14.133',
     icon: Scales,
     items: [
-      { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Análise de Editais', icon: Brain, requiredFeature: 'resumo_edital_completo' },
-      { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Impugnações e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Análise Especializada do Edital', icon: Brain, requiredFeature: 'luli_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
+      { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
+      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU & Manuais', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },
   {
-    id: 'configuracoes_empresa',
-    label: 'Configurações e Empresa',
-    subtitle: 'Dados e Preferências',
-    icon: Gear,
+    id: 'pos_vitoria',
+    label: 'Gestão Pós-Vitória & Garantias',
+    subtitle: 'Execução & Conformidade',
+    icon: Trophy,
     items: [
-      { path: FORNECEDOR_ROUTES.empresa, label: 'Minha Empresa', icon: Buildings, requiredFeature: 'empresa' },
-      { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear, requiredFeature: 'configuracoes' },
-      { path: FORNECEDOR_ROUTES.planos, label: 'Planos e Assinatura', icon: CreditCard, requiredFeature: 'planos' },
+      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos (Cofre)', icon: Vault, requiredFeature: 'Meus Documentos' },
+      { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
+      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
+      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
+      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios e Resultados', icon: ChartLineUp, requiredFeature: 'Relatórios e Resultados' },
     ],
   },
 ];
 
-interface NavItemDef {
-  path: string;
-  label: string;
-  icon: Icon;
-  exact?: boolean;
+interface NavigationSubLinkProps {
+  item: StrategicSubItem;
+  isCollapsed: boolean;
 }
 
-const PRIMARY_NAV_ITEMS: NavItemDef[] = [
-  { path: FORNECEDOR_ROUTES.dashboard, label: 'Página Inicial', icon: House, exact: true },
-  { path: FORNECEDOR_ROUTES.academia, label: 'Academia do Licitante', icon: GraduationCap },
-  { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass },
-  { path: FORNECEDOR_ROUTES.disputas, label: 'CRM / Pipeline', icon: Kanban },
-  { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye },
-  { path: FORNECEDOR_ROUTES.analise_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle },
-  { path: FORNECEDOR_ROUTES.score_oportunidades, label: 'Score de Oportunidades', icon: ChartBar },
-  { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle },
-  { path: FORNECEDOR_ROUTES.srp_carona, label: 'SRP e Carona', icon: Copy },
-  { path: FORNECEDOR_ROUTES.editais_monitorados, label: 'Editais Monitorados', icon: BookmarkSimple },
-  { path: FORNECEDOR_ROUTES.estrategia_disputa, label: 'Central de Estratégia e Alertas', icon: Crosshair },
-  { path: FORNECEDOR_ROUTES.robo_lances, label: 'Robô de Lances (Em Implantação)', icon: Robot },
-  { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: CurrencyDollar },
-  { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText },
-  { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos', icon: ListBullets },
-  { path: FORNECEDOR_ROUTES.cofre, label: 'Documentos do Licitante', icon: FileText },
-];
+function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
+  const location = useLocation();
+  const active = item.exact
+    ? location.pathname === item.path
+    : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
-const ADVANCED_NAV_ITEMS: NavItemDef[] = [
-  { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos e Alertas', icon: Clock },
-  { path: FORNECEDOR_ROUTES.lex, label: 'LEX Inteligência', icon: Brain },
-  { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios Estratégicos', icon: ChartPie },
-  { path: FORNECEDOR_ROUTES.planos, label: 'Planos', icon: CreditCard },
-  { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear },
-];
+  const Icon = item.icon;
+
+  return (
+    <Link
+      to={item.path}
+      onMouseEnter={() => prefetchRoute(item.path)}
+      aria-current={active ? 'page' : undefined}
+      title={isCollapsed ? item.label : undefined}
+      className={`group relative flex items-center ${
+        isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
+      } rounded-lg text-xs font-semibold transition-all duration-150 ${
+        active
+          ? 'bg-[#FF6600]/15 text-white font-bold border-l-2 border-[#FF6600]'
+          : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
+      }`}
+    >
+      <Icon
+        className={`h-4.5 w-4.5 shrink-0 transition-colors ${
+          active ? 'text-[#FF6600]' : 'text-slate-400 group-hover:text-slate-200'
+        }`}
+        weight={active ? 'fill' : 'regular'}
+        aria-hidden="true"
+      />
+      {!isCollapsed && (
+        <span className="min-w-0 flex-1 truncate transition-opacity duration-300">
+          {item.label}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+interface StrategicHubNodeProps {
+  hub: StrategicHubConfig;
+  isCollapsed: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicHubNodeProps) {
+  const location = useLocation();
+  const Icon = hub.icon;
+
+  const isAnyChildActive = hub.items.some(
+    (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+  );
+
+  return (
+    <div className="mb-1.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        onMouseEnter={() => {
+          hub.items.forEach((it) => prefetchRoute(it.path));
+        }}
+        title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
+        aria-expanded={isExpanded}
+        className={`w-full group relative flex items-center ${
+          isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+        } rounded-xl text-left transition-all duration-200 cursor-pointer ${
+          isAnyChildActive
+            ? 'bg-white/[0.08] text-white border border-[#0070C0]/30 shadow-sm'
+            : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent'
+        }`}
+      >
+        {isAnyChildActive && (
+          <span
+            className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-[#FF6600]"
+            aria-hidden="true"
+          />
+        )}
+
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
+            isAnyChildActive
+              ? 'bg-[#FF6600] text-white shadow-md shadow-[#FF6600]/20'
+              : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
+          }`}
+        >
+          <Icon className="h-4.5 w-4.5" weight={isAnyChildActive ? 'bold' : 'regular'} />
+        </div>
+
+        {!isCollapsed && (
+          <div className="min-w-0 flex-1 transition-opacity duration-300">
+            <span className="block truncate text-xs font-black tracking-tight text-white">
+              {hub.label}
+            </span>
+            <p className="truncate text-[10px] font-semibold text-slate-400">
+              {hub.subtitle}
+            </p>
+          </div>
+        )}
+
+        {!isCollapsed && (
+          <CaretDown
+            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
+              isExpanded ? 'rotate-180 text-white' : ''
+            }`}
+            weight="bold"
+          />
+        )}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isExpanded && !isCollapsed && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden mt-1 space-y-0.5 pl-3.5 ml-3.5 border-l border-white/10"
+          >
+            {hub.items.map((subItem) => (
+              <NavigationSubLink
+                key={subItem.path}
+                item={subItem}
+                isCollapsed={isCollapsed}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const isTrialActive = isUserTrialActive(user);
+  const trialDaysLeft = getTrialDaysLeft(user);
   const logout = useLogout();
   const displayName = getUserDisplayName(user, user?.nome || 'Usuário');
-  const userEmail = user?.email || 'usuario@empresa.com.br';
+  const currentPlanTier = resolveUserPlanTier(user);
+  const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
   const [isPinned, setIsPinned] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -326,6 +449,7 @@ export default function Sidebar() {
   });
 
   const [isHovered, setIsHovered] = useState(false);
+  const openTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOpen = isPinned || isHovered;
@@ -341,12 +465,24 @@ export default function Sidebar() {
   };
 
   const handleMouseLeave = () => {
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
+    }
     if (isPinned) return;
+
     closeTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       closeTimeoutRef.current = null;
     }, 150);
   };
+
+  useEffect(() => {
+    return () => {
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current);
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   const togglePin = () => {
     setIsPinned((prev) => {
@@ -359,56 +495,26 @@ export default function Sidebar() {
     });
   };
 
-  const isItemActive = (item: NavItemDef) => {
-    if (item.exact) {
-      return (
-        location.pathname === item.path ||
-        (item.path === FORNECEDOR_ROUTES.dashboard && location.pathname === '/dashboard')
-      );
-    }
-    return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
-  };
+  const expandedHubs = useNavigationStore((state) => state.expandedHubs);
+  const toggleHub = useNavigationStore((state) => state.toggleHub);
+  const expandHub = useNavigationStore((state) => state.expandHub);
 
-  const renderNavButton = (item: NavItemDef) => {
-    const active = isItemActive(item);
-    const Icon = item.icon;
-
-    return (
-      <Link
-        key={item.path}
-        to={item.path}
-        onMouseEnter={() => prefetchRoute(item.path)}
-        aria-current={active ? 'page' : undefined}
-        title={isCollapsed ? item.label : undefined}
-        className={`group relative flex items-center ${
-          isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-3'
-        } rounded-xl text-xs transition-all duration-150 ${
-          active
-            ? 'bg-white/[0.08] text-white font-bold'
-            : 'text-slate-300 hover:bg-white/[0.05] hover:text-white font-medium'
-        }`}
-      >
-        {active && (
-          <span
-            className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-brand-orange"
-            aria-hidden="true"
-          />
-        )}
-        <Icon
-          className={`h-4.5 w-4.5 shrink-0 transition-colors ${
-            active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
-          }`}
-          weight={active ? 'fill' : 'regular'}
-          aria-hidden="true"
-        />
-        {!isCollapsed && (
-          <span className="min-w-0 flex-1 truncate transition-opacity duration-300">
-            {item.label}
-          </span>
-        )}
-      </Link>
+  useEffect(() => {
+    const activeHub = STRATEGIC_HUBS.find((hub) =>
+      hub.items.some(
+        (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+      )
     );
-  };
+    if (activeHub && !expandedHubs[activeHub.id]) {
+      expandHub(activeHub.id);
+    }
+  }, [location.pathname]);
+
+  const visibleHubs = useMemo(() => STRATEGIC_HUBS, []);
+
+  const isDashboardActive =
+    location.pathname === FORNECEDOR_ROUTES.dashboard ||
+    location.pathname === '/dashboard';
 
   return (
     <>
@@ -437,7 +543,7 @@ export default function Sidebar() {
           isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
         }`}
       >
-        {/* Brand Header */}
+        {/* Header com Logo Oficial */}
         <div
           className={`border-b border-white/10 py-3.5 transition-all duration-300 ${
             isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
@@ -447,8 +553,8 @@ export default function Sidebar() {
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
-              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${
-                isCollapsed ? 'justify-center' : 'gap-3'
+              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-[#FF6600] ${
+                isCollapsed ? 'justify-center' : 'gap-2.5'
               }`}
               aria-label="EXPERTISE Licitatória — Página Inicial"
             >
@@ -458,7 +564,6 @@ export default function Sidebar() {
               {!isCollapsed && (
                 <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
                   <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
-                  <span className="block text-[11px] font-black tracking-wider text-brand-orange -mt-0.5">LICITATÓRIA</span>
                 </div>
               )}
             </Link>
@@ -469,7 +574,7 @@ export default function Sidebar() {
                 onClick={togglePin}
                 className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                   isPinned
-                    ? 'bg-brand-orange text-white shadow-xs'
+                    ? 'bg-[#FF6600] text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-white/10'
                 }`}
                 title={isPinned ? 'Desafixar menu (recolher automaticamente)' : 'Fixar menu aberto'}
@@ -481,67 +586,122 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* User Profile Card */}
+        {/* Card de Usuário / Plano */}
         <div
           className={`border-b border-white/10 py-3 transition-all duration-300 ${
             isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
           }`}
         >
-          <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+          <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-sm font-black text-white shadow-sm"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FF6600] text-xs font-black text-white shadow-sm"
               title={isCollapsed ? displayName : undefined}
             >
-              {displayName.charAt(0).toUpperCase() || 'L'}
+              {displayName.charAt(0).toUpperCase() || 'E'}
             </span>
             {!isCollapsed && (
               <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
-                <p className="truncate text-xs font-bold text-white leading-tight">{displayName}</p>
-                <p className="truncate text-[11px] font-normal text-slate-400 leading-tight">
-                  {userEmail}
+                <p className="truncate text-xs font-black text-white">{displayName}</p>
+                <p className="truncate text-[10px] font-bold text-[#FF6600]">
+                  {isTrialActive
+                    ? `Acesso Operacional (${trialDaysLeft}d)`
+                    : currentPlanLabel}
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Navigation List */}
+        {/* Navegação Principal por Hubs Estratégicos */}
         <nav
           data-tour="strategic-hubs"
-          className={`flex-1 overflow-y-auto overflow-x-hidden py-2.5 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${
-            isCollapsed ? 'px-1.5' : 'px-2.5'
+          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${
+            isCollapsed ? 'px-1.5' : 'px-3'
           }`}
         >
-          {/* Primary Tools */}
-          <div className="space-y-0.5">
-            {PRIMARY_NAV_ITEMS.map((item) => renderNavButton(item))}
+          <div className="mb-2">
+            <Link
+              to={FORNECEDOR_ROUTES.dashboard}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
+              title={isCollapsed ? 'Página Inicial' : undefined}
+              className={`group relative flex items-center ${
+                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+              } rounded-xl font-bold transition-all duration-150 ${
+                isDashboardActive
+                  ? 'bg-[#FF6600] text-white shadow-md shadow-[#FF6600]/20'
+                  : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+              }`}
+            >
+              <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
+              {!isCollapsed && (
+                <div className="min-w-0 flex-1 transition-opacity duration-300">
+                  <span className="block text-xs font-black tracking-tight">Página Inicial</span>
+                </div>
+              )}
+            </Link>
           </div>
 
-          {/* Section Divider & Header: FERRAMENTAS AVANÇADAS */}
           {!isCollapsed && (
-            <p className="px-3 pt-4 pb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400/90">
-              Ferramentas Avançadas
+            <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
+              Módulos Operacionais
             </p>
           )}
 
-          {/* Advanced Tools */}
-          <div className="space-y-0.5">
-            {ADVANCED_NAV_ITEMS.map((item) => renderNavButton(item))}
+          <div className="space-y-1">
+            {visibleHubs.map((hub) => (
+              <StrategicHubNode
+                key={hub.id}
+                hub={hub}
+                isCollapsed={isCollapsed}
+                isExpanded={Boolean(expandedHubs[hub.id])}
+                onToggle={() => toggleHub(hub.id)}
+              />
+            ))}
+          </div>
+
+          <div className="my-2.5 border-t border-white/10" />
+
+          {/* Atalhos de Conta e Empresa */}
+          <div className="space-y-1">
+            <Link
+              to={FORNECEDOR_ROUTES.empresa}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.empresa)}
+              title={isCollapsed ? 'Minha Empresa' : undefined}
+              className={`flex items-center ${
+                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            >
+              <Buildings className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+              {!isCollapsed && <span className="transition-opacity duration-300">Minha Empresa</span>}
+            </Link>
+
+            <Link
+              to={FORNECEDOR_ROUTES.planos}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.planos)}
+              title={isCollapsed ? 'Planos & Assinatura' : undefined}
+              className={`flex items-center ${
+                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            >
+              <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+              {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
+            </Link>
+
+            <Link
+              to={FORNECEDOR_ROUTES.configuracoes}
+              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.configuracoes)}
+              title={isCollapsed ? 'Configurações' : undefined}
+              className={`flex items-center ${
+                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+            >
+              <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
+              {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
+            </Link>
           </div>
         </nav>
 
-        {/* Helper Note Card */}
-        {!isCollapsed && (
-          <div className="px-3 pt-2">
-            <div className="rounded-xl border border-white/10 bg-[#0d2244]/60 p-2.5 text-center shadow-inner">
-              <p className="text-[10px] leading-relaxed text-slate-400 font-medium">
-                O menu exibe somente módulos com fluxo operacional ativo.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Exit Session Button */}
+        {/* Rodapé com Logout */}
         <div
           className={`border-t border-white/10 p-3 transition-all duration-300 ${
             isCollapsed ? 'flex justify-center' : ''
@@ -551,7 +711,7 @@ export default function Sidebar() {
             type="button"
             onClick={() => void logout()}
             title={isCollapsed ? 'Encerrar sessão' : undefined}
-            className={`flex items-center rounded-xl border border-white/10 bg-white/[0.04] py-2 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white cursor-pointer ${
+            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${
               isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
             }`}
           >
