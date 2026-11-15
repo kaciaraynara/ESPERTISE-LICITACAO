@@ -599,27 +599,41 @@ export default function LicitacaoDetalhePage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 border-t border-gray-100 px-8 py-5">
+            <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 px-8 py-5">
+              <button
+                type="button"
+                onClick={handleGerarPropostaComercial}
+                disabled={gerandoPropostaComercial}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#FF6600] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#e55b00] active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {gerandoPropostaComercial ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4" />
+                )}
+                <span>Criar Proposta Comercial</span>
+              </button>
+
               {isInCrm ? (
                 <Link
                   to="/fornecedor/disputas"
-                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
                 >
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Na Gestão de Disputas
+                  Salvo no CRM
                 </Link>
               ) : (
                 <button
                   onClick={() => salvarCrmMutation.mutate()}
                   disabled={salvarCrmMutation.isPending}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[#0A2540] bg-[#0A2540] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#07192b] active:scale-95 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#081C3A] bg-[#081C3A] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#0f2b56] active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   {salvarCrmMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  Adicionar às Disputas
+                  Salvar no CRM
                 </button>
               )}
               <button

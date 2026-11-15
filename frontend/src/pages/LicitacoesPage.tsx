@@ -356,13 +356,10 @@ export default function LicitacoesPage({
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-[#081C3A]">
-              {tituloCustomizado || 'Radar de editais'}
+              {tituloCustomizado || 'Radar de Editais'}
             </h1>
-            <p className="mt-1 text-lg font-bold text-[#081C3A]">
-              Encontre oportunidades compatíveis com seu negócio
-            </p>
-            <p className="mt-0.5 text-sm text-slate-500">
-              Pesquise, filtre e compare editais públicos com escore de viabilidade em um só lugar.
+            <p className="mt-1 text-sm sm:text-base font-medium text-slate-600">
+              Encontre oportunidades certas para o seu setor em órgãos públicos de todo o Brasil.
             </p>
           </div>
 
@@ -370,20 +367,20 @@ export default function LicitacoesPage({
             <button
               type="button"
               onClick={handleUsarMeuRamo}
-              className="inline-flex items-center gap-2 rounded-full border border-[#0070C0]/30 bg-white px-4 py-2.5 text-sm font-semibold text-[#0070C0] shadow-sm transition hover:bg-blue-50"
+              className="inline-flex items-center gap-2 rounded-full border border-[#0070C0]/30 bg-white px-4 py-2.5 text-xs font-bold text-[#0070C0] shadow-sm transition hover:bg-blue-50 cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
-              Filtrar pelo Meu Ramo
+              Filtrar pelo meu ramo
             </button>
 
             <button
               type="button"
               onClick={handleSincronizarPncp}
               disabled={sincronizando}
-              className="inline-flex items-center gap-2 rounded-full bg-[#081C3A] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f2b56] disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-full bg-[#081C3A] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0f2b56] disabled:opacity-60 cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
-              {sincronizando ? 'Atualizando...' : 'Atualizar PNCP'}
+              {sincronizando ? 'Atualizando...' : 'Atualizar editais'}
             </button>
           </div>
         </div>
@@ -596,20 +593,22 @@ export default function LicitacoesPage({
               return (
                 <div
                   key={idStr}
-                  className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#0070C0]/40 hover:shadow-md lg:flex-row lg:items-center"
+                  className="group relative flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#FF6600]/50 hover:shadow-md lg:flex-row lg:items-center overflow-hidden"
                 >
-                  <div className="flex flex-1 items-start gap-4">
+                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${score >= 80 ? 'bg-[#FF6600]' : score >= 60 ? 'bg-[#0070C0]' : 'bg-slate-300'}`} />
+
+                  <div className="flex flex-1 items-start gap-4 pl-1">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0070C0]">
                       <FileText className="h-6 w-6" />
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#081C3A]">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-[#081C3A]">
                           {modalidade}
                         </span>
                         {edital.srp && (
-                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
+                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0070C0]">
                             Registro de Preços
                           </span>
                         )}
@@ -659,7 +658,7 @@ export default function LicitacoesPage({
                       type="button"
                       onClick={() => handleAlternarSalvar(edital)}
                       disabled={salvandoId === idStr}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition cursor-pointer ${
                         estaSalvo
                           ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
                           : 'border-slate-200 bg-white text-[#081C3A] hover:border-[#0070C0] hover:text-[#0070C0]'
@@ -668,7 +667,7 @@ export default function LicitacoesPage({
                       {estaSalvo ? (
                         <>
                           <Check className="h-3.5 w-3.5" />
-                          Salvo (Remover)
+                          Salvo no CRM
                         </>
                       ) : (
                         <>
@@ -682,7 +681,7 @@ export default function LicitacoesPage({
                       type="button"
                       onClick={() => setEditalParaResumo(edital)}
                       title="RESUMO DO EDITAL"
-                      className="inline-flex items-center gap-1.5 rounded-full bg-[#0070C0] px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#005ea3]"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#FF6600] px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer"
                     >
                       <span>Ver detalhes</span>
                       <ArrowRight className="h-3.5 w-3.5" />
