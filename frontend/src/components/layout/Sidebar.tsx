@@ -317,7 +317,7 @@ export default function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
-  const displayName = getUserDisplayName(user, user?.nome || user?.name || user?.razao_social || 'Usuário');
+  const displayName = getUserDisplayName(user, user?.nome || 'Usuário');
   const userEmail = user?.email || 'usuario@empresa.com.br';
 
   const [isPinned, setIsPinned] = useState<boolean>(() => {
