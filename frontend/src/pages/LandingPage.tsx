@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -11,28 +11,14 @@ import {
   ArrowRight,
   ChevronDown,
   Sparkles,
-  Bot,
   Check,
   X,
 } from 'lucide-react';
 
-interface TabPreview {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-}
-
-const PREVIEW_TABS: TabPreview[] = [
-  { id: 'radar', label: 'Radar PNCP Oficial', icon: Search },
-  { id: 'certidoes', label: 'Saúde das Certidões', icon: ShieldCheck },
-  { id: 'precificacao', label: 'Proteção de Margem', icon: Calculator },
-  { id: 'luli', label: 'Assistente Luli', icon: Bot },
-];
-
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>('radar');
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const painPoints = [
     {
@@ -167,11 +153,11 @@ export default function LandingPage() {
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-12">
           <Link to="/" className="flex items-center gap-3 py-2 cursor-pointer">
             <img
-              src="/logo.png"
+              src="/assets/logo.png"
               alt="Expertise Licitatória"
               className="h-10 sm:h-12 w-auto object-contain"
               onError={(e) => {
-                e.currentTarget.style.display = 'none';
+                e.currentTarget.src = '/logo.png';
               }}
             />
             <div className="flex flex-col">
@@ -185,11 +171,11 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8 text-xs font-bold uppercase tracking-wider text-slate-700">
-            <a href="#problemas" className="transition hover:text-[#0070C0]">
-              O que resolvemos
-            </a>
             <a href="#como-funciona" className="transition hover:text-[#0070C0]">
               Como funciona
+            </a>
+            <a href="#solucoes" className="transition hover:text-[#0070C0]">
+              Soluções
             </a>
             <a href="#comparativo" className="transition hover:text-[#0070C0]">
               Comparativo
@@ -198,10 +184,10 @@ export default function LandingPage() {
               Academia do Licitante
             </a>
             <a href="#pre-lancamento" className="transition hover:text-[#0070C0]">
-              Pré-Lançamento
+              Planos
             </a>
             <a href="#duvidas" className="transition hover:text-[#0070C0]">
-              Dúvidas frequentes
+              Dúvidas
             </a>
           </nav>
 
@@ -218,19 +204,19 @@ export default function LandingPage() {
               onClick={() => navigate('/cadastro')}
               className="inline-flex items-center gap-2 rounded-xl bg-[#FF6600] px-5 py-3 text-xs font-extrabold uppercase tracking-wider text-white shadow-md transition hover:bg-[#e55b00] active:scale-95 cursor-pointer"
             >
-              <span>Garantir Vaga</span>
+              <span>Começar Agora</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* 3. HERO SECTION COM PRÉVIA VIVA DO SISTEMA */}
+      {/* 3. HERO SECTION COM MOCKUP REAL DO NOTEBOOK (SLIDE 01 CANVA) */}
       <section className="relative w-full border-b border-slate-200 bg-[#F8FAFC] pt-12 pb-20 lg:pt-16 lg:pb-24 overflow-hidden">
         <div className="mx-auto max-w-7xl px-6 lg:px-12">
           <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
             {/* Coluna de Texto & Proposta de Valor */}
-            <div className="space-y-6 lg:col-span-7">
+            <div className="space-y-6 lg:col-span-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-[#FF6600]">
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Mais de 40 anos de especialidade em compras públicas</span>
@@ -241,45 +227,77 @@ export default function LandingPage() {
               </h1>
 
               <p className="max-w-2xl text-base font-medium leading-relaxed text-slate-600 sm:text-lg">
-                Encontre editais estratégicos, organize seus processos em um só lugar e aumente suas chances de vitória com preço seguro e documentação sempre em dia.
+                Encontre editais com mais estratégia, acompanhe todo o processo e aumente as chances da sua empresa vencer, tudo em um só lugar.
               </p>
 
-              {/* 4 Destaques Principais */}
-              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
-                <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
+              {/* Barra de Busca de Oportunidades do Hero */}
+              <div className="relative max-w-xl">
+                <div className="flex items-center rounded-2xl border border-slate-300 bg-white p-1.5 shadow-md focus-within:border-[#0070C0] focus-within:ring-2 focus-within:ring-[#0070C0]/20">
+                  <Search className="ml-3.5 h-5 w-5 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchQuery.trim()) {
+                        navigate(`/login?redirect=${encodeURIComponent('/fornecedor/radar?q=' + searchQuery.trim())}`);
+                      }
+                    }}
+                    placeholder="Buscar editais, órgãos ou palavras-chave..."
+                    className="w-full bg-transparent px-3 py-2 text-sm text-[#081C3A] placeholder-slate-400 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (searchQuery.trim()) {
+                        navigate(`/login?redirect=${encodeURIComponent('/fornecedor/radar?q=' + searchQuery.trim())}`);
+                      } else {
+                        navigate('/login');
+                      }
+                    }}
+                    className="rounded-xl bg-[#FF6600] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer shrink-0"
+                  >
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
+              {/* Destaques em linha */}
+              <div className="grid grid-cols-1 gap-2.5 pt-1 sm:grid-cols-2 text-xs font-bold text-slate-700">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-[#0070C0]" />
                   <span>Aviso antes da certidão vencer</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-[#0070C0]" />
                   <span>Editais compatíveis com seu ramo</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-[#0070C0]" />
                   <span>Preço seguro com margem protegida</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#0070C0]" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-[#0070C0]" />
                   <span>Orientações passo a passo em cada fase</span>
                 </div>
               </div>
 
               {/* CTAs */}
-              <div className="flex flex-col items-stretch gap-4 pt-4 sm:flex-row sm:items-center">
+              <div className="flex flex-col items-stretch gap-4 pt-2 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={() => navigate('/cadastro')}
-                  className="inline-flex items-center justify-center gap-3 rounded-xl bg-[#FF6600] px-8 py-4.5 text-sm font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-[#e55b00] hover:-translate-y-0.5 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-3 rounded-xl bg-[#FF6600] px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg transition hover:bg-[#e55b00] hover:-translate-y-0.5 cursor-pointer"
                 >
-                  <span>Começar Agora</span>
+                  <span>Conheça a plataforma</span>
                   <ArrowRight className="h-5 w-5" />
                 </button>
 
                 <a
                   href="#como-funciona"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-4.5 text-xs font-bold uppercase tracking-wider text-[#081C3A] shadow-sm transition hover:bg-slate-50 text-center"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-4 text-xs font-bold uppercase tracking-wider text-[#081C3A] shadow-sm transition hover:bg-slate-50 text-center"
                 >
-                  <span>Ver Como Funciona</span>
+                  <span>Como funciona</span>
                 </a>
               </div>
 
@@ -288,208 +306,35 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Coluna da Direita: Card Interativo de Prévia Viva do Sistema */}
-            <div className="relative flex flex-col items-center justify-center lg:col-span-5">
-              <div className="w-full rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
-                {/* Seletor de Abas de Prévia */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-3 border-b border-slate-100">
-                  {PREVIEW_TABS.map((tab) => {
-                    const IconComponent = tab.icon;
-                    const isSelected = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#0070C0] text-white shadow-sm'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        <IconComponent className="h-3.5 w-3.5" />
-                        <span>{tab.label}</span>
-                      </button>
-                    );
-                  })}
+            {/* Coluna da Direita: Mockup Real do MacBook (Slide 01 Canva) */}
+            <div className="relative flex flex-col items-center justify-center lg:col-span-6">
+              <div className="relative w-full max-w-xl">
+                <img
+                  src="/assets/laptop-mockup.png"
+                  alt="Plataforma Expertise Licitatória"
+                  className="w-full h-auto object-contain drop-shadow-2xl transition hover:scale-[1.02] duration-300"
+                />
+
+                {/* Badge Flutuante Superior */}
+                <div className="absolute -top-3 -left-2 sm:-left-4 rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-xl backdrop-blur-sm flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#FF6600]">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-[#081C3A]">PNCP em Tempo Real</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Conectado à Lei 14.133/2021</p>
+                  </div>
                 </div>
 
-                {/* Conteúdo Dinâmico da Aba Ativa */}
-                <div className="mt-4 min-h-[310px]">
-                  {activeTab === 'radar' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                            Radar PNCP em Tempo Real
-                          </span>
-                        </div>
-                        <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-[11px] font-extrabold text-[#0070C0]">
-                          Lei 14.133/2021
-                        </span>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#FF6600]">
-                              Pregão Eletrônico
-                            </span>
-                            <h4 className="text-sm font-bold text-[#081C3A] leading-snug">
-                              Fornecimento de Materiais e Suprimentos
-                            </h4>
-                            <p className="text-xs text-slate-500">Órgão Público Estadual • Salvador / BA</p>
-                          </div>
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shrink-0">
-                            Aberto
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-xs">
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Valor Estimado</span>
-                            <span className="font-extrabold text-[#081C3A]">R$ 485.200,00</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Sessão Pública</span>
-                            <span className="font-bold text-[#0070C0]">Em 6 dias (10:00 Brasília)</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                          <div>
-                            <p className="text-xs font-bold text-[#081C3A]">Compatibilidade do CNAE</p>
-                            <p className="text-[11px] text-slate-500">Sua empresa atende a 100% dos requisitos</p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-extrabold text-emerald-600">Alta Chance</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'certidoes' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                          Controle das 5 Certidões Obrigatórias
-                        </span>
-                        <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-700">
-                          100% Regular
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {[
-                          { nome: 'Certidão Federal / INSS', validade: 'Vence em 42 dias', status: 'Regular' },
-                          { nome: 'Certidão FGTS (CRF)', validade: 'Vence em 18 dias', status: 'Atenção' },
-                          { nome: 'Certidão Trabalhista (CNDT)', validade: 'Vence em 85 dias', status: 'Regular' },
-                          { nome: 'Certidão Estadual (ICMS)', validade: 'Vence em 56 dias', status: 'Regular' },
-                          { nome: 'Certidão Municipal (ISS)', validade: 'Vence em 30 dias', status: 'Regular' },
-                        ].map((c, i) => (
-                          <div key={i} className="flex items-center justify-between rounded-xl border border-slate-200 bg-[#F8FAFC] p-2.5 text-xs">
-                            <span className="font-bold text-[#081C3A]">{c.nome}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] text-slate-500">{c.validade}</span>
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${
-                                  c.status === 'Atenção'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-emerald-100 text-emerald-800'
-                                }`}
-                              >
-                                {c.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'precificacao' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                          Formação de Preço e Proteção de Margem
-                        </span>
-                        <span className="rounded-lg bg-orange-50 px-2 py-0.5 text-[11px] font-extrabold text-[#FF6600]">
-                          Proteção de Margem Ativa
-                        </span>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-3.5 space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Custo dos Produtos + Frete:</span>
-                          <span className="font-bold text-[#081C3A]">R$ 120.000,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Tributos e Encargos:</span>
-                          <span className="font-bold text-[#081C3A]">R$ 18.500,00</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Margem Mínima Segura (15%):</span>
-                          <span className="font-bold text-emerald-600">+ R$ 24.441,00</span>
-                        </div>
-                        <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                          <div>
-                            <span className="block text-[10px] font-bold uppercase text-slate-400">Preço Mínimo Seguro</span>
-                            <span className="text-sm font-black text-rose-600">R$ 162.941,00</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="block text-[10px] font-bold uppercase text-slate-400">Lance Recomendado</span>
-                            <span className="text-sm font-black text-[#0070C0]">R$ 178.500,00</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <p className="text-[11px] text-slate-500 text-center font-medium">
-                        O robô e a sala de lances bloqueiam reduções abaixo do preço mínimo calculado.
-                      </p>
-                    </div>
-                  )}
-
-                  {activeTab === 'luli' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Bot className="h-4 w-4 text-[#0070C0]" />
-                          <span className="text-xs font-bold uppercase tracking-wide text-[#081C3A]">
-                            Assistente Luli • Especialista em Licitações
-                          </span>
-                        </div>
-                        <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-[11px] font-extrabold text-[#0070C0]">
-                          Online
-                        </span>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src="/assets/mascote-3d.png"
-                            alt="Assistente Luli"
-                            className="h-12 w-12 object-contain rounded-xl bg-white p-1 border border-slate-200 shadow-sm"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                          <div>
-                            <h4 className="text-xs font-bold text-[#081C3A]">Análise da Assistente Luli</h4>
-                            <p className="text-[11px] text-slate-500">Lei 14.133/2021 & Jurisprudência TCU</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-700 leading-relaxed pt-2 border-t border-slate-200">
-                          "Atenção ao Item 8.3: o órgão está exigindo atestado técnico de 60% do quantitativo. Pela Súmula 263 do TCU, o limite legal é de até 50%. Recomendo protocolar pedido de esclarecimento até quinta-feira."
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-                        <span>Fundamentação: TCU Acórdão 1211/2021</span>
-                        <span className="font-bold text-[#0070C0]">Peça Pronta</span>
-                      </div>
-                    </div>
-                  )}
+                {/* Badge Flutuante Inferior */}
+                <div className="absolute -bottom-4 -right-2 sm:-right-4 rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-xl backdrop-blur-sm flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0070C0]">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-[#081C3A]">Proteção de Margem</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Trava de lance sem prejuízo</p>
+                  </div>
                 </div>
               </div>
             </div>

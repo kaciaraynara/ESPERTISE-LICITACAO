@@ -728,8 +728,8 @@ export default function LicitacaoDetalhePage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as ActiveTab)}
                   className={`rounded-lg px-4 py-3 text-sm font-bold transition ${activeTab === tab.id
-                      ? tab.color
-                      : 'bg-white text-brand-blue/70 hover:bg-white'
+                    ? tab.color
+                    : 'bg-white text-brand-blue/70 hover:bg-white'
                     }`}
                 >
                   {tab.label}

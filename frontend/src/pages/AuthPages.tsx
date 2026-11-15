@@ -282,6 +282,7 @@ export function RegisterPage() {
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
 
   const [cnpj, setCnpj] = useState('');
   const [razaoSocial, setRazaoSocial] = useState('');
@@ -308,12 +309,20 @@ export function RegisterPage() {
       setErro('Informe um e-mail válido para acesso.');
       return;
     }
+    if (!senha) {
+      setErro('Por favor, crie uma senha segura para o seu acesso.');
+      return;
+    }
     if (senha.length < 8 || !/[A-Za-z]/.test(senha) || !/\d/.test(senha)) {
       setErro('A senha deve conter no mínimo 8 caracteres, com pelo menos uma letra e um número.');
       return;
     }
-    if (confirmarSenha && senha !== confirmarSenha) {
-      setErro('As senhas digitadas não coincidem.');
+    if (!confirmarSenha) {
+      setErro('Por favor, confirme a sua senha digitando-a novamente.');
+      return;
+    }
+    if (senha !== confirmarSenha) {
+      setErro('As senhas digitadas não coincidem. Confira e tente novamente.');
       return;
     }
 
@@ -603,34 +612,54 @@ export function RegisterPage() {
                     />
                   </div>
 
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      required
-                      type={mostrarSenha ? 'text' : 'password'}
-                      value={senha}
-                      onChange={(e) => setSenha(e.target.value)}
-                      placeholder="Criar senha (mín. 8 caracteres)"
-                      className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-[#0070C0]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setMostrarSenha((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-[#081C3A]">
+                      Criar senha <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        required
+                        type={mostrarSenha ? 'text' : 'password'}
+                        value={senha}
+                        onChange={(e) => setSenha(e.target.value)}
+                        placeholder="Digite sua senha (mínimo 8 caracteres)"
+                        className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-[#0070C0]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenha((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title={mostrarSenha ? 'Ocultar senha' : 'Ver senha'}
+                      >
+                        {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type={mostrarSenha ? 'text' : 'password'}
-                      value={confirmarSenha}
-                      onChange={(e) => setConfirmarSenha(e.target.value)}
-                      placeholder="Confirmar senha"
-                      className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#0070C0]"
-                    />
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-[#081C3A]">
+                      Confirmar senha <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        required
+                        type={mostrarConfirmarSenha ? 'text' : 'password'}
+                        value={confirmarSenha}
+                        onChange={(e) => setConfirmarSenha(e.target.value)}
+                        placeholder="Digite a mesma senha novamente para confirmar"
+                        className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-[#0070C0]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarConfirmarSenha((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title={mostrarConfirmarSenha ? 'Ocultar senha' : 'Ver senha'}
+                      >
+                        {mostrarConfirmarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
