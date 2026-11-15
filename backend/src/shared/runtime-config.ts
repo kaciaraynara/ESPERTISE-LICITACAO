@@ -19,11 +19,13 @@ export function getAllowedOrigins() {
     ...splitOrigins(process.env.FRONTEND_URL),
   ];
 
-  if (isProduction()) {
-    return [...new Set(configuredOrigins)];
-  }
+  const standardOrigins = [
+    'https://expertiselicitatoria.com.br',
+    'https://www.expertiselicitatoria.com.br',
+    ...DEFAULT_LOCAL_ORIGINS,
+  ];
 
-  return [...new Set([...configuredOrigins, ...DEFAULT_LOCAL_ORIGINS])];
+  return [...new Set([...configuredOrigins, ...standardOrigins])];
 }
 
 export function isOriginAllowed(origin?: string): boolean {
@@ -33,8 +35,8 @@ export function isOriginAllowed(origin?: string): boolean {
 
   const normalizedOrigin = origin.trim().replace(/\/$/, '');
 
-  // Permitir conexões locais em desenvolvimento
-  if (!isProduction() && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin)) {
+  // Sempre permitir conexões locais (localhost e 127.0.0.1 em qualquer porta)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(normalizedOrigin)) {
     return true;
   }
 
@@ -43,7 +45,7 @@ export function isOriginAllowed(origin?: string): boolean {
     return true;
   }
 
-  // Permitir deploys e previews da Vercel
+  // Permitir deploys e previews da Vercel (*.vercel.app)
   if (/^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(normalizedOrigin)) {
     return true;
   }

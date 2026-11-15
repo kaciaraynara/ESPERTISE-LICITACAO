@@ -16,31 +16,22 @@ import type {
 type RefreshRequestBody = { refreshToken?: string | null };
 
 export function resolveBaseUrl(): string {
-  let configured = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '');
+  const configured = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '');
   const isLocalHost =
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   // Ambiente local de desenvolvimento
   if (isLocalHost) {
-    if (configured && !configured.endsWith('/api/v1') && !configured.endsWith('/api')) {
-      return `${configured}/api/v1`;
-    }
     return configured || 'http://localhost:3001/api/v1';
   }
 
-  // Se uma URL remota foi explicitamente configurada (e não aponta para localhost)
+  // Em produção: nunca usar localhost nem rota relativa
   if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
-    // Normalização defensiva: se configurado https://espertise-licitacao.onrender.com sem /api/v1,
-    // concatena /api/v1 para casar com os endpoints do backend.
-    if (!configured.endsWith('/api/v1') && !configured.endsWith('/api')) {
-      return `${configured}/api/v1`;
-    }
     return configured;
   }
 
-  // Em produção no domínio próprio ou Vercel, usar o proxy reverso /api/v1
-  return '/api/v1';
+  return 'https://espertise-licitacao.onrender.com/api';
 }
 
 export const BASE_URL = resolveBaseUrl();
@@ -64,7 +55,10 @@ function requestSessionRefresh() {
       refreshToken: useAuthStore.getState().refreshToken,
     };
     refreshRequest = axios
-      .post<RefreshSessionPayload>(`${BASE_URL}/auth/refresh`, body, { withCredentials: true })
+      .post<RefreshSessionPayload>(`${BASE_URL}/auth/refresh`, body, {
+        withCredentials: true,
+        timeout: 45000,
+      })
       .finally(() => {
         refreshRequest = null;
       });

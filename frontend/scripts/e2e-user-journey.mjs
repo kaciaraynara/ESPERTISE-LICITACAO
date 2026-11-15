@@ -344,7 +344,7 @@ function startBackendApiServer(port = 3001) {
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', () => {
         let payload = {};
-        try { if (body) payload = JSON.parse(body); } catch {}
+        try { if (body) payload = JSON.parse(body); } catch { }
         handleApiRequest(req, res, pathname, payload);
       });
     });
@@ -380,7 +380,7 @@ function startFrontendServer(port = 4173) {
         req.on('data', (chunk) => { body += chunk; });
         req.on('end', () => {
           let payload = {};
-          try { if (body) payload = JSON.parse(body); } catch {}
+          try { if (body) payload = JSON.parse(body); } catch { }
           handleApiRequest(req, res, pathname, payload);
         });
         return;
@@ -473,7 +473,7 @@ async function runRealUserJourney() {
   // Step 1.1: Landing Page
   console.log('Testando 1.1: Landing Page (/)');
   await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
-  
+
   // Verify images loaded without broken src
   const brokenImages = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('img'))
@@ -490,7 +490,7 @@ async function runRealUserJourney() {
   // Step 1.2: Register
   console.log('\nTestando 1.2: Cadastro de Empresa (/register)');
   await page.goto('http://127.0.0.1:4173/register', { waitUntil: 'networkidle' });
-  
+
   // Check dual password fields exist on Step 1
   const senhaInputs = await page.locator('input[type="password"]').count();
   console.log('Campos de senha encontrados na etapa 1 do cadastro:', senhaInputs);
@@ -503,7 +503,7 @@ async function runRealUserJourney() {
   await page.locator('input[placeholder*="Nome completo"]').fill('Luis Antonio Gomes Paiva');
   await page.locator('input[placeholder*="Como prefere"]').fill('Luis Paiva');
   await page.locator('input[placeholder*="E-mail de acesso"]').fill('luis.teste@expertiselicitatoria.com.br');
-  
+
   const passwordInputs = page.locator('input[type="password"]');
   await passwordInputs.nth(0).fill('SenhaForte@2026');
   await passwordInputs.nth(1).fill('SenhaForte@2026');
@@ -515,7 +515,7 @@ async function runRealUserJourney() {
   // Preenche Etapa 2: CNPJ e Empresa
   console.log('Preenchendo Etapa 2: CNPJ e Dados da Empresa...');
   await page.locator('input[placeholder*="CNPJ"]').fill('33.000.167/0001-01');
-  
+
   const btnBuscarCnpj = page.getByRole('button', { name: /Buscar CNPJ/i });
   if (await btnBuscarCnpj.isVisible()) {
     await btnBuscarCnpj.click();
@@ -564,7 +564,7 @@ async function runRealUserJourney() {
   await page.locator('input[type="email"]').fill('luis.teste@expertiselicitatoria.com.br');
   await page.locator('input[type="password"]').fill('SenhaForte@2026');
   await page.getByRole('button', { name: /Entrar na Plataforma/i }).click();
-  await page.waitForURL('**/fornecedor/dashboard', { timeout: 10000 }).catch(() => {});
+  await page.waitForURL('**/fornecedor/dashboard', { timeout: 10000 }).catch(() => { });
   await page.waitForTimeout(1500);
   console.log('URL após login:', page.url());
 
@@ -647,7 +647,7 @@ async function runRealUserJourney() {
   if (await btnSalvar.isVisible()) {
     await btnSalvar.click();
     const btnSalvo = page.locator('button:has-text("Salvo p/ Proposta")').first();
-    await btnSalvo.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await btnSalvo.waitFor({ state: 'visible', timeout: 5000 }).catch(() => { });
     const salvoTexto = await btnSalvo.count();
     console.log('Edital salvo p/ Proposta:', salvoTexto > 0 ? '✓ Salvo com sucesso!' : 'FALHA');
 

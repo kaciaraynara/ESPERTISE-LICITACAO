@@ -2,7 +2,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import http from 'http';
 import jwt from 'jsonwebtoken';
 import { RoboSocketService, SetupRoboPayload, EstrategiaType } from './services/robo.service';
-import { getAllowedOrigins, getJwtSecret } from './shared/runtime-config';
+import { getAllowedOrigins, getJwtSecret, isOriginAllowed } from './shared/runtime-config';
 import { getBooleanEnv } from './config/env';
 import { calcularSimulacaoBdi } from './services/tax-bdi.service';
 import { PlaceBidPayload, BidRecord, SocketBidError } from './types/war-room.types';
@@ -33,11 +33,15 @@ function normalizeSocketUser(decoded: any): SocketUser {
  * Inclui o Cockpit de Lances e a Sala de Guerra com proteção de Stop-Loss.
  */
 export default function setupSockets(httpServer: http.Server) {
-  const allowedOrigins = getAllowedOrigins();
-
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('CORS_ORIGIN_DENIED'));
+        }
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
