@@ -438,6 +438,9 @@ export default function App() {
               element={protectFeature('inteligencia_concorrentes', 'Dossiê de Concorrentes', <InvestigacaoConcorrencialPage />)}
             />
             <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
+            <Route path="/fornecedor/relatorios-estrategicos" element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
+            <Route path="/fornecedor/prazos-alertas" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+            <Route path="/fornecedor/gestao-contratual" element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)} />
             <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
             <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
             <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
