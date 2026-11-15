@@ -120,34 +120,47 @@ function formatarData(dataStr?: string | null): string {
   });
 }
 
-function extrairPalavraChaveRamo(empresa: any): string {
-  // Priorizar texto descritivo real da atividade e nunca retornar códigos numéricos de CNAE
-  const textoBase =
-    empresa?.cnaeDescricao ||
-    empresa?.cnae_fiscal_descricao ||
-    empresa?.ramoAtividade ||
-    empresa?.atividadePrincipal ||
-    empresa?.ramo ||
-    '';
+function extrairPalavrasChaveCnaes(empresa: any): string[] {
+  const cnpjLimpo = String(empresa?.cnpj || '').replace(/\D/g, '');
+  let cnaesSalvos: string[] = [];
+  try {
+    const raw = cnpjLimpo ? localStorage.getItem(`@Expertise:cnaes_${cnpjLimpo}`) : null;
+    if (raw) cnaesSalvos = JSON.parse(raw);
+  } catch {}
 
-  if (!textoBase) return '';
+  const textos = [
+    empresa?.cnaeDescricao,
+    empresa?.ramoAtividade,
+    empresa?.cnaePrincipal,
+    empresa?.atividadePrincipal,
+    ...(Array.isArray(empresa?.cnaesSecundarios) ? empresa.cnaesSecundarios : []),
+    ...cnaesSalvos,
+  ].filter(Boolean);
 
   const stopWords = new Set([
-    'comercio', 'varejista', 'atacadista', 'servicos', 'artigos',
-    'outros', 'produtos', 'geral', 'ltda', 'me', 'epp', 'eireli',
-    'nao', 'especificados', 'anteriormente', 'de', 'da', 'do', 'dos', 'das', 'e', 'em', 'para',
-    'com', 'sem', 'sob', 'por', 'atividades', 'servico',
+    'comercio', 'varejista', 'atacadista', 'servicos', 'artigos', 'outros',
+    'produtos', 'geral', 'ltda', 'eireli', 'nao', 'especificados',
+    'anteriormente', 'para', 'outras', 'atividades', 'exceto', 'partes', 'pecas',
   ]);
 
-  const palavras = String(textoBase)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z\s]/g, ' ')
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((p) => p.length > 3 && !/^\d+$/.test(p) && !stopWords.has(p));
+  const unicas: string[] = [];
+  for (const t of textos) {
+    const palavras = String(t)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z\s]/g, ' ')
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((p) => p.length > 3 && !stopWords.has(p));
+    for (const p of palavras) {
+      if (!unicas.includes(p)) unicas.push(p);
+    }
+  }
+  return unicas.slice(0, 6);
+}
 
-  return palavras[0] || '';
+function extrairPalavraChaveRamo(empresa: any): string {
+  return extrairPalavrasChaveCnaes(empresa)[0] || '';
 }
 
 function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
@@ -277,8 +290,14 @@ export default function LicitacoesPage({
 
   useEffect(() => {
     carregarSalvos();
-    buscarEditais();
-  }, [carregarSalvos, buscarEditais]);
+    const termoInicial = extrairPalavraChaveRamo(selectedCompany);
+    if (termoInicial && !palavraChave) {
+      setPalavraChave(termoInicial);
+      buscarEditais(termoInicial);
+    } else {
+      buscarEditais();
+    }
+  }, [carregarSalvos, selectedCompany]);
 
   const handleSincronizarPncp = async () => {
     setSincronizando(true);

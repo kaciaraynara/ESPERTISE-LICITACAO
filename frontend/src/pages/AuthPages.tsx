@@ -262,6 +262,7 @@ export function RegisterPage() {
   const [razaoSocial, setRazaoSocial] = useState('');
   const [telefone, setTelefone] = useState('');
   const [setor, setSetor] = useState('');
+  const [cnaesLista, setCnaesLista] = useState<string[]>([]);
   const [aceite, setAceite] = useState(true);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -283,8 +284,15 @@ export function RegisterPage() {
       const dados = await resp.json();
       if (dados.razao_social) setRazaoSocial(dados.razao_social);
       if (dados.ddd_telefone_1) setTelefone(dados.ddd_telefone_1);
+      const todosCnaes = [
+        dados.cnae_fiscal_descricao ? `${dados.cnae_fiscal || ''} - ${dados.cnae_fiscal_descricao}`.trim() : '',
+        ...(Array.isArray(dados.cnaes_secundarios)
+          ? dados.cnaes_secundarios.map((c: any) => `${c.codigo || ''} - ${c.descricao || ''}`.trim())
+          : []),
+      ].filter(Boolean);
+      setCnaesLista(todosCnaes);
       if (dados.cnae_fiscal_descricao) setSetor(dados.cnae_fiscal_descricao);
-      setAvisoCnpj('Dados da empresa carregados automaticamente!');
+      setAvisoCnpj(`Empresa e ${todosCnaes.length || 1} CNAE(s) carregados automaticamente!`);
     } catch {
       setErro('Não foi possível consultar o CNPJ agora. Preencha os dados da empresa manualmente.');
     } finally {
@@ -334,6 +342,10 @@ export function RegisterPage() {
 
     setLoading(true);
     try {
+      const cnpjLimpo = cnpj.replace(/\D/g, '');
+      if (cnaesLista.length > 0 && cnpjLimpo) {
+        localStorage.setItem(`@Expertise:cnaes_${cnpjLimpo}`, JSON.stringify(cnaesLista));
+      }
       const resp = await authApi.register({
         nome: nome.trim(),
         email: email.trim(),
@@ -341,6 +353,8 @@ export function RegisterPage() {
         razaoSocial: razaoSocial.trim(),
         cnpj: cnpj.replace(/\D/g, ''),
         telefone: telefone.trim(),
+        cnaePrincipal: setor.trim(),
+        cnaesSecundarios: cnaesLista.slice(1),
       } as any);
 
       const data = resp?.data?.data || resp?.data || {};
