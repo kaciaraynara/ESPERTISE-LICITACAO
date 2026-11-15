@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
-import { crmApi } from '../../services/api';
+import { crmApi, propostasApi } from '../../services/api';
 import { useCompany } from '../../contexts/CompanyContext';
 import * as pdfGen from '../../utils/pdfGenerator';
 
@@ -147,7 +147,7 @@ export function PropostasPage() {
     [itens]
   );
 
-  const handleGerarPdf = () => {
+  const handleGerarPdf = async () => {
     const emp = selectedCompany as any;
     const gerarFn =
       (pdfGen as any).gerarPropostaComercialPdf ||
@@ -184,7 +184,41 @@ export function PropostasPage() {
     } else {
       window.print();
     }
-    setGeradoMsg('Proposta comercial gerada com sucesso!');
+
+    // Persiste proposta e itens no banco de dados real via backend
+    if (emp?.id) {
+      try {
+        const resp = await propostasApi.criarRascunho({
+          companyId: emp.id,
+          procurementNoticeId: editalEscolhidoId || undefined,
+          titulo: `Proposta Comercial - ${orgao || 'Órgão Licitante'} (${numeroProcesso || 'Processo'})`,
+          validadeDias,
+          prazoEntregaDias: 15,
+          bdiGeral: despesasPercentual,
+          margemMinimaSustentavel: margemPercentual,
+        });
+
+        const criada = (resp?.data as any)?.data;
+        if (criada?.id) {
+          for (const item of itens) {
+            await propostasApi.adicionarItem(criada.id, {
+              descricao: item.descricao || 'Item da Proposta',
+              unidade: item.unidade,
+              quantidade: item.quantidade,
+              precoUnitarioProposto: item.valorUnitario,
+              precoTotalProposto: item.quantidade * item.valorUnitario,
+              marca: item.marcaModelo,
+            }).catch(() => {});
+          }
+        }
+        setGeradoMsg('Proposta comercial salva no banco de dados e gerada em PDF com sucesso!');
+        return;
+      } catch {
+        // Fallback para confirmação visual caso backend esteja offline
+      }
+    }
+
+    setGeradoMsg('Proposta comercial gerada em PDF com sucesso!');
   };
 
   return (

@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
+import { marketplaceApi } from '../services/api';
 
 interface NotaFiscalAnexo {
   id: string;
@@ -167,17 +168,54 @@ export default function RedeFornecedoresPage() {
       const salvo = localStorage.getItem(storageKey);
       if (salvo) {
         const lista = JSON.parse(salvo);
-        if (Array.isArray(lista)) {
+        if (Array.isArray(lista) && lista.length > 0) {
           setFornecedores(lista);
           setSelecionadoId(lista[0]?.id || null);
-          return;
         }
       }
-      setFornecedores([]);
-      setSelecionadoId(null);
     } catch {
-      setFornecedores([]);
+      // Ignora erro de storage local
     }
+
+    // Sincroniza em segundo plano com o banco de dados oficial no backend
+    marketplaceApi
+      .listarFornecedores()
+      .then((resp) => {
+        const itensServidor = (resp.data as any)?.items || (resp.data as any)?.data || [];
+        if (Array.isArray(itensServidor) && itensServidor.length > 0) {
+          setFornecedores((atuais) => {
+            const existentesCnpjs = new Set(atuais.map((f) => f.cnpj.replace(/\D/g, '')));
+            const novosDoServidor: Fornecedor[] = itensServidor
+              .filter((item: any) => !existentesCnpjs.has(String(item.cnpj).replace(/\D/g, '')))
+              .map((item: any) => ({
+                id: item.id || String(Date.now()),
+                cnpj: formatarCnpj(item.cnpj || ''),
+                nome: item.razaoSocial || item.nomeFantasia || 'Fornecedor',
+                nomeFantasia: item.nomeFantasia || undefined,
+                especialidade: item.ramoAtividade || 'Materiais',
+                regiao: Array.isArray(item.regiaoAtendimento)
+                  ? item.regiaoAtendimento[0]
+                  : (item.regiaoAtendimento || 'Nordeste'),
+                cidadeUf: [item.municipio, item.uf].filter(Boolean).join(' - '),
+                contatoPrincipal: item.contato || 'Comercial',
+                telefone: item.telefone || '',
+                email: item.email || '',
+                observacoes: '',
+                categorias: [item.ramoAtividade || 'Materiais'],
+                anotacoes: '',
+                notasFiscais: [],
+              }));
+
+            const combinada = [...atuais, ...novosDoServidor];
+            localStorage.setItem(storageKey, JSON.stringify(combinada));
+            if (!selecionadoId && combinada.length > 0) {
+              setSelecionadoId(combinada[0].id);
+            }
+            return combinada;
+          });
+        }
+      })
+      .catch(() => {});
   }, [storageKey]);
 
   const pararCamera = () => {
@@ -395,12 +433,29 @@ export default function RedeFornecedoresPage() {
     e.preventDefault();
     if (!form.nome.trim()) return;
 
+    const cnpjLimpo = form.cnpj.replace(/\D/g, '') || '00000000000000';
+    const partesCidade = form.cidadeUf.split('-').map((s) => s.trim());
+    const municipio = partesCidade[0] || undefined;
+    const uf = (partesCidade[1]?.slice(0, 2) || '').toUpperCase() || undefined;
+
     if (editandoId) {
       const atualizada = fornecedores.map((f) =>
         f.id === editandoId ? { ...f, ...form, categorias: [form.especialidade] } : f
       );
       salvarLista(atualizada);
       setSelecionadoId(editandoId);
+
+      // Atualiza no banco de dados se for id do servidor
+      marketplaceApi
+        .atualizarFornecedor(editandoId, {
+          razaoSocial: form.nome,
+          nomeFantasia: form.nomeFantasia || null,
+          ramoAtividade: form.especialidade,
+          regiaoAtendimento: [form.regiao],
+          municipio: municipio || null,
+          uf: uf && uf.length === 2 ? uf : null,
+        })
+        .catch(() => {});
     } else {
       const novo: Fornecedor = {
         id: String(Date.now()),
@@ -411,6 +466,33 @@ export default function RedeFornecedoresPage() {
       const atualizada = [novo, ...fornecedores];
       salvarLista(atualizada);
       setSelecionadoId(novo.id);
+
+      // Salva no banco de dados do backend
+      marketplaceApi
+        .criarFornecedor({
+          cnpj: cnpjLimpo.length >= 11 ? cnpjLimpo : '00000000000191',
+          razaoSocial: form.nome,
+          nomeFantasia: form.nomeFantasia || null,
+          cnaePrincipal: '0000000',
+          ramoAtividade: form.especialidade || 'Materiais',
+          regiaoAtendimento: [form.regiao],
+          municipio: municipio || null,
+          uf: uf && uf.length === 2 ? uf : null,
+          notaReputacao: 5,
+          selosConformidade: [],
+          custoReferencia: null,
+          unidadeCusto: null,
+          ativo: true,
+        })
+        .then((resp) => {
+          const criado = (resp.data as any)?.data || (resp.data as any);
+          if (criado?.id) {
+            setFornecedores((prev) =>
+              prev.map((f) => (f.id === novo.id ? { ...f, id: criado.id } : f))
+            );
+          }
+        })
+        .catch(() => {});
     }
     setModalAberto(false);
   };

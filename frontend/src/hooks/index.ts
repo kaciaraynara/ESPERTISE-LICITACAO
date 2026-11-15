@@ -65,9 +65,21 @@ export function useLogout() {
   return async () => {
     try {
       await api.post('/auth/logout');
+    } catch {
+      // Ignorar erro se backend estiver offline ao deslogar
     } finally {
       logout();
-      navigate('/login');
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('user');
+        localStorage.removeItem('@Expertise:selectedCompany');
+        sessionStorage.clear();
+      } catch {
+        // Ignora erros de storage
+      }
+      navigate('/login', { replace: true });
       toast.success('Sessão encerrada');
     }
   };

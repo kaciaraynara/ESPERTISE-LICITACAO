@@ -9,8 +9,11 @@ import {
   Clock,
   Copy,
   Check,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
+import { lexApi } from '../services/api';
 
 export default function RecursosPage() {
   const { selectedCompany } = useCompany();
@@ -25,21 +28,64 @@ export default function RecursosPage() {
   const [etapaAnalise, setEtapaAnalise] = useState<1 | 2 | 3 | 4>(1);
   const [minutaGerada, setMinutaGerada] = useState('');
   const [copiado, setCopiado] = useState(false);
+  const [gerandoIa, setGerandoIa] = useState(false);
 
   const handleSelecionarArquivo = (file?: File) => {
     if (!file) return;
     setArquivoNome(file.name);
     setEtapaAnalise(2);
+
+    // Se for arquivo de texto, tenta extrair conteúdo para o campo de motivos
+    if (file.type.includes('text') || file.name.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (text) {
+          setMotivos((prev) => (prev ? `${prev}\n\n[Trecho extraído do arquivo]:\n${text.slice(0, 1500)}` : text.slice(0, 1500)));
+        }
+      };
+      reader.readAsText(file);
+    }
     setTimeout(() => setEtapaAnalise(3), 500);
   };
 
-  const handleGerarMinuta = (e: React.FormEvent) => {
+  const handleGerarMinuta = async (e: React.FormEvent) => {
     e.preventDefault();
+    setGerandoIa(true);
+
     const empresa = selectedCompany?.razaoSocial || 'Empresa Licitante Proponente';
     const cnpj = selectedCompany?.cnpj || 'CNPJ não informado';
     const compAny = selectedCompany as any;
     const endereco = compAny?.cidade ? `${compAny.cidade}/${compAny.estado || 'UF'}` : 'Sede da Empresa';
     const representante = compAny?.nome || compAny?.representanteLegal || 'Representante Legal';
+
+    let analiseIaPersonalizada = '';
+
+    try {
+      // Chama inteligência jurídica conectada ao backend com jurisprudência da Lei 14.133/2021
+      const resp = await lexApi.recurso({
+        motivoDesclassificacao: motivos || 'Inabilitação indevida ou desclassificação desproporcional da proposta',
+        contextoAdicional: `Órgão: ${orgao || 'Administração Licitante'}, Processo: ${numeroProcesso || 'Edital Oficial'}, Modalidade: ${modalidade}, Objeto: ${objeto}, Documento anexado: ${arquivoNome || 'Nenhum'}`.trim(),
+      });
+
+      const data = resp?.data as any;
+      if (data?.resposta || data?.content || data?.texto_recurso) {
+        analiseIaPersonalizada = String(data?.resposta || data?.content || data?.texto_recurso).trim();
+      }
+    } catch {
+      // Fallback seguro caso backend esteja temporariamente sem conexão com IA
+    } finally {
+      setGerandoIa(false);
+    }
+
+    const fundamentosJuridicos = analiseIaPersonalizada
+      ? analiseIaPersonalizada
+      : [
+          'A decisão combatida diverge da jurisprudência pacífica e consolidada do Tribunal de Contas da União (TCU) e da doutrina administrativista especializada:',
+          'a) Atestados de Qualificação Técnica: Conforme estabelece a Súmula nº 275 do TCU e o Artigo 67, § 2º da Lei 14.133/2021, é expressamente vedada a exigência de atestados com quantitativos superiores a 50% da parcela de maior relevância, configurando restrição indevida à ampla concorrência;',
+          'b) Demonstrações Contábeis e Índices de Liquidez: Na esteira da Súmula nº 263 do TCU e do Artigo 69 da Lei 14.133/2021, a comprovação da saúde financeira da licitante deve ater-se a índices usuais e razoáveis (Liquidez Geral, Liquidez Corrente e Solvência Geral maiores que 1,0), sendo vedada a fixação de exigências desproporcionais;',
+          'c) Princípio da Razoabilidade e Seleção da Proposta Mais Vantajosa: A jurisprudência do TCU (Acórdãos 1.211/2021-Plenário e 2.443/2021-Plenário) condena o formalismo exacerbado em desfavor da proposta mais vantajosa para o erário público.',
+        ].join('\n');
 
     const texto = [
       `ILUSTRÍSSIMO(A) SENHOR(A) PREGOEIRO(A) / AGENTE DE CONTRATAÇÃO DA COMISSÃO DE CONTRATAÇÃO`,
@@ -61,10 +107,7 @@ export default function RecursosPage() {
       motivos || 'Durante a condução do certame, verificou-se manifesto descompasso entre a decisão proferida e as regras objetivas e cogentes estabelecidas no Edital e no Termo de Referência, resultando em afronta direta ao princípio do julgamento objetivo (Art. 5º da Lei 14.133/2021).',
       '',
       '3. DO DIREITO E DA JURISPRUDÊNCIA DO TRIBUNAL DE CONTAS DA UNIÃO (TCU)',
-      'A decisão combatida diverge da jurisprudência pacífica e consolidada do Tribunal de Contas da União (TCU) e da doutrina administrativista especializada:',
-      'a) Atestados de Qualificação Técnica: Conforme estabelece a Súmula nº 275 do TCU e o Artigo 67, § 2º da Lei 14.133/2021, é expressamente vedada a exigência de atestados com quantitativos superiores a 50% da parcela de maior relevância, configurando restrição indevida à ampla concorrência;',
-      'b) Demonstrações Contábeis e Índices de Liquidez: Na esteira da Súmula nº 263 do TCU e do Artigo 69 da Lei 14.133/2021, a comprovação da saúde financeira da licitante deve ater-se a índices usuais e razoáveis (Liquidez Geral, Liquidez Corrente e Solvência Geral maiores que 1,0), sendo vedada a fixação de exigências desproporcionais;',
-      'c) Princípio da Razoabilidade e Seleção da Proposta Mais Vantajosa: A jurisprudência do TCU (Acórdãos 1.211/2021-Plenário e 2.443/2021-Plenário) condena o formalismo exacerbado em desfavor da proposta mais vantajosa para o erário público.',
+      fundamentosJuridicos,
       '',
       '4. DOS PEDIDOS',
       'Ante todo o exposto, pugna-se pelo conhecimento e provimento do presente Recurso Administrativo para que:',
@@ -227,9 +270,20 @@ export default function RecursosPage() {
               />
               <button
                 type="submit"
-                className="w-full rounded-full bg-[#0070C0] py-2.5 text-xs font-bold text-white transition hover:bg-[#005ea3]"
+                disabled={gerandoIa}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0070C0] py-2.5 text-xs font-bold text-white transition hover:bg-[#005ea3] disabled:opacity-60 cursor-pointer"
               >
-                Organizar minuta jurídica
+                {gerandoIa ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Redigindo fundamentação com inteligência jurídica...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Redigir Recurso / Impugnação</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

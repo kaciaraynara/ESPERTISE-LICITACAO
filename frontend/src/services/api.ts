@@ -392,6 +392,8 @@ export const lexApi = {
   proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
   analise: (body: { noticeId?: string; licitacaoId?: string; edital_id?: string }) => api.post('/lex/analise', body),
   impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
+  recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; noticeId?: string }) =>
+    api.post('/lex/recurso', body),
   chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
   exportarParecerPdf: (body: ExportarParecerPayload) =>

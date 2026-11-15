@@ -121,11 +121,13 @@ function formatarData(dataStr?: string | null): string {
 }
 
 function extrairPalavraChaveRamo(empresa: any): string {
+  // Priorizar texto descritivo real da atividade e nunca retornar códigos numéricos de CNAE
   const textoBase =
     empresa?.cnaeDescricao ||
+    empresa?.cnae_fiscal_descricao ||
     empresa?.ramoAtividade ||
-    empresa?.cnaePrincipal ||
     empresa?.atividadePrincipal ||
+    empresa?.ramo ||
     '';
 
   if (!textoBase) return '';
@@ -134,6 +136,7 @@ function extrairPalavraChaveRamo(empresa: any): string {
     'comercio', 'varejista', 'atacadista', 'servicos', 'artigos',
     'outros', 'produtos', 'geral', 'ltda', 'me', 'epp', 'eireli',
     'nao', 'especificados', 'anteriormente', 'de', 'da', 'do', 'dos', 'das', 'e', 'em', 'para',
+    'com', 'sem', 'sob', 'por', 'atividades', 'servico',
   ]);
 
   const palavras = String(textoBase)
@@ -142,7 +145,7 @@ function extrairPalavraChaveRamo(empresa: any): string {
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .toLowerCase()
     .split(/\s+/)
-    .filter((p) => p.length > 3 && !stopWords.has(p));
+    .filter((p) => p.length > 3 && !/^\d+$/.test(p) && !stopWords.has(p));
 
   return palavras[0] || '';
 }
