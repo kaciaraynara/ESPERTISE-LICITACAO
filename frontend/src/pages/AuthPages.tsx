@@ -121,7 +121,7 @@ export function LoginPage() {
             <span>EXPERTISE LICITATÓRIA</span>
           </Link>
           <Link
-            to="/cadastro"
+            to="/register"
             className="rounded-xl border border-[#0070C0] bg-white px-4 py-2 text-xs font-bold text-[#0070C0] transition hover:bg-blue-50"
           >
             Cadastrar minha empresa
@@ -261,7 +261,7 @@ export function LoginPage() {
 
             <p className="mt-6 text-center text-xs text-slate-500">
               Ainda não tem conta cadastrada?{' '}
-              <Link to="/cadastro" className="font-bold text-[#0070C0] hover:underline">
+              <Link to="/register" className="font-bold text-[#0070C0] hover:underline">
                 Cadastre sua empresa aqui
               </Link>
             </p>

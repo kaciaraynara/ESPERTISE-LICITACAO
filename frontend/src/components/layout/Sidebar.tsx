@@ -22,8 +22,6 @@ import {
   Gear,
   SignOut,
   CaretDown,
-  Users,
-  Buildings,
   type Icon,
 } from '@phosphor-icons/react';
 import { Pin, PinOff } from 'lucide-react';
@@ -46,9 +44,8 @@ export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.dashboard]: () => import('@/pages/DashboardPage'),
-  [FORNECEDOR_ROUTES.radar]: () => import('@/pages/LicitacoesPage'),
+  [FORNECEDOR_ROUTES.radar]: () => import('@/pages/RadarPage'),
   [FORNECEDOR_ROUTES.historico_concorrentes]: () => import('@/pages/HistoricoConcorrentesPage'),
-  ['/fornecedores']: () => import('@/pages/RedeFornecedoresPage'),
   [FORNECEDOR_ROUTES.disputa_ao_vivo]: () => import('@/pages/DisputaAoVivoPage'),
   [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
   [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
@@ -72,7 +69,6 @@ const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.relatorios_estrategicos]: () => import('@/pages/Relatorios/RelatoriosPage'),
   [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
   [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
-  [FORNECEDOR_ROUTES.empresa]: () => import('@/pages/EmpresaPage'),
 };
 
 export function prefetchRoute(path: string) {
@@ -239,7 +235,7 @@ export interface StrategicHubConfig {
   items: StrategicSubItem[];
 }
 
-export const STRATEGIC_HUBS: StrategicHubConfig[] = [
+const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
     id: 'radar',
     label: 'Radar & Oportunidades',
@@ -248,7 +244,6 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
-      { path: '/fornecedores', label: 'Rede de Fornecedores', icon: Users, requiredFeature: 'fornecedores' },
     ],
   },
   {
@@ -259,8 +254,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     items: [
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.propostas, label: 'Fábrica de Propostas', icon: FileText, requiredFeature: 'fabrica_propostas' },
-      { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Serviços', icon: Receipt, requiredFeature: 'catalogo_produtos' },
+      { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
   },
@@ -271,11 +265,11 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Scales,
     items: [
       { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Análise Especializada do Edital', icon: Brain, requiredFeature: 'luli_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Análise com o Luli', icon: Brain, requiredFeature: 'luli_ia_avancada' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
-      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU & Manuais', icon: GraduationCap, requiredFeature: 'academia_licitante' },
+      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },
   {
@@ -287,7 +281,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos (Cofre)', icon: Vault, requiredFeature: 'Meus Documentos' },
+      { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos', icon: Vault, requiredFeature: 'Meus Documentos' },
       { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
       { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
       { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
@@ -315,18 +309,15 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
       onMouseEnter={() => prefetchRoute(item.path)}
       aria-current={active ? 'page' : undefined}
       title={isCollapsed ? item.label : undefined}
-      className={`group relative flex items-center ${
-        isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
-      } rounded-lg text-xs font-semibold transition-all duration-150 ${
-        active
-          ? 'bg-[#FF6600]/15 text-white font-bold border-l-2 border-[#FF6600]'
+      className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
+        } rounded-lg text-xs font-semibold transition-all duration-150 ${active
+          ? 'bg-brand-orange/15 text-white font-bold border-l-2 border-brand-orange'
           : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
-      }`}
+        }`}
     >
       <Icon
-        className={`h-4.5 w-4.5 shrink-0 transition-colors ${
-          active ? 'text-[#FF6600]' : 'text-slate-400 group-hover:text-slate-200'
-        }`}
+        className={`h-4.5 w-4.5 shrink-0 transition-colors ${active ? 'text-brand-orange' : 'text-slate-400 group-hover:text-slate-200'
+          }`}
         weight={active ? 'fill' : 'regular'}
         aria-hidden="true"
       />
@@ -364,27 +355,24 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
         }}
         title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
-        className={`w-full group relative flex items-center ${
-          isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-        } rounded-xl text-left transition-all duration-200 cursor-pointer ${
-          isAnyChildActive
-            ? 'bg-white/[0.08] text-white border border-[#0070C0]/30 shadow-sm'
+        className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+          } rounded-xl text-left transition-all duration-200 cursor-pointer ${isAnyChildActive
+            ? 'bg-white/[0.08] text-white border border-brand-blue/30 shadow-sm'
             : 'text-slate-300 hover:bg-white/[0.05] hover:text-white border border-transparent'
-        }`}
+          }`}
       >
         {isAnyChildActive && (
           <span
-            className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-[#FF6600]"
+            className="absolute left-0 inset-y-1.5 w-1 rounded-r-full bg-brand-orange"
             aria-hidden="true"
           />
         )}
 
         <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${
-            isAnyChildActive
-              ? 'bg-[#FF6600] text-white shadow-md shadow-[#FF6600]/20'
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105 ${isAnyChildActive
+              ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
               : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
-          }`}
+            }`}
         >
           <Icon className="h-4.5 w-4.5" weight={isAnyChildActive ? 'bold' : 'regular'} />
         </div>
@@ -402,9 +390,8 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
 
         {!isCollapsed && (
           <CaretDown
-            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${
-              isExpanded ? 'rotate-180 text-white' : ''
-            }`}
+            className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : ''
+              }`}
             weight="bold"
           />
         )}
@@ -439,13 +426,13 @@ export default function Sidebar() {
   const isTrialActive = isUserTrialActive(user);
   const trialDaysLeft = getTrialDaysLeft(user);
   const logout = useLogout();
-  const displayName = getUserDisplayName(user, user?.nome || 'Usuário');
+  const displayName = getUserDisplayName(user, 'Executivo');
   const currentPlanTier = resolveUserPlanTier(user);
   const currentPlanLabel = getPlanDisplayLabel(currentPlanTier);
 
   const [isPinned, setIsPinned] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('expertise_sidebar_pinned') !== 'false';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('expertise_sidebar_pinned') === 'true';
   });
 
   const [isHovered, setIsHovered] = useState(false);
@@ -519,9 +506,8 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`shrink-0 transition-[width] duration-[380ms] ${
-          isPinned ? 'w-68' : 'w-16'
-        }`}
+        className={`shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
+          }`}
         aria-hidden="true"
       />
 
@@ -539,23 +525,19 @@ export default function Sidebar() {
         style={{
           transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
         }}
-        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-[#081C3A] text-white select-none ${
-          isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
-        }`}
-      >
-        {/* Header com Logo Oficial */}
-        <div
-          className={`border-b border-white/10 py-3.5 transition-all duration-300 ${
-            isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
           }`}
+      >
+        <div
+          className={`border-b border-white/10 py-3.5 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+            }`}
         >
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
-              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-[#FF6600] ${
-                isCollapsed ? 'justify-center' : 'gap-2.5'
-              }`}
+              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-2.5'
+                }`}
               aria-label="EXPERTISE Licitatória — Página Inicial"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-md">
@@ -572,11 +554,10 @@ export default function Sidebar() {
               <button
                 type="button"
                 onClick={togglePin}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                  isPinned
-                    ? 'bg-[#FF6600] text-white shadow-xs'
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isPinned
+                    ? 'bg-brand-orange text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
+                  }`}
                 title={isPinned ? 'Desafixar menu (recolher automaticamente)' : 'Fixar menu aberto'}
                 aria-label={isPinned ? 'Desafixar menu' : 'Fixar menu'}
               >
@@ -586,15 +567,13 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Card de Usuário / Plano */}
         <div
-          className={`border-b border-white/10 py-3 transition-all duration-300 ${
-            isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
-          }`}
+          className={`border-b border-white/10 py-3 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+            }`}
         >
           <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
             <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FF6600] text-xs font-black text-white shadow-sm"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-xs font-black text-white shadow-sm"
               title={isCollapsed ? displayName : undefined}
             >
               {displayName.charAt(0).toUpperCase() || 'E'}
@@ -602,9 +581,9 @@ export default function Sidebar() {
             {!isCollapsed && (
               <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
                 <p className="truncate text-xs font-black text-white">{displayName}</p>
-                <p className="truncate text-[10px] font-bold text-[#FF6600]">
+                <p className="truncate text-[10px] font-bold text-brand-orange">
                   {isTrialActive
-                    ? `Acesso Operacional (${trialDaysLeft}d)`
+                    ? `Teste Gratuito (${trialDaysLeft}d)`
                     : currentPlanLabel}
                 </p>
               </div>
@@ -612,25 +591,21 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Navegação Principal por Hubs Estratégicos */}
         <nav
           data-tour="strategic-hubs"
-          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${
-            isCollapsed ? 'px-1.5' : 'px-3'
-          }`}
+          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${isCollapsed ? 'px-1.5' : 'px-3'
+            }`}
         >
           <div className="mb-2">
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
               title={isCollapsed ? 'Página Inicial' : undefined}
-              className={`group relative flex items-center ${
-                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
-              } rounded-xl font-bold transition-all duration-150 ${
-                isDashboardActive
-                  ? 'bg-[#FF6600] text-white shadow-md shadow-[#FF6600]/20'
+              className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+                } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
+                  ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
                   : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-              }`}
+                }`}
             >
               <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
               {!isCollapsed && (
@@ -643,7 +618,7 @@ export default function Sidebar() {
 
           {!isCollapsed && (
             <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
-              Módulos Operacionais
+              Centrais Estratégicas
             </p>
           )}
 
@@ -661,27 +636,13 @@ export default function Sidebar() {
 
           <div className="my-2.5 border-t border-white/10" />
 
-          {/* Atalhos de Conta e Empresa */}
           <div className="space-y-1">
-            <Link
-              to={FORNECEDOR_ROUTES.empresa}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.empresa)}
-              title={isCollapsed ? 'Minha Empresa' : undefined}
-              className={`flex items-center ${
-                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-            >
-              <Buildings className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-              {!isCollapsed && <span className="transition-opacity duration-300">Minha Empresa</span>}
-            </Link>
-
             <Link
               to={FORNECEDOR_ROUTES.planos}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.planos)}
               title={isCollapsed ? 'Planos & Assinatura' : undefined}
-              className={`flex items-center ${
-                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
             >
               <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
               {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
@@ -691,9 +652,8 @@ export default function Sidebar() {
               to={FORNECEDOR_ROUTES.configuracoes}
               onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.configuracoes)}
               title={isCollapsed ? 'Configurações' : undefined}
-              className={`flex items-center ${
-                isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-              } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
+              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
             >
               <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
               {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
@@ -701,19 +661,16 @@ export default function Sidebar() {
           </div>
         </nav>
 
-        {/* Rodapé com Logout */}
         <div
-          className={`border-t border-white/10 p-3 transition-all duration-300 ${
-            isCollapsed ? 'flex justify-center' : ''
-          }`}
+          className={`border-t border-white/10 p-3 transition-all duration-300 ${isCollapsed ? 'flex justify-center' : ''
+            }`}
         >
           <button
             type="button"
             onClick={() => void logout()}
             title={isCollapsed ? 'Encerrar sessão' : undefined}
-            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${
-              isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
-            }`}
+            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
+              }`}
           >
             <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
             {!isCollapsed && (
