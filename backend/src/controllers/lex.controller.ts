@@ -14,6 +14,91 @@ import {
 } from '../services/ai.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 
+async function fetchPncpLinkContext(texto: string): Promise<string> {
+  const urlMatch = texto.match(/pncp\.gov\.br\/app\/editais\/(\d{14})\/(\d{4})\/(\d+)/i);
+  const ctrlMatch = texto.match(/(\d{14})-\d+-(\d+)\/(\d{4})/);
+  const cnpj = urlMatch?.[1] || ctrlMatch?.[1];
+  const ano = urlMatch?.[2] || ctrlMatch?.[3];
+  const seq = urlMatch?.[3] || (ctrlMatch?.[2] ? String(Number(ctrlMatch[2])) : undefined);
+  if (!cnpj || !ano || !seq) return '';
+
+  try {
+    const baseCompra = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}`;
+    const baseItens = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/itens`;
+    const baseArqs = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/arquivos`;
+
+    const [compraRes, itensRes, arqsRes] = await Promise.allSettled([
+      fetch(baseCompra, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
+      fetch(baseItens, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
+      fetch(baseArqs, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
+    ]);
+
+    if (compraRes.status !== 'fulfilled' || !compraRes.value.ok) return '';
+    const compra: any = await compraRes.value.json();
+    const itens: any[] = itensRes.status === 'fulfilled' && itensRes.value.ok ? await itensRes.value.json().catch(() => []) : [];
+    const arqs: any[] = arqsRes.status === 'fulfilled' && arqsRes.value.ok ? await arqsRes.value.json().catch(() => []) : [];
+
+    const itensResumo = Array.isArray(itens) && itens.length > 0
+      ? itens.slice(0, 12).map((it: any, i: number) => `  ${i + 1}. ${it.descricao || it.materialOuServicoNome || 'Item'} | Qtd: ${it.quantidade ?? '-'} ${it.unidadeMedida || ''} | Ref.: R$ ${it.valorUnitarioEstimado ?? '-'}`).join('\n')
+      : '  Itens não listados separadamente na API.';
+
+    const arqsResumo = Array.isArray(arqs) && arqs.length > 0
+      ? arqs.slice(0, 5).map((a: any) => `  - ${a.titulo || a.tipoDocumentoNome || 'Documento'}: ${a.url || ''}`).join('\n')
+      : '  Sem anexos listados.';
+
+    return `\n[DADOS OFICIAIS OBTIDOS DO PNCP PARA O LINK INFORMADO]
+Número Controle PNCP: ${compra.numeroControlePNCP || ''}
+Órgão: ${compra.orgaoEntidade?.razaoSocial || ''} (CNPJ: ${cnpj}) - ${compra.unidadeOrgao?.municipioNome || ''}/${compra.unidadeOrgao?.ufSigla || ''}
+Modalidade: ${compra.modalidadeNome || ''} | Modo de Disputa: ${compra.modoDisputaNome || ''} | SRP: ${compra.srp ? 'Sim' : 'Não'}
+Objeto: ${compra.objetoCompra || ''}
+Informação Complementar: ${compra.informacaoComplementar || 'Nenhuma'}
+Valor Total Estimado: R$ ${compra.valorTotalEstimado ?? 'Não informado'}
+Publicação: ${compra.dataPublicacaoPncp || ''} | Abertura Propostas: ${compra.dataAberturaProposta || ''} | Encerramento: ${compra.dataEncerramentoProposta || ''}
+Portal Origem: ${compra.linkSistemaOrigem || compra.usuarioNome || ''}
+Principais Itens:
+${itensResumo}
+Arquivos/Anexos Oficiais:
+${arqsResumo}`;
+  } catch {
+    return '';
+  }
+}
+
+async function fetchRadarSearchContext(pergunta: string): Promise<string> {
+  const lower = pergunta.toLowerCase();
+  if (!/(encontre|buscar|procurar|quais editais|licitacoes|licitações|editais abertos|vicios|vícios|ceara|ceará|oportunidades)/i.test(lower)) {
+    return '';
+  }
+  try {
+    const avisos = await prisma.procurementNotice.findMany({
+      where: {
+        OR: [
+          { closingAt: { gte: new Date() } },
+          { closingAt: null },
+        ],
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 8,
+      select: {
+        noticeNumber: true,
+        buyerName: true,
+        uf: true,
+        modality: true,
+        object: true,
+        estimatedValue: true,
+        closingAt: true,
+        url: true,
+      },
+    });
+    if (!avisos.length) return '';
+    return '\n[EDITAIS REAIS ABERTOS NA BASE SINCRONIZADA DO RADAR]\n' + avisos.map((a, idx) =>
+      `${idx + 1}. ${a.buyerName} (${a.uf || 'BR'}) - ${a.modality || 'Pregão'} | Objeto: ${(a.object || '').slice(0, 140)} | Valor: ${a.estimatedValue ? 'R$ ' + Number(a.estimatedValue).toLocaleString('pt-BR') : 'Consultar'} | Encerramento: ${a.closingAt ? new Date(a.closingAt).toLocaleDateString('pt-BR') : 'Ver edital'} | Link: ${a.url || 'https://pncp.gov.br'}`
+    ).join('\n');
+  } catch {
+    return '';
+  }
+}
+
 async function buildCompanyOperationalRadar(companyId?: string): Promise<string> {
   if (!companyId) return '';
   try {
@@ -120,7 +205,11 @@ export class LexController {
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
       if (!resolvedId && stream === false) {
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
-        const companyRadar = await buildCompanyOperationalRadar((req.user as any)?.companyId);
+        const [companyRadar, pncpLinkData, radarSearchData] = await Promise.all([
+          buildCompanyOperationalRadar((req.user as any)?.companyId),
+          fetchPncpLinkContext(pergunta),
+          fetchRadarSearchContext(pergunta),
+        ]);
         const systemPrompt = `Você é a Luli, consultora especialista em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos e jurídico licitatório na plataforma Expertise Licitatória.
 Regras obrigatórias de estilo:
 - Fale como uma pessoa real e colega de trabalho: natural, simpática, direta e objetiva. Nada de respostas longas ou listas genéricas sem necessidade.
@@ -128,7 +217,7 @@ Regras obrigatórias de estilo:
 - NUNCA comente que o chat se repetiu, nunca peça desculpas por falhas antigas e nunca repita o nome jurídico/razão social completo da empresa em toda resposta.
 - NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, Cache, KPI) nem tags como [Fato da fonte].
 - Nunca invente dados, datas, valores ou editais. Quando responder sobre licitação ou imposto, vá direto ao ponto prático.
-Contexto da tela atual: ${documentText || 'Painel principal'}
+Contexto da tela atual: ${documentText || 'Painel principal'}${pncpLinkData}${radarSearchData}
 ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados sempre que o usuário perguntar sobre certidões, prazos, alertas ou créditos, ou quando houver urgência prática):\n${companyRadar}` : ''}`;
 
         const cleanHistory = (messages || [])
