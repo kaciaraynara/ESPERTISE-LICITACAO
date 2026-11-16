@@ -993,7 +993,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
             <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end print:hidden">
               <button
                 type="button"
-                onClick={handleBaixarPdf}
+                onClick={baixarResumoTimbradoPdf}
                 className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
@@ -1428,7 +1428,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleBaixarPdf}
+                  onClick={baixarResumoTimbradoPdf}
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-brand-blue" />
