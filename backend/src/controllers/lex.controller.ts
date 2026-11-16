@@ -203,11 +203,11 @@ export class LexController {
       };
       const groundingContext = buildGroundingContext(req);
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
-      if (!resolvedId && stream === false) {
+      if (stream === false) {
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
         const [companyRadar, pncpLinkData, radarSearchData] = await Promise.all([
           buildCompanyOperationalRadar((req.user as any)?.companyId),
-          fetchPncpLinkContext(pergunta),
+          fetchPncpLinkContext(resolvedId ? `${pergunta} ${resolvedId}` : pergunta),
           fetchRadarSearchContext(pergunta),
         ]);
         const systemPrompt = `Você é a Luli, consultora especialista em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos e jurídico licitatório na plataforma Expertise Licitatória.
