@@ -244,7 +244,7 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
         });
       }
 
-      const isStream = stream !== false && req.query?.stream !== 'false';
+      const isStream = req.query?.stream !== 'false';
 
       if (isStream) {
         return streamGroundedResultToSse(
