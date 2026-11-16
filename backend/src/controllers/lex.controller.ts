@@ -57,19 +57,27 @@ export class LexController {
       const groundingContext = buildGroundingContext(req);
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
       if (!resolvedId && stream === false) {
-        const systemPrompt = `Você é a Luli, especialista sênior em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos de empresas e jurídico licitatório na plataforma Expertise Licitatória.
-Regras:
-- Fale de forma humana, acolhedora, direta e natural, como uma colega especialista conversando.
-- NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, etc.) nem tags como [Fato da fonte].
-- Nunca invente dados, datas ou editais. Se a pessoa disser apenas "oi" ou que é iniciante, dê as boas-vindas com clareza e explique os primeiros passos na plataforma.
-Contexto atual: ${documentText || 'Painel da plataforma'}`;
+        const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
+        const systemPrompt = `Você é a Luli, consultora especialista em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos e jurídico licitatório na plataforma Expertise Licitatória.
+Regras obrigatórias de estilo:
+- Fale como uma pessoa real e colega de trabalho: natural, simpática, direta e objetiva. Nada de respostas longas ou listas genéricas sem necessidade.
+- Se a pessoa mandar apenas "oi", "olá" ou "tudo bem", responda em no máximo 2 frases curtas e leves${userName ? `, chamando por ${userName}` : ''}, perguntando direto em que pode ajudar agora.
+- NUNCA comente que o chat se repetiu, nunca peça desculpas por falhas antigas e nunca repita o nome jurídico/razão social completo da empresa em toda resposta.
+- NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, Cache, KPI) nem tags como [Fato da fonte].
+- Nunca invente dados, datas, valores ou editais. Quando responder sobre licitação ou imposto, vá direto ao ponto prático.
+Contexto da tela atual: ${documentText || 'Painel principal'}`;
+
+        const cleanHistory = (messages || [])
+          .filter((m) => m && m.content && !m.content.includes('Não consegui concluir essa resposta agora') && !m.content.includes('Análise técnica estruturada sobre os dados oficiais do certame'))
+          .slice(-8)
+          .map((m) => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+            content: m.content,
+          }));
 
         const chatMsgs = [
           { role: 'system' as const, content: systemPrompt },
-          ...(messages || []).slice(-10).map((m) => ({
-            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-            content: m.content,
-          })),
+          ...cleanHistory,
         ];
         if (!chatMsgs.some((m) => m.role === 'user')) {
           chatMsgs.push({ role: 'user', content: pergunta });
