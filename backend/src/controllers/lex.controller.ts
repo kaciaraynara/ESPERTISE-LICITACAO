@@ -14,6 +14,68 @@ import {
 } from '../services/ai.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 
+async function buildCompanyOperationalRadar(companyId?: string): Promise<string> {
+  if (!companyId) return '';
+  try {
+    const now = new Date();
+    const in15Days = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const [certsRes, deadlinesRes, creditsRes] = await Promise.allSettled([
+      prisma.companyCertificate.findMany({
+        where: { companyId, expirationDate: { lte: in15Days } },
+        orderBy: { expirationDate: 'asc' },
+        take: 10,
+      }),
+      prisma.deadline.findMany({
+        where: { companyId, status: 'OPEN', dueAt: { lte: in7Days } },
+        orderBy: { dueAt: 'asc' },
+        take: 10,
+      }),
+      prisma.taxCreditOpportunity.findMany({
+        where: { companyId, status: { in: ['POTENTIAL', 'VALIDATED'] } },
+        orderBy: { selicUpdatedAmount: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    const lines: string[] = [];
+
+    if (certsRes.status === 'fulfilled' && certsRes.value.length > 0) {
+      const certList = certsRes.value
+        .map((c) => `${c.type} (vence em ${new Date(c.expirationDate).toLocaleDateString('pt-BR')} - status ${c.status})`)
+        .join('; ');
+      lines.push(`- Certidões vencidas ou vencendo em até 15 dias: ${certList}`);
+    } else {
+      lines.push('- Certidões: nenhuma certidão cadastrada com vencimento nos próximos 15 dias.');
+    }
+
+    if (deadlinesRes.status === 'fulfilled' && deadlinesRes.value.length > 0) {
+      const dlList = deadlinesRes.value
+        .map((d) => `${d.title} (${new Date(d.dueAt).toLocaleString('pt-BR')})`)
+        .join('; ');
+      lines.push(`- Prazos e alertas de entrega/sessão nos próximos 7 dias: ${dlList}`);
+    } else {
+      lines.push('- Prazos de entrega/proposta: nenhum prazo aberto nos próximos 7 dias.');
+    }
+
+    if (creditsRes.status === 'fulfilled' && creditsRes.value.length > 0) {
+      const total = creditsRes.value.reduce((acc, item) => acc + Number(item.selicUpdatedAmount || item.principalAmount || 0), 0);
+      const resumoCreditos = creditsRes.value
+        .slice(0, 3)
+        .map((c) => `${c.taxType} (${c.originCategory}): R$ ${Number(c.selicUpdatedAmount || c.principalAmount || 0).toFixed(2)}`)
+        .join('; ');
+      lines.push(`- Créditos tributários identificados para a empresa: total aproximado de R$ ${total.toFixed(2)} (${resumoCreditos})`);
+    } else {
+      lines.push('- Créditos tributários: nenhum crédito registrado até o momento no módulo fiscal.');
+    }
+
+    return lines.join('\n');
+  } catch {
+    return '';
+  }
+}
+
 export class LexController {
   private readonly grounding: AiGroundingService;
 
@@ -58,6 +120,7 @@ export class LexController {
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
       if (!resolvedId && stream === false) {
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
+        const companyRadar = await buildCompanyOperationalRadar((req.user as any)?.companyId);
         const systemPrompt = `Você é a Luli, consultora especialista em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos e jurídico licitatório na plataforma Expertise Licitatória.
 Regras obrigatórias de estilo:
 - Fale como uma pessoa real e colega de trabalho: natural, simpática, direta e objetiva. Nada de respostas longas ou listas genéricas sem necessidade.
@@ -65,7 +128,8 @@ Regras obrigatórias de estilo:
 - NUNCA comente que o chat se repetiu, nunca peça desculpas por falhas antigas e nunca repita o nome jurídico/razão social completo da empresa em toda resposta.
 - NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, Cache, KPI) nem tags como [Fato da fonte].
 - Nunca invente dados, datas, valores ou editais. Quando responder sobre licitação ou imposto, vá direto ao ponto prático.
-Contexto da tela atual: ${documentText || 'Painel principal'}`;
+Contexto da tela atual: ${documentText || 'Painel principal'}
+${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados sempre que o usuário perguntar sobre certidões, prazos, alertas ou créditos, ou quando houver urgência prática):\n${companyRadar}` : ''}`;
 
         const cleanHistory = (messages || [])
           .filter((m) => m && m.content && !m.content.includes('Não consegui concluir essa resposta agora') && !m.content.includes('Análise técnica estruturada sobre os dados oficiais do certame'))
@@ -200,9 +264,7 @@ Contexto da tela atual: ${documentText || 'Painel principal'}`;
       const noticeId = resolveNoticeId(req);
       const result = await this.grounding.runLex(
         {
-          pergunta: `Liste insumos para proposta comercial de ${
-            nome_empresa || 'empresa licitante'
-          } somente com base no edital recuperado. Não invente preço, margem ou requisito ausente.`,
+          pergunta: `Elabore uma proposta comercial e técnica altamente fundamentada para ${nome_empresa || 'a empresa licitante'}, amarrada exclusivamente aos itens, especificações técnicas, prazos de entrega, local, garantia, validade e exigências reais do edital recuperado. Nunca use texto genérico e nunca invente preço ou requisito ausente.`,
           noticeId,
           purpose: 'lex_proposta_insumos_grounded',
           metadata: { endpoint: '/lex/proposta', nomeEmpresa: nome_empresa ?? null },
@@ -212,14 +274,7 @@ Contexto da tela atual: ${documentText || 'Painel principal'}`;
 
       const rawText = (result.resposta || result.content || '').trim();
       const extra = {
-        estrategia_precificacao: 'Estratégia baseada no teto estimado do edital e margem líquida sustentável',
-        margem_sugerida: '12% a 18% líquida',
-        proposta_comercial: rawText || 'Proposta comercial estruturada conforme exigências do edital',
-        pontos_destaque: [
-          'Atendimento integral às especificações técnicas',
-          'Prazo de entrega rigorosamente compatível com o termo de referência',
-          'Garantia legal e suporte operacional inclusos',
-        ],
+        proposta_comercial: rawText || 'Não foi possível estruturar a proposta porque o texto completo do edital não foi recuperado.',
       };
 
       return groundedResponse(res, result, extra);
@@ -246,10 +301,7 @@ Contexto da tela atual: ${documentText || 'Painel principal'}`;
 
       const rawText = (result.resposta || result.content || '').trim();
       const extra = {
-        tese_central: 'Inconformidade ou excesso de rigor em exigência editalícia',
-        fundamentos: ['Art. 9º, I, da Lei 14.133/2021 (Vedação a cláusulas restritivas de competitividade)', 'Súmula 222 do TCU'],
-        pedidos: ['Recebimento da presente impugnação tempestiva', 'Retificação do edital com republicação do prazo'],
-        texto_impugnacao: rawText || 'Minuta jurídica fundamentada conforme disposições da Lei 14.133/2021.',
+        texto_impugnacao: rawText || 'Não foi possível gerar a análise de impugnação sem os trechos do edital.',
       };
 
       return groundedResponse(res, result, extra);
