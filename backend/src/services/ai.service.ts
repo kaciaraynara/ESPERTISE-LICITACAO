@@ -36,12 +36,7 @@ export interface ChatProviderOptions {
   onChunk?: (chunk: string) => void | Promise<void>;
 }
 
-export const FALLBACK_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-];
+export const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-pro'];
 
 const VALID_GEMINI_MODELS = FALLBACK_MODELS;
 
