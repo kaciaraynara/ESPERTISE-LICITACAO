@@ -84,6 +84,7 @@ export default function DashboardPage() {
     user?.apelido?.trim() ||
     user?.nome?.trim() ||
     'Sua Empresa';
+  void nomeEmpresa;
 
   // 4 Indicadores Reais do dashboardApi.getMetrics()
   const editaisCompativeis =
@@ -139,7 +140,7 @@ export default function DashboardPage() {
               <span>Painel da Empresa Ativa</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-black text-[#081C3A] tracking-tight">
-              Olá, {nomeEmpresa}!
+              Olá, {user?.nome ? user.nome.split(' ')[0] : 'Empreendedor'}!
             </h1>
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
               Central de comando das suas licitações públicas. Acompanhe seus indicadores em tempo real e avance com segurança na Lei 14.133/2021.
