@@ -183,6 +183,91 @@ export default function DossieEditalModal({
   const [analiseLuli, setAnaliseLuli] = useState<string | null>(null);
   const [carregandoLuli, setCarregandoLuli] = useState(false);
 
+  const baixarResumoTimbradoPdf = () => {
+    if (!edital) return;
+    const logoUrl = `${window.location.origin}/assets/logo-expertise.png`;
+    const orgao = edital.orgao || edital.nomeOrgao || 'Órgão Licitante';
+    const objeto = edital.objetoCompra || edital.objeto || '';
+    const numero = edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id;
+    const valor = valorTotalExibido ? Number(valorTotalExibido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Consultar no edital';
+    const itensRows = itens.slice(0, 40).map((it: any, idx: number) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.numeroItem || it.numero || idx + 1}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.descricao || it.description || '-'}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${it.quantidade || it.quantity || '-'}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.unidadeMedida || it.unidade || '-'}</td>
+        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${it.valorUnitarioEstimado ? Number(it.valorUnitarioEstimado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Resumo Estratégico - ${numero}</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; line-height: 1.5; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #081C3A; padding-bottom: 14px; margin-bottom: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand img { height: 46px; width: auto; object-fit: contain; }
+    .brand-title { font-size: 16px; font-weight: 800; color: #081C3A; letter-spacing: 0.4px; }
+    .brand-sub { font-size: 11px; color: #64748b; }
+    .doc-tag { background: #081C3A; color: #ffffff; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    h2 { font-size: 13px; text-transform: uppercase; color: #081C3A; border-left: 4px solid #D4AF37; padding-left: 8px; margin: 18px 0 8px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; }
+    .box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+    th { background: #081C3A; color: #ffffff; text-align: left; padding: 8px; }
+    .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <img src="${logoUrl}" alt="Expertise Licitatória" />
+      <div>
+        <div class="brand-title">EXPERTISE LICITATÓRIA</div>
+        <div class="brand-sub">Resumo Estratégico de Licitação</div>
+      </div>
+    </div>
+    <div class="doc-tag">Edital ${numero}</div>
+  </div>
+
+  <h2>1. Identificação do Certame</h2>
+  <div class="grid">
+    <div><strong>Órgão Comprador:</strong><br/>${orgao}</div>
+    <div><strong>Valor Total Estimado:</strong><br/>${valor}</div>
+    <div><strong>Modalidade / Disputa:</strong><br/>${edital.modalidadeNome || edital.modalidade || 'Pregão'} (${edital.modoDisputa || 'Consultar edital'})</div>
+    <div><strong>Prazo de Envio / Sessão:</strong><br/>${prazoLimiteEnvio ? formatPncpDateTime(prazoLimiteEnvio) : 'Consultar edital'}</div>
+  </div>
+
+  <h2>2. Objeto da Contratação</h2>
+  <div class="box">${objeto}</div>
+
+  ${analiseLuli ? `<h2>3. Análise Estratégica</h2><div class="box">${analiseLuli}</div>` : ''}
+
+  ${itens.length > 0 ? `<h2>${analiseLuli ? '4' : '3'}. Itens e Valores de Referência</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Descrição</th><th style="text-align:right;">Qtd.</th><th>Unid.</th><th style="text-align:right;">Valor Unit.</th></tr></thead>
+    <tbody>${itensRows}</tbody>
+  </table>` : ''}
+
+  <div class="footer">
+    <span>Documento emitido pela plataforma Expertise Licitatória</span>
+    <span>Gerado em ${new Date().toLocaleString('pt-BR')}</span>
+  </div>
+  <script>window.onload = () => { setTimeout(() => window.print(), 350); };</script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=800');
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
   const gerarAnaliseLuli = async () => {
     if (!edital) return;
     setCarregandoLuli(true);
@@ -719,7 +804,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
             </div>
             <div style="text-align: right;">
               <div style="font-size: 8.5px; color: #64748B;">Emissão: ${emissaoData} às ${emissaoHora}</div>
-              <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">ID PNCP: ${escapeHtml(String(numeroPncp))}</div>
+              <div style="font-family: monospace; font-size: 9.5px; font-weight: bold; color: #0B192C; margin-top: 1px;">Código Oficial: ${escapeHtml(String(numeroPncp))}</div>
             </div>
           </div>
 
@@ -747,7 +832,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
               <div class="card">
                 <div class="card-label">CNPJ Oficial & Registro</div>
                 <div class="card-value" style="font-family: monospace;">${escapeHtml(cnpjFormatado)}</div>
-                <div style="font-size: 8.5px; font-family: monospace; color: #64748B;">Controle: ${escapeHtml(String(numeroPncp))}</div>
+                <div style="font-size: 8.5px; font-family: monospace; color: #64748B;">Registro: ${escapeHtml(String(numeroPncp))}</div>
               </div>
               <div class="card">
                 <div class="card-label">Amparo Legal & Modalidade</div>
@@ -875,7 +960,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 print:border-slate-400 print:text-slate-900">
                   <FileText className="w-3.5 h-3.5" />
-                  {titulo || 'Dossiê Estratégico do Edital'}
+                  {titulo || 'Resumo Estratégico do Edital'}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                   Lei 14.133/2021
@@ -896,7 +981,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                 {edital.orgao || edital.nomeOrgao || 'Órgão Licitante'}
               </h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs font-semibold text-slate-500">
-                <span className="font-mono text-slate-700">Controle: {numeroPncp}</span>
+                <span className="font-mono text-slate-700">Registro: {numeroPncp}</span>
                 <span>•</span>
                 <span className="inline-flex items-center gap-1 text-slate-600">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
@@ -912,7 +997,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                 className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Baixar Dossiê em PDF</span>
+                <span>Baixar Resumo em PDF</span>
               </button>
 
               <a
@@ -1064,7 +1149,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                   </span>
                   <p className="font-mono font-bold text-slate-900">{cnpjFormatado}</p>
                   <p className="text-xs font-mono text-slate-500 truncate" title={numeroPncp}>
-                    ID PNCP: {numeroPncp}
+                    Código Oficial: {numeroPncp}
                   </p>
                 </div>
 

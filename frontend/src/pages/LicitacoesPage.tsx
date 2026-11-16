@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { licitacoesApi, crmApi } from '../services/api';
+import { motion } from 'framer-motion';
 import { useCompany } from '../contexts/CompanyContext';
 import DossieEditalModal from '../components/DossieEditalModal';
 import { buildOfficialPncpPortalUrl, formatCnpj } from '@/utils/pncp';
@@ -255,6 +256,21 @@ export default function LicitacoesPage({
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
   const setEditalParaResumo = setEditalSelecionado;
+  const listaCnaesEmpresa = useMemo(() => {
+    const cnpjLimpo = String(selectedCompany?.cnpj || '').replace(/\D/g, '');
+    let cnaesSalvos: string[] = [];
+    try {
+      const raw = cnpjLimpo ? localStorage.getItem(`@Expertise:cnaes_${cnpjLimpo}`) : null;
+      if (raw) cnaesSalvos = JSON.parse(raw);
+    } catch {}
+    const todos = [
+      selectedCompany?.cnaeDescricao || selectedCompany?.ramoAtividade || selectedCompany?.atividadePrincipal,
+      ...(Array.isArray(selectedCompany?.cnaesSecundarios) ? selectedCompany.cnaesSecundarios : []),
+      ...cnaesSalvos,
+    ].filter(Boolean).map((item: any) => typeof item === 'string' ? item : item?.descricao || item?.text || '').filter(Boolean);
+    return Array.from(new Set(todos)).slice(0, 8);
+  }, [selectedCompany]);
+
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
 
   const exibirAviso = (tipo: 'sucesso' | 'info' | 'erro', texto: string) => {
@@ -651,7 +667,47 @@ export default function LicitacoesPage({
             </div>
           )}
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {listaCnaesEmpresa.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                Atividades da Empresa (CNAEs) — clique para filtrar oportunidades
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {listaCnaesEmpresa.map((cnae, idx) => {
+                const kw = extrairPalavrasChaveCnaes({ cnaeDescricao: cnae })[0] || '';
+                const ativo = kw && palavraChave.toLowerCase() === kw.toLowerCase();
+                return (
+                  <motion.button
+                    key={idx}
+                    type="button"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      if (!kw) return;
+                      setPalavraChave(kw);
+                      buscarEditais(kw, true);
+                    }}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
+                      ativo
+                        ? 'border-[#0070C0] bg-[#0070C0] text-white shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-[#0070C0]/50 hover:bg-[#0070C0]/5'
+                    }`}
+                  >
+                    {cnae}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {MODALIDADES_RAPIDAS.map((mod) => {
               const Icon = mod.icon;
               const ativa = modalidadeAtiva === mod.id;
