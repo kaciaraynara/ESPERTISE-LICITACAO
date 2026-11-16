@@ -35,8 +35,8 @@ async function fetchPncpLinkContext(texto: string): Promise<string> {
 
     if (compraRes.status !== 'fulfilled' || !compraRes.value.ok) return '';
     const compra: any = await compraRes.value.json();
-    const itens: any[] = itensRes.status === 'fulfilled' && itensRes.value.ok ? await itensRes.value.json().catch(() => []) : [];
-    const arqs: any[] = arqsRes.status === 'fulfilled' && arqsRes.value.ok ? await arqsRes.value.json().catch(() => []) : [];
+    const itens = (itensRes.status === 'fulfilled' && itensRes.value.ok ? await itensRes.value.json().catch(() => []) : []) as any[];
+    const arqs = (arqsRes.status === 'fulfilled' && arqsRes.value.ok ? await arqsRes.value.json().catch(() => []) : []) as any[];
 
     const itensResumo = Array.isArray(itens) && itens.length > 0
       ? itens.slice(0, 12).map((it: any, i: number) => `  ${i + 1}. ${it.descricao || it.materialOuServicoNome || 'Item'} | Qtd: ${it.quantidade ?? '-'} ${it.unidadeMedida || ''} | Ref.: R$ ${it.valorUnitarioEstimado ?? '-'}`).join('\n')
