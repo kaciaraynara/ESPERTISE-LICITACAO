@@ -55,6 +55,34 @@ export class LexController {
         metadata: { endpoint: '/lex/chat' },
       };
       const groundingContext = buildGroundingContext(req);
+      // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
+      if (!resolvedId && stream === false) {
+        const systemPrompt = `Você é a Luli, especialista sênior em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos de empresas e jurídico licitatório na plataforma Expertise Licitatória.
+Regras:
+- Fale de forma humana, acolhedora, direta e natural, como uma colega especialista conversando.
+- NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, etc.) nem tags como [Fato da fonte].
+- Nunca invente dados, datas ou editais. Se a pessoa disser apenas "oi" ou que é iniciante, dê as boas-vindas com clareza e explique os primeiros passos na plataforma.
+Contexto atual: ${documentText || 'Painel da plataforma'}`;
+
+        const chatMsgs = [
+          { role: 'system' as const, content: systemPrompt },
+          ...(messages || []).slice(-10).map((m) => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+            content: m.content,
+          })),
+        ];
+        if (!chatMsgs.some((m) => m.role === 'user')) {
+          chatMsgs.push({ role: 'user', content: pergunta });
+        }
+
+        const aiResp = await chatWithProvider(chatMsgs as any);
+        console.info('[RAG-Chat-Luli]', JSON.stringify({ userId: req.user?.id, pergunta, respostaLen: aiResp.content?.length || 0 }));
+        return res.json({
+          success: true,
+          data: { answer: aiResp.content, reply: aiResp.content, resposta: aiResp.content },
+        });
+      }
+
       const isStream = stream !== false && req.query?.stream !== 'false';
 
       if (isStream) {

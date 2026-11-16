@@ -96,29 +96,25 @@ export function buildDeterministicLegalDossierFromPrompt(fullPrompt: string): st
   const modalidade = modalidadeMatch ? modalidadeMatch[1].trim() : 'Pregão Eletrônico / Concorrência (Lei 14.133/2021)';
   const valor = valorMatch ? valorMatch[1].trim() : 'Conforme itens do Termo de Referência';
 
-  return `**[Fato da fonte]**
-Análise técnica estruturada sobre os dados oficiais do certame:
+  return `Análise técnica estruturada sobre os dados oficiais do certame:
 - **Órgão Licitante**: ${orgao}
 - **Modalidade / Regime**: ${modalidade}
 - **Objeto**: ${objeto}
 - **Valor Estimado de Referência**: ${valor}
 
-**[Cálculo reproduzível]**
 - **Prazos Legais (Lei 14.133/2021)**: Impugnação e pedidos de esclarecimento até **3 (três) dias úteis** antes da data de abertura (Art. 164). Intenção de recurso imediata após a fase de julgamento/habilitação, com **3 (três) dias úteis** para razões recursais (Art. 165, I).
 - **Empate Ficto ME/EPP (LC 123/2006, Art. 44, § 2º)**: No pregão, propostas de ME/EPP até **5% (cinco por cento)** superiores ao melhor preço de empresa de médio/grande porte têm direito de cobrir o lance em até **5 (cinco) minutos** após o encerramento da disputa.
 - **Piso de Exequibilidade e Diligência (Art. 59, §§ 2º e 4º c/c Súmula 262/TCU)**: Presunção relativa de inexequibilidade; o licitante tem direito de demonstrar a viabilidade da sua estrutura de custos antes de qualquer desclassificação.
 
-**[Indício]**
 - **Qualificação Técnica (Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU)**: Eventuais exigências de atestados de capacidade técnica devem restringir-se às parcelas de maior relevância (valor significativo >= 4% do total) e estão limitadas a no máximo **50% (cinquenta por cento)** dos quantitativos licitados.
 - **Formalismo Moderado e Diligência (Art. 64 da Lei 14.133/2021 e Acórdão 1211/2021-TCU-Plenário)**: A ausência de documento preexistente ou falha meramente formal deve ser suprida mediante diligência promovida pelo pregoeiro/agente de contratação.
 
-**[Hipótese]**
 - **Estratégia Operacional e Rito de Negociação (Art. 61 da Lei 14.133/2021 e IN SEGES/ME nº 73/2022)**:
-  1. Na disputa em modo **Aberto** ou **Aberto-Fechado**, preserve sua margem mínima sustentável (**Stop-Loss**) calculada com os tributos reais do seu regime fiscal.
+  1. Na disputa em modo **Aberto** ou **Aberto-Fechado**, preserve sua margem mínima sustentável  calculada com os tributos reais do seu regime fiscal.
   2. Quando convocado pelo Pregoeiro para negociação no chat (Art. 61), responda prontamente mantendo cordialidade técnica e conceda eventual desconto apenas dentro da gordura planejada, apresentando a proposta readequada no prazo do edital (usualmente 2 horas prorrogáveis mediante solicitação fundamentada antes do vencimento).
 
-**[Próximo Passo Recomendado]**
-Verifique a aderência dos itens no simulador de **Precificação & BDI**, valide as certidões no **Cofre de Documentos** e acompanhe o cronograma na **Mesa Operacional de Disputa**.`;
+**Próximo passo:**
+Verifique a aderência dos itens no simulador de **Formação de Preço**, valide as certidões no **Cofre de Documentos** e acompanhe o cronograma na **Mesa Operacional de Disputa**.`;
 }
 
 function buildPromptFromMessages(messages: GroundingAIMessage[]): string {

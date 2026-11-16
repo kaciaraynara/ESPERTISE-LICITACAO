@@ -1254,7 +1254,7 @@ function buildGroundedPrompt(
     rules || 'Nenhuma regra recuperada.',
     '',
     '[DIRETRIZ DE RESPOSTA]',
-    'Classifique suas afirmações expressamente em: [Fato da fonte], [Cálculo reproduzível], [Indício] ou [Hipótese]. Se faltarem dados essenciais, declare expressamente como [Inconclusivo] e liste o que falta. Não declare fraude ou cartel como certeza absoluta.',
+    'Responda de forma clara, natural e humana em português, usando apenas dados reais disponíveis e sem jargões técnicos.',
   ].join('\n');
 }
 
