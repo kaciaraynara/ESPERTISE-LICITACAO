@@ -180,6 +180,40 @@ export default function DossieEditalModal({
 }: DossieEditalModalProps) {
   const [carregandoItens, setCarregandoItens] = useState(false);
   const [itens, setItens] = useState<DossieItem[]>([]);
+  const [analiseLuli, setAnaliseLuli] = useState<string | null>(null);
+  const [carregandoLuli, setCarregandoLuli] = useState(false);
+
+  const gerarAnaliseLuli = async () => {
+    if (!edital) return;
+    setCarregandoLuli(true);
+    try {
+      const listaItens = itens
+        .slice(0, 8)
+        .map((it: any, idx: number) => `${idx + 1}. ${it.descricao || it.description || 'Item'} (Qtd: ${it.quantidade || it.quantity || '-'}, Valor ref.: ${it.valorUnitarioEstimado || it.precoUnitario || '-'})`)
+        .join('\n');
+      const prompt = `Faça uma análise estratégica cirúrgica deste edital para decisão de participação (sem texto genérico):
+Órgão: ${edital.orgao || edital.nomeOrgao || 'Não informado'}
+Edital/PNCP: ${edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id}
+Modalidade: ${edital.modalidadeNome || edital.modalidade || 'Pregão'} | Modo de disputa: ${edital.modoDisputa || 'Consultar edital'}
+Objeto: ${edital.objetoCompra || edital.objeto}
+Valor estimado: ${edital.valorTotalEstimado ?? edital.valorEstimado ?? 'Não informado'}
+Abertura/Encerramento: ${edital.dataAbertura || '-'} / ${edital.dataEncerramentoProposta || edital.dataEncerramento || '-'}
+${listaItens ? 'Principais itens:\n' + listaItens : ''}
+Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada para este modo de disputa; 3) Documentos e riscos críticos para checar antes da proposta.`;
+
+      const resp = await lexApi.chat({
+        stream: false,
+        noticeId: edital.numeroControlePNCP || edital.id,
+        messages: [{ role: 'user', content: prompt }],
+      } as any);
+      const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || '';
+      setAnaliseLuli(texto || 'Não foi possível gerar a análise agora.');
+    } catch {
+      setAnaliseLuli('Não consegui conectar com a Luli agora. Tente novamente em instantes.');
+    } finally {
+      setCarregandoLuli(false);
+    }
+  };
   const [criterioJulgamento, setCriterioJulgamento] = useState<string | null>(null);
   const [modoDisputa, setModoDisputa] = useState<string | null>(null);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
