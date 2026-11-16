@@ -65,6 +65,46 @@ export function LexFloatingWidget() {
     }
   }, [mensagens, aberto]);
 
+  useEffect(() => {
+    const handler = async (ev: Event) => {
+      const edital = (ev as CustomEvent)?.detail;
+      if (!edital) return;
+      setAberto(true);
+      const orgao = edital.orgao || edital.nomeOrgao || edital.buyerName || edital.orgaoEntidade?.razaoSocial || 'Órgão Licitante';
+      const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
+      const valor = edital.valorTotalEstimado ?? edital.valorEstimado ?? edital.valor_estimado;
+      const pergunta = `Analise este edital para a minha empresa e me diga a melhor estratégia para vencer:\nÓrgão: ${orgao}\nEdital: ${edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id}\nModalidade: ${edital.modalidadeNome || edital.modalidade || 'Pregão'}\nObjeto: ${objeto}\nValor estimado: ${valor ? 'R$ ' + Number(valor).toLocaleString('pt-BR') : 'Consultar edital'}`;
+
+      setMensagens((prev) => [
+        ...prev,
+        { id: String(Date.now()), autor: 'usuario', texto: `Analise o edital: ${objeto.slice(0, 120)}...`, horario: horaAtual() },
+      ]);
+      setEnviando(true);
+      try {
+        const resp = await lexApi.chat({
+          stream: false,
+          noticeId: edital.numeroControlePNCP || edital.id,
+          contexto: `Radar de Editais - Empresa: ${selectedCompany?.razaoSocial || selectedCompany?.nomeFantasia || ''}`,
+          messages: [{ role: 'user', content: pergunta }],
+        } as any);
+        const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || 'Não consegui analisar este edital agora.';
+        setMensagens((prev) => [
+          ...prev,
+          { id: String(Date.now() + 1), autor: 'luli', texto: String(texto), horario: horaAtual() },
+        ]);
+      } catch {
+        setMensagens((prev) => [
+          ...prev,
+          { id: String(Date.now() + 1), autor: 'luli', texto: 'Não consegui concluir a análise agora. Tente novamente em instantes.', horario: horaAtual() },
+        ]);
+      } finally {
+        setEnviando(false);
+      }
+    };
+    window.addEventListener('luli:analisar-edital', handler);
+    return () => window.removeEventListener('luli:analisar-edital', handler);
+  }, [selectedCompany]);
+
   const limparConversa = () => {
     setMensagens([{ ...MENSAGEM_INICIAL, horario: horaAtual() }]);
   };

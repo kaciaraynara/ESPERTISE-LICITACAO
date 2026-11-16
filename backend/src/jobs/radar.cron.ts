@@ -719,3 +719,33 @@ export function setupDailyOpportunityAlertsCron(): cron.ScheduledTask | null {
     { timezone: TIMEZONE }
   );
 }
+
+
+let lastPncpBackgroundCheckAt = 0;
+let pncpSyncInFlight = false;
+
+export async function ensureFreshPncpSync(): Promise<void> {
+  const now = Date.now();
+  if (pncpSyncInFlight || now - lastPncpBackgroundCheckAt < 6 * 60 * 60 * 1000) {
+    return;
+  }
+  lastPncpBackgroundCheckAt = now;
+  try {
+    const latest = await prisma.procurementNotice.findFirst({
+      where: { source: 'pncp' },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    });
+    const staleMs = 6 * 60 * 60 * 1000;
+    if (!latest || now - new Date(latest.updatedAt).getTime() > staleMs) {
+      pncpSyncInFlight = true;
+      void syncPncpLast24Hours()
+        .catch((err) => console.warn('[PNCP Background Sync] Falha:', err?.message || err))
+        .finally(() => {
+          pncpSyncInFlight = false;
+        });
+    }
+  } catch {
+    pncpSyncInFlight = false;
+  }
+}

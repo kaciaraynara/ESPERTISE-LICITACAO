@@ -159,6 +159,35 @@ function extrairPalavrasChaveCnaes(empresa: any): string[] {
   return unicas.slice(0, 6);
 }
 
+const SINONIMOS_RAMO: Record<string, string[]> = {
+  vestuario: ['vestuario', 'uniforme', 'fardamento', 'confeccao', 'camiseta', 'calcados'],
+  roupas: ['roupas', 'uniforme', 'fardamento', 'vestuario', 'confeccao', 'camiseta'],
+  confeccao: ['confeccao', 'uniforme', 'vestuario', 'fardamento', 'enxoval'],
+  calcados: ['calcados', 'tenis', 'sapato', 'bota', 'vestuario'],
+  alimentos: ['alimentos', 'merenda', 'alimenticios', 'generos'],
+  informatica: ['informatica', 'computador', 'notebook', 'impressora', 'software'],
+  limpeza: ['limpeza', 'higiene', 'saneantes', 'descartaveis'],
+  papelaria: ['papelaria', 'expediente', 'escolar', 'escritorio'],
+  moveis: ['moveis', 'mobiliario', 'cadeira', 'mesa'],
+};
+
+function expandirSinonimosRamo(termo: string, empresa: any): string[] {
+  const base = extrairPalavrasChaveCnaes(empresa);
+  const limpo = (termo || '').trim().toLowerCase();
+  const lista = new Set<string>();
+  if (limpo && SINONIMOS_RAMO[limpo]) {
+    SINONIMOS_RAMO[limpo].forEach((s) => lista.add(s));
+  }
+  for (const p of base) {
+    lista.add(p);
+    if (SINONIMOS_RAMO[p]) {
+      SINONIMOS_RAMO[p].forEach((s) => lista.add(s));
+    }
+  }
+  if (lista.size === 0 && limpo) lista.add(limpo);
+  return Array.from(lista).slice(0, 4);
+}
+
 function extrairPalavraChaveRamo(empresa: any): string {
   return extrairPalavrasChaveCnaes(empresa)[0] || '';
 }
@@ -253,39 +282,65 @@ export default function LicitacoesPage({
   }, []);
 
   const buscarEditais = useCallback(
-    async (termoOverride?: string) => {
+    async (termoOverride?: string, usarSinonimosRamo = false) => {
       setCarregando(true);
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
-        const params: Record<string, any> = { limit: 100 };
-        if (q.trim()) params.q = q.trim();
-        if (ufSelecionada) params.uf = ufSelecionada;
-        if (orgaoFiltro.trim()) params.orgao = orgaoFiltro.trim();
-        if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP') {
-          params.modalidade = modalidadeAtiva;
-        }
-        if (modalidadeAtiva === 'SRP') {
-          params.srp = true;
-        }
-        if (dataPublicacao) {
-          params.dataPublicacao = dataPublicacao;
-        }
+        const buildParams = (termo: string, localOnly: boolean) => {
+          const p: Record<string, any> = { limit: 100, local: localOnly };
+          if (termo.trim()) p.q = termo.trim();
+          if (ufSelecionada) p.uf = ufSelecionada;
+          if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
+          if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP') {
+            p.modalidade = modalidadeAtiva;
+          }
+          if (modalidadeAtiva === 'SRP') p.srp = true;
+          if (dataPublicacao) p.dataPublicacao = dataPublicacao;
+          return p;
+        };
 
-        const resposta = await licitacoesApi.listar(params);
-        const lista =
-          resposta?.data?.items ||
-          resposta?.data?.data ||
-          (Array.isArray(resposta?.data) ? resposta.data : []);
+        let lista: EditalItem[] = [];
+        let totalResp = 0;
+
+        if (usarSinonimosRamo) {
+          const termos = expandirSinonimosRamo(q, selectedCompany);
+          const respostas = await Promise.all(
+            termos.map((t) => licitacoesApi.listar(buildParams(t, true)).catch(() => null))
+          );
+          const mapa = new Map<string, EditalItem>();
+          for (const resp of respostas) {
+            const items = resp?.data?.items || resp?.data?.data || (Array.isArray(resp?.data) ? resp.data : []);
+            for (const item of items) {
+              const key = String(item.numeroControlePNCP || item.id);
+              if (!mapa.has(key)) mapa.set(key, item);
+            }
+          }
+          lista = Array.from(mapa.values());
+          totalResp = lista.length;
+        } else {
+          const resposta = await licitacoesApi.listar(buildParams(q, true));
+          lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
+          totalResp = resposta?.data?.total || lista.length;
+
+          if (lista.length === 0 && q.trim()) {
+            const respLive = await licitacoesApi.listar(buildParams(q, false)).catch(() => null);
+            const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
+            if (listaLive.length > 0) {
+              lista = listaLive;
+              totalResp = respLive?.data?.total || listaLive.length;
+            }
+          }
+        }
 
         setEditais(lista);
-        setTotal(resposta?.data?.total || lista.length);
+        setTotal(totalResp);
       } catch {
-        exibirAviso('erro', 'Não foi possível carregar os editais agora. Tente atualizar em instantes.');
+        exibirAviso('info', 'Base local sem conexão momentânea. Clique em Atualizar editais para tentar novamente.');
       } finally {
         setCarregando(false);
       }
     },
-    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao]
+    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao, selectedCompany]
   );
 
   useEffect(() => {
@@ -293,7 +348,7 @@ export default function LicitacoesPage({
     const termoInicial = extrairPalavraChaveRamo(selectedCompany);
     if (termoInicial && !palavraChave) {
       setPalavraChave(termoInicial);
-      buscarEditais(termoInicial);
+      buscarEditais(termoInicial, true);
     } else {
       buscarEditais();
     }
@@ -329,7 +384,7 @@ export default function LicitacoesPage({
     }
     setPalavraChave(termoRamo);
     setOrgaoFiltro(''); // NUNCA preencher CNPJ da empresa usuária no filtro de órgão comprador!
-    buscarEditais(termoRamo);
+    buscarEditais(termoRamo, true);
     exibirAviso('sucesso', `Filtrando oportunidades compatíveis com "${termoRamo}".`);
   };
 

@@ -15,6 +15,7 @@ import {
 } from '../services/pncp.service';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { proposalAutomationService } from '../services/proposal-automation.service';
+import { ensureFreshPncpSync } from '../jobs/radar.cron';
 
 function stringParam(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -99,6 +100,7 @@ export class LicitacoesController {
     res: Response,
   ): Promise<Response> => {
     try {
+      void ensureFreshPncpSync();
       const filtros = buildFiltros(req.query as Record<string, unknown>);
       const userId = req.user?.id;
       const resultado = await listarLicitacoes(filtros, userId, req.user?.tenantId);

@@ -24,7 +24,7 @@ import {
   Lightbulb,
   TrendingUp,
 } from 'lucide-react';
-import { licitacoesApi, noticesApi } from '../services/api';
+import { lexApi, licitacoesApi, noticesApi } from '../services/api';
 import {
   buildOfficialPncpPortalUrl,
   extractPncpParams,
@@ -242,6 +242,7 @@ export default function DossieEditalModal({
     if (itensIniciais.length > 0) {
       setItens(itensIniciais);
     }
+    setAnaliseLuli(null);
 
     const fetchItens = async () => {
       try {
@@ -966,12 +967,40 @@ export default function DossieEditalModal({
                 </div>
               </div>
 
-              <div className="bg-white/90 rounded-xl p-3.5 border border-blue-100 flex items-start gap-3">
-                <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-xs leading-relaxed text-slate-700">
-                  <strong className="text-slate-900 font-bold">Orientação Prática: </strong>
-                  Antes de enviar a proposta, confira no checklist abaixo se suas 5 certidões obrigatórias estão em dia. Defina seu preço mínimo com antecedência e respeite o limite de segurança para nunca vencer com margem negativa.
+              <div className="bg-white/95 rounded-xl p-4 border border-blue-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
+                    <strong className="text-xs font-bold text-slate-900">Análise Estratégica da Luli sobre este Edital</strong>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={gerarAnaliseLuli}
+                      disabled={carregandoLuli}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-[#081C3A] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#0070C0] disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${carregandoLuli ? 'animate-spin' : ''}`} />
+                      {carregandoLuli ? 'Analisando edital...' : analiseLuli ? 'Atualizar análise' : 'Gerar análise com a Luli'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('luli:analisar-edital', { detail: { ...edital, itens } }))}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#0070C0]/40 bg-[#0070C0]/10 px-3 py-1.5 text-[11px] font-bold text-[#0070C0] hover:bg-[#0070C0] hover:text-white"
+                    >
+                      Perguntar no chat
+                    </button>
+                  </div>
                 </div>
+                {analiseLuli ? (
+                  <div className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                    {analiseLuli}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Clique em <strong>Gerar análise com a Luli</strong> para ler os itens, o modo de disputa e os prazos reais deste certame e receber a estratégia recomendada.
+                  </p>
+                )}
               </div>
             </div>
 
