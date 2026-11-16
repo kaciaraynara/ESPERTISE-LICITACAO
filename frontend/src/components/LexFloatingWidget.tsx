@@ -2,6 +2,7 @@
 import { useLocation } from 'react-router-dom';
 import { Bot, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
+import { lexApi } from '../services/api';
 
 interface Mensagem {
   id: string;
@@ -9,9 +10,6 @@ interface Mensagem {
   texto: string;
   horario: string;
 }
-
-const API_URL =
-  import.meta.env.VITE_API_URL || 'https://espertise-licitacao.onrender.com/api';
 
 function horaAtual(): string {
   return new Date().toLocaleTimeString('pt-BR', {
@@ -89,43 +87,35 @@ export function LexFloatingWidget() {
     setEnviando(true);
 
     try {
-      const token =
-        localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
+      const empresaInfo = selectedCompany
+        ? `Empresa ativa: ${selectedCompany.razaoSocial || selectedCompany.nomeFantasia || ''} (CNPJ: ${selectedCompany.cnpj || ''}, Ramo: ${(selectedCompany as any).cnaePrincipal || ''}).`
+        : '';
 
-      const res = await fetch(`${API_URL}/ai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          message: texto,
-          mensagem: texto,
-          contexto: {
-            tela: contextoTela(pathname),
-            rota: pathname,
-            empresa: selectedCompany?.razaoSocial || selectedCompany?.nomeFantasia || '',
-            cnpj: selectedCompany?.cnpj || '',
-            cnae: (selectedCompany as any)?.cnaePrincipal || '',
-          },
-          history: historicoAtual.slice(-8).map((m) => ({
+      const contextoEdital = `Tela atual: ${contextoTela(pathname)}. ${empresaInfo} Responda como a Luli, de forma humana, natural e direta, sem jargões técnicos, ajudando com licitações (Lei 14.133/2021), disputas, contabilidade/impostos e parte jurídica.`;
+
+      const resp: any = await lexApi.chat({
+        messages: historicoAtual
+          .filter((m) => m.id !== 'inicial')
+          .slice(-10)
+          .map((m) => ({
             role: m.autor === 'usuario' ? 'user' : 'assistant',
             content: m.texto,
           })),
-        }),
+        contextoEdital,
       });
 
-      const data = await res.json().catch(() => ({}));
+      const payload = resp?.data?.data || resp?.data || resp || {};
       const respostaTexto =
-        data?.reply ||
-        data?.response ||
-        data?.message ||
-        data?.data?.reply ||
-        data?.data?.response ||
-        '';
+        payload.reply ||
+        payload.response ||
+        payload.resposta ||
+        payload.message ||
+        payload.content ||
+        payload.text ||
+        (typeof payload === 'string' ? payload : '');
 
-      if (!res.ok || !respostaTexto) {
-        throw new Error('Sem resposta do serviço de atendimento.');
+      if (!respostaTexto) {
+        throw new Error('Resposta vazia');
       }
 
       setMensagens((prev) => [
@@ -133,7 +123,7 @@ export function LexFloatingWidget() {
         {
           id: String(Date.now() + 1),
           autor: 'luli',
-          texto: respostaTexto,
+          texto: String(respostaTexto),
           horario: horaAtual(),
         },
       ]);
@@ -144,7 +134,7 @@ export function LexFloatingWidget() {
           id: String(Date.now() + 1),
           autor: 'luli',
           texto:
-            'Não consegui concluir sua consulta agora porque o serviço de atendimento demorou para responder. Tente enviar novamente em alguns segundos.',
+            'Não consegui concluir essa resposta agora. Confira se sua conexão está estável e tente enviar novamente.',
           horario: horaAtual(),
         },
       ]);
@@ -183,7 +173,6 @@ export function LexFloatingWidget() {
         expandido ? 'h-[80vh] w-[92vw] max-w-2xl' : 'h-[520px] w-[92vw] max-w-sm'
       }`}
     >
-      {/* Cabeçalho limpo e humano */}
       <div className="flex items-center justify-between bg-[#081C3A] px-4 py-3.5 text-white">
         <div className="flex items-center gap-3">
           {!imgErro ? (
@@ -234,7 +223,6 @@ export function LexFloatingWidget() {
         </div>
       </div>
 
-      {/* Área de mensagens */}
       <div className="flex-1 space-y-3 overflow-y-auto bg-[#F8FAFC] p-4">
         {mensagens.map((msg) => {
           const ehUsuario = msg.autor === 'usuario';
@@ -271,7 +259,6 @@ export function LexFloatingWidget() {
         <div ref={fimListaRef} />
       </div>
 
-      {/* Campo de envio */}
       <form
         onSubmit={enviarMensagem}
         className="flex items-center gap-2 border-t border-slate-200 bg-white p-3"
