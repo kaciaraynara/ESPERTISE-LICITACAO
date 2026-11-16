@@ -37,8 +37,8 @@ export interface ChatProviderOptions {
 }
 
 export const FALLBACK_MODELS = [
-  'gemini-2.5-flash',
   'gemini-2.0-flash',
+  'gemini-2.5-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
 ];
@@ -217,7 +217,7 @@ export async function streamChatWithProvider(
       };
     } catch (error: unknown) {
       lastError = error;
-      if (!isModelUnavailable(error)) break;
+      console.warn(`[AI Service] Falha no modelo ${modelName}:`, (error as any)?.message || error);
       console.warn(`[AI Service] Modelo Gemini ${modelName} indisponível. Tentando o próximo modelo estável.`);
     }
   }
