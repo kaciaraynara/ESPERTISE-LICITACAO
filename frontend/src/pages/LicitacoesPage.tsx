@@ -263,9 +263,10 @@ export default function LicitacoesPage({
       const raw = cnpjLimpo ? localStorage.getItem(`@Expertise:cnaes_${cnpjLimpo}`) : null;
       if (raw) cnaesSalvos = JSON.parse(raw);
     } catch {}
+    const emp = selectedCompany as any;
     const todos = [
-      selectedCompany?.cnaeDescricao || selectedCompany?.ramoAtividade || selectedCompany?.atividadePrincipal,
-      ...(Array.isArray(selectedCompany?.cnaesSecundarios) ? selectedCompany.cnaesSecundarios : []),
+      emp?.cnaeDescricao || emp?.ramoAtividade || emp?.atividadePrincipal,
+      ...(Array.isArray(emp?.cnaesSecundarios) ? emp.cnaesSecundarios : []),
       ...cnaesSalvos,
     ].filter(Boolean).map((item: any) => typeof item === 'string' ? item : item?.descricao || item?.text || '').filter(Boolean);
     return Array.from(new Set(todos)).slice(0, 8);
