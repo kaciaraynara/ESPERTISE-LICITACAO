@@ -102,16 +102,20 @@ export function LexFloatingWidget() {
             content: m.texto,
           })),
         contextoEdital,
+        stream: false,
       });
 
       const payload = resp?.data?.data || resp?.data || resp || {};
       const respostaTexto =
+        payload.answer ||
+        payload.resposta ||
         payload.reply ||
         payload.response ||
-        payload.resposta ||
-        payload.message ||
-        payload.content ||
         payload.text ||
+        payload.content ||
+        payload.message ||
+        resp?.data?.answer ||
+        resp?.data?.text ||
         (typeof payload === 'string' ? payload : '');
 
       if (!respostaTexto) {
@@ -188,7 +192,7 @@ export function LexFloatingWidget() {
             </div>
           )}
           <div>
-            <h3 className="text-sm font-extrabold leading-tight">Luli</h3>
+            <h3 className="text-sm font-extrabold leading-tight" style={{ color: "#FFFFFF" }}>Luli</h3>
             <p className="text-[11px] text-slate-300">
               Licitações, Disputas, Contabilidade e Jurídico
             </p>

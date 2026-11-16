@@ -388,7 +388,7 @@ export const lexApi = {
   impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
   recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; noticeId?: string }) =>
     api.post('/lex/recurso', body),
-  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string }) => api.post('/lex/chat', body),
+  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean }) => api.post('/lex/chat', body),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
   exportarParecerPdf: (body: ExportarParecerPayload) =>
     api.post('/lex/parecer-pdf', body, {
