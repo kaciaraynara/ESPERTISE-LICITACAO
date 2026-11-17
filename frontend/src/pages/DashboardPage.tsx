@@ -97,6 +97,39 @@ export const DashboardPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Trilha Guiada - Por onde comecar */}
+      <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-[#081C3A] to-[#0f3460] p-4 sm:p-5 text-white shadow-sm">
+        <div className="mb-3 text-xs font-bold uppercase tracking-wider text-[#F97316]">
+          Por onde comecar — Fluxo Completo em 3 Passos
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
+            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
+          >
+            <div className="text-xs font-extrabold text-[#F97316]">Passo 1 · Encontrar Editais</div>
+            <div className="mt-1 text-xs text-slate-100">Clique nos CNAEs da sua empresa no Radar para filtrar oportunidades reais.</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(FORNECEDOR_ROUTES.score_viabilidade)}
+            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
+          >
+            <div className="text-xs font-extrabold text-[#F97316]">Passo 2 · Validar Viabilidade</div>
+            <div className="mt-1 text-xs text-slate-100">Veja em quais certames vale mais a pena participar antes de gastar tempo.</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(FORNECEDOR_ROUTES.lex)}
+            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
+          >
+            <div className="text-xs font-extrabold text-[#F97316]">Passo 3 · Analisar e Disputar</div>
+            <div className="mt-1 text-xs text-slate-100">Leia o edital com a Luli, monte a proposta e controle os lances na Sala.</div>
+          </button>
+        </div>
+      </div>
+
       {/* 4 KPIs */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
