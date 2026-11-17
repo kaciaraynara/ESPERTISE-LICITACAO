@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Building2,
   FileCheck2,
+  RefreshCw,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -24,7 +25,7 @@ import {
 import { licitacoesApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import { FORNECEDOR_ROUTES } from '@/routes';
-import { buildOfficialPncpPortalUrl, formatPncpDateBR } from '@/utils/pncp';
+import { buildOfficialPncpPortalUrl, formatPncpDateTime } from '@/utils/pncp';
 
 function formatarMoeda(v: number | null | undefined): string {
   if (!v || Number.isNaN(Number(v))) return 'Sob consulta';
@@ -35,20 +36,21 @@ function formatarMoeda(v: number | null | undefined): string {
   }).format(Number(v));
 }
 
-function calcularViabilidade(edital: any, empresa: any): {
-  score: number;
-  faixa: 'VERDE' | 'AMARELO' | 'VERMELHO';
+function avaliarViabilidade(edital: any, empresa: any): {
+  faixa: 'ALTA' | 'MODERADA' | 'BAIXA';
+  rotulo: string;
+  resumo: string;
   motivos: string[];
 } {
-  let score = 45;
+  let pontos = 0;
   const motivos: string[] = [];
   const objeto = String(edital.objeto || edital.objetoCompra || '').toLowerCase();
   const ufEmpresa = String(empresa?.uf || '').toUpperCase();
   const ufEdital = String(edital.uf || edital.unidadeOrgao?.ufSigla || '').toUpperCase();
 
   if (ufEmpresa && ufEdital && ufEmpresa === ufEdital) {
-    score += 22;
-    motivos.push(`Mesma UF da empresa (${ufEmpresa})`);
+    pontos += 2;
+    motivos.push(`Localizado no mesmo estado da empresa (${ufEmpresa})`);
   }
 
   const cnaeDesc = String(empresa?.cnaeDescricao || empresa?.cnaePrincipal || '').toLowerCase();
@@ -56,77 +58,106 @@ function calcularViabilidade(edital: any, empresa: any): {
     .split(/[^a-z0-9à-ú]+/i)
     .filter((w) => w.length >= 4);
 
-  const bateuCnae = palavrasCnae.some((p) => objeto.includes(p));
+  const sinonimosVestuario = ['vestuario', 'vestuário', 'roupa', 'uniforme', 'fardamento', 'calcado', 'calçado', 'tenis', 'tênis', 'confeccao', 'confecção'];
+  const ehVestuario = palavrasCnae.some((p) => p.includes('vestu') || p.includes('roup') || p.includes('confe'));
+  const bateuCnae =
+    palavrasCnae.some((p) => objeto.includes(p)) ||
+    (ehVestuario && sinonimosVestuario.some((s) => objeto.includes(s)));
+
   if (bateuCnae) {
-    score += 25;
-    motivos.push('Aderente ao CNAE principal da empresa');
+    pontos += 3;
+    motivos.push('Objeto compativel com o CNAE da empresa');
   }
 
   const valor = Number(edital.valorTotalEstimado ?? edital.valorEstimado ?? 0);
   if (valor > 0) {
-    score += 8;
-    motivos.push('Valor de referencia divulgado');
+    pontos += 1;
+    motivos.push('Valor estimado divulgado no PNCP');
   }
 
-  const finalScore = Math.min(98, Math.max(25, score));
-  const faixa: 'VERDE' | 'AMARELO' | 'VERMELHO' =
-    finalScore >= 75 ? 'VERDE' : finalScore >= 55 ? 'AMARELO' : 'VERMELHO';
-
-  if (motivos.length === 0) {
-    motivos.push('Analise detalhada recomendada com a Luli antes de participar');
+  const dataAbertura = edital.dataAberturaProposta || edital.dataEncerramentoProposta;
+  if (dataAbertura) {
+    const dias = (new Date(dataAbertura).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    if (dias >= 3) {
+      pontos += 1;
+      motivos.push('Prazo habil para analise e envio de proposta');
+    } else if (dias >= 0) {
+      motivos.push('Prazo curto: priorize conferencia imediata dos documentos');
+    }
   }
 
-  return { score: finalScore, faixa, motivos };
+  if (pontos >= 4) {
+    return {
+      faixa: 'ALTA',
+      rotulo: 'Alta Viabilidade · Recomendado participar',
+      resumo: 'Excelente aderencia ao perfil e atuacao da empresa.',
+      motivos,
+    };
+  }
+  if (pontos >= 2) {
+    return {
+      faixa: 'MODERADA',
+      rotulo: 'Viabilidade Moderada · Avaliar exigencias',
+      resumo: 'Compativel parcialmente; vale revisar o edital completo com a Luli.',
+      motivos: motivos.length ? motivos : ['Requer leitura do edital para confirmar especificacoes'],
+    };
+  }
+  return {
+    faixa: 'BAIXA',
+    rotulo: 'Baixa Viabilidade · Fora do perfil principal',
+    resumo: 'Baixa aderencia ao CNAE ou estado da empresa.',
+    motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
+  };
 }
 
 export const ScoreOportunidadesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedCompany: activeCompany } = useCompany();
+  const { selectedCompany } = useCompany();
   const [editais, setEditais] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [filtroFaixa, setFiltroFaixa] = useState<'TODOS' | 'VERDE' | 'AMARELO' | 'VERMELHO'>('TODOS');
+  const [atualizandoPncp, setAtualizandoPncp] = useState(false);
+  const [filtro, setFiltro] = useState<'TODOS' | 'ALTA' | 'MODERADA' | 'BAIXA'>('TODOS');
+
+  const carregarEditais = async (tempoReal = false) => {
+    if (tempoReal) setAtualizandoPncp(true);
+    else setCarregando(true);
+
+    try {
+      const resp = await licitacoesApi.listar({ local: !tempoReal } as any);
+      const lista = resp.data?.items || resp.data?.data || [];
+      setEditais(Array.isArray(lista) ? lista : []);
+    } catch {
+      if (!tempoReal) setEditais([]);
+    } finally {
+      setCarregando(false);
+      setAtualizandoPncp(false);
+    }
+  };
 
   useEffect(() => {
-    let ativo = true;
-    (async () => {
-      setCarregando(true);
-      try {
-        const resp = await licitacoesApi.listar({ local: true } as any);
-        const lista = resp.data?.items || resp.data?.data || [];
-        if (ativo) setEditais(Array.isArray(lista) ? lista : []);
-      } catch {
-        if (ativo) setEditais([]);
-      } finally {
-        if (ativo) setCarregando(false);
-      }
-    })();
-    return () => {
-      ativo = false;
-    };
-  }, [activeCompany?.id]);
+    carregarEditais(false);
+  }, [selectedCompany?.id]);
 
   const analisados = useMemo(() => {
     return editais
-      .map((ed) => {
-        const calc = calcularViabilidade(ed, activeCompany);
-        return { ...ed, _viab: calc };
-      })
-      .sort((a, b) => b._viab.score - a._viab.score);
-  }, [editais, activeCompany]);
+      .map((ed) => ({ ...ed, _analise: avaliarViabilidade(ed, selectedCompany) }))
+      .sort((a, b) => {
+        const peso: Record<string, number> = { ALTA: 3, MODERADA: 2, BAIXA: 1 };
+        return peso[b._analise.faixa] - peso[a._analise.faixa];
+      });
+  }, [editais, selectedCompany]);
 
-  const verdes = analisados.filter((e) => e._viab.faixa === 'VERDE').length;
-  const amarelos = analisados.filter((e) => e._viab.faixa === 'AMARELO').length;
-  const vermelhos = analisados.filter((e) => e._viab.faixa === 'VERMELHO').length;
+  const altas = analisados.filter((e) => e._analise.faixa === 'ALTA').length;
+  const moderadas = analisados.filter((e) => e._analise.faixa === 'MODERADA').length;
+  const baixas = analisados.filter((e) => e._analise.faixa === 'BAIXA').length;
 
   const filtrados =
-    filtroFaixa === 'TODOS'
-      ? analisados
-      : analisados.filter((e) => e._viab.faixa === filtroFaixa);
+    filtro === 'TODOS' ? analisados : analisados.filter((e) => e._analise.faixa === filtro);
 
-  const dadosSemaforo = [
-    { nome: 'Alta Viabilidade', qtd: verdes, cor: '#16A34A' },
-    { nome: 'Media Viabilidade', qtd: amarelos, cor: '#F59E0B' },
-    { nome: 'Baixa Viabilidade', qtd: vermelhos, cor: '#DC2626' },
+  const dadosGrafico = [
+    { nome: 'Recomendados', qtd: altas, cor: '#16A34A' },
+    { nome: 'Avaliar', qtd: moderadas, cor: '#F59E0B' },
+    { nome: 'Fora do Perfil', qtd: baixas, cor: '#DC2626' },
   ];
 
   const mapaUf: Record<string, number> = {};
@@ -149,57 +180,70 @@ export const ScoreOportunidadesPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-extrabold text-[#081C3A]">Analise de Viabilidade</h1>
             <p className="text-xs text-slate-500">
-              Editais classificados com base no CNAE, localizacao e perfil real da empresa ativa
+              Veja com clareza em quais licitacoes vale mais a pena participar de acordo com sua empresa
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
-          <Building2 className="h-4 w-4 text-[#0070C0]" />
-          <span className="font-bold">{activeCompany?.razaoSocial || 'Empresa Ativa'}</span>
-          {activeCompany?.uf && <span className="rounded bg-white px-2 py-0.5 font-bold">{activeCompany.uf}</span>}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+            <Building2 className="h-4 w-4 text-[#0070C0]" />
+            <span className="font-bold">{selectedCompany?.razaoSocial || 'Empresa Ativa'}</span>
+            {selectedCompany?.uf && (
+              <span className="rounded bg-white px-2 py-0.5 font-bold">{selectedCompany.uf}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            disabled={atualizandoPncp}
+            onClick={() => carregarEditais(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${atualizandoPncp ? 'animate-spin' : ''}`} />
+            {atualizandoPncp ? 'Consultando PNCP...' : 'Atualizar do PNCP em Tempo Real'}
+          </button>
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs simples sem numeracao tecnica */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs font-semibold text-slate-500">Editais Avaliados</div>
+          <div className="text-xs font-semibold text-slate-500">Editais Analisados</div>
           <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{analisados.length}</div>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-            <CheckCircle2 className="h-4 w-4" /> Alta Viabilidade
+            <CheckCircle2 className="h-4 w-4" /> Recomendados para Participar
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-emerald-700">{verdes}</div>
+          <div className="mt-2 text-2xl font-extrabold text-emerald-700">{altas}</div>
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-            <AlertTriangle className="h-4 w-4" /> Media Viabilidade
+            <AlertTriangle className="h-4 w-4" /> Avaliar Exigencias
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-amber-700">{amarelos}</div>
+          <div className="mt-2 text-2xl font-extrabold text-amber-700">{moderadas}</div>
         </div>
         <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-700">
-            <XCircle className="h-4 w-4" /> Baixa Viabilidade
+            <XCircle className="h-4 w-4" /> Fora do Perfil
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-rose-700">{vermelhos}</div>
+          <div className="mt-2 text-2xl font-extrabold text-rose-700">{baixas}</div>
         </div>
       </div>
 
       {/* Graficos */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Distribuicao por Semaforo</h2>
-          <div className="h-56 w-full">
+          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Resumo das Oportunidades</h2>
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dadosSemaforo}>
+              <BarChart data={dadosGrafico}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="qtd" radius={[6, 6, 0, 0]}>
-                  {dadosSemaforo.map((entry, idx) => (
+                  {dadosGrafico.map((entry, idx) => (
                     <Cell key={idx} fill={entry.cor} />
                   ))}
                 </Bar>
@@ -209,8 +253,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Principais Estados com Oportunidades</h2>
-          <div className="h-56 w-full">
+          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Estados com Mais Editais</h2>
+          <div className="h-52 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dadosUf}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -228,16 +272,16 @@ export const ScoreOportunidadesPage: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         {[
           { id: 'TODOS', label: `Todos (${analisados.length})` },
-          { id: 'VERDE', label: `Alta Viabilidade (${verdes})` },
-          { id: 'AMARELO', label: `Media Viabilidade (${amarelos})` },
-          { id: 'VERMELHO', label: `Baixa Viabilidade (${vermelhos})` },
+          { id: 'ALTA', label: `Recomendados (${altas})` },
+          { id: 'MODERADA', label: `Avaliar (${moderadas})` },
+          { id: 'BAIXA', label: `Fora do Perfil (${baixas})` },
         ].map((f) => (
           <button
             key={f.id}
             type="button"
-            onClick={() => setFiltroFaixa(f.id as any)}
+            onClick={() => setFiltro(f.id as any)}
             className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-              filtroFaixa === f.id
+              filtro === f.id
                 ? 'bg-[#081C3A] text-white'
                 : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
             }`}
@@ -247,20 +291,19 @@ export const ScoreOportunidadesPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Lista de Editais */}
       {carregando ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-12 text-sm font-semibold text-[#081C3A]">
           <Loader2 className="h-5 w-5 animate-spin text-[#F97316]" />
-          Extraindo e classificando editais compativeis com sua empresa...
+          Analisando todos os editais do PNCP para sua empresa...
         </div>
       ) : (
         <div className="space-y-4">
-          {filtrados.slice(0, 30).map((ed, idx) => {
-            const { score, faixa, motivos } = ed._viab;
+          {filtrados.slice(0, 40).map((ed, idx) => {
+            const { faixa, rotulo, resumo, motivos } = ed._analise;
             const badge =
-              faixa === 'VERDE'
+              faixa === 'ALTA'
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : faixa === 'AMARELO'
+                : faixa === 'MODERADA'
                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                 : 'bg-rose-50 text-rose-700 border-rose-200';
             const portalUrl = buildOfficialPncpPortalUrl(ed);
@@ -271,20 +314,16 @@ export const ScoreOportunidadesPage: React.FC = () => {
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`rounded-full border px-3 py-0.5 text-xs font-bold ${badge}`}>
-                        {score}% · {faixa === 'VERDE' ? 'Alta Viabilidade' : faixa === 'AMARELO' ? 'Media Viabilidade' : 'Baixa Viabilidade'}
+                        {rotulo}
                       </span>
                       <span className="rounded-full bg-slate-100 px-3 py-0.5 text-xs font-semibold text-slate-700">
                         {ed.modalidadeNome || ed.modalidade || 'Pregao'}
                       </span>
-                      {(ed.uf || ed.unidadeOrgao?.ufSigla) && (
-                        <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0070C0]">
-                          {ed.uf || ed.unidadeOrgao?.ufSigla}
-                        </span>
-                      )}
                     </div>
                     <h3 className="text-sm font-extrabold text-[#081C3A]">
                       {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Orgao Publico'}
                     </h3>
+                    <p className="text-xs font-medium text-slate-600">{resumo}</p>
                     <p className="text-xs leading-relaxed text-slate-700">
                       {ed.objeto || ed.objetoCompra || 'Objeto nao informado'}
                     </p>
@@ -293,7 +332,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
                         Valor: <strong className="text-emerald-700">{formatarMoeda(ed.valorTotalEstimado ?? ed.valorEstimado)}</strong>
                       </span>
                       <span>
-                        Abertura: <strong>{formatPncpDateBR(ed.dataAberturaProposta || ed.dataPublicacaoPncp, true)}</strong>
+                        Abertura: <strong>{formatPncpDateTime(ed.dataAberturaProposta || ed.dataPublicacaoPncp)}</strong>
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">

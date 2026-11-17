@@ -1,398 +1,377 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Target, ShieldAlert, Zap, BarChart3, 
-  AlertTriangle, AlertCircle, Building2, Loader2, Info,
-  CheckCircle2, ArrowRight
+import {
+  TrendingUp,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Loader2,
+  Bot,
+  ExternalLink,
+  Building2,
+  FileCheck2,
+  RefreshCw,
 } from 'lucide-react';
-import { crmApi, noticesApi } from '../../services/api';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+} from 'recharts';
+import { licitacoesApi } from '@/services/api';
+import { useCompany } from '@/contexts/CompanyContext';
+import { FORNECEDOR_ROUTES } from '@/routes';
+import { buildOfficialPncpPortalUrl, formatPncpDateTime } from '@/utils/pncp';
 
-interface OportunidadeScore {
-  id: string;
-  edital: string;
-  orgao: string;
-  valorEstimado: number | null;
-  scoreGeral: number | null; // 0 a 100 ou null se dados insuficientes
-  classificacao: 'ALTA_VIABILIDADE' | 'MEDIA_VIABILIDADE' | 'ALTO_RISCO' | 'DADOS_INSUFICIENTES';
-  breakdown: {
-    tecnico: number; // máx 25
-    comercial: number; // máx 20
-    juridico: number; // máx 25
-    prazo: number; // máx 20
-  };
-  principalRisco: string;
+function formatarMoeda(v: number | null | undefined): string {
+  if (!v || Number.isNaN(Number(v))) return 'Sob consulta';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(Number(v));
+}
+
+function avaliarViabilidade(edital: any, empresa: any): {
+  faixa: 'ALTA' | 'MODERADA' | 'BAIXA';
+  rotulo: string;
+  resumo: string;
   motivos: string[];
+} {
+  let pontos = 0;
+  const motivos: string[] = [];
+  const objeto = String(edital.objeto || edital.objetoCompra || '').toLowerCase();
+  const ufEmpresa = String(empresa?.uf || '').toUpperCase();
+  const ufEdital = String(edital.uf || edital.unidadeOrgao?.ufSigla || '').toUpperCase();
+
+  if (ufEmpresa && ufEdital && ufEmpresa === ufEdital) {
+    pontos += 2;
+    motivos.push(`Localizado no mesmo estado da empresa (${ufEmpresa})`);
+  }
+
+  const cnaeDesc = String(empresa?.cnaeDescricao || empresa?.cnaePrincipal || '').toLowerCase();
+  const palavrasCnae = cnaeDesc
+    .split(/[^a-z0-9à-ú]+/i)
+    .filter((w) => w.length >= 4);
+
+  const sinonimosVestuario = ['vestuario', 'vestuário', 'roupa', 'uniforme', 'fardamento', 'calcado', 'calçado', 'tenis', 'tênis', 'confeccao', 'confecção'];
+  const ehVestuario = palavrasCnae.some((p) => p.includes('vestu') || p.includes('roup') || p.includes('confe'));
+  const bateuCnae =
+    palavrasCnae.some((p) => objeto.includes(p)) ||
+    (ehVestuario && sinonimosVestuario.some((s) => objeto.includes(s)));
+
+  if (bateuCnae) {
+    pontos += 3;
+    motivos.push('Objeto compativel com o CNAE da empresa');
+  }
+
+  const valor = Number(edital.valorTotalEstimado ?? edital.valorEstimado ?? 0);
+  if (valor > 0) {
+    pontos += 1;
+    motivos.push('Valor estimado divulgado no PNCP');
+  }
+
+  const dataAbertura = edital.dataAberturaProposta || edital.dataEncerramentoProposta;
+  if (dataAbertura) {
+    const dias = (new Date(dataAbertura).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    if (dias >= 3) {
+      pontos += 1;
+      motivos.push('Prazo habil para analise e envio de proposta');
+    } else if (dias >= 0) {
+      motivos.push('Prazo curto: priorize conferencia imediata dos documentos');
+    }
+  }
+
+  if (pontos >= 4) {
+    return {
+      faixa: 'ALTA',
+      rotulo: 'Alta Viabilidade · Recomendado participar',
+      resumo: 'Excelente aderencia ao perfil e atuacao da empresa.',
+      motivos,
+    };
+  }
+  if (pontos >= 2) {
+    return {
+      faixa: 'MODERADA',
+      rotulo: 'Viabilidade Moderada · Avaliar exigencias',
+      resumo: 'Compativel parcialmente; vale revisar o edital completo com a Luli.',
+      motivos: motivos.length ? motivos : ['Requer leitura do edital para confirmar especificacoes'],
+    };
+  }
+  return {
+    faixa: 'BAIXA',
+    rotulo: 'Baixa Viabilidade · Fora do perfil principal',
+    resumo: 'Baixa aderencia ao CNAE ou estado da empresa.',
+    motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
+  };
 }
 
 export const ScoreOportunidadesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [oportunidades, setOportunidades] = useState<OportunidadeScore[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { selectedCompany } = useCompany();
+  const [editais, setEditais] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [atualizandoPncp, setAtualizandoPncp] = useState(false);
+  const [filtro, setFiltro] = useState<'TODOS' | 'ALTA' | 'MODERADA' | 'BAIXA'>('TODOS');
+
+  const carregarEditais = async (tempoReal = false) => {
+    if (tempoReal) setAtualizandoPncp(true);
+    else setCarregando(true);
+
+    try {
+      const resp = await licitacoesApi.listar({ local: !tempoReal } as any);
+      const lista = resp.data?.items || resp.data?.data || [];
+      setEditais(Array.isArray(lista) ? lista : []);
+    } catch {
+      if (!tempoReal) setEditais([]);
+    } finally {
+      setCarregando(false);
+      setAtualizandoPncp(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
+    carregarEditais(false);
+  }, [selectedCompany?.id]);
 
-    const fetchOportunidades = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const crmRes = await crmApi.getOportunidades();
-        const pipelines = crmRes.data?.data || [];
-        
-        // Avalia oportunidades adicionadas ao funil
-        const topPipelines = pipelines.slice(0, 15);
-        const noticeIds = topPipelines
-          .map((p: any) => p.notice?.id)
-          .filter((id: any): id is string => typeof id === 'string' && id.length > 0);
+  const analisados = useMemo(() => {
+    return editais
+      .map((ed) => ({ ...ed, _analise: avaliarViabilidade(ed, selectedCompany) }))
+      .sort((a, b) => {
+        const peso: Record<string, number> = { ALTA: 3, MODERADA: 2, BAIXA: 1 };
+        return peso[b._analise.faixa] - peso[a._analise.faixa];
+      });
+  }, [editais, selectedCompany]);
 
-        // Dispara uma única requisição em lote (Fim do gargalo N+1)
-        const scoreMap = new Map<string, any>();
-        if (noticeIds.length > 0) {
-          try {
-            const batchRes = await noticesApi.getBatchOpportunityScore(noticeIds);
-            const batchItems = Array.isArray(batchRes.data?.data) ? batchRes.data.data : [];
-            batchItems.forEach((item: any) => {
-              if (item?.noticeId && item?.data) {
-                scoreMap.set(item.noticeId, item.data);
-              }
-            });
-          } catch (batchErr) {
-            console.warn('[ScoreOportunidades] Falha ao consultar scores em lote:', batchErr);
-          }
-        }
+  const altas = analisados.filter((e) => e._analise.faixa === 'ALTA').length;
+  const moderadas = analisados.filter((e) => e._analise.faixa === 'MODERADA').length;
+  const baixas = analisados.filter((e) => e._analise.faixa === 'BAIXA').length;
 
-        const mapped: OportunidadeScore[] = [];
+  const filtrados =
+    filtro === 'TODOS' ? analisados : analisados.filter((e) => e._analise.faixa === filtro);
 
-        for (const p of topPipelines) {
-          if (!p.notice || !p.notice.id) continue;
-          const scoreData = scoreMap.get(p.notice.id);
+  const dadosGrafico = [
+    { nome: 'Recomendados', qtd: altas, cor: '#16A34A' },
+    { nome: 'Avaliar', qtd: moderadas, cor: '#F59E0B' },
+    { nome: 'Fora do Perfil', qtd: baixas, cor: '#DC2626' },
+  ];
 
-          if (scoreData) {
-            const baseScore = typeof scoreData.score === 'number' ? scoreData.score : null;
-            
-            let classif: OportunidadeScore['classificacao'] = 'MEDIA_VIABILIDADE';
-            if (baseScore === null || isNaN(baseScore)) {
-              classif = 'DADOS_INSUFICIENTES';
-            } else if (baseScore >= 75) {
-              classif = 'ALTA_VIABILIDADE';
-            } else if (baseScore < 50) {
-              classif = 'ALTO_RISCO';
-            }
-
-            mapped.push({
-              id: p.notice.id,
-              edital: (p.notice.modality ? `${p.notice.modality} ` : '') + (p.notice.noticeNumber || 'Edital S/N'),
-              orgao: p.notice.buyerName || 'Órgão não especificado',
-              valorEstimado: p.notice.estimatedValue ? Number(p.notice.estimatedValue) : null,
-              scoreGeral: baseScore,
-              classificacao: classif,
-              breakdown: { 
-                tecnico: scoreData.detalhes?.compatibilidadeNicho ?? 0,
-                comercial: scoreData.detalhes?.compatibilidadeValor ?? 0,
-                juridico: scoreData.detalhes?.riscoEdital ?? 0,
-                prazo: scoreData.detalhes?.prazo ?? 0,
-              },
-              principalRisco: scoreData.riscos?.[0] || scoreData.recomendacao || 'Sem risco crítico identificado',
-              motivos: scoreData.motivos || [],
-            });
-          } else {
-            mapped.push({
-              id: p.notice.id,
-              edital: (p.notice.modality ? `${p.notice.modality} ` : '') + (p.notice.noticeNumber || 'Edital S/N'),
-              orgao: p.notice.buyerName || 'Órgão não especificado',
-              valorEstimado: p.notice.estimatedValue ? Number(p.notice.estimatedValue) : null,
-              scoreGeral: null,
-              classificacao: 'DADOS_INSUFICIENTES',
-              breakdown: { tecnico: 0, comercial: 0, juridico: 0, prazo: 0 },
-              principalRisco: 'Dados públicos insuficientes para estimativa de score.',
-              motivos: [],
-            });
-          }
-        }
-
-        // Ordena por score decrescente (nulos ao final)
-        mapped.sort((a, b) => (b.scoreGeral ?? -1) - (a.scoreGeral ?? -1));
-
-        if (isMounted) {
-          setOportunidades(mapped);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err?.response?.data?.message || 'Não foi possível carregar o Painel de Oportunidades.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchOportunidades();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const formatarMoeda = (val: number | null) => {
-    if (val === null || val === undefined || isNaN(val)) return 'Valor não informado';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
-  };
-
-  const getCorScore = (classificacao: OportunidadeScore['classificacao'], score: number | null) => {
-    if (score === null || classificacao === 'DADOS_INSUFICIENTES') {
-      return 'text-slate-600 bg-slate-100 border-slate-300';
-    }
-    if (score >= 75) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (score >= 50) return 'text-amber-700 bg-amber-50 border-amber-200';
-    return 'text-rose-700 bg-rose-50 border-rose-200';
-  };
-
-  // Métricas de resumo calculadas DINAMICAMENTE (zero números estáticos ou arbitrários)
-  const totalValidos = oportunidades.filter((o) => o.scoreGeral !== null);
-  const scoreMedio = totalValidos.length > 0 
-    ? (totalValidos.reduce((acc, curr) => acc + (curr.scoreGeral ?? 0), 0) / totalValidos.length).toFixed(1)
-    : null;
-
-  const totalQuentes = oportunidades.filter((o) => o.classificacao === 'ALTA_VIABILIDADE').length;
-  const totalAltoRisco = oportunidades.filter((o) => o.classificacao === 'ALTO_RISCO').length;
+  const mapaUf: Record<string, number> = {};
+  analisados.forEach((e) => {
+    const u = String(e.uf || e.unidadeOrgao?.ufSigla || 'BR').toUpperCase();
+    mapaUf[u] = (mapaUf[u] || 0) + 1;
+  });
+  const dadosUf = Object.entries(mapaUf)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([uf, qtd]) => ({ uf, qtd }));
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-slate-50 min-h-screen">
-      
-      {/* CABEÇALHO */}
-      <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-8 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-3 pl-3 border-l-4 border-[#0A2540]">
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Termômetro de Oportunidade
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Veja como cada oportunidade se relaciona com o perfil da sua empresa e confira os principais fatores de atenção.
-              </p>
-            </div>
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316]">
+            <TrendingUp className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">Analise de Viabilidade</h1>
+            <p className="text-xs text-slate-500">
+              Veja com clareza em quais licitacoes vale mais a pena participar de acordo com sua empresa
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-slate-500 bg-slate-200/70 px-3 py-1 rounded-full flex items-center gap-1.5">
-            <CheckCircle2 size={13} className="text-blue-600" />
-            Análise baseada no perfil da empresa
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+            <Building2 className="h-4 w-4 text-[#0070C0]" />
+            <span className="font-bold">{selectedCompany?.razaoSocial || 'Empresa Ativa'}</span>
+            {selectedCompany?.uf && (
+              <span className="rounded bg-white px-2 py-0.5 font-bold">{selectedCompany.uf}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            disabled={atualizandoPncp}
+            onClick={() => carregarEditais(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${atualizandoPncp ? 'animate-spin' : ''}`} />
+            {atualizandoPncp ? 'Consultando PNCP...' : 'Atualizar do PNCP em Tempo Real'}
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* ERRO GERAL */}
-      {error && (
-        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-3">
-          <AlertCircle size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs font-bold text-rose-800">{error}</p>
+      {/* KPIs simples sem numeracao tecnica */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold text-slate-500">Editais Analisados</div>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{analisados.length}</div>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+            <CheckCircle2 className="h-4 w-4" /> Recomendados para Participar
+          </div>
+          <div className="mt-2 text-2xl font-extrabold text-emerald-700">{altas}</div>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+            <AlertTriangle className="h-4 w-4" /> Avaliar Exigencias
+          </div>
+          <div className="mt-2 text-2xl font-extrabold text-amber-700">{moderadas}</div>
+        </div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-700">
+            <XCircle className="h-4 w-4" /> Fora do Perfil
+          </div>
+          <div className="mt-2 text-2xl font-extrabold text-rose-700">{baixas}</div>
+        </div>
+      </div>
+
+      {/* Graficos */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Resumo das Oportunidades</h2>
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosGrafico}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="qtd" radius={[6, 6, 0, 0]}>
+                  {dadosGrafico.map((entry, idx) => (
+                    <Cell key={idx} fill={entry.cor} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Estados com Mais Editais</h2>
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosUf}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="uf" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="qtd" fill="#081C3A" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'TODOS', label: `Todos (${analisados.length})` },
+          { id: 'ALTA', label: `Recomendados (${altas})` },
+          { id: 'MODERADA', label: `Avaliar (${moderadas})` },
+          { id: 'BAIXA', label: `Fora do Perfil (${baixas})` },
+        ].map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setFiltro(f.id as any)}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              filtro === f.id
+                ? 'bg-[#081C3A] text-white'
+                : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {carregando ? (
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-12 text-sm font-semibold text-[#081C3A]">
+          <Loader2 className="h-5 w-5 animate-spin text-[#F97316]" />
+          Analisando todos os editais do PNCP para sua empresa...
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtrados.slice(0, 40).map((ed, idx) => {
+            const { faixa, rotulo, resumo, motivos } = ed._analise;
+            const badge =
+              faixa === 'ALTA'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : faixa === 'MODERADA'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200';
+            const portalUrl = buildOfficialPncpPortalUrl(ed);
+
+            return (
+              <div key={ed.id || idx} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full border px-3 py-0.5 text-xs font-bold ${badge}`}>
+                        {rotulo}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-3 py-0.5 text-xs font-semibold text-slate-700">
+                        {ed.modalidadeNome || ed.modalidade || 'Pregao'}
+                      </span>
+                    </div>
+                    <h3 className="text-sm font-extrabold text-[#081C3A]">
+                      {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Orgao Publico'}
+                    </h3>
+                    <p className="text-xs font-medium text-slate-600">{resumo}</p>
+                    <p className="text-xs leading-relaxed text-slate-700">
+                      {ed.objeto || ed.objetoCompra || 'Objeto nao informado'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                      <span>
+                        Valor: <strong className="text-emerald-700">{formatarMoeda(ed.valorTotalEstimado ?? ed.valorEstimado)}</strong>
+                      </span>
+                      <span>
+                        Abertura: <strong>{formatPncpDateTime(ed.dataAberturaProposta || ed.dataPublicacaoPncp)}</strong>
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {motivos.map((m: string) => (
+                        <span key={m} className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                          <FileCheck2 className="h-3 w-3 text-[#F97316]" /> {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${FORNECEDOR_ROUTES.lex}?edital=${encodeURIComponent(ed.id || '')}`)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                    >
+                      <Bot className="h-4 w-4 text-[#F97316]" />
+                      Ler Edital com a Luli
+                    </button>
+                    {portalUrl && (
+                      <a
+                        href={portalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-[#0070C0] hover:bg-slate-50"
+                      >
+                        PNCP <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {/* MÉTRICAS DE RESUMO DINÂMICAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Score Médio do Portfólio
-            </span>
-            <span className="text-2xl font-black text-slate-900">
-              {loading ? (
-                <Loader2 size={20} className="animate-spin text-slate-300" />
-              ) : scoreMedio !== null ? (
-                `${scoreMedio} / 100`
-              ) : (
-                <span className="text-slate-400 font-bold text-lg">Não calculado</span>
-              )}
-            </span>
-          </div>
-          <div className="p-3 bg-blue-50 text-[#0A2540] rounded-xl">
-            <BarChart3 size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Alta Viabilidade (≥ 75)
-            </span>
-            <span className="text-2xl font-black text-emerald-700">
-              {loading ? (
-                <Loader2 size={20} className="animate-spin text-slate-300" />
-              ) : (
-                `${totalQuentes} ${totalQuentes === 1 ? 'Edital' : 'Editais'}`
-              )}
-            </span>
-          </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-            <Zap size={24} />
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Alertas de Alto Risco (&lt; 50)
-            </span>
-            <span className="text-2xl font-black text-rose-700">
-              {loading ? (
-                <Loader2 size={20} className="animate-spin text-slate-300" />
-              ) : (
-                `${totalAltoRisco} ${totalAltoRisco === 1 ? 'Edital' : 'Editais'}`
-              )}
-            </span>
-          </div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-            <AlertTriangle size={24} />
-          </div>
-        </div>
-      </div>
-
-      {/* LISTAGEM DE OPORTUNIDADES */}
-      <div className="space-y-4">
-        {loading ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center flex flex-col items-center justify-center">
-            <Loader2 className="animate-spin text-[#0A2540] w-8 h-8 mb-3" />
-            <p className="text-xs font-bold text-slate-600">Calculando matriz de score a partir das bases do PNCP...</p>
-          </div>
-        ) : oportunidades.length === 0 ? (
-          /* ESTADO VAZIO EXPLICATIVO COMPROVADO */
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
-            <div className="bg-slate-100 p-4 rounded-full inline-flex mb-4">
-              <Target size={32} className="text-slate-400" />
-            </div>
-            <h3 className="text-base font-black text-slate-900 mb-2">
-              Nenhuma oportunidade processada pelo motor de Score
-            </h3>
-            <div className="max-w-xl mx-auto space-y-2 text-xs text-slate-500 leading-relaxed mb-6">
-              <p>
-                <strong>Quais dados serão exibidos:</strong> Oportunidades da sua esteira avaliadas por nicho de atuação (CNAE), compatibilidade financeira, região geográfica e riscos de edital.
-              </p>
-              <p>
-                <strong>Por que não estão disponíveis:</strong> Sua Esteira de Disputas ainda não possui editais vinculados à conta da sua empresa.
-              </p>
-              <p>
-                <strong>Ação recomendada:</strong> Acesse o Radar de Oportunidades e selecione certames do seu interesse para que o motor estratégico gere a pontuação de viabilidade.
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/fornecedor/radar')}
-              className="inline-flex items-center gap-2 bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-sm"
-            >
-              Explorar Radar de Editais
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        ) : (
-          oportunidades.map((item) => (
-            <div key={item.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              
-              {/* INFORMAÇÕES BÁSICAS */}
-              <div className="lg:col-span-5 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-black text-sm text-slate-900">{item.edital}</span>
-                </div>
-                <p className="text-xs text-slate-500 font-bold flex items-center gap-1">
-                  <Building2 size={14} className="text-slate-400" /> {item.orgao}
-                </p>
-                <div className="text-xs text-slate-700">
-                  Valor Estimado: <strong className="font-black text-slate-900">{formatarMoeda(item.valorEstimado)}</strong>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-600 mt-2">
-                  <strong className="text-rose-700 block mb-0.5 font-bold flex items-center gap-1">
-                    <ShieldAlert size={13} /> Fator Principal de Atenção / Risco:
-                  </strong>
-                  {item.principalRisco}
-                </div>
-              </div>
-
-              {/* BARRA DE SCORE / BREAKDOWN PROPORCIONAL COM PESOS REAIS */}
-              <div className="lg:col-span-5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
-                    Fatores Auditáveis de Composição
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    Criterios Objetivos
-                  </span>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <div className="flex justify-between font-bold text-[11px] mb-1">
-                      <span className="text-slate-600">Aderência de Nicho / CNAE:</span>
-                      <span className="text-slate-900">{item.breakdown.tecnico} / 25 pts</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-[#0A2540] h-full transition-all" 
-                        style={{ width: `${Math.min(100, (item.breakdown.tecnico / 25) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between font-bold text-[11px] mb-1">
-                      <span className="text-slate-600">Faixa de Valor Estimado:</span>
-                      <span className="text-slate-900">{item.breakdown.comercial} / 20 pts</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-[#EA580C] h-full transition-all" 
-                        style={{ width: `${Math.min(100, (item.breakdown.comercial / 20) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between font-bold text-[11px] mb-1">
-                      <span className="text-slate-600">Mitigação de Riscos de Edital:</span>
-                      <span className="text-slate-900">{25 - Math.min(25, item.breakdown.juridico)} / 25 pts</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-emerald-600 h-full transition-all" 
-                        style={{ width: `${Math.max(0, 100 - (item.breakdown.juridico / 25) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD DE SCORE FINAL */}
-              <div className="lg:col-span-2 flex flex-col items-center justify-center p-4 rounded-xl border text-center space-y-1 bg-slate-50">
-                <span className="text-[10px] font-black uppercase text-slate-400">Termômetro de Oportunidade</span>
-                {item.scoreGeral !== null ? (
-                  <span className={`text-3xl font-black px-3 py-1 rounded-xl border ${getCorScore(item.classificacao, item.scoreGeral)}`}>
-                    {item.scoreGeral}
-                  </span>
-                ) : (
-                  <span className="text-xs font-black px-2.5 py-1.5 rounded-lg border text-slate-600 bg-slate-200/80 border-slate-300">
-                    Dados Insuficientes
-                  </span>
-                )}
-                <span className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-wider">
-                  {item.classificacao === 'DADOS_INSUFICIENTES' 
-                    ? 'Não calculado' 
-                    : item.classificacao.replace('_', ' ')}
-                </span>
-              </div>
-
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* NOTA DE RASTREABILIDADE */}
-      <footer className="mt-8 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-        <Info size={14} />
-        O cálculo utiliza pesos fixos versionados sobre dados abertos do PNCP e cadastros da empresa. Nenhuma análise utiliza aleatoriedade.
-      </footer>
-
     </div>
   );
 };
+
+export default ScoreOportunidadesPage;
