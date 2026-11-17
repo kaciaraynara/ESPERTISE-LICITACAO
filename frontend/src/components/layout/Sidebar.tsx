@@ -246,6 +246,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
       { path: FORNECEDOR_ROUTES.investigacao_concorrencial, label: 'Inteligência Competitiva', icon: ChartLineUp, requiredFeature: 'inteligencia_concorrentes' },
+      { path: '/fornecedor/expertise-intelligence', label: 'Expertise Intelligence', icon: ShieldCheck, requiredFeature: 'inteligencia_concorrentes' },
     ],
   },
   {

@@ -46,6 +46,12 @@ const PropostaDetalhePage = React.lazy(() => import('./pages/Propostas/PropostaD
 const LexAnalisePage = React.lazy(() =>
   import('./pages/Lex/LexAnalisePage').then((module) => ({ default: module.LexAnalisePage })),
 );
+const ExpertiseIntelligencePage = React.lazy(() =>
+  import('./pages/ExpertiseIntelligence/ExpertiseIntelligencePage').then((module) => ({
+    default: module.ExpertiseIntelligencePage,
+  }))
+);
+
 const HistoricoConcorrentesPage = React.lazy(() =>
   import('./pages/HistoricoConcorrentesPage').then((module) => ({ default: module.HistoricoConcorrentesPage })),
 );
@@ -347,6 +353,7 @@ export default function App() {
 
             {/* As 16 Ferramentas Principais da Plataforma (Arte Oficial) */}
             <Route path={FORNECEDOR_ROUTES.radar} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
+            <Route path={'/fornecedor/expertise-intelligence'} element={protectFeature('inteligencia_concorrentes', 'Expertise Intelligence', <ExpertiseIntelligencePage />)} />
             <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={protectFeature('radar_erros_edital', 'Radar de Nulidades', <NulidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.leitor_editais} element={protectFeature('resumo_edital_completo', 'Leitor Inteligente de Editais', <LeitorEditaisPage />)} />
             <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />

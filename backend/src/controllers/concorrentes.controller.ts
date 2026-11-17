@@ -8,7 +8,7 @@ function extractTransparenciaToken(raw?: string): string {
   }
   return t;
 }
-import { consultarComprasGovContratos, consultarCguCeisCnep, consultarCadeCondutas } from '../services/intelligence.service';
+import { consultarComprasGovContratos, consultarCguCeisCnep, consultarCadeCondutas, consultarCguCompleto, consultarComprasGovPrecoCatmat } from '../services/intelligence.service';
 const __dossieCache = new Map<string, { ts: number; data: any }>();
 import { Response } from 'express';
 import { z } from 'zod';
@@ -421,6 +421,16 @@ export class ConcorrentesController {
       const indiceRisco = Math.min(95, Math.max(8, pesos || 12));
       const nivelRisco = indiceRisco >= 60 ? 'Elevado' : indiceRisco >= 30 ? 'Moderado' : 'Baixo';
 
+      const precoRef = await consultarComprasGovPrecoCatmat(req.body?.codigoCatmat);
+      const motoRes = [
+        { motor: '1. Radar Anticonluio e Cartel (Lei 12.529/2011)', status: conexoes.length > 0 ? 'Indicios mapeados' : 'Sem coincidencia direta entre os CNPJs', baseLegal: 'Art. 36 da Lei 12.529/2011' },
+        { motor: '2. Radar de Vinculos Empresariais (QSA / RFB)', status: `${conexoes.length} conexao(oes) societaria(s) ou cadastral(is)`, baseLegal: 'Art. 14 e Art. 155 da Lei 14.133/2021' },
+        { motor: '3. Radar de Anomalias Economicas', status: precoRef.consultado ? `${precoRef.amostras} amostra(s) CATMAT · Media R$ ${precoRef.precoMedio ?? 0}` : 'Informe codigo CATMAT para benchmark de preco', baseLegal: 'Art. 23 e Art. 59 da Lei 14.133/2021' },
+        { motor: '4. Radar de Integridade e Sancoes (CGU/TCU)', status: empresas.some((e) => e.tcuAlerta || e.cguAlerta) ? 'Ocorrencia detectada em cadastro oficial' : 'Sem sancoes vigentes retornadas', baseLegal: 'Lei 12.846/2013 e Art. 46 da Lei 8.443/1992' },
+        { motor: '5. Radar de Editais e Procedimentos', status: req.body?.processoRef ? `Processo referenciado: ${req.body.processoRef}` : 'Pronto para cruzamento com edital', baseLegal: 'Art. 9 e Art. 164 da Lei 14.133/2021' },
+        { motor: '6. Radar de Inteligencia Juridica', status: 'Linhas de defesa e contraditorio estruturadas', baseLegal: 'Art. 5 LV CF/88 e Jurisprudencia TCU' },
+      ];
+
       const linhasDefesa = [
         'Comprovacao de independencia operacional e elaboracao autonoma das propostas (Lei 14.133/2021).',
         'Justificativa tecnica e economica dos precos ofertados mediante planilhas de custos e notas fiscais.',
@@ -438,6 +448,8 @@ export class ConcorrentesController {
           empresas,
           conexoes,
           indicios,
+          motores: motoRes,
+          precoReferencia: precoRef,
           linhasDefesa,
           fontesConsultadas: [
             { orgao: 'Receita Federal / BrasilAPI', escopo: 'CNPJ, QSA, CNAE, endereco e situacao cadastral', status: 'Consultado' },

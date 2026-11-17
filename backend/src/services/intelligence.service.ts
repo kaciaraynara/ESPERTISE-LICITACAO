@@ -116,3 +116,86 @@ export async function consultarCadeCondutas(cnpj: string): Promise<{
     return { status: 'Indisponivel no momento', alerta: false };
   }
 }
+
+export async function consultarCguCompleto(cnpj: string): Promise<{
+  ceis: number;
+  cnep: number;
+  cepim: number;
+  leniencia: number;
+  alerta: boolean;
+  resumo: string;
+}> {
+  const token = extractTransparenciaToken(
+    process.env.TRANSPARENCIA_API_TOKEN || process.env.PORTAL_TRANSPARENCIA_TOKEN
+  );
+  if (!token) {
+    return { ceis: 0, cnep: 0, cepim: 0, leniencia: 0, alerta: false, resumo: 'Token CGU pendente' };
+  }
+  const limpo = cnpj.replace(/\D/g, '');
+  const headers = { 'chave-api-dados': token };
+  const opts = { headers, signal: AbortSignal.timeout(5000) };
+
+  const getCount = async (url: string) => {
+    try {
+      const r = await fetch(url, opts);
+      if (!r.ok) return 0;
+      const j = await r.json();
+      return Array.isArray(j) ? j.length : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const [ceis, cnep, cepim, leniencia] = await Promise.all([
+    getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/ceis?codigoSancionado=${limpo}&pagina=1`),
+    getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/cnep?codigoSancionado=${limpo}&pagina=1`),
+    getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/cepim?codigoSancionado=${limpo}&pagina=1`),
+    getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/acordos-leniencia?cnpjSancionado=${limpo}&pagina=1`),
+  ]);
+
+  const total = ceis + cnep + cepim + leniencia;
+  return {
+    ceis,
+    cnep,
+    cepim,
+    leniencia,
+    alerta: total > 0,
+    resumo:
+      total > 0
+        ? `Constam registros: CEIS(${ceis}), CNEP(${cnep}), CEPIM(${cepim}), Leniencia(${leniencia})`
+        : 'Nada consta em CEIS, CNEP, CEPIM e Acordos de Leniencia (CGU)',
+  };
+}
+
+export async function consultarComprasGovPrecoCatmat(codigoItem?: string): Promise<{
+  consultado: boolean;
+  amostras: number;
+  precoMedio: number | null;
+  menorPreco: number | null;
+  maiorPreco: number | null;
+}> {
+  const cod = String(codigoItem || '').replace(/\D/g, '');
+  if (!cod) return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
+  try {
+    const r = await fetch(
+      `https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?codigoItemCatalogo=${cod}&pagina=1&tamanhoPagina=20`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!r.ok) return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
+    const json: any = await r.json();
+    const precos = (Array.isArray(json?.resultado) ? json.resultado : [])
+      .map((x: any) => Number(x.precoUnitario || 0))
+      .filter((v: number) => v > 0);
+    if (precos.length === 0) return { consultado: true, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
+    const soma = precos.reduce((a: number, b: number) => a + b, 0);
+    return {
+      consultado: true,
+      amostras: precos.length,
+      precoMedio: Number((soma / precos.length).toFixed(2)),
+      menorPreco: Math.min(...precos),
+      maiorPreco: Math.max(...precos),
+    };
+  } catch {
+    return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
+  }
+}
