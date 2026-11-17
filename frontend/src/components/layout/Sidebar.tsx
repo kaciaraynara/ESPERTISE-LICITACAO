@@ -308,7 +308,7 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
   return (
     <Link
       to={item.path}
-      onMouseEnter={() => prefetchRoute(item.path)}
+      
       aria-current={active ? 'page' : undefined}
       title={isCollapsed ? item.label : undefined}
       className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
@@ -352,9 +352,7 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
       <button
         type="button"
         onClick={onToggle}
-        onMouseEnter={() => {
-          hub.items.forEach((it) => prefetchRoute(it.path));
-        }}
+        
         title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
         className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
@@ -515,8 +513,8 @@ export default function Sidebar() {
 
       <aside
         data-tour="sidebar-menu"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        
+        
         onFocus={handleMouseEnter}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -537,7 +535,7 @@ export default function Sidebar() {
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
+              
               className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-2.5'
                 }`}
               aria-label="EXPERTISE Licitatória — Página Inicial"
@@ -601,7 +599,7 @@ export default function Sidebar() {
           <div className="mb-2">
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.dashboard)}
+              
               title={isCollapsed ? 'Página Inicial' : undefined}
               className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
                 } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
@@ -641,7 +639,7 @@ export default function Sidebar() {
           <div className="space-y-1">
             <Link
               to={FORNECEDOR_ROUTES.planos}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.planos)}
+              
               title={isCollapsed ? 'Planos & Assinatura' : undefined}
               className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
                 } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
@@ -652,7 +650,7 @@ export default function Sidebar() {
 
             <Link
               to={FORNECEDOR_ROUTES.configuracoes}
-              onMouseEnter={() => prefetchRoute(FORNECEDOR_ROUTES.configuracoes)}
+              
               title={isCollapsed ? 'Configurações' : undefined}
               className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
                 } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}

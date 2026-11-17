@@ -239,6 +239,7 @@ export class LexController {
 
       const __textoBuscaCnpj = Array.isArray(req.body?.messages) ? req.body.messages.map((m: any) => m?.content || '').join(' ') : String(req.body?.pergunta || '');
     const __cnpjContexto = await fetchCnpjInvestigationContext(__textoBuscaCnpj);
+    const __anexoNota = req.body?.fileName ? `\n[ARQUIVO ANEXADO PELO USUARIO: ${req.body.fileName} (${req.body.fileMimeType || 'documento'})]\n` : '';
     const pergunta = (req.body?.pergunta || req.body?.message || lastUserMessage(messages) || '').trim();
       if (!pergunta) {
         return res.status(400).json({ success: false, message: 'Mensagens inválidas ou pergunta vazia.' });

@@ -12,6 +12,8 @@ import {
   Download,
   RefreshCw,
   Bot,
+  Paperclip,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { lexApi } from '../../services/api';
@@ -80,6 +82,8 @@ export const LexAnalisePage: React.FC = () => {
     },
   ]);
   const [input, setInput] = useState('');
+  const [anexo, setAnexo] = useState<{ name: string; mimeType: string; base64: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [carregando, setCarregando] = useState(false);
   const fimChatRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -128,16 +132,23 @@ export const LexAnalisePage: React.FC = () => {
         messages: payloadMessages,
         contextoEdital: montarContextoEdital(editalSelecionado),
         stream: false,
-      });
+        ...(anexo ? { fileBase64: anexo.base64, fileMimeType: anexo.mimeType, fileName: anexo.name } : {}),
+      } as any);
+      setAnexo(null);
 
       const data: any = resp.data || {};
       const respostaTexto =
         data.reply ||
         data.response ||
+        data.resposta ||
+        data.answer ||
         data.message ||
         data.content ||
         data.texto ||
-        'Analise concluida, mas o retorno veio vazio. Tente reformular a pergunta.';
+        data.data?.reply ||
+        data.data?.resposta ||
+        data.data?.response ||
+        'Nao foi possivel obter o parecer agora. Tente novamente.';
 
       setMensagens((prev) => [
         ...prev,
@@ -358,7 +369,48 @@ export const LexAnalisePage: React.FC = () => {
 
         {/* Barra de entrada */}
         <div className="border-t border-slate-200 bg-slate-50 p-3 md:p-4">
+          {anexo && (
+            <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-[#081C3A]">
+              <Paperclip className="h-3.5 w-3.5 text-[#0070C0]" />
+              <span>{anexo.name}</span>
+              <button type="button" onClick={() => setAnexo(null)} className="text-slate-500 hover:text-rose-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
           <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 12 * 1024 * 1024) {
+                  toast.error('Arquivo muito grande. Limite de 12 MB.');
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const resStr = String(reader.result || '');
+                  const base64 = resStr.includes(',') ? resStr.split(',')[1] : resStr;
+                  setAnexo({ name: file.name, mimeType: file.type || 'application/pdf', base64 });
+                  toast.success(`Arquivo "${file.name}" anexado para a Luli.`);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Enviar PDF ou Foto para analise"
+              className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-[#081C3A] hover:bg-slate-100"
+            >
+              <Paperclip className="h-4 w-4 text-[#F97316]" />
+              PDF / Foto
+            </button>
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute top-3.5 left-3.5 h-4 w-4 text-slate-400" />
               <textarea

@@ -339,7 +339,7 @@ export default function ContenciosoHubPage() {
                     1
                   </div>
                   <p>
-                    <strong className="text-slate-800">Parser Nativo:</strong> O arquivo PDF é desconstruído em texto estruturado com extração de preliminares e mérito.
+                    <strong className="text-slate-800">Leitura Automatica:</strong> O arquivo PDF é desconstruído em texto estruturado com extração de preliminares e mérito.
                   </p>
                 </div>
 
@@ -348,7 +348,7 @@ export default function ContenciosoHubPage() {
                     2
                   </div>
                   <p>
-                    <strong className="text-slate-800">RAG Vetorial com pgvector:</strong> O motor consulta artigos da Lei 14.133/2021 e jurisprudências do TCU mais aderentes às teses do concorrente.
+                    <strong className="text-slate-800">Base Juridica Oficial:</strong> O motor consulta artigos da Lei 14.133/2021 e jurisprudências do TCU mais aderentes às teses do concorrente.
                   </p>
                 </div>
 
@@ -357,7 +357,7 @@ export default function ContenciosoHubPage() {
                     3
                   </div>
                   <p>
-                    <strong className="text-slate-800">Redação Combate (GPT-4o):</strong> Elabora a minuta oficial de Contrarrazões pronta para protocolo perante o Agente de Contratação.
+                    <strong className="text-slate-800">Redacao Juridica Luli:</strong> Elabora a minuta oficial de Contrarrazões pronta para protocolo perante o Agente de Contratação.
                   </p>
                 </div>
               </div>
@@ -423,7 +423,7 @@ export default function ContenciosoHubPage() {
                 {loadingStep > 2 ? '✓' : '2'}
               </div>
               <span className="text-xs">
-                Buscando jurisprudência no pgvector (BaseJuridicaKnowledge / TCU)...
+                Buscando jurisprudência no base oficial (BaseJuridicaKnowledge / TCU)...
               </span>
             </div>
 
@@ -441,7 +441,7 @@ export default function ContenciosoHubPage() {
               >
                 3
               </div>
-              <span className="text-xs">Redigindo Contrarrazões com o GPT-4o...</span>
+              <span className="text-xs">Redigindo Contrarrazões com o Luli...</span>
             </div>
           </div>
         </div>
@@ -526,13 +526,13 @@ export default function ContenciosoHubPage() {
             </div>
           </div>
 
-          {/* Coluna Lateral: Citações Mapeadas do pgvector & Teses (4 colunas) */}
+          {/* Coluna Lateral: Citações Mapeadas do base oficial & Teses (4 colunas) */}
           <div className="lg:col-span-4 space-y-6">
             {/* Box de Citações da Base Jurídica */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
               <h3 className="text-xs font-black uppercase tracking-wider text-[#0A2540] mb-4 flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-[#EA580C]" weight="bold" />
-                Fundamentações Legais Mapeadas (pgvector)
+                Fundamentações Legais Mapeadas (base oficial)
               </h3>
 
               <div className="space-y-3.5">

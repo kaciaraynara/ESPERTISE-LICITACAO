@@ -11,7 +11,7 @@ export interface AnalyzeRivalPayload {
 export const contenciosoService = {
   /**
    * POST /api/lex/analyze-rival
-   * Envia o PDF do recurso concorrente para extração, RAG pgvector e geração de contrarrazão pelo GPT-4o
+   * Envia o PDF do recurso concorrente para extração, RAG base oficial e geração de contrarrazão pelo Luli
    */
   async analyzeRival(payload: AnalyzeRivalPayload): Promise<AnalyzeRivalResult> {
     const formData = new FormData();

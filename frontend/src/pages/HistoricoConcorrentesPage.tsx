@@ -333,7 +333,12 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                   const alto = (d.estatisticas?.totalContratos || 0) >= 5;
                   return (
                     <tr key={d.cnpj} className="border-b border-slate-100">
-                      <td className="py-3 pr-3 font-bold text-[#081C3A]">{formatCnpjMask(d.cnpj)}</td>
+                      <td className="py-3 pr-3">
+                        <div className="font-bold text-[#081C3A]">{(d as any).razaoSocial || formatCnpjMask(d.cnpj)}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {formatCnpjMask(d.cnpj)} {(d as any).uf ? `· ${(d as any).municipio || ''}/${(d as any).uf}` : ''} {(d as any).situacao ? `· ${(d as any).situacao}` : ''}
+                        </div>
+                      </td>
                       <td className="py-3 pr-3">
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${

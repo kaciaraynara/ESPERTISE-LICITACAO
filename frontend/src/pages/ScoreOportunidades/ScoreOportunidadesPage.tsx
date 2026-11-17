@@ -317,7 +317,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
                     Fatores Auditáveis de Composição
                   </span>
                   <span className="text-[10px] text-slate-400 font-medium">
-                    Escala Heurística (0-100)
+                    Criterios Objetivos
                   </span>
                 </div>
 
