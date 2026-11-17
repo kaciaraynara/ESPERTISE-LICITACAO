@@ -183,86 +183,116 @@ export default function DossieEditalModal({
   const [analiseLuli, setAnaliseLuli] = useState<string | null>(null);
   const [carregandoLuli, setCarregandoLuli] = useState(false);
 
-  const baixarResumoTimbradoPdf = () => {
+  const ed: any = edital || {};
+
+  const baixarResumoTimbradoPdf = async () => {
     if (!edital) return;
-    const logoUrl = `${window.location.origin}/assets/logo-expertise.png`;
-    const orgao = edital.orgao || edital.nomeOrgao || 'Órgão Licitante';
-    const objeto = edital.objetoCompra || edital.objeto || '';
-    const numero = edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id;
-    const valor = valorTotalExibido ? Number(valorTotalExibido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Consultar no edital';
-    const itensRows = itens.slice(0, 40).map((it: any, idx: number) => `
+        let parecerTexto = analiseLuli;
+    if (!parecerTexto) {
+      parecerTexto = (await gerarAnaliseLuli()) || null;
+    }
+
+    const numeroCompra = ed.numeroCompra || ed.numeroEdital || ed.numeroControlePNCP || 'S/N';
+    const orgaoNome = ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Orgao Publico';
+    const modalidadeNome = ed.modalidadeNome || ed.modalidade || 'Licitacao Publica';
+    const nomeCompletoEdital = `${modalidadeNome} ${numeroCompra} - ${orgaoNome}`;
+    const urlOficial = buildOfficialPncpPortalUrl(ed);
+
+    const itensRows = itens.slice(0, 50).map((it: any, idx: number) => {
+      const unit = Number(it.valorUnitarioEstimado || 0);
+      const comp8 = unit > 0 ? formatCurrency(unit * 0.92) : '-';
+      return `
       <tr>
-        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.numeroItem || it.numero || idx + 1}</td>
-        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.descricao || it.description || '-'}</td>
-        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${it.quantidade || it.quantity || '-'}</td>
-        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${it.unidadeMedida || it.unidade || '-'}</td>
-        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${it.valorUnitarioEstimado ? Number(it.valorUnitarioEstimado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}</td>
-      </tr>`).join('');
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;">${it.numeroItem ?? idx + 1}</td>
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;">${escapeHtml(it.descricao || it.materialOuServicoNome || 'Item')}</td>
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;">${it.quantidade ?? '-'} ${escapeHtml(it.unidadeMedida || '')}</td>
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;">${unit > 0 ? formatCurrency(unit) : 'Ver TR'}</td>
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;font-weight:700;color:#15803d;">${comp8}</td>
+      </tr>`;
+    }).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <title>Resumo Estratégico - ${numero}</title>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(nomeCompletoEdital)} - Expertise Licitatoria</title>
   <style>
     @page { size: A4; margin: 16mm; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; line-height: 1.5; }
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #081C3A; padding-bottom: 14px; margin-bottom: 20px; }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand img { height: 46px; width: auto; object-fit: contain; }
-    .brand-title { font-size: 16px; font-weight: 800; color: #081C3A; letter-spacing: 0.4px; }
-    .brand-sub { font-size: 11px; color: #64748b; }
-    .doc-tag { background: #081C3A; color: #ffffff; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    h2 { font-size: 13px; text-transform: uppercase; color: #081C3A; border-left: 4px solid #D4AF37; padding-left: 8px; margin: 18px 0 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; }
-    .box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; white-space: pre-wrap; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
-    th { background: #081C3A; color: #ffffff; text-align: left; padding: 8px; }
-    .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+    body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; line-height: 1.5; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #F97316; padding-bottom: 12px; margin-bottom: 16px; }
+    .header img { height: 46px; }
+    .badge { background: #081C3A; color: #ffffff; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; max-width: 320px; text-align: right; }
+    h2 { font-size: 13px; color: #081C3A; border-left: 4px solid #F97316; padding-left: 8px; margin: 18px 0 8px; text-transform: uppercase; }
+    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; white-space: pre-wrap; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #081C3A; color: #ffffff; text-align: left; padding: 7px; font-size: 11px; }
+    ul { margin: 6px 0 0 18px; padding: 0; font-size: 12px; }
+    li { margin-bottom: 6px; }
+    .footer { margin-top: 24px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="brand">
-      <img src="${logoUrl}" alt="Expertise Licitatória" />
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatoria" />
       <div>
-        <div class="brand-title">EXPERTISE LICITATÓRIA</div>
-        <div class="brand-sub">Resumo Estratégico de Licitação</div>
+        <div style="font-size:15px;font-weight:800;color:#081C3A;">EXPERTISE LICITATORIA</div>
+        <div style="font-size:11px;color:#64748b;">Parecer Tecnico e Resumo Executivo do Edital</div>
       </div>
     </div>
-    <div class="doc-tag">Edital ${numero}</div>
+    <div class="badge">${escapeHtml(nomeCompletoEdital)}</div>
   </div>
 
-  <h2>1. Identificação do Certame</h2>
-  <div class="grid">
-    <div><strong>Órgão Comprador:</strong><br/>${escapeHtml(orgao)}</div>
-    <div><strong>Valor Total Estimado:</strong><br/>${valor}</div>
-    <div><strong>Modalidade / Disputa:</strong><br/>${edital.modalidadeNome || edital.modalidade || 'Pregão'} (${edital.modoDisputa || 'Consultar edital'})</div>
-    <div><strong>Prazo de Envio / Sessão:</strong><br/>${prazoLimiteEnvio ? formatPncpDateTime(prazoLimiteEnvio) : 'Consultar edital'}</div>
+  <h2>1. Identificacao Completa do Certame</h2>
+  <div class="box grid">
+    <div><strong>Edital / Processo:</strong><br/>${escapeHtml(nomeCompletoEdital)}</div>
+    <div><strong>Valor Total Estimado:</strong><br/>${escapeHtml(formatCurrency(ed.valorTotalEstimado ?? ed.valorEstimado))}</div>
+    <div><strong>Modalidade / Julgamento:</strong><br/>${escapeHtml(modalidadeNome)} (${escapeHtml(criterioJulgamento || modoDisputa || 'Conforme Edital')})</div>
+    <div><strong>Abertura / Prazo:</strong><br/>${escapeHtml(formatPncpDateTime(ed.dataAberturaProposta || ed.dataEncerramentoProposta))}</div>
+    ${urlOficial ? `<div style="grid-column:span 2;"><strong>Portal Oficial PNCP:</strong><br/>${escapeHtml(urlOficial)}</div>` : ''}
   </div>
 
-  <h2>2. Objeto da Contratação</h2>
-  <div class="box">${escapeHtml(objeto)}</div>
+  <h2>2. Objeto Integral da Contratacao</h2>
+  <div class="box">${escapeHtml(ed.objeto || ed.objetoCompra || 'Objeto nao informado no PNCP.')}</div>
 
-  ${analiseLuli ? `<h2>3. Análise Estratégica</h2><div class="box">${escapeHtml(analiseLuli)}</div>` : ''}
+  <h2>3. Parecer Tecnico-Juridico da Luli (Leitura Real)</h2>
+  <div class="box">${escapeHtml(parecerTexto || 'Analise baseada exclusivamente nos metadados e itens oficiais retornados pelo PNCP. Consulte o arquivo integral do Termo de Referencia no portal oficial antes do envio da proposta.')}</div>
 
-  ${itens.length > 0 ? `<h2>${analiseLuli ? '4' : '3'}. Itens e Valores de Referência</h2>
+  ${itens.length > 0 ? `<h2>4. Itens Oficiais do PNCP e Referencia Competitiva (-8%)</h2>
   <table>
-    <thead><tr><th>Item</th><th>Descrição</th><th style="text-align:right;">Qtd.</th><th>Unid.</th><th style="text-align:right;">Valor Unit.</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Descricao</th>
+        <th style="text-align:right;">Qtd / Unid.</th>
+        <th style="text-align:right;">Ref. PNCP</th>
+        <th style="text-align:right;">Sugestao (-8%)</th>
+      </tr>
+    </thead>
     <tbody>${itensRows}</tbody>
   </table>` : ''}
 
+  <h2>${itens.length > 0 ? '5' : '4'}. Passo a Passo do Que Precisa para Participar (Lei 14.133/2021)</h2>
+  <div class="box">
+    <ul>
+      <li><strong>Passo 1 - Conferencia do CNAE e Edital Oficial:</strong> Verifique se o CNAE da empresa e compativel com o objeto e leia na integra os anexos do edital no portal oficial do PNCP.</li>
+      <li><strong>Passo 2 - Documentacao de Habilitacao (Art. 62 a 70):</strong> Separe Contrato Social, Cartao CNPJ, CND Federal/PGFN, CRF/FGTS, CNDT Trabalhista, CNDs Estadual/Municipal, Balanco Patrimonial e Atestados de Capacidade Tecnica (quando exigidos no TR).</li>
+      <li><strong>Passo 3 - Prazo de Impugnacao ou Esclarecimento (Art. 164):</strong> Caso identifique clausula restritiva ou duvida tecnica, protocole ate <strong>3 dias uteis antes</strong> da data de abertura da sessao.</li>
+      <li><strong>Passo 4 - Cadastro da Proposta e Margem de Disputa:</strong> Envie a proposta inicial no portal oficial antes do horario limite e defina seu piso minimo seguro na Sala de Disputa antes do inicio dos lances.</li>
+    </ul>
+  </div>
+
   <div class="footer">
-    <span>Documento emitido pela plataforma Expertise Licitatória</span>
+    <span>Documento emitido pela plataforma Expertise Licitatoria com base em dados oficiais do PNCP</span>
     <span>Gerado em ${new Date().toLocaleString('pt-BR')}</span>
   </div>
-  <script>window.onload = () => { setTimeout(() => window.print(), 350); };</script>
+  <script>window.onload = function(){ window.print(); };</script>
 </body>
 </html>`;
 
-    const win = window.open('', '_blank', 'width=960,height=800');
+    const win = window.open('', '_blank');
     if (win) {
-      win.document.open();
       win.document.write(html);
       win.document.close();
     }
@@ -277,22 +307,23 @@ export default function DossieEditalModal({
         .map((it: any, idx: number) => `${idx + 1}. ${it.descricao || it.description || 'Item'} (Qtd: ${it.quantidade || it.quantity || '-'}, Valor ref.: ${it.valorUnitarioEstimado || it.precoUnitario || '-'})`)
         .join('\n');
       const prompt = `Faça uma análise estratégica cirúrgica deste edital para decisão de participação (sem texto genérico):
-Órgão: ${edital.orgao || edital.nomeOrgao || 'Não informado'}
-Edital/PNCP: ${edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id}
-Modalidade: ${edital.modalidadeNome || edital.modalidade || 'Pregão'} | Modo de disputa: ${edital.modoDisputa || 'Consultar edital'}
-Objeto: ${edital.objetoCompra || edital.objeto}
-Valor estimado: ${edital.valorTotalEstimado ?? edital.valorEstimado ?? 'Não informado'}
-Abertura/Encerramento: ${edital.dataAbertura || '-'} / ${edital.dataEncerramentoProposta || edital.dataEncerramento || '-'}
+Órgão: ${ed.orgao || edital.nomeOrgao || 'Não informado'}
+Edital/PNCP: ${ed.numeroEdital || ed.numeroCompra || ed.numeroControlePNCP || edital.id}
+Modalidade: ${ed.modalidadeNome || ed.modalidade || 'Pregão'} | Modo de disputa: ${edital.modoDisputa || 'Consultar edital'}
+Objeto: ${ed.objetoCompra || ed.objeto}
+Valor estimado: ${ed.valorTotalEstimado ?? ed.valorEstimado ?? 'Não informado'}
+Abertura/Encerramento: ${edital.dataAbertura || '-'} / ${ed.dataEncerramentoProposta || edital.dataEncerramento || '-'}
 ${listaItens ? 'Principais itens:\n' + listaItens : ''}
 Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada para este modo de disputa; 3) Documentos e riscos críticos para checar antes da proposta.`;
 
       const resp = await lexApi.chat({
         stream: false,
-        noticeId: edital.numeroControlePNCP || edital.id,
+        noticeId: ed.numeroControlePNCP || edital.id,
         messages: [{ role: 'user', content: prompt }],
       } as any);
       const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || '';
       setAnaliseLuli(texto || 'Não foi possível gerar a análise agora.');
+      return texto || null;
     } catch {
       setAnaliseLuli('Não consegui conectar com a Luli agora. Tente novamente em instantes.');
     } finally {
@@ -365,7 +396,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
 
     const fetchItens = async () => {
       try {
-        const encodedNoticeId = encodeURIComponent(edital.numeroControlePNCP || edital.id);
+        const encodedNoticeId = encodeURIComponent(ed.numeroControlePNCP || edital.id);
 
         try {
           const res = await licitacoesApi.obterItens(encodedNoticeId);
@@ -533,19 +564,19 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
 
   if (!isOpen || !edital) return null;
 
-  const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
+  const urlOficialPncp = buildOfficialPncpPortalUrl(ed);
   const cnpjFormatado = formatCnpj(edital.cnpjOrgao || edital.cnpj);
   const numeroPncp =
-    edital.numeroControlePNCP ||
-    edital.numeroEdital ||
-    edital.numeroCompra ||
+    ed.numeroControlePNCP ||
+    ed.numeroEdital ||
+    ed.numeroCompra ||
     edital.processo ||
     edital.id;
 
   const modalidadeExibida =
     edital.nomeModalidade ||
-    edital.modalidadeNome ||
-    edital.modalidade ||
+    ed.modalidadeNome ||
+    ed.modalidade ||
     'Pregão Eletrônico';
 
   const modoDisputaExibido =
@@ -565,8 +596,8 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
     [edital.municipio, edital.uf].filter(Boolean).join(' - ') || 'Âmbito Nacional';
 
   const objetoCompleto =
-    edital.objeto ||
-    edital.objetoCompra ||
+    ed.objeto ||
+    ed.objetoCompra ||
     edital.informacaoComplementar ||
     'Consulte a íntegra do Termo de Referência no edital.';
 
@@ -607,7 +638,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                 )}
               </div>
               <h1 className="text-xl font-black text-[#0B192C] leading-snug tracking-tight">
-                {edital.orgao || edital.nomeOrgao || 'Órgão Licitante'}
+                {ed.orgao || edital.nomeOrgao || 'Órgão Licitante'}
               </h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs font-semibold text-slate-500">
                 <span className="font-mono text-slate-700">Registro: {numeroPncp}</span>
@@ -767,7 +798,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                     Órgão Comprador
                   </span>
                   <p className="font-bold text-slate-900 leading-snug">
-                    {edital.orgao || edital.nomeOrgao || 'Administração Pública'}
+                    {ed.orgao || edital.nomeOrgao || 'Administração Pública'}
                   </p>
                   <p className="text-xs text-slate-500 font-medium">{localizacaoExibida}</p>
                 </div>
