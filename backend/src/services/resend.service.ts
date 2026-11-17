@@ -1,14 +1,13 @@
 import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 
-/**
- * Resend — Serviço de e-mail transacional
- * Documentação: https://resend.com/docs
- * Gratuito até 3.000 e-mails/mês
- */
-
-const FROM_NAME = 'Expertise Licitações';
+const FROM_NAME = 'Expertise Licitatoria';
 const DEFAULT_FROM_EMAIL = 'contato@expertiselicitatoria.com.br';
+const DEFAULT_APP_URL = 'https://expertiselicitatoria.com.br';
+
+function getAppUrl(): string {
+  return (process.env.FRONTEND_URL || DEFAULT_APP_URL).replace(/\/+$/, '');
+}
 
 function getFromHeader(): string {
   const envFrom = process.env.EMAIL_FROM?.trim();
@@ -28,14 +27,10 @@ interface EmailPayload {
   replyTo?: string;
 }
 
-/**
- * Envia um e-mail via Resend
- */
 async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?: string; error?: string }> {
-
   const fromHeader = getFromHeader();
 
-  // 1. Provedor SMTP (se SMTP_HOST estiver configurado)
+  // 1. Provedor SMTP (se configurado)
   const smtpHost = process.env.SMTP_HOST?.trim();
   if (smtpHost) {
     const smtpPort = Number(process.env.SMTP_PORT) || 587;
@@ -62,28 +57,21 @@ async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?
         replyTo: payload.replyTo,
       });
 
-      console.log(`[Email-SMTP] E-mail enviado com sucesso para ${payload.to}. MessageId: ${info.messageId}`);
+      console.log(`[Email-SMTP] Enviado para ${payload.to}. MessageId: ${info.messageId}`);
       return { success: true, id: info.messageId };
     } catch (err: any) {
-      console.error('[Email-SMTP] Erro detalhado no envio via SMTP:', {
-        host: smtpHost,
-        port: smtpPort,
-        user: smtpUser,
-        code: err?.code,
-        command: err?.command,
-        response: err?.response,
-        message: err?.message,
-      });
-      throw new Error(`SMTP_DELIVERY_FAILED: ${err?.message || 'Falha na conexão SMTP'}`);
+      console.error('[Email-SMTP] Erro:', err?.message);
+      throw new Error(`SMTP_DELIVERY_FAILED: ${err?.message || 'Falha SMTP'}`);
     }
   }
 
-  // 2. Provedor Resend SDK oficial (se RESEND_API_KEY estiver configurada)
+  // 2. Provedor Resend SDK oficial
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
   if (resendApiKey) {
+    const resend = new Resend(resendApiKey);
+    const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
+
     try {
-      const resend = new Resend(resendApiKey);
-      const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
       const { data, error } = await resend.emails.send({
         from: fromHeader,
         to: toAddresses,
@@ -93,111 +81,98 @@ async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; id?
       });
 
       if (error) {
-        console.error('[Email-Resend] Erro retornado pela API Resend:', error);
+        // Fallback automatico se o dominio customizado ainda nao estiver verificado no Resend
+        if (
+          String(error.message || '').toLowerCase().includes('domain') ||
+          String(error.message || '').toLowerCase().includes('verify')
+        ) {
+          console.warn('[Email-Resend] Dominio ainda nao verificado, tentando fallback onboarding@resend.dev...');
+          const retry = await resend.emails.send({
+            from: `${FROM_NAME} <onboarding@resend.dev>`,
+            to: toAddresses,
+            subject: payload.subject,
+            html: payload.html,
+            ...(payload.replyTo ? { reply_to: payload.replyTo } : {}),
+          });
+          if (!retry.error) {
+            return { success: true, id: retry.data?.id };
+          }
+        }
         throw new Error(`RESEND_DELIVERY_FAILED: ${error.message}`);
       }
 
-      console.log(`[Email-Resend] E-mail enviado com sucesso para ${toAddresses.join(', ')}. ID: ${data?.id}`);
+      console.log(`[Email-Resend] Enviado para ${toAddresses.join(', ')}. ID: ${data?.id}`);
       return { success: true, id: data?.id };
     } catch (err: any) {
-      console.error('[Email-Resend] Erro detalhado no envio via Resend:', {
-        message: err?.message,
-        stack: err?.stack,
-      });
+      console.error('[Email-Resend] Erro:', err?.message);
       throw new Error(`RESEND_DELIVERY_FAILED: ${err?.message || 'Falha no envio via Resend'}`);
     }
   }
 
-  // 3. Fallback
-  console.warn('[Email] AVISO: Nenhum provedor de e-mail configurado (defina RESEND_API_KEY ou SMTP_HOST).');
+  console.warn('[Email] Nenhum provedor configurado (RESEND_API_KEY ou SMTP_HOST).');
   if (process.env.NODE_ENV === 'production') {
     throw new Error('EMAIL_PROVIDER_NOT_CONFIGURED');
   }
   return { success: false, error: 'EMAIL_PROVIDER_NOT_CONFIGURED' };
 }
 
-// ─── Templates HTML ──────────────────────────────────────────────────────────
-
 function templateBase(content: string): string {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
-  return `
-<!DOCTYPE html>
+  const appUrl = getAppUrl();
+  const logoUrl = `${appUrl}/assets/logo-expertise.png`;
+
+  return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F0F7FF; color: #1A1A2E; }
-    .container { max-width: 600px; margin: 32px auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,102,204,0.08); }
-    .header { background: linear-gradient(135deg, #0052A3, #0066CC 50%, #00A651); padding: 32px; text-align: center; }
-    .header-logo { display: inline-flex; align-items: center; gap: 10px; }
-    .header h1 { color: white; font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
-    .header p { color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 4px; }
+    body { font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F1F5F9; color: #0F172A; }
+    .container { max-width: 600px; margin: 28px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; border: 1px solid #E2E8F0; }
+    .header { background: #081C3A; padding: 24px 32px; text-align: center; border-bottom: 4px solid #F97316; }
+    .header img { max-height: 48px; width: auto; }
+    .header p { color: #CBD5E1; font-size: 12px; margin-top: 8px; }
     .body { padding: 32px; }
-    .btn { display: inline-block; background: #0066CC; color: white; text-decoration: none; padding: 14px 28px; border-radius: 10px; font-weight: 700; font-size: 14px; margin-top: 20px; }
-    .btn-green { background: #00A651; }
-    .alert-box { background: #FFF3CD; border: 1px solid #F59E0B; border-radius: 10px; padding: 16px; margin: 16px 0; }
-    .alert-box.danger { background: #FEE2E2; border-color: #EF4444; }
-    .alert-box.success { background: #ECFDF5; border-color: #00A651; }
-    .footer { background: #F8FAFC; padding: 20px 32px; text-align: center; font-size: 12px; color: #94A3B8; border-top: 1px solid #E2EAF4; }
-    .tag { display: inline-block; background: #EBF5FF; color: #0066CC; font-weight: 700; font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid #BFE0FF; }
+    .btn { display: inline-block; background: #F97316; color: #FFFFFF !important; text-decoration: none; padding: 13px 26px; border-radius: 10px; font-weight: 700; font-size: 14px; margin-top: 18px; }
+    .btn-blue { background: #081C3A; }
+    .alert-box { background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    .alert-box.danger { background: #FEF2F2; border-color: #FECACA; }
+    .alert-box.success { background: #ECFDF5; border-color: #A7F3D0; }
+    .footer { background: #F8FAFC; padding: 20px 32px; text-align: center; font-size: 12px; color: #64748B; border-top: 1px solid #E2E8F0; }
+    .tag { display: inline-block; background: #EFF6FF; color: #081C3A; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid #BFDBFE; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="header-logo">
-        <span style="background:rgba(255,255,255,0.2);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;">⚡</span>
-        <div style="text-align:left">
-          <h1>Expertise</h1>
-          <p>Plataforma Profissional de Licitações</p>
-        </div>
-      </div>
+      <img src="${logoUrl}" alt="Expertise Licitatoria" />
+      <p>Precisao em Dados, Eficiencia em Licitacoes</p>
     </div>
     <div class="body">${content}</div>
     <div class="footer">
-      Expertise Plataforma · <a href="${appUrl}" style="color:#0066CC">Acessar plataforma</a><br>
-      Você receberá e-mails de alertas porque cadastrou sua conta.
-      <a href="#" style="color:#94A3B8">Cancelar alertas</a>
+      Expertise Licitatoria · <a href="${appUrl}" style="color:#0070C0;font-weight:700;">Acessar plataforma</a><br/>
+      Voce esta recebendo este e-mail por possuir cadastro ativo na plataforma.
     </div>
   </div>
 </body>
 </html>`;
 }
 
-// ─── E-mails específicos ──────────────────────────────────────────────────────
-
-/**
- * E-mail de boas-vindas após cadastro
- */
 export async function enviarBoasVindas(params: { nome: string; email: string; plano: string }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const html = templateBase(`
-    <h2 style="font-size:24px;font-weight:900;margin-bottom:8px;">Bem-vindo ao Expertise, ${params.nome}! 🎉</h2>
-    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">Sua conta foi criada com sucesso. Você agora tem acesso a toda a plataforma profissional de licitações.</p>
-
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;color:#081C3A;">Bem-vindo a Expertise Licitatoria, ${params.nome}!</h2>
+    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">Sua conta foi criada com sucesso. Voce ja pode acessar o Radar de Licitacoes e a Luli Central Investigativa.</p>
     <div class="alert-box success">
-      <strong>✅ Plano ${params.plano} ativado</strong><br>
-      <span style="font-size:13px;color:#555">Acesse a plataforma para consultar os recursos disponíveis no seu plano.</span>
+      <strong>Plano ${params.plano} ativado</strong><br/>
+      <span style="font-size:13px;color:#334155;">Configure sua empresa e CNAEs para receber oportunidades diarias automaticamente.</span>
     </div>
-
-    <h3 style="margin:20px 0 12px;font-size:16px;">O que fazer primeiro:</h3>
-    <ol style="line-height:2;color:#475569;padding-left:20px;">
-      <li>Configure sua empresa com o CNPJ</li>
-      <li>Ative o Radar de Editais com suas palavras-chave</li>
-      <li>Suba seus documentos de habilitação no Cofre</li>
-    </ol>
-
-    <a href="${appUrl}/dashboard" class="btn">Acessar minha plataforma →</a>
+    <a href="${appUrl}/dashboard" class="btn">Acessar minha plataforma</a>
   `);
 
-  return sendEmail({ to: params.email, subject: `Bem-vindo ao Expertise, ${params.nome}! Sua conta está pronta 🚀`, html });
+  return sendEmail({ to: params.email, subject: `Bem-vindo a Expertise Licitatoria, ${params.nome}`, html });
 }
 
-/**
- * Alerta de certidão próxima do vencimento
- */
 export async function enviarAlertaCertidao(params: {
   email: string;
   nome: string;
@@ -206,80 +181,58 @@ export async function enviarAlertaCertidao(params: {
   validade: string;
   linkRenovacao: string;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const { diasRestantes } = params;
-  const urgencia = diasRestantes <= 7 ? 'danger' : diasRestantes <= 15 ? 'alert' : 'warning';
-  const emoji = diasRestantes <= 7 ? '🚨' : diasRestantes <= 15 ? '⚠️' : '📅';
+  const isCritico = diasRestantes <= 7;
 
   const html = templateBase(`
-    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">${emoji} Atenção: certidão vencendo em breve</h2>
-    <p style="color:#475569;margin-bottom:16px;">
-      Olá, <strong>${params.nome}</strong>! Uma certidão importante da sua empresa está próxima do vencimento.
-    </p>
-
-    <div class="alert-box ${urgencia === 'danger' ? 'danger' : ''}">
-      <strong>${params.certidao}</strong><br>
-      <span style="font-size:13px;">Validade: <strong>${new Date(params.validade).toLocaleDateString('pt-BR')}</strong> |
-      <span style="color:${diasRestantes <= 7 ? '#EF4444' : '#F59E0B'}"><strong>${diasRestantes} dias restantes</strong></span></span>
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;color:#081C3A;">Atencao: certidao proxima do vencimento</h2>
+    <p style="color:#475569;margin-bottom:16px;">Ola, <strong>${params.nome}</strong>! Uma certidao da sua empresa precisa de renovacao.</p>
+    <div class="alert-box ${isCritico ? 'danger' : ''}">
+      <strong>${params.certidao}</strong><br/>
+      <span style="font-size:13px;">Validade: <strong>${new Date(params.validade).toLocaleDateString('pt-BR')}</strong> | <strong>${diasRestantes} dia(s) restante(s)</strong></span>
     </div>
-
-    <p style="color:#475569;font-size:14px;line-height:1.6;">
-      A validade informada pode afetar a habilitação conforme as regras do edital. Confirme a situação diretamente no órgão emissor
-      e verifique os requisitos aplicáveis ao seu processo antes de renovar o documento.
-    </p>
-
-    <a href="${params.linkRenovacao}" class="btn btn-green">Renovar certidão agora →</a>
-    <a href="${appUrl}/documentos" class="btn" style="margin-left:10px;background:#0052A3;">Ver no Cofre</a>
+    <a href="${params.linkRenovacao}" class="btn">Renovar certidao</a>
+    <a href="${appUrl}/documentos" class="btn btn-blue" style="margin-left:8px;">Ver no Cofre</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `${emoji} ${params.certidao} vence em ${diasRestantes} dias — Renove agora`,
+    subject: `[Alerta] ${params.certidao} vence em ${diasRestantes} dias - Expertise Licitatoria`,
     html,
   });
 }
 
-/**
- * Alerta de novo edital compatível com o perfil
- */
 export async function enviarAlertaEdital(params: {
   email: string;
   nome: string;
   edital: { objeto: string; orgao: string; valor?: number; prazo: string; link?: string };
   score: number;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const { edital, score } = params;
   const valor = edital.valor ? `R$ ${edital.valor.toLocaleString('pt-BR')}` : 'Sob consulta';
-  const cor = score >= 80 ? '#00A651' : score >= 60 ? '#0066CC' : '#F59E0B';
+  const cor = score >= 80 ? '#16A34A' : score >= 60 ? '#0070C0' : '#D97706';
 
   const html = templateBase(`
-    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">🎯 Novo edital compatível encontrado!</h2>
-    <p style="color:#475569;margin-bottom:12px;">Olá, <strong>${params.nome}</strong>! O Radar encontrou um edital com alta compatibilidade com o perfil da sua empresa.</p>
-
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;color:#081C3A;">Novo edital compativel encontrado</h2>
+    <p style="color:#475569;margin-bottom:12px;">Ola, <strong>${params.nome}</strong>! O Radar identificou uma oportunidade aderente a sua empresa.</p>
     <div style="border:2px solid ${cor};border-radius:12px;padding:16px;margin:16px 0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <span class="tag" style="background:${cor}15;color:${cor};border-color:${cor}40;">Score ${score}/100</span>
-        <span style="font-size:12px;color:#94A3B8;">Abertura: ${new Date(edital.prazo).toLocaleDateString('pt-BR')}</span>
-      </div>
-      <h3 style="font-size:15px;font-weight:700;color:#1A1A2E;line-height:1.4;margin-bottom:6px;">${edital.objeto}</h3>
+      <span class="tag">Viabilidade ${score}/100</span>
+      <h3 style="font-size:15px;font-weight:700;color:#081C3A;margin:10px 0 6px;">${edital.objeto}</h3>
       <p style="font-size:13px;color:#475569;">${edital.orgao}</p>
-      <p style="font-size:16px;font-weight:900;color:${cor};margin-top:8px;">${valor}</p>
+      <p style="font-size:16px;font-weight:800;color:${cor};margin-top:8px;">${valor}</p>
     </div>
-
-    <a href="${edital.link || `${appUrl}/licitacoes`}" class="btn">Analisar edital com LEX →</a>
+    <a href="${edital.link || `${appUrl}/licitacoes`}" class="btn">Analisar edital com a Luli</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `🎯 Novo edital: ${edital.objeto.substring(0, 50)}... — Score ${score}/100`,
+    subject: `Novo edital compativel: ${edital.objeto.substring(0, 50)} - Expertise Licitatoria`,
     html,
   });
 }
 
-/**
- * E-mail de confirmação de pagamento
- */
 export async function enviarConfirmacaoPagamento(params: {
   email: string;
   nome: string;
@@ -287,60 +240,54 @@ export async function enviarConfirmacaoPagamento(params: {
   valor: number;
   proximaCobranca: string;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const html = templateBase(`
-    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">✅ Pagamento confirmado!</h2>
-    <p style="color:#475569;margin-bottom:16px;">Obrigado, <strong>${params.nome}</strong>! Seu plano foi renovado com sucesso.</p>
-
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;color:#081C3A;">Pagamento confirmado</h2>
+    <p style="color:#475569;margin-bottom:16px;">Obrigado, <strong>${params.nome}</strong>! Sua assinatura esta ativa.</p>
     <div class="alert-box success">
-      <strong>Plano ${params.plano}</strong><br>
-      <span style="font-size:14px;">R$ ${params.valor}/mês · Próxima cobrança: ${new Date(params.proximaCobranca).toLocaleDateString('pt-BR')}</span>
+      <strong>Plano ${params.plano}</strong><br/>
+      <span style="font-size:14px;">R$ ${params.valor}/mes · Proxima cobranca: ${new Date(params.proximaCobranca).toLocaleDateString('pt-BR')}</span>
     </div>
-
-    <a href="${appUrl}/planos" class="btn">Gerenciar assinatura →</a>
+    <a href="${appUrl}/planos" class="btn">Gerenciar assinatura</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `✅ Pagamento confirmado — Plano ${params.plano} ativo`,
+    subject: `Pagamento confirmado - Plano ${params.plano} ativo`,
     html,
   });
 }
 
-/**
- * E-mail de recuperação de senha
- *
- * IMPORTANTE: No servidor AWS, configure:
- *   FRONTEND_URL=https://espertise-licitacao-53xf.vercel.app
- * para que o link do e-mail aponte para o destino correto.
- */
 export async function enviarRecuperacaoSenha(params: {
   email: string;
   nome: string;
   token: string;
 }) {
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
-  const resetLink = `${frontendUrl}/reset-password?token=${params.token}`;
-  console.log(`[AUTH-PASSWORD-RECOVERY] Link de recuperação para ${params.email}: ${resetLink}`);
+  const appUrl = getAppUrl();
+  const resetLink = `${appUrl}/reset-password?token=${params.token}`;
+  console.log(`[AUTH-PASSWORD-RECOVERY] Link para ${params.email}: ${resetLink}`);
 
   const html = templateBase(`
-    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;">Recuperação de Senha Segura</h2>
-    <p style="color:#475569;margin-bottom:16px;">Olá, <strong>${params.nome}</strong>. Recebemos uma solicitação para redefinir a senha da sua conta.</p>
-
-    <p style="color:#475569;margin-bottom:16px;">
-      Clique no botão abaixo para criar uma nova credencial. Este link é válido por apenas <strong>1 hora</strong>.
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;color:#081C3A;">Recuperacao de Senha</h2>
+    <p style="color:#475569;margin-bottom:14px;line-height:1.6;">
+      Ola, <strong>${params.nome}</strong>. Recebemos uma solicitacao para redefinir a senha da sua conta na Expertise Licitatoria.
     </p>
-
-    <a href="${resetLink}" class="btn">Redefinir Minha Senha →</a>
-
-    <p style="color:#94A3B8;font-size:12px;margin-top:24px;">
-      Se você não solicitou esta alteração, por favor, ignore este e-mail. Sua senha permanece a mesma.
+    <p style="color:#475569;margin-bottom:18px;line-height:1.6;">
+      Clique no botao abaixo para cadastrar uma nova senha. Este link e valido por <strong>1 hora</strong>.
+    </p>
+    <a href="${resetLink}" class="btn">Redefinir Minha Senha</a>
+    <p style="color:#64748B;font-size:12px;margin-top:22px;line-height:1.5;">
+      Se o botao nao funcionar, copie e cole este link no navegador:<br/>
+      <span style="color:#0070C0;word-break:break-all;">${resetLink}</span>
+    </p>
+    <p style="color:#94A3B8;font-size:12px;margin-top:16px;">
+      Se voce nao solicitou esta alteracao, ignore este e-mail.
     </p>
   `);
 
   const result = await sendEmail({
     to: params.email,
-    subject: `🔐 Instruções para redefinição de senha - Expertise Licitações`,
+    subject: 'Redefinicao de senha - Expertise Licitatoria',
     html,
   });
 
@@ -351,9 +298,6 @@ export async function enviarRecuperacaoSenha(params: {
   return result;
 }
 
-/**
- * Alerta de prazo crítico de licitação (24h ou 48h para o vencimento)
- */
 export async function enviarAlertaPrazo(params: {
   email: string;
   nome: string;
@@ -365,56 +309,36 @@ export async function enviarAlertaPrazo(params: {
   orgao?: string | null;
   link?: string | null;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const { horasRestantes } = params;
   const is24h = horasRestantes <= 24;
   const urgenciaCor = is24h ? '#DC2626' : '#D97706';
-  const tagBg = is24h ? '#FEE2E2' : '#FEF3C7';
-  const tagText = is24h ? '#991B1B' : '#92400E';
-  const emoji = is24h ? '🚨' : '⏰';
   const prazoFormatado = new Date(params.dataLimite).toLocaleString('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
   });
 
   const html = templateBase(`
-    <div style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;background:${tagBg};color:${tagText};margin-bottom:12px;">
-      ${emoji} VENCE EM ${horasRestantes}H
-    </div>
-    <h2 style="font-size:20px;font-weight:900;margin-bottom:8px;color:#1A1A2E;">
-      ${emoji} Atenção com seu prazo: ${params.prazoTitulo}
-    </h2>
-    <p style="color:#475569;margin-bottom:16px;line-height:1.5;">
-      Olá, <strong>${params.nome}</strong>! Você possui um prazo licitatório crítico que expira em aproximadamente <strong>${horasRestantes} horas</strong>.
-    </p>
-
+    <span class="tag" style="background:#FEE2E2;color:#991B1B;border-color:#FECACA;">VENCE EM ${horasRestantes}H</span>
+    <h2 style="font-size:20px;font-weight:800;margin:12px 0 8px;color:#081C3A;">Atencao com seu prazo: ${params.prazoTitulo}</h2>
+    <p style="color:#475569;margin-bottom:16px;">Ola, <strong>${params.nome}</strong>! Voce possui um prazo licitatorio proximo do vencimento.</p>
     <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-left:4px solid ${urgenciaCor};border-radius:8px;padding:16px;margin:16px 0;">
-      <p style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${params.prazoTitulo}</p>
-      <p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Tipo de Prazo:</strong> ${params.tipo}</p>
-      <p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Data e Hora Limite:</strong> <span style="color:${urgenciaCor};font-weight:700;">${prazoFormatado}</span></p>
-      ${params.editalNumero ? `<p style="font-size:13px;color:#475569;margin-bottom:4px;"><strong>Edital:</strong> ${params.editalNumero}</p>` : ''}
-      ${params.orgao ? `<p style="font-size:13px;color:#475569;"><strong>Órgão:</strong> ${params.orgao}</p>` : ''}
+      <p style="font-size:14px;font-weight:700;color:#0F172A;margin-bottom:6px;">${params.prazoTitulo}</p>
+      <p style="font-size:13px;color:#475569;"><strong>Tipo:</strong> ${params.tipo}</p>
+      <p style="font-size:13px;color:#475569;"><strong>Limite:</strong> <span style="color:${urgenciaCor};font-weight:700;">${prazoFormatado}</span></p>
+      ${params.editalNumero ? `<p style="font-size:13px;color:#475569;"><strong>Edital:</strong> ${params.editalNumero}</p>` : ''}
+      ${params.orgao ? `<p style="font-size:13px;color:#475569;"><strong>Orgao:</strong> ${params.orgao}</p>` : ''}
     </div>
-
-    <p style="color:#475569;font-size:13px;line-height:1.5;margin-bottom:20px;">
-      Não perder prazos é indispensável para evitar a preclusão administrativa, desclassificação de propostas ou aplicação de penalidades (Lei 14.133/2021).
-    </p>
-
-    <a href="${params.link || `${appUrl}/prazos`}" class="btn" style="background:${urgenciaCor};">
-      Ver detalhes e agir agora →
-    </a>
+    <a href="${params.link || `${appUrl}/prazos`}" class="btn" style="background:${urgenciaCor};">Ver detalhes agora</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `${emoji} [ALERTA ${horasRestantes}H] ${params.prazoTitulo} vence ${is24h ? 'amanhã' : 'em breve'}`,
+    subject: `[Alerta ${horasRestantes}h] ${params.prazoTitulo} - Expertise Licitatoria`,
     html,
   });
 }
 
-/**
- * Alerta Diário de Editais por CNAE
- */
 export async function enviarAlertaEditaisCnae(params: {
   email: string;
   empresaNome: string;
@@ -428,50 +352,36 @@ export async function enviarAlertaEditaisCnae(params: {
     pontosDeAtencao?: string[];
   }>;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
-
-  const editaisHtml = params.editais.map(item => `
-    <li style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #E2EAF4;">
-      <strong style="color:#0F172A;font-size:15px;display:block;margin-bottom:4px;">${item.titulo}</strong>
-      <span style="color:#475569;font-size:13px;display:block;margin-bottom:4px;">Órgão: <strong>${item.orgao}</strong></span>
-      ${item.valorEstimado ? `<span style="color:#10B981;font-size:13px;font-weight:700;display:block;margin-bottom:4px;">Valor Estimado: ${item.valorEstimado}</span>` : ''}
-      ${item.resumoExecutivo ? `<p style="color:#334155;font-size:13px;line-height:1.4;margin:6px 0;background:#F1F5F9;padding:8px 12px;border-radius:6px;"><strong>Resumo Executivo:</strong> ${item.resumoExecutivo}</p>` : ''}
-      ${item.pontosDeAtencao && item.pontosDeAtencao.length > 0 ? `
-        <div style="margin:6px 0;font-size:12px;color:#D97706;">
-          <strong>Pontos de Atenção:</strong> ${item.pontosDeAtencao.join('; ')}
-        </div>
-      ` : ''}
-      <a href="${item.link}" style="color:#0066CC;font-size:13px;font-weight:600;text-decoration:underline;display:inline-block;margin-top:6px;">Ver Detalhes do Edital →</a>
-    </li>
-  `).join('');
+  const appUrl = getAppUrl();
+  const editaisHtml = params.editais
+    .map(
+      (item) => `
+    <li style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #E2E8F0;">
+      <strong style="color:#081C3A;font-size:14px;display:block;margin-bottom:4px;">${item.titulo}</strong>
+      <span style="color:#475569;font-size:13px;display:block;margin-bottom:4px;">Orgao: <strong>${item.orgao}</strong></span>
+      ${item.valorEstimado ? `<span style="color:#16A34A;font-size:13px;font-weight:700;display:block;margin-bottom:4px;">Valor Estimado: ${item.valorEstimado}</span>` : ''}
+      <a href="${item.link}" style="color:#0070C0;font-size:13px;font-weight:700;text-decoration:underline;">Abrir no Radar</a>
+    </li>`
+    )
+    .join('');
 
   const html = templateBase(`
-    <span class="tag" style="background:#EBF5FF;color:#0066CC;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #BFE0FF;">Radar CNAE: ${params.cnae}</span>
-    <h2 style="font-size:22px;font-weight:900;margin:12px 0 8px;color:#0F172A;">Novas Oportunidades de Editais</h2>
-    <p style="color:#475569;line-height:1.6;margin-bottom:20px;">
-      Olá, equipe da <strong>${params.empresaNome}</strong>! O Agente Especialista da Expertise Licitatória identificou <strong>${params.editais.length}</strong> oportunidade(s) aderente(s) ao seu CNAE:
+    <span class="tag">Resumo Diario · CNAE ${params.cnae}</span>
+    <h2 style="font-size:20px;font-weight:800;margin:12px 0 8px;color:#081C3A;">Oportunidades Compativeis com Sua Empresa</h2>
+    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">
+      Ola, equipe da <strong>${params.empresaNome}</strong>! Separamos <strong>${params.editais.length}</strong> licitacao(oes) aberta(s) no PNCP compativel(is) com o seu perfil:
     </p>
-
-    <ul style="list-style:none;padding-left:0;margin:16px 0;">
-      ${editaisHtml}
-    </ul>
-
-    <div style="text-align:center;margin-top:24px;">
-      <a href="${appUrl}/dashboard" class="btn" style="background:#10B981;color:white;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;display:inline-block;">Acessar Radar Completo →</a>
-    </div>
+    <ul style="list-style:none;padding-left:0;">${editaisHtml}</ul>
+    <a href="${appUrl}/licitacoes" class="btn">Ver Radar Completo</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `🎯 Novas oportunidades para seu CNAE (${params.cnae}) - Expertise Licitatória`,
+    subject: `Resumo Diario: ${params.editais.length} licitacao(oes) compativel(is) - Expertise Licitatoria`,
     html,
   });
 }
 
-
-/**
- * Alerta de Vencimento Crítico de Certidão (CND)
- */
 export async function enviarAlertaCertidaoVencendo(params: {
   email: string;
   empresaNome: string;
@@ -480,49 +390,29 @@ export async function enviarAlertaCertidaoVencendo(params: {
   dataValidade: string;
   link?: string;
 }) {
-  const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const isVencida = params.diasRestantes <= 0;
-  const corAlerta = isVencida ? '#DC2626' : params.diasRestantes <= 5 ? '#EA580C' : '#D97706';
+  const corAlerta = isVencida ? '#DC2626' : '#D97706';
 
   const html = templateBase(`
-    <span class="tag" style="background:#FEE2E2;color:${corAlerta};font-weight:800;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #FECACA;">
-      ${isVencida ? 'CERTIDÃO VENCIDA' : `EXPIRA EM ${params.diasRestantes} DIAS`}
+    <span class="tag" style="background:#FEE2E2;color:${corAlerta};border-color:#FECACA;">
+      ${isVencida ? 'CERTIDAO VENCIDA' : `EXPIRA EM ${params.diasRestantes} DIAS`}
     </span>
-
-    <h2 style="font-size:20px;font-weight:900;margin:12px 0 8px;color:#0F172A;">
-      Alerta Crítico de Habilitação: ${params.certidaoTipo}
-    </h2>
-
-    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">
-      Prezada equipe da <strong>${params.empresaNome}</strong>,
-    </p>
-
+    <h2 style="font-size:20px;font-weight:800;margin:12px 0 8px;color:#081C3A;">Alerta de Habilitacao: ${params.certidaoTipo}</h2>
+    <p style="color:#475569;line-height:1.6;margin-bottom:16px;">Prezada equipe da <strong>${params.empresaNome}</strong>,</p>
     <div style="background:#F8FAFC;border-left:4px solid ${corAlerta};padding:12px 16px;border-radius:6px;margin:16px 0;">
-      <p style="margin:0 0 6px;font-size:13px;color:#1E293B;">
-        <strong>Certidão:</strong> ${params.certidaoTipo}
-      </p>
-      <p style="margin:0 0 6px;font-size:13px;color:#1E293B;">
-        <strong>Data de Vencimento:</strong> ${params.dataValidade}
-      </p>
+      <p style="margin:0 0 6px;font-size:13px;"><strong>Certidao:</strong> ${params.certidaoTipo}</p>
+      <p style="margin:0 0 6px;font-size:13px;"><strong>Vencimento:</strong> ${params.dataValidade}</p>
       <p style="margin:0;font-size:13px;color:${corAlerta};font-weight:700;">
-        <strong>Status:</strong> ${isVencida ? 'Documento Expirado' : `Resta(m) apenas ${params.diasRestantes} dia(s) de validade`}
+        ${isVencida ? 'Documento Expirado' : `Restam ${params.diasRestantes} dia(s)`}
       </p>
     </div>
-
-    <p style="color:#64748B;font-size:12px;line-height:1.5;">
-      Sob a Lei 14.133/2021, certidões com validade expirada ensejam a <strong>inabilitação sumária</strong> do licitante ou retenção de pagamentos contratuais pós-vitória.
-    </p>
-
-    <div style="text-align:center;margin-top:24px;">
-      <a href="${params.link || `${appUrl}/fornecedor/certidoes`}" class="btn" style="background:${corAlerta};color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block;">
-        Renovar Certidão Agora →
-      </a>
-    </div>
+    <a href="${params.link || `${appUrl}/fornecedor/certidoes`}" class="btn" style="background:${corAlerta};">Renovar Certidao</a>
   `);
 
   return sendEmail({
     to: params.email,
-    subject: `⚠️ [ALERTA CND] ${params.certidaoTipo} vence ${isVencida ? 'HOJE' : `em ${params.diasRestantes} dias`} — ${params.empresaNome}`,
+    subject: `[Alerta CND] ${params.certidaoTipo} - ${params.empresaNome}`,
     html,
   });
 }
