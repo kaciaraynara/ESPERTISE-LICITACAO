@@ -64,7 +64,7 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F4F7FB]">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F4F7FB]">
       <header className="border-b border-slate-200/80 bg-white">
         <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5">
           <Link to="/" className="flex items-center gap-2.5">
@@ -102,7 +102,7 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
 
         <div
           data-ready={ready}
-          className="relative z-10 mx-auto grid max-w-6xl items-center gap-10 px-5 py-12 lg:grid-cols-12 lg:gap-16"
+          className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-6 px-4 py-6 sm:px-6 sm:py-12 lg:grid-cols-12 lg:gap-16"
         >
           <div className="space-y-4 lg:col-span-5">
             <h1 className="max-w-xs text-4xl font-extrabold leading-[1.08] text-[#081C3A] sm:text-5xl">
@@ -118,7 +118,7 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl lg:col-span-7 lg:p-8">
+          <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl w-full min-w-0 lg:col-span-7 lg:p-8">
             {children}
           </div>
         </div>
@@ -347,6 +347,7 @@ export function RegisterPage() {
         localStorage.setItem(`@Expertise:cnaes_${cnpjLimpo}`, JSON.stringify(cnaesLista));
       }
       const resp = await authApi.register({
+        aceite_lgpd: Boolean(aceite),
         nome: nome.trim(),
         email: email.trim(),
         senha,
@@ -529,7 +530,7 @@ export function RegisterPage() {
 
           {erro && <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">{erro}</p>}
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row">
             <button
               type="button"
               onClick={() => {
