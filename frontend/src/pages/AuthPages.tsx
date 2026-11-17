@@ -78,7 +78,7 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
             />
             <span className="text-base font-extrabold text-[#081C3A]">EXPERTISE LICITATÓRIA</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 w-full">
             <Link to="/login" className="text-sm font-bold text-[#081C3A] hover:text-[#0070C0]">
               Entrar
             </Link>
