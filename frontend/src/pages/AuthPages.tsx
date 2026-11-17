@@ -568,7 +568,7 @@ export function RegisterPage() {
             <p><strong>E-mail:</strong> {email}</p>
             <p><strong>Empresa:</strong> {razaoSocial}</p>
             <p><strong>CNPJ:</strong> {cnpj}</p>
-            {setor && <p><strong>Ramo:</strong> {setor}</p>}
+            {setor && <p><strong>CNAE / Atividade:</strong> {setor}</p>}
           </div>
 
           <label className="flex items-center gap-2 text-xs text-slate-600">
@@ -597,7 +597,7 @@ export function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0070C0] text-sm font-bold text-white shadow-sm transition hover:bg-[#005ea3] disabled:opacity-60"
+              className="inline-flex min-h-[48px] w-full sm:flex-1 items-center justify-center gap-2 rounded-xl bg-[#0070C0] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#005ea3] disabled:opacity-60"
             >
               {loading ? 'Criando conta...' : 'Finalizar e entrar'}
               <ArrowRight className="h-4 w-4" />
