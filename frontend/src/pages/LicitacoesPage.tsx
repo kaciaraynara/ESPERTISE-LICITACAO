@@ -10,7 +10,6 @@ import {
   Check,
   Bookmark,
   ExternalLink,
-  Sparkles,
   Gavel,
   Scale,
   Zap,
@@ -465,18 +464,7 @@ export default function LicitacoesPage({
     }
   };
 
-  const handleUsarMeuRamo = () => {
-    const termoRamo = extrairPalavraChaveRamo(selectedCompany);
-    if (!termoRamo) {
-      exibirAviso('info', 'Cadastre o ramo de atividade da sua empresa para usar o filtro automático.');
-      return;
-    }
-    setPalavraChave(termoRamo);
-    setOrgaoFiltro(''); // NUNCA preencher CNPJ da empresa usuária no filtro de órgão comprador!
-    buscarEditais(termoRamo, true);
-    exibirAviso('sucesso', `Filtrando oportunidades compatíveis com "${termoRamo}".`);
-  };
-
+  
   const handleLimparFiltros = () => {
     setPalavraChave('');
     setUfSelecionada('');
@@ -610,14 +598,7 @@ export default function LicitacoesPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={handleUsarMeuRamo}
-              className="inline-flex items-center gap-2 rounded-full border border-[#0070C0]/30 bg-white px-4 py-2.5 text-xs font-bold text-[#0070C0] shadow-sm transition hover:bg-blue-50 cursor-pointer"
-            >
-              <Sparkles className="h-4 w-4" />
-              Filtrar pelo meu ramo
-            </button>
+            
 
             <button
               type="button"
@@ -850,7 +831,7 @@ export default function LicitacoesPage({
               onChange={(e) => setOrdenacao(e.target.value as any)}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0] cursor-pointer"
             >
-              <option value="relevancia">Mais aderentes ao ramo</option>
+              <option value="relevancia">Mais aderentes aos CNAEs</option>
               <option value="recentes">Mais recentes</option>
               <option value="maior_valor">Maior valor estimado</option>
             </select>
