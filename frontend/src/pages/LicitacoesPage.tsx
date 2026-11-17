@@ -642,7 +642,7 @@ export default function LicitacoesPage({
           </div>
           <div className="rounded-2xl border border-emerald-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Alta Viabilidade (Verde)</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Editais com Prazo Próximo</p>
               <p className="mt-1 text-2xl font-extrabold text-emerald-700">
                 {editaisOrdenados.filter((e) => e._scoreCalculado >= 75).length}
               </p>
@@ -850,7 +850,7 @@ export default function LicitacoesPage({
               onChange={(e) => setOrdenacao(e.target.value as any)}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0] cursor-pointer"
             >
-              <option value="relevancia">Maior viabilidade</option>
+              <option value="relevancia">Mais aderentes ao ramo</option>
               <option value="recentes">Mais recentes</option>
               <option value="maior_valor">Maior valor estimado</option>
             </select>
@@ -949,7 +949,7 @@ export default function LicitacoesPage({
                 edital.modalidade ||
                 edital.nomeModalidade ||
                 'Pregão Eletrônico';
-              const semaforo = getSemaforoViabilidade(edital._scoreCalculado);
+              void getSemaforoViabilidade;
               const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
               const valor =
                 edital.valorTotalEstimado ??
@@ -961,8 +961,8 @@ export default function LicitacoesPage({
               // Link direto para o portal oficial do PNCP
               const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
 
-              const corScore = semaforo.badge;
-              const labelScore = semaforo.label;
+              void score;
+              
 
               return (
                 <div
@@ -972,7 +972,7 @@ export default function LicitacoesPage({
                 >
                   {/* Borda indicadora de escore */}
                   <div
-                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${semaforo.dot}`}
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 bg-[#0070C0]`}
                   />
 
                   {/* Linha 1: Badges e Botões de Ação */}
@@ -992,11 +992,7 @@ export default function LicitacoesPage({
                         {numeroEdital}
                       </span>
 
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold ${corScore}`}
-                      >
-                        {score}% • {labelScore}
-                      </span>
+                      
                     </div>
 
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>

@@ -242,7 +242,8 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     subtitle: 'Captação & Inteligência',
     icon: Crosshair,
     items: [
-      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Licitações', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
     ],
   },
@@ -269,7 +270,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
-      { path: FORNECEDOR_ROUTES.academia, label: 'Jurisprudência TCU', icon: GraduationCap, requiredFeature: 'academia_licitante' },
+      { path: FORNECEDOR_ROUTES.academia, label: 'Academia do Licitante', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },
   {
