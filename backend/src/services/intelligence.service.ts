@@ -1,3 +1,13 @@
+
+function extractTransparenciaToken(raw?: string): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  if (t.startsWith('[') || t.startsWith('{')) {
+    const m = t.match(/"value"\s*:\s*"([^"]+)"/i);
+    if (m && m[1]) return m[1].trim();
+  }
+  return t;
+}
 export interface EmpresaReceitaResumo {
   cnpj: string;
   razaoSocial: string;
@@ -49,7 +59,7 @@ export async function consultarCguCeisCnep(cnpj: string): Promise<{
   alerta: boolean;
   registros: number;
 }> {
-  const token = process.env.TRANSPARENCIA_API_TOKEN || process.env.PORTAL_TRANSPARENCIA_TOKEN;
+  const token = extractTransparenciaToken(process.env.TRANSPARENCIA_API_TOKEN || process.env.PORTAL_TRANSPARENCIA_TOKEN);
   if (!token) {
     return { status: 'Token Portal da Transparencia pendente', alerta: false, registros: 0 };
   }

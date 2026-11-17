@@ -1,3 +1,13 @@
+
+function extractTransparenciaToken(raw?: string): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  if (t.startsWith('[') || t.startsWith('{')) {
+    const m = t.match(/"value"\s*:\s*"([^"]+)"/i);
+    if (m && m[1]) return m[1].trim();
+  }
+  return t;
+}
 import { consultarComprasGovContratos, consultarCguCeisCnep, consultarCadeCondutas } from '../services/intelligence.service';
 const __dossieCache = new Map<string, { ts: number; data: any }>();
 import { Response } from 'express';
@@ -202,7 +212,7 @@ export class ConcorrentesController {
   }
 
   async integridade(req: any, res: any) {
-    const cguToken = process.env.TRANSPARENCIA_API_TOKEN || process.env.PORTAL_TRANSPARENCIA_TOKEN;
+    const cguToken = extractTransparenciaToken(process.env.TRANSPARENCIA_API_TOKEN || process.env.PORTAL_TRANSPARENCIA_TOKEN);
     try {
       const rawCnpjs: string[] = Array.isArray(req.body?.cnpjs) ? req.body.cnpjs : [];
       const cnpjs = Array.from(
