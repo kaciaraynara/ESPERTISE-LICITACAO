@@ -102,6 +102,7 @@ class TokenManagerService {
     this.configureLimiter();
     this.initialized = true;
 
+    if (!this.token && process.env.TRANSPARENCIA_API_TOKEN) { this.token = process.env.TRANSPARENCIA_API_TOKEN.trim(); }
     if (this.token) {
       console.log(
         '[TransparenciaTokenManager] ✅ Token configurado:',
