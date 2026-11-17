@@ -30,4 +30,10 @@ router.get(
   handle(controller.dossie.bind(controller) as RequestHandler),
 );
 
+router.post(
+  '/integridade',
+  fornecedor,
+  handle(controller.integridade.bind(controller) as unknown as RequestHandler),
+);
+
 export default router;

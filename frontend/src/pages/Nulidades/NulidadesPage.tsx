@@ -1,406 +1,390 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  AlertOctagon, FileText, Send,
-  Clock, Search, Loader2, Copy, Check, X, ShieldAlert, Download,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  Search,
+  Loader2,
+  ShieldAlert,
+  CheckCircle2,
+  Download,
+  Network,
+  Scale,
+  Database,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { noticesApi, impugnacaoApi } from '@services/api';
-import { formatPncpDateBR } from '@/utils/pncp';
+import api from '@services/api';
+import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
-interface NulidadeImpugnacao {
-  id: string;
-  edital: string;
-  orgao: string;
-  tipoInfracao: string;
-  resumoIrregularidade: string;
-  prazoLimiteImpugnacao: string;
-  prazoRaw?: string | null;
-  status: 'RASCUNHO' | 'MINUTA_GERADA' | 'PROTOCOLADA' | 'DEFERIDA' | 'INDEFERIDA';
-}
-
-interface MinutaModalData {
-  noticeId: string;
-  edital: string;
-  orgao: string;
-  conteudo: string;
-  dataCertame?: string;
-  prazoDecadencial?: string;
-}
-
-function formatarPrazoBR(raw?: string | null): string {
-  if (!raw || raw === 'Indefinido') return 'Verificar no edital';
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return String(raw);
-  return formatPncpDateBR(raw, true);
+function escapeHtml(text: string): string {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 export const NulidadesPage: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [nulidades, setNulidades] = useState<NulidadeImpugnacao[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [cnpjs, setCnpjs] = useState<string[]>(['', '']);
+  const [processoRef, setProcessoRef] = useState('');
+  const [aba, setAba] = useState<'geral' | 'cruzamento' | 'indicios' | 'defesa'>('geral');
+  const [carregando, setCarregando] = useState(false);
+  const [resultado, setResultado] = useState<any | null>(null);
 
-  const [loadingMinutaId, setLoadingMinutaId] = useState<string | null>(null);
-  const [selectedMinuta, setSelectedMinuta] = useState<MinutaModalData | null>(null);
-  const [copied, setCopied] = useState(false);
+  const atualizarCnpj = (idx: number, val: string) => {
+    const copia = [...cnpjs];
+    copia[idx] = formatCnpjMask(val);
+    setCnpjs(copia);
+  };
 
-  const fetchNotices = async (q?: string) => {
-    setLoading(true);
+  const adicionarCnpj = () => {
+    if (cnpjs.length >= 6) {
+      toast.error('Maximo de 6 empresas por analise.');
+      return;
+    }
+    setCnpjs([...cnpjs, '']);
+  };
+
+  const removerCnpj = (idx: number) => {
+    if (cnpjs.length <= 1) return;
+    setCnpjs(cnpjs.filter((_, i) => i !== idx));
+  };
+
+  const executarCruzamento = async () => {
+    const validos = cnpjs
+      .map((c) => sanitizeCnpj(c))
+      .filter((c) => isValidCnpj(c, { optional: false }));
+
+    if (validos.length === 0) {
+      toast.error('Informe pelo menos um CNPJ valido para iniciar o cruzamento.');
+      return;
+    }
+
+    setCarregando(true);
     try {
-      const res = await noticesApi.search({ q: q || 'licitacao', limit: 5 });
-      const items = res.data?.items || res.data?.data || [];
-      const mapped = items.map((item: any) => {
-        const rawDate = item.metadata?.data_abertura || item.openingAt || item.data_abertura || null;
-        return {
-          id: item.id,
-          edital: item.title || item.noticeNumber || item.objeto?.substring(0, 50) || item.id,
-          orgao: item.metadata?.orgao || item.buyerName || item.orgao || 'Órgão não especificado',
-          tipoInfracao: 'AGUARDANDO_ANALISE',
-          resumoIrregularidade: 'Clique em Analisar Edital para buscar possíveis irregularidades.',
-          prazoLimiteImpugnacao: formatarPrazoBR(rawDate),
-          prazoRaw: rawDate,
-          status: 'RASCUNHO' as const,
-        };
-      });
-      setNulidades(mapped);
-    } catch (err) {
-      console.error(err);
-      toast.error('Não foi possível carregar os editais.');
+      const resp = await api.post('/concorrentes/integridade', { cnpjs: validos }, { timeout: 60000 });
+      setResultado(resp.data?.data || null);
+      toast.success('Cruzamento de integridade concluido.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao executar cruzamento de dados.');
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   };
 
-  useEffect(() => {
-    void fetchNotices();
-  }, []);
-
-  const handleSearch = () => {
-    void fetchNotices(searchTerm);
-  };
-
-  const handleAnalyze = async (id: string) => {
-    setAnalyzingId(id);
-    try {
-      const res = await noticesApi.getErrorRadar(id);
-      const radar = res.data?.data || res.data;
-      if (radar && radar.issues && radar.issues.length > 0) {
-        setNulidades((prev) =>
-          prev.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  tipoInfracao: radar.issues[0].title || 'PONTO_DE_ATENCAO',
-                  resumoIrregularidade: radar.issues[0].description,
-                  status: 'MINUTA_GERADA',
-                }
-              : n,
-          ),
-        );
-        toast.success('Análise concluída: irregularidade identificada para impugnação.');
-      } else {
-        setNulidades((prev) =>
-          prev.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  tipoInfracao: 'SEM_IRREGULARIDADES',
-                  resumoIrregularidade: 'Nenhuma irregularidade evidente detectada neste edital.',
-                }
-              : n,
-          ),
-        );
-        toast.success('Edital analisado: nenhuma irregularidade crítica encontrada.');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('Não foi possível analisar este edital agora.');
-    } finally {
-      setAnalyzingId(null);
+  const baixarRelatorioPdf = () => {
+    if (!resultado) return;
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Relatorio de Integridade Licitatoria</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Arial, sans-serif; color: #0f172a; }
+    .top { display: flex; justify-content: space-between; border-bottom: 3px solid #F97316; padding-bottom: 10px; margin-bottom: 18px; }
+    .top img { height: 44px; }
+    h1 { font-size: 18px; color: #081C3A; }
+    h2 { font-size: 14px; color: #081C3A; margin-top: 16px; }
+    li { font-size: 12px; margin-bottom: 6px; }
+    .aviso { font-size: 11px; background: #fff7ed; border: 1px solid #fed7aa; padding: 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatoria" />
+    <div style="text-align:right;font-size:11px;color:#475569;">
+      <strong>Radar de Inteligencia e Integridade</strong><br/>
+      ${new Date().toLocaleString('pt-BR')}
+    </div>
+  </div>
+  <h1>Analise de Possiveis Irregularidades</h1>
+  ${processoRef ? `<p style="font-size:12px;"><strong>Processo / Edital:</strong> ${escapeHtml(processoRef)}</p>` : ''}
+  <p style="font-size:13px;"><strong>Indice de Risco:</strong> ${escapeHtml(resultado.nivelRisco)} (${resultado.indiceRisco}%)</p>
+  <div class="aviso">${escapeHtml(resultado.avisoLegal)}</div>
+  <h2>Empresas Analisadas</h2>
+  <ul>${(resultado.empresas || []).map((e: any) => `<li><strong>${escapeHtml(e.razaoSocial)}</strong> (${escapeHtml(e.cnpj)}) — ${escapeHtml(e.situacaoCadastral)} | ${escapeHtml(e.endereco)}</li>`).join('')}</ul>
+  <h2>Indicios Identificados</h2>
+  <ul>${(resultado.indicios || []).length ? resultado.indicios.map((i: any) => `<li>[${escapeHtml(i.severidade)}] <strong>${escapeHtml(i.titulo)}:</strong> ${escapeHtml(i.detalhe)}</li>`).join('') : '<li>Nenhum indicio critico detectado automaticamente.</li>'}</ul>
+  <h2>Linhas de Defesa Sugeridas</h2>
+  <ul>${(resultado.linhasDefesa || []).map((l: string) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
+  <script>window.onload = function(){ window.print(); };</script>
+</body>
+</html>`;
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
     }
   };
 
-  const handleViewMinuta = async (item: NulidadeImpugnacao) => {
-    setLoadingMinutaId(item.id);
-    setCopied(false);
-    try {
-      const res = await noticesApi.getMinutaImpugnacao(item.id);
-      const data = res.data?.data;
-
-      if (data && data.conteudo) {
-        setSelectedMinuta({
-          noticeId: item.id,
-          edital: item.edital,
-          orgao: item.orgao,
-          conteudo: data.conteudo,
-          dataCertame: data.dataCertame,
-          prazoDecadencial: data.prazo?.prazoDecadencial ? formatarPrazoBR(data.prazo.prazoDecadencial) : undefined,
-        });
-        return;
-      }
-
-      const fallbackRes = await impugnacaoApi.gerarPeca({
-        orgao: item.orgao,
-        objeto: item.edital,
-        data_certame:
-          typeof item.prazoRaw === 'string' && item.prazoRaw.length >= 10
-            ? item.prazoRaw.substring(0, 10)
-            : new Date().toISOString().substring(0, 10),
-        pontos_impugnacao: [item.resumoIrregularidade],
-      });
-
-      const fallbackData = fallbackRes.data?.data;
-      setSelectedMinuta({
-        noticeId: item.id,
-        edital: item.edital,
-        orgao: item.orgao,
-        conteudo: fallbackData?.conteudo || 'Minuta jurídica não disponível no momento.',
-        prazoDecadencial: fallbackData?.prazo?.prazoDecadencial
-          ? formatarPrazoBR(fallbackData.prazo.prazoDecadencial)
-          : undefined,
-      });
-    } catch (err) {
-      console.error('Erro ao obter minuta jurídica:', err);
-      toast.error('Não foi possível gerar a minuta deste edital no momento.');
-    } finally {
-      setLoadingMinutaId(null);
-    }
-  };
-
-  const handleMarcarProtocolada = (item: NulidadeImpugnacao) => {
-    setNulidades((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, status: 'PROTOCOLADA' } : n)),
-    );
-    toast.success('Impugnação marcada como protocolada!');
-  };
-
-  const handleCopyText = async () => {
-    if (!selectedMinuta?.conteudo) return;
-    try {
-      await navigator.clipboard.writeText(selectedMinuta.conteudo);
-      setCopied(true);
-      toast.success('Minuta copiada!');
-      setTimeout(() => setCopied(false), 3000);
-    } catch (err) {
-      console.error('Falha ao copiar:', err);
-    }
-  };
-
-  const handleDownload = () => {
-    if (!selectedMinuta?.conteudo) return;
-    const element = document.createElement('a');
-    const file = new Blob([selectedMinuta.conteudo], { type: 'text/markdown;charset=utf-8' });
-    element.href = URL.createObjectURL(file);
-    element.download = `Impugnacao_${selectedMinuta.noticeId.substring(0, 8)}.md`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
+  const indice = resultado?.indiceRisco ?? 0;
+  const corRisco =
+    resultado?.nivelRisco === 'Elevado'
+      ? '#dc2626'
+      : resultado?.nivelRisco === 'Moderado'
+      ? '#f59e0b'
+      : '#16a34a';
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-6 md:p-8">
-      <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-[#0A2540] text-white rounded-lg shadow-md">
-              <AlertOctagon size={20} />
-            </span>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Revisão de Exigências e Preparação de Impugnações
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      {/* Cabecalho */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316]">
+            <ShieldAlert className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">
+              Analise de Possiveis Irregularidades
             </h1>
+            <p className="text-xs text-slate-500">
+              Radar de Inteligencia e Integridade Licitatoria — cruzamento de dados publicos e linhas de defesa
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Identifique possíveis problemas no edital e organize os fundamentos para uma impugnação conforme a Lei nº 14.133/2021.
-          </p>
         </div>
-
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              placeholder="Buscar editais..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0A2540]"
-            />
-          </div>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleSearch}
-            className="px-5 py-2.5 bg-[#0A2540] hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer"
+            onClick={adicionarCnpj}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#081C3A] px-3 py-2 text-xs font-bold text-[#081C3A] hover:bg-slate-50"
           >
-            BUSCAR
+            <Plus className="h-4 w-4" />
+            Adicionar CNPJ
           </button>
+          {resultado && (
+            <button
+              type="button"
+              onClick={baixarRelatorioPdf}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+            >
+              <Download className="h-4 w-4 text-[#F97316]" />
+              Relatorio PDF
+            </button>
+          )}
         </div>
-      </header>
-
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex justify-center p-8">
-            <Loader2 className="animate-spin text-[#0A2540]" size={32} />
-          </div>
-        ) : (
-          nulidades.map((item) => (
-            <div key={item.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="bg-[#0A2540] text-white font-black text-xs px-2.5 py-1 rounded-lg">
-                    {item.edital}
-                  </span>
-                  <span className="text-xs font-bold text-slate-900">{item.orgao}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded uppercase bg-rose-100 text-rose-800">
-                    {item.tipoInfracao.replace(/_/g, ' ')}
-                  </span>
-
-                  <span
-                    className={`text-[10px] font-black px-2.5 py-0.5 rounded uppercase ${
-                      item.status === 'PROTOCOLADA'
-                        ? 'bg-blue-100 text-blue-800'
-                        : item.status === 'MINUTA_GERADA'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                    }`}
-                  >
-                    {item.status.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-xs font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <strong className="text-slate-900 block font-bold mb-1">Status / Irregularidade Apontada:</strong>
-                {item.resumoIrregularidade}
-              </div>
-
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 text-xs font-bold text-slate-600">
-                <span className="flex items-center gap-1 text-rose-600 font-bold">
-                  <Clock size={14} /> Prazo / Abertura: <strong className="text-rose-700">{item.prazoLimiteImpugnacao}</strong>
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleAnalyze(item.id)}
-                    disabled={analyzingId === item.id}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    {analyzingId === item.id ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                    Analisar Edital
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleViewMinuta(item)}
-                    disabled={loadingMinutaId === item.id}
-                    className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    {loadingMinutaId === item.id ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                    Ver Minuta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMarcarProtocolada(item)}
-                    disabled={item.status === 'PROTOCOLADA'}
-                    className="px-4 py-2 bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    <Send size={14} /> {item.status === 'PROTOCOLADA' ? 'Protocolada' : 'Marcar Protocolada'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
       </div>
 
-      {selectedMinuta && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
-            <div className="p-6 bg-[#0A2540] text-white flex items-center justify-between border-b border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500 text-slate-900 rounded-xl shadow-md">
-                  <ShieldAlert size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-                    Minuta de Impugnação ao Edital
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                      Art. 164 — Lei 14.133/21
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    {selectedMinuta.edital} · {selectedMinuta.orgao}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMinuta(null)}
-                className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                title="Fechar"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 bg-slate-50 space-y-4">
-              {selectedMinuta.prazoDecadencial && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                  <Clock size={16} className="text-amber-600 flex-shrink-0" />
-                  <span>
-                    <strong>Prazo Legal:</strong> Protocolar até <strong>{selectedMinuta.prazoDecadencial}</strong> (3 dias úteis antes da abertura do certame, conforme art. 164, caput, Lei 14.133/2021).
-                  </span>
-                </div>
+      {/* Entrada */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <input
+          type="text"
+          value={processoRef}
+          onChange={(e) => setProcessoRef(e.target.value)}
+          placeholder="Processo / Edital e Orgao (opcional, ex: PE 014/2026 - Prefeitura Municipal)"
+          className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
+        />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {cnpjs.map((val, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => atualizarCnpj(idx, e.target.value)}
+                placeholder={`CNPJ Empresa ${String.fromCharCode(65 + idx)}`}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
+              />
+              {cnpjs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removerCnpj(idx)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-400 hover:text-rose-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               )}
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            disabled={carregando}
+            onClick={executarCruzamento}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+          >
+            {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Executar Cruzamento Oficial
+          </button>
+        </div>
+      </div>
 
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-inner">
-                <pre className="font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-all">
-                  {selectedMinuta.conteudo}
-                </pre>
+      {resultado && (
+        <>
+          {/* Abas */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'geral', label: 'Visao Geral' },
+              { id: 'cruzamento', label: 'Cruzamento de Dados' },
+              { id: 'indicios', label: 'Indicios' },
+              { id: 'defesa', label: 'Linhas de Defesa' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setAba(t.id as any)}
+                className={`rounded-xl px-4 py-2 text-xs font-bold ${
+                  aba === t.id
+                    ? 'bg-[#081C3A] text-white'
+                    : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Gauge + 4 KPIs */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-bold text-slate-500">Indice de Risco</div>
+              <svg viewBox="0 0 120 70" className="mt-2 h-20 w-32">
+                <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#e2e8f0" strokeWidth="12" strokeLinecap="round" />
+                <path
+                  d="M 10 60 A 50 50 0 0 1 110 60"
+                  fill="none"
+                  stroke={corRisco}
+                  strokeWidth="12"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(indice / 100) * 157} 157`}
+                />
+              </svg>
+              <div className="-mt-2 text-lg font-extrabold" style={{ color: corRisco }}>
+                {resultado.nivelRisco} ({indice}%)
               </div>
             </div>
 
-            <div className="p-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-slate-500">
-                Peça jurídica estruturada com fundamentação legal, tempestividade e pedidos formais.
-              </span>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Baixar arquivo Markdown"
-                >
-                  <Download size={15} /> Baixar .md
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void handleCopyText()}
-                  className={`px-5 py-2.5 font-black text-xs rounded-xl flex items-center gap-2 shadow-md transition-all cursor-pointer ${
-                    copied ? 'bg-emerald-600 text-white' : 'bg-[#0A2540] hover:bg-slate-800 text-white'
-                  }`}
-                >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
-                  {copied ? 'Copiado para Área de Transferência!' : 'Copiar Minuta Completa'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedMinuta(null)}
-                  className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                >
-                  Fechar
-                </button>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500">Indicios Identificados</div>
+              <div className="mt-3 text-3xl font-extrabold text-[#081C3A]">
+                {resultado.indicios?.length || 0}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500">Empresas Relacionadas</div>
+              <div className="mt-3 text-3xl font-extrabold text-[#081C3A]">
+                {resultado.empresas?.length || 0}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500">Conexoes Detectadas</div>
+              <div className="mt-3 text-3xl font-extrabold text-[#F97316]">
+                {resultado.conexoes?.length || 0}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold text-slate-500">Alertas Elevados</div>
+              <div className="mt-3 text-3xl font-extrabold text-rose-600">
+                {(resultado.indicios || []).filter((i: any) => i.severidade === 'ELEVADO').length}
               </div>
             </div>
           </div>
-        </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-900">
+            {resultado.avisoLegal}
+          </div>
+
+          {/* 4 Paineis Principais */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {(aba === 'geral' || aba === 'cruzamento') && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
+                  <Database className="h-4 w-4 text-[#0070C0]" /> Cruzamento de Dados Oficiais
+                </h2>
+                <div className="space-y-2.5">
+                  {(resultado.fontesConsultadas || []).map((f: any) => (
+                    <div key={f.orgao} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                      <div>
+                        <div className="font-bold text-[#081C3A]">{f.orgao}</div>
+                        <div className="text-slate-500">{f.escopo}</div>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700">
+                        {f.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(aba === 'geral' || aba === 'indicios') && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
+                  <AlertTriangle className="h-4 w-4 text-rose-600" /> Principais Indicios
+                </h2>
+                {(resultado.indicios || []).length > 0 ? (
+                  <ul className="space-y-2.5 text-xs">
+                    {resultado.indicios.map((ind: any, i: number) => (
+                      <li key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[#081C3A]">{ind.titulo}</span>
+                          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                            {ind.severidade}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-slate-600">{ind.detalhe}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Nenhum indicio de vinculo societario, endereco em comum ou restricao cadastral encontrado entre os CNPJs informados.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {(aba === 'geral' || aba === 'defesa') && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
+                  <Scale className="h-4 w-4 text-emerald-600" /> Linhas de Defesa (Sugeridas)
+                </h2>
+                <ul className="space-y-2 text-xs text-slate-700">
+                  {(resultado.linhasDefesa || []).map((linha: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>{linha}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {aba === 'geral' && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
+                  <Network className="h-4 w-4 text-[#F97316]" /> Cenario Investigativo (Conexoes)
+                </h2>
+                <div className="space-y-3">
+                  {(resultado.empresas || []).map((emp: any, i: number) => (
+                    <div key={emp.cnpj} className="rounded-xl border border-slate-200 p-3 text-xs">
+                      <div className="font-bold text-[#081C3A]">
+                        Empresa {String.fromCharCode(65 + i)}: {emp.razaoSocial} ({formatCnpjMask(emp.cnpj)})
+                      </div>
+                      <div className="mt-1 text-slate-500">
+                        QSA: {emp.socios?.length ? emp.socios.map((s: any) => s.nome).join(', ') : 'Nao informado'}
+                      </div>
+                      <div className="text-slate-500">TCU: {emp.tcuStatus} | CGU: {emp.cguStatus}</div>
+                    </div>
+                  ))}
+                  {(resultado.conexoes || []).length > 0 && (
+                    <div className="rounded-xl bg-orange-50 p-3 text-xs text-orange-900">
+                      <strong>Conexoes mapeadas:</strong>
+                      {resultado.conexoes.map((c: any, idx: number) => (
+                        <div key={idx} className="mt-1">
+                          {formatCnpjMask(c.origem)} &harr; {formatCnpjMask(c.destino)}: <strong>{c.tipo}</strong> ({c.detalhe})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
 };
+
+export default NulidadesPage;

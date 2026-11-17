@@ -1,38 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
 import {
-  Building2, Search, Loader2, AlertCircle,
-  ExternalLink, DollarSign, TrendingUp,
-  Award, ShieldCheck, Target, Zap, Info, Landmark, Lock, CheckCircle, Crown, Users, ArrowRight
+  Building2,
+  Plus,
+  Trash2,
+  Search,
+  Loader2,
+  Award,
+  TrendingUp,
+  MapPin,
+  Layers,
+  DollarSign,
+  ExternalLink,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
+import toast from 'react-hot-toast';
 import { concorrentesApi } from '../services/api';
-import { useAuthStore } from '../store/auth.store';
-import { hasUserPlanFeature } from '../components/layout/Sidebar';
-import { FORNECEDOR_ROUTES } from '@/routes';
-import type { MalhaFinaLicitacao } from '@/types';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
-interface ContratoConcorrente {
-  id: string;
-  fonte: 'pncp' | 'portal_transparencia';
-  numeroContrato: string | null;
-  numeroControlePncp: string | null;
-  objeto: string | null;
-  orgao: string | null;
-  modalidade: string | null;
-  valor: number;
-  dataPublicacao: string | null;
-  vigenciaInicio: string | null;
-  vigenciaFim: string | null;
-  url: string | null;
-}
-
-interface DossieConcorrente {
+interface DossieItem {
   cnpj: string;
-  periodo: {
-    dataInicial: string;
-    dataFinal: string;
-  };
   estatisticas: {
     totalContratos: number;
     valorTotalContratado: number;
@@ -42,713 +36,351 @@ interface DossieConcorrente {
     porOrgao?: Array<{ orgao: string; total: number; valorTotal: number }>;
     porModalidade?: Record<string, number>;
   };
-  contratos: ContratoConcorrente[];
-  fontes: Array<{
-    fonte: string;
-    status: string;
-    totalRegistros: number;
+  contratos: Array<{
+    id: string;
+    numeroContrato: string | null;
+    objeto: string | null;
+    orgao: string | null;
+    modalidade: string | null;
+    valor: number;
+    dataPublicacao: string | null;
+    url: string | null;
   }>;
-  geradoEm: string;
 }
 
-function formatarMoeda(valor: number | null | undefined): string {
-  if (valor === null || valor === undefined || isNaN(valor)) return 'R$ 0,00';
+function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     maximumFractionDigits: 0,
-  }).format(valor);
+  }).format(valor || 0);
 }
 
-function formatarData(data: string | null | undefined): string {
-  if (!data) return 'Não informada';
-  try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(data));
-  } catch {
-    return data;
-  }
-}
+export const HistoricoConcorrentesPage: React.FC = () => {
+  const [cnpjs, setCnpjs] = useState<string[]>(['', '']);
+  const [abaAtiva, setAbaAtiva] = useState<'ranking' | 'regiao' | 'atividades' | 'potencial'>('ranking');
+  const [carregando, setCarregando] = useState(false);
+  const [dossies, setDossies] = useState<DossieItem[]>([]);
 
-function normalizarCnpj(valor: string): string {
-  return sanitizeCnpj(valor);
-}
+  const atualizarCnpj = (idx: number, valor: string) => {
+    const copia = [...cnpjs];
+    copia[idx] = formatCnpjMask(valor);
+    setCnpjs(copia);
+  };
 
-function formatarCnpj(cnpj: string): string {
-  const digits = normalizarCnpj(cnpj);
-  if (digits.length !== 14) return cnpj;
-  return formatCnpjMask(digits);
-}
+  const adicionarCampoCnpj = () => {
+    if (cnpjs.length >= 6) {
+      toast.error('Limite de 6 concorrentes por comparativo.');
+      return;
+    }
+    setCnpjs([...cnpjs, '']);
+  };
 
-export function HistoricoConcorrentesPage() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const removerCampoCnpj = (idx: number) => {
+    if (cnpjs.length <= 1) return;
+    setCnpjs(cnpjs.filter((_, i) => i !== idx));
+  };
 
-  const [cnpjInput, setCnpjInput] = useState('');
-  const [cnpjsMalhaInput, setCnpjsMalhaInput] = useState('');
-  const [dossie, setDossie] = useState<DossieConcorrente | null>(null);
-  const [malhaFinaResult, setMalhaFinaResult] = useState<MalhaFinaLicitacao | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingMalha, setLoadingMalha] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [consultado, setConsultado] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const consultarConcorrentes = async () => {
+    const validos = cnpjs
+      .map((c) => sanitizeCnpj(c))
+      .filter((c) => isValidCnpj(c, { optional: false }));
 
-  // Verifica se o usuário possui a permissão premium malha_fina_qsa (Plano Master)
-  const hasMalhaFina = hasUserPlanFeature(user, 'malha_fina_qsa');
-  const isMaster = hasMalhaFina || user?.planType === 'MASTER';
-
-  const consultarCnpj = async (cnpjAlvo: string) => {
-    const cnpjLimpo = normalizarCnpj(cnpjAlvo);
-
-    if (cnpjLimpo.length === 0) {
-      setError(null);
+    if (validos.length === 0) {
+      toast.error('Digite pelo menos um CNPJ valido para consultar.');
       return;
     }
 
-    if (!isValidCnpj(cnpjLimpo, { optional: false })) {
-      setError('Por favor, informe um CNPJ válido com 14 caracteres alfanuméricos (XX.XXX.XXX/XXXX-XX) para gerar o Dossiê de Inteligência.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setConsultado(true);
-
+    setCarregando(true);
     try {
-      const response = await concorrentesApi.getDossie(cnpjLimpo);
-      if (response.data?.success && response.data?.data) {
-        setDossie(response.data.data);
-      } else {
-        setError('Não foi possível obter os dados do concorrente. Tente novamente.');
-        setDossie(null);
-      }
+      const resultados = await Promise.all(
+        Array.from(new Set(validos)).map(async (cnpj) => {
+          const resp = await concorrentesApi.getDossie(cnpj);
+          return resp.data?.data as DossieItem;
+        })
+      );
+      setDossies(resultados.filter(Boolean));
+      toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
     } catch (err: any) {
-      if (err?.response?.status === 403) {
-        setShowUpgradeModal(true);
-        setDossie(null);
-        return;
-      }
-      const msg = err?.response?.data?.message || 'Erro ao consultar bases oficiais do governo.';
-      setError(msg);
-      setDossie(null);
+      toast.error(err?.response?.data?.error || 'Nao foi possivel consultar os concorrentes agora.');
     } finally {
-      setLoading(false);
+      setCarregando(false);
     }
   };
 
-  const handleConsultar = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    consultarCnpj(cnpjInput);
-  };
+  const totalContratos = dossies.reduce((s, d) => s + (d.estatisticas?.totalContratos || 0), 0);
+  const valorGlobal = dossies.reduce((s, d) => s + (d.estatisticas?.valorTotalContratado || 0), 0);
+  const totalOrgaos = dossies.reduce((s, d) => s + (d.estatisticas?.orgaosContratantes || 0), 0);
+  const ticketMedioGeral = totalContratos > 0 ? valorGlobal / totalContratos : 0;
 
-  const handleAuditoriaProfunda = async () => {
-    if (!hasMalhaFina) {
-      setShowUpgradeModal(true);
-      return;
-    }
+  const dadosGraficoOrgaos = dossies
+    .flatMap((d) => d.estatisticas?.porOrgao || [])
+    .slice(0, 6)
+    .map((o) => ({
+      nome: o.orgao.length > 22 ? o.orgao.slice(0, 22) + '...' : o.orgao,
+      contratos: o.total,
+      valor: o.valorTotal,
+    }));
 
-    const rawList = (cnpjsMalhaInput || cnpjInput)
-      .split(/[,;\s\n]+/)
-      .map((item) => normalizarCnpj(item))
-      .filter((digits) => digits.length === 14);
-
-    const uniqueCnpjs = Array.from(new Set(rawList));
-    if (uniqueCnpjs.length < 2) {
-      setError('Para executar a Auditoria Profunda (Malha Fina QSA), informe ao menos 2 CNPJs (14 dígitos) separados por vírgula.');
-      return;
-    }
-
-    setLoadingMalha(true);
-    setError(null);
-    try {
-      const response = await concorrentesApi.malhaFina({ cnpjs: uniqueCnpjs });
-      if (response.data?.success && response.data?.data) {
-        setMalhaFinaResult(response.data.data);
-      }
-    } catch (err: any) {
-      if (err?.response?.status === 403) {
-        setShowUpgradeModal(true);
-        return;
-      }
-      setError(err?.response?.data?.message || 'Não foi possível concluir a Auditoria Profunda QSA.');
-    } finally {
-      setLoadingMalha(false);
-    }
-  };
-
-  const buscaParam = searchParams.get('busca');
-
-  useEffect(() => {
-    if (buscaParam) {
-      const decoded = decodeURIComponent(buscaParam).trim();
-      setCnpjInput(decoded);
-      const digits = normalizarCnpj(decoded);
-      if (digits.length === 14 && dossie?.cnpj !== digits) {
-        consultarCnpj(digits);
-      }
-    }
-  }, [buscaParam]);
-
-  // Análise de Perfil de Desconto & Modalidade Dominante
-  const pregaoCount = dossie?.contratos.filter(c =>
-    (c.modalidade || '').toLowerCase().includes('pregão') ||
-    (c.modalidade || '').toLowerCase().includes('pregao')
-  ).length || 0;
-
-  const dispensaCount = dossie?.contratos.filter(c =>
-    (c.modalidade || '').toLowerCase().includes('dispensa')
-  ).length || 0;
-
-  const total = dossie?.contratos.length || 0;
-  const perfilAgressivo = total > 0 && (pregaoCount / total) >= 0.5;
+  const modalidadesMapa: Record<string, number> = {};
+  dossies.forEach((d) => {
+    Object.entries(d.estatisticas?.porModalidade || {}).forEach(([mod, qtd]) => {
+      modalidadesMapa[mod] = (modalidadesMapa[mod] || 0) + qtd;
+    });
+  });
+  const listaModalidades = Object.entries(modalidadesMapa).map(([nome, qtd]) => ({ nome, qtd }));
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-5 py-7 sm:px-8 sm:py-9 bg-slate-50 min-h-screen relative">
-      {/* Header Executivo — Inteligência Competitiva */}
-      <header className="flex flex-col gap-2 pb-8 border-b border-slate-200 mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3 pl-3 border-l-4 border-[#0A2540]">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-900 border border-indigo-200">
-                  Inteligência Competitiva B2B
-                </span>
-                {!isMaster && (
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200 flex items-center gap-1">
-                    <Lock size={10} /> Plano Master
-                  </span>
-                )}
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0A2540]">
-                Dossiê Estratégico de Concorrentes
-              </h1>
-              <p className="text-xs sm:text-sm font-medium text-slate-500 mt-1">
-                Investigue o histórico de vitórias, ticket médio e órgãos dominados pelos seus concorrentes.
-              </p>
-            </div>
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      {/* Cabecalho */}
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316]">
+            <Building2 className="h-6 w-6" />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs">
-              <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
-              Bases Oficiais: PNCP & Compras.gov
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Caixa de Busca com CNPJ */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 mb-8">
-        <form onSubmit={handleConsultar} className="flex flex-col md:flex-row items-end gap-4">
-          <div className="flex-1 w-full">
-            <label
-              htmlFor="cnpj-concorrente-input"
-              className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2"
-            >
-              CNPJ ou Identificador do Concorrente / Órgão
-            </label>
-            <div className="relative">
-              <input
-                id="cnpj-concorrente-input"
-                type="text"
-                value={cnpjInput}
-                onChange={(e) => setCnpjInput(formatCnpjMask(e.target.value))}
-                placeholder="XX.XXX.XXX/XXXX-XX (letras e números)"
-                maxLength={18}
-                disabled={loading}
-                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#0A2540] transition disabled:opacity-50"
-              />
-              <Building2 size={18} className="absolute right-4 top-3.5 text-slate-400" />
-            </div>
-          </div>
-          <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <button
-              type="submit"
-              disabled={loading || !cnpjInput.trim()}
-              className="h-11 px-6 rounded-md font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition disabled:opacity-50 shadow-sm bg-[#0A2540] hover:bg-slate-800 text-white cursor-pointer"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Consultando...</span>
-                </>
-              ) : (
-                <>
-                  <Search size={16} />
-                  <span>Gerar Dossiê</span>
-                </>
-              )}
-            </button>
-
-            {/* Botão de Auditoria Profunda (Malha Fina QSA) — Ativo no Master ou Cinza com Cadeado no Básico/Avançado */}
-            {hasMalhaFina ? (
-              <button
-                type="button"
-                onClick={handleAuditoriaProfunda}
-                disabled={loadingMalha}
-                className="h-11 px-6 rounded-md font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
-              >
-                {loadingMalha ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Auditando QSA...</span>
-                  </>
-                ) : (
-                  <>
-                    <Users size={16} />
-                    <span>Auditoria Profunda (Malha Fina QSA)</span>
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(true)}
-                title="Auditoria Profunda (Malha Fina QSA) — Exclusivo do Plano Master"
-                className="h-11 px-5 rounded-md font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-xs bg-slate-200 hover:bg-slate-300 text-slate-600 border border-slate-300 cursor-pointer"
-              >
-                <Lock size={15} className="text-slate-500 shrink-0" />
-                <span>Auditoria Profunda · Desbloquear no Plano Master</span>
-              </button>
-            )}
-          </div>
-        </form>
-
-        {/* Card de Recurso Premium: Malha Fina Societária & Anticartel (QSA) */}
-        <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-[#0A2540]">
-                Auditoria Profunda — Malha Fina Societária (QSA & Anticartel)
-              </span>
-              {!hasMalhaFina && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold">
-                  <Lock size={10} /> Exclusivo Master
-                </span>
-              )}
-            </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">Historico de Concorrentes</h1>
             <p className="text-xs text-slate-500">
-              Cruze múltiplos CNPJs concorrentes na disputa para detectar sócios em comum, parentesco societário e indícios de conluio (Art. 14 e Art. 155 da Lei 14.133/2021).
+              Conheca os concorrentes, onde atuam, suas vitorias e principais contratacoes reais no PNCP
             </p>
           </div>
-
-          {hasMalhaFina ? (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
-              <input
-                type="text"
-                value={cnpjsMalhaInput}
-                onChange={(e) => setCnpjsMalhaInput(e.target.value)}
-                placeholder="CNPJs separados por vírgula (ex: 00000000000191, ...)"
-                className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-lg px-3.5 py-2.5 outline-none focus:border-[#0A2540] min-w-[280px]"
-              />
-              <button
-                type="button"
-                onClick={handleAuditoriaProfunda}
-                disabled={loadingMalha}
-                className="h-10 px-4 rounded-lg bg-[#0A2540] hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition shrink-0 cursor-pointer"
-              >
-                <ShieldCheck size={15} />
-                <span>Checar Vínculos</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowUpgradeModal(true)}
-              className="h-10 px-4 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 border border-slate-300 text-xs font-bold flex items-center justify-center gap-2 transition shrink-0 cursor-pointer"
-            >
-              <Lock size={14} className="text-slate-500 shrink-0" />
-              <span>Desbloquear no Plano Master</span>
-            </button>
-          )}
         </div>
-
-        {/* Resultado da Checagem de Vínculos Societários (Quando executado no Plano Master) */}
-        {malhaFinaResult && (
-          <div className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50/40 p-5 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-black text-[#0A2540]">
-                Resultado da Checagem de Vínculos QSA: Risco {malhaFinaResult.risco}
-              </h4>
-              <span className="text-xs font-bold text-slate-600">
-                {malhaFinaResult.resumo.totalConcorrentes} empresas · {malhaFinaResult.resumo.totalVinculosSocietarios} vínculo(s) societário(s)
-              </span>
-            </div>
-            {malhaFinaResult.recomendacoes?.length > 0 && (
-              <ul className="space-y-1 text-xs text-slate-700 list-disc pl-4">
-                {malhaFinaResult.recomendacoes.map((rec, i) => (
-                  <li key={i}>{rec}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* Alerta de Erro */}
-        {error && (
-          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-3">
-            <AlertCircle size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-rose-800">{error}</p>
-              <button
-                onClick={() => handleConsultar()}
-                className="mt-1 text-[11px] font-bold text-rose-600 underline hover:text-rose-800"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-12 text-center flex flex-col items-center justify-center">
-          <Loader2 size={36} className="animate-spin text-[#0A2540] mb-3" />
-          <h3 className="text-sm font-black text-slate-900">Gerando Dossiê Estratégico do Concorrente...</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md">
-            Cruzando dados abertos do PNCP e Portal da Transparência para apurar contratos homologados, órgãos dominados e perfil de disputa.
-          </p>
+      {/* Painel de entrada dinamica com + Adicionar CNPJ */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            CNPJs para Comparativo de Historico
+          </span>
+          <button
+            type="button"
+            onClick={adicionarCampoCnpj}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#081C3A] px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:bg-slate-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Adicionar CNPJ
+          </button>
         </div>
-      )}
 
-      {/* Empty State Inicial: Antes da Busca */}
-      {!loading && !dossie && !consultado && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
-          <div className="bg-slate-100 p-4 rounded-full inline-flex mb-4">
-            <Target size={32} className="text-[#0A2540]" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {cnpjs.map((val, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => atualizarCnpj(idx, e.target.value)}
+                placeholder={`CNPJ Concorrente ${idx + 1} (00.000.000/0000-00)`}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#081C3A]"
+              />
+              {cnpjs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removerCampoCnpj(idx)}
+                  className="rounded-xl border border-slate-200 p-2.5 text-slate-400 hover:text-rose-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            disabled={carregando}
+            onClick={consultarConcorrentes}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50"
+          >
+            {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Consultar Historico Real
+          </button>
+        </div>
+      </div>
+
+      {/* 5 KPIs do Mockup */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <Building2 className="h-4 w-4 text-[#081C3A]" /> Concorrentes
           </div>
-          <h3 className="text-base font-black text-slate-900 mb-2">
-            Pesquise um concorrente para ver o dossiê de contratos
-          </h3>
-          <div className="max-w-xl mx-auto space-y-2 text-xs text-slate-500 leading-relaxed mb-6">
-            <p>
-              <strong>O que você vai descobrir:</strong> Quais órgãos públicos ele domina, qual o ticket médio de faturamento e se ele pratica descontos agressivos em pregões.
-            </p>
-            <p>
-              <strong>Auditoria e Inteligência:</strong> Dados 100% oficiais capturados das bases públicas de compras federais, estaduais e municipais.
-            </p>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{dossies.length}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <Award className="h-4 w-4 text-[#F97316]" /> Contratos / Vitorias
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalContratos}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <DollarSign className="h-4 w-4 text-emerald-600" /> Ticket Medio
+          </div>
+          <div className="mt-2 text-lg font-extrabold text-[#081C3A]">{formatarMoeda(ticketMedioGeral)}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <MapPin className="h-4 w-4 text-[#0070C0]" /> Orgaos Atendidos
+          </div>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalOrgaos}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <Layers className="h-4 w-4 text-[#F97316]" /> Modalidades
+          </div>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{listaModalidades.length}</div>
+        </div>
+      </div>
+
+      {/* Abas */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'ranking', label: 'Ranking de Concorrentes', icon: Award },
+          { id: 'regiao', label: 'Orgaos e Atuacao', icon: MapPin },
+          { id: 'atividades', label: 'Modalidades Frequentes', icon: Layers },
+          { id: 'potencial', label: 'Analise de Potencial', icon: TrendingUp },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const active = abaAtiva === tab.id;
+          return (
             <button
-              onClick={() => {
-                setCnpjInput('00000000000191');
-              }}
-              className="h-9 px-4 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-xs"
+              key={tab.id}
+              type="button"
+              onClick={() => setAbaAtiva(tab.id as any)}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                active
+                  ? 'bg-[#F97316] text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
+              }`}
             >
-              Testar com CNPJ de Banco do Brasil (Exemplo)
+              <Icon className="h-4 w-4" />
+              {tab.label}
             </button>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* Empty State Estratégico Amigável: Sem Contratos Registrados */}
-      {!loading && consultado && dossie && dossie.contratos.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-700 mx-auto flex items-center justify-center mb-4">
-            <Building2 size={32} />
-          </div>
-          <h3 className="text-lg font-black text-slate-900 mb-2">
-            Nenhum contrato público federal localizado para este CNPJ
-          </h3>
-          <div className="max-w-xl mx-auto text-xs text-slate-600 leading-relaxed mb-6 space-y-2">
-            <p>
-              A consulta oficial às bases do PNCP e Portal da Transparência para o CNPJ{' '}
-              <strong className="text-slate-900 font-bold">{formatarCnpj(dossie.cnpj)}</strong> não retornou contratos homologados no período analisado.
-            </p>
-            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-left mt-4 text-[11px] text-slate-600 space-y-1.5">
-              <strong className="font-bold text-[#0A2540] flex items-center gap-1.5">
-                <Info size={14} className="text-blue-600 shrink-0" />
-                Interpretação Estratégica de Mercado:
-              </strong>
-              <p>Este concorrente pode ser novo no mercado de licitações públicas.</p>
-              <p>Pode atuar prioritariamente via subcontratação ou consórcios onde não seja o líder.</p>
-              <p>Pode concentrar operações em portais municipais ou estaduais proprietários ainda em transição para o PNCP.</p>
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-            <span>Consulta concluída com sucesso em {formatarData(dossie.geradoEm)}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Dossiê Estratégico Completo */}
-      {!loading && dossie && dossie.contratos.length > 0 && (
-        <div className="space-y-8">
-          {/* Cabeçalho do Dossiê */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-6 py-4 shadow-sm">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-0.5">
-                Dossiê Oficial do Concorrente
-              </span>
-              <p className="text-lg font-black text-[#0A2540]">
-                CNPJ {formatarCnpj(dossie.cnpj)}
-              </p>
-            </div>
-            <div className="text-left sm:text-right">
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block">
-                {dossie.contratos.length} contrato(s) homologado(s) identificado(s)
-              </span>
-              <p className="text-[10px] text-slate-400 mt-1">
-                Gerado em {formatarData(dossie.geradoEm)}
-              </p>
-            </div>
+      {/* Graficos e Tabela */}
+      {dossies.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">
+              Orgaos com Maior Concentracao de Contratos
+            </h2>
+            {dadosGraficoOrgaos.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dadosGraficoOrgaos} layout="vertical" margin={{ left: 10, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="nome" type="category" width={130} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="contratos" fill="#081C3A" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Sem distribuicao por orgao nos contratos retornados.</p>
+            )}
           </div>
 
-          {/* Cards de Métricas de Inteligência */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total de Contratos */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Total de Contratos
-                </span>
-                <Award size={18} className="text-slate-300" />
-              </div>
-              <div className="text-3xl font-black text-[#0A2540] mb-1">
-                {dossie.estatisticas.totalContratos}
-              </div>
-              <p className="text-[10px] text-slate-400">Vitórias homologadas</p>
-            </div>
-
-            {/* Total Faturado */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Volume Contratado
-                </span>
-                <DollarSign size={18} className="text-emerald-500" />
-              </div>
-              <div className="text-2xl font-black text-emerald-700 mb-1">
-                {formatarMoeda(dossie.estatisticas.valorTotalContratado)}
-              </div>
-              <p className="text-[10px] text-slate-400">Soma dos contratos oficiais</p>
-            </div>
-
-            {/* Ticket Médio */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Ticket Médio
-                </span>
-                <TrendingUp size={18} className="text-blue-500" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 mb-1">
-                {formatarMoeda(dossie.estatisticas.ticketMedio)}
-              </div>
-              <p className="text-[10px] text-slate-400">Valor médio por contrato ganho</p>
-            </div>
-
-            {/* Perfil de Competitividade */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Perfil de Disputa
-                </span>
-                <Zap size={18} className="text-amber-500" />
-              </div>
-              <div className="text-sm font-black text-[#0A2540] mb-1">
-                {perfilAgressivo ? 'Disputa Agressiva em Pregão' : 'Fornecimento Direto / Dispensa'}
-              </div>
-              <p className="text-[10px] text-slate-400">
-                {pregaoCount} pregões · {dispensaCount} dispensas
-              </p>
-            </div>
-          </div>
-
-          {/* Seção: Órgãos que o Concorrente Domina */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-              <Landmark className="w-5 h-5 text-[#0A2540]" />
-              <div>
-                <h3 className="text-base font-black text-slate-900">
-                  Órgãos que Este Concorrente Mais Domina
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Ranking das entidades públicas que mais contratam esta empresa
-                </p>
-              </div>
-            </div>
-
-            {dossie.estatisticas.porOrgao && dossie.estatisticas.porOrgao.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dossie.estatisticas.porOrgao.slice(0, 6).map((org, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-black flex items-center justify-center shrink-0 mt-0.5">
-                        {idx + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 truncate" title={org.orgao}>
-                          {org.orgao}
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          {org.total} {org.total === 1 ? 'contrato' : 'contratos'} homologado(s)
-                        </p>
-                      </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">Principais Modalidades Disputadas</h2>
+            {listaModalidades.length > 0 ? (
+              <div className="space-y-3">
+                {listaModalidades.map((m) => (
+                  <div key={m.nome} className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700">
+                      <span>{m.nome}</span>
+                      <span>{m.qtd} contrato(s)</span>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-xs font-black text-slate-900 block">
-                        {formatarMoeda(org.valorTotal)}
-                      </span>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-[#F97316]"
+                        style={{ width: `${Math.min(100, (m.qtd / Math.max(1, totalContratos)) * 100)}%` }}
+                      />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500">
-                Detalhamento por órgão sintetizado nos contratos individuais abaixo.
-              </p>
+              <p className="text-xs text-slate-500">Nenhuma modalidade registrada neste periodo.</p>
             )}
           </div>
 
-          {/* Lista de Contratos Homologados nas Bases Oficiais */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6 pb-3 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-black text-slate-900">
-                  Contratos Homologados nas Bases Oficiais (Compras.gov / PNCP)
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Rastreabilidade com links para atas e portais de compras
-                </p>
-              </div>
-              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-                {dossie.contratos.length} itens
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              {dossie.contratos.map((contrato) => (
-                <div
-                  key={contrato.id}
-                  className="p-4 rounded-xl border border-slate-200 hover:border-slate-300 transition bg-slate-50/50"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-black text-[#0A2540]">
-                          {contrato.numeroContrato ? `Contrato nº ${contrato.numeroContrato}` : 'Contrato Administrativo'}
+          {/* Tabela Ranking */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+            <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">
+              Principais Concorrentes da Disputa (Dados Reais)
+            </h2>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-2 pr-3">CNPJ</th>
+                  <th className="py-2 pr-3">Potencial</th>
+                  <th className="py-2 pr-3">Contratos</th>
+                  <th className="py-2 pr-3">Volume Contratado</th>
+                  <th className="py-2 pr-3">Maior Contrato</th>
+                  <th className="py-2">Orgaos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dossies.map((d) => {
+                  const alto = (d.estatisticas?.totalContratos || 0) >= 5;
+                  return (
+                    <tr key={d.cnpj} className="border-b border-slate-100">
+                      <td className="py-3 pr-3 font-bold text-[#081C3A]">{formatCnpjMask(d.cnpj)}</td>
+                      <td className="py-3 pr-3">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            alto ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {alto ? 'Alto' : 'Medio'}
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-700 px-2 py-0.5 rounded">
-                          {contrato.fonte === 'pncp' ? 'PNCP' : 'Portal Transparência'}
-                        </span>
-                      </div>
-                      <p className="text-xs font-bold text-slate-700">
-                        {contrato.orgao || 'Órgão contratante não especificado'}
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right flex-shrink-0">
-                      <span className="text-sm font-black text-emerald-700 block">
-                        {formatarMoeda(contrato.valor)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        Publicação: {formatarData(contrato.dataPublicacao)}
-                      </span>
-                    </div>
-                  </div>
+                      </td>
+                      <td className="py-3 pr-3 font-semibold">{d.estatisticas?.totalContratos || 0}</td>
+                      <td className="py-3 pr-3 font-bold text-emerald-700">
+                        {formatarMoeda(d.estatisticas?.valorTotalContratado || 0)}
+                      </td>
+                      <td className="py-3 pr-3">{formatarMoeda(d.estatisticas?.maiorContrato || 0)}</td>
+                      <td className="py-3">{d.estatisticas?.orgaosContratantes || 0}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-                  <p className="text-xs text-slate-600 line-clamp-2 mb-3">
-                    {contrato.objeto || 'Objeto não detalhado na base pública'}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px]">
-                    <span className="text-slate-500">
-                      {contrato.modalidade ? `Modalidade: ${contrato.modalidade}` : 'Modalidade padrão'}
+            {abaAtiva === 'potencial' && dossies.some((d) => d.contratos?.length > 0) && (
+              <div className="mt-5 space-y-2 border-t border-slate-200 pt-4">
+                <h3 className="text-xs font-bold text-[#081C3A]">Contratos Recentes Localizados</h3>
+                {dossies.flatMap((d) => d.contratos || []).slice(0, 6).map((c) => (
+                  <div key={c.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                    <span className="truncate pr-4 font-medium text-slate-700">
+                      {c.orgao || 'Orgao'} — {c.objeto || 'Objeto nao informado'}
                     </span>
-                    {contrato.url && (
-                      <a
-                        href={contrato.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#0A2540] hover:underline font-bold flex items-center gap-1"
-                      >
-                        Ver no portal oficial <ExternalLink size={12} />
-                      </a>
-                    )}
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="font-bold text-[#081C3A]">{formatarMoeda(c.valor)}</span>
+                      {c.url && (
+                        <a href={c.url} target="_blank" rel="noreferrer" className="text-[#0070C0] hover:underline">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Modal de Upgrade de Plano (Paywall Amigável — Plano Master) */}
-      {showUpgradeModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 bg-[#0A2540]/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-        >
-          <div className="bg-white p-8 rounded-2xl max-w-lg w-full shadow-2xl relative overflow-hidden border border-slate-100">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-400 via-[#EA580C] to-amber-600" />
-
-            <div className="flex justify-center mb-5">
-              <div className="relative w-16 h-16 rounded-2xl bg-[#0A2540] text-white flex items-center justify-center shadow-lg">
-                <Crown size={30} className="text-amber-400" />
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#EA580C] text-white flex items-center justify-center border-2 border-white">
-                  <Lock size={12} />
-                </div>
-              </div>
-            </div>
-
-            <div className="text-center mb-2">
-              <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-black uppercase tracking-wider">
-                Exclusivo Plano Master
-              </span>
-            </div>
-
-            <h2 className="text-2xl font-black text-slate-900 text-center mb-2">
-              Auditoria Profunda & Malha Fina QSA
-            </h2>
-
-            <p className="text-slate-600 text-center mb-6 leading-relaxed text-sm">
-              Desbloqueie a investigação societária profunda para cruzar o Quadro de Sócios e Administradores (QSA) dos concorrentes e fundamentar pedidos de desclassificação por conluio na <strong>Lei 14.133/2021</strong>.
-            </p>
-
-            <ul className="space-y-3 mb-7 text-xs sm:text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
-              <li className="flex items-start gap-2.5">
-                <CheckCircle size={17} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>Malha Fina Societária (QSA):</strong> Detecta sócios em comum e empresas de fachada disputando o mesmo lote.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <CheckCircle size={17} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>Referências para sua análise:</strong> Consulte os artigos 14 e 155 da Lei 14.133/2021 e decisões do TCU relacionadas.</span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <CheckCircle size={17} className="text-emerald-600 shrink-0 mt-0.5" />
-                <span><strong>20 CNPJs + Propostas Ilimitadas:</strong> Acesso total ao Robô de Lances, Robô de Reajuste e Assistente de Repactuação.</span>
-              </li>
-            </ul>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => setShowUpgradeModal(false)}
-                className="flex-1 px-4 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition-colors font-bold text-sm cursor-pointer"
-              >
-                Continuar no Plano Atual
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(FORNECEDOR_ROUTES.planos)}
-                className="flex-1 px-5 py-3 bg-[#EA580C] hover:bg-orange-600 text-white font-black rounded-xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
-              >
-                <span>Fazer Upgrade</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+          Adicione um ou mais CNPJs acima e clique em <strong>Consultar Historico Real</strong> para montar os graficos e o ranking.
         </div>
       )}
     </div>
   );
-}
+};
+
+export default HistoricoConcorrentesPage;
