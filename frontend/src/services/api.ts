@@ -353,7 +353,7 @@ export const auditoriaApi = {
 };
 
 export const aiApi = {
-  consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
+  consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body, { timeout: 90000 }),
 };
 
 export interface ExportarParecerPayload {
@@ -381,14 +381,14 @@ export interface ExportarParecerPayload {
 }
 
 export const lexApi = {
-  resumo: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/resumo', body),
-  auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body),
-  proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body),
-  analise: (body: { noticeId?: string; licitacaoId?: string; edital_id?: string }) => api.post('/lex/analise', body),
-  impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body),
+  resumo: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/resumo', body, { timeout: 90000 }),
+  auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body, { timeout: 90000 }),
+  proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body, { timeout: 90000 }),
+  analise: (body: { noticeId?: string; licitacaoId?: string; edital_id?: string }) => api.post('/lex/analise', body, { timeout: 90000 }),
+  impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body, { timeout: 90000 }),
   recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; noticeId?: string }) =>
-    api.post('/lex/recurso', body),
-  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean }) => api.post('/lex/chat', body),
+    api.post('/lex/recurso', body, { timeout: 90000 }),
+  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean }) => api.post('/lex/chat', body, { timeout: 90000 }),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
   exportarParecerPdf: (body: ExportarParecerPayload) =>
     api.post('/lex/parecer-pdf', body, {

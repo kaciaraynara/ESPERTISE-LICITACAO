@@ -14,6 +14,63 @@ import {
 } from '../services/ai.service';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 
+
+async function fetchCnpjInvestigationContext(texto: string): Promise<string> {
+  const matches = texto.match(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g);
+  if (!matches || matches.length === 0) return '';
+
+  const uniqueCnpjs = Array.from(new Set(matches.map((c) => c.replace(/\D/g, '')))).slice(0, 3);
+  const blocos: string[] = [];
+
+  for (const cnpj of uniqueCnpjs) {
+    if (cnpj.length !== 14) continue;
+    try {
+      const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) continue;
+      const d: any = await resp.json();
+      const socios = Array.isArray(d.qsa)
+        ? d.qsa
+            .map((s: any) => `${s.nome_socio || 'Socio'} (${s.qualificacao_socio || 'Participante'})`)
+            .join('; ')
+        : 'Nao informado';
+      const endereco = [d.descricao_tipo_de_logradouro, d.logradouro, d.numero, d.bairro, d.municipio, d.uf, d.cep]
+        .filter(Boolean)
+        .join(', ');
+
+      blocos.push(
+        [
+          `[DADOS OFICIAIS RECEITA/BRASILAPI - CNPJ ${cnpj}]`,
+          `Razao Social: ${d.razao_social || 'N/I'} | Fantasia: ${d.nome_fantasia || 'N/I'}`,
+          `Situacao Cadastral: ${d.descricao_situacao_cadastral || 'N/I'} | Abertura: ${d.data_inicio_atividade || 'N/I'}`,
+          `Porte: ${d.porte || 'N/I'} | Capital Social: R$ ${d.capital_social ?? 'N/I'}`,
+          `CNAE Principal: ${d.cnae_fiscal || ''} - ${d.cnae_fiscal_descricao || 'N/I'}`,
+          `Endereco: ${endereco || 'N/I'}`,
+          `Quadro Societario (QSA): ${socios}`,
+        ].join('\n')
+      );
+    } catch {
+      // ignora falha pontual de consulta externa
+    }
+  }
+
+  return blocos.length > 0 ? '\n\n' + blocos.join('\n\n') : '';
+}
+
+const EXPERTISE_TOOLS_MAP = `
+[MAPA OFICIAL DAS FERRAMENTAS DA EXPERTISE LICITATORIA]
+- Dashboard Inicial: visao geral com indicadores da empresa, certidoes, prazos e oportunidades em destaque.
+- Radar de Licitacoes: busca rapida de editais reais do PNCP filtrados por estado, modalidade e CNAEs da empresa.
+- Analise de Viabilidade: classifica os editais mais rentaveis e aderentes em semaforo (Verde, Amarelo, Vermelho).
+- Inteligencia Competitiva e Historico de Concorrentes: acompanha concorrentes por CNPJ, taxa de vitoria, regioes e padroes de lance.
+- Radar de Nulidades / Analise de Irregularidades: cruza dados publicos (PNCP, Receita/QSA, TCU, CGU) para apontar indicios de risco e linhas de defesa.
+- Luli Central Investigativa: chat estrategico para ler links do PNCP, investigar CNPJs/socios, montar propostas (-8% sobre referencia), impugnacoes e recursos.
+- Robo de Lances: monitoramento de disputa e estrategia de margem minima.
+- SRP e Gestao de Atas: controle de Atas de Registro de Precos, saldo e adesoes (carona).
+- Academia do Licitante: trilhas praticas de capacitacao em licitacoes e Lei 14.133/2021.
+`;
+
 async function fetchPncpLinkContext(texto: string): Promise<string> {
   const urlMatch = texto.match(/pncp\.gov\.br\/app\/editais\/(\d{14})\/(\d{4})\/(\d+)/i);
   const ctrlMatch = texto.match(/(\d{14})-\d+-(\d+)\/(\d{4})/);
@@ -39,7 +96,7 @@ async function fetchPncpLinkContext(texto: string): Promise<string> {
     const arqs = (arqsRes.status === 'fulfilled' && arqsRes.value.ok ? await arqsRes.value.json().catch(() => []) : []) as any[];
 
     const itensResumo = Array.isArray(itens) && itens.length > 0
-      ? itens.slice(0, 12).map((it: any, i: number) => `  ${i + 1}. ${it.descricao || it.materialOuServicoNome || 'Item'} | Qtd: ${it.quantidade ?? '-'} ${it.unidadeMedida || ''} | Ref.: R$ ${it.valorUnitarioEstimado ?? '-'}`).join('\n')
+      ? itens.slice(0, 12).map((it: any, i: number) => `  ${i + 1}. ${it.descricao || it.materialOuServicoNome || 'Item'} | Qtd: ${it.quantidade ?? '-'} ${it.unidadeMedida || ''} | Ref.: R$ ${it.valorUnitarioEstimado ?? '-'} | Sugestao Competitiva (-8%): R$ ${it.valorUnitarioEstimado ? (Number(it.valorUnitarioEstimado) * 0.92).toFixed(2) : 'N/I'}`).join('\n')
       : '  Itens não listados separadamente na API.';
 
     const arqsResumo = Array.isArray(arqs) && arqs.length > 0
@@ -180,7 +237,9 @@ export class LexController {
         stream?: boolean;
       };
 
-      const pergunta = (req.body?.pergunta || req.body?.message || lastUserMessage(messages) || '').trim();
+      const __textoBuscaCnpj = Array.isArray(req.body?.messages) ? req.body.messages.map((m: any) => m?.content || '').join(' ') : String(req.body?.pergunta || '');
+    const __cnpjContexto = await fetchCnpjInvestigationContext(__textoBuscaCnpj);
+    const pergunta = (req.body?.pergunta || req.body?.message || lastUserMessage(messages) || '').trim();
       if (!pergunta) {
         return res.status(400).json({ success: false, message: 'Mensagens inválidas ou pergunta vazia.' });
       }
