@@ -1,3 +1,4 @@
+import { consultarComprasGovContratos, consultarCguCeisCnep, consultarCadeCondutas } from '../services/intelligence.service';
 const __dossieCache = new Map<string, { ts: number; data: any }>();
 import { Response } from 'express';
 import { z } from 'zod';
@@ -440,6 +441,77 @@ export class ConcorrentesController {
       });
     } catch (error: any) {
       return res.status(500).json({ error: error?.message || 'Erro ao executar cruzamento de integridade.' });
+    }
+  }
+
+
+  async historico(req: any, res: any) {
+    try {
+      const rawCnpjs: string[] = Array.isArray(req.body?.cnpjs) ? req.body.cnpjs : [];
+      const cnpjs = Array.from(
+        new Set(rawCnpjs.map((c) => String(c || '').replace(/\D/g, '')).filter((c) => c.length === 14))
+      ).slice(0, 6);
+
+      if (cnpjs.length === 0) {
+        return res.status(400).json({ error: 'Informe ao menos um CNPJ valido.' });
+      }
+
+      const lista = await Promise.all(
+        cnpjs.map(async (cnpj) => {
+          const cached = __dossieCache.get(cnpj);
+          if (cached && Date.now() - cached.ts < 300000) return cached.data;
+
+          const [empResp, comprasGov] = await Promise.all([
+            fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { signal: AbortSignal.timeout(5000) })
+              .then((r) => (r.ok ? r.json() : null))
+              .catch(() => null),
+            consultarComprasGovContratos(cnpj),
+          ]);
+
+          const emp: any = empResp;
+          const totalContratos = comprasGov.length;
+          const valorTotal = comprasGov.reduce((s, c) => s + (c.valor || 0), 0);
+          const maiorContrato = comprasGov.reduce((m, c) => Math.max(m, c.valor || 0), 0);
+          const orgaosSet = new Set(comprasGov.map((c) => c.orgao));
+
+          const dossie = {
+            cnpj,
+            razaoSocial: emp?.razao_social || `Empresa ${cnpj}`,
+            situacao: emp?.descricao_situacao_cadastral || 'Consultado',
+            cnaePrincipal: emp?.cnae_fiscal_descricao || 'Nao informado',
+            uf: emp?.uf || '',
+            municipio: emp?.municipio || '',
+            estatisticas: {
+              totalContratos,
+              valorTotalContratado: valorTotal,
+              ticketMedio: totalContratos > 0 ? valorTotal / totalContratos : 0,
+              maiorContrato,
+              orgaosContratantes: orgaosSet.size,
+              porOrgao: Array.from(orgaosSet).map((orgao) => ({
+                orgao,
+                total: comprasGov.filter((c) => c.orgao === orgao).length,
+                valorTotal: comprasGov.filter((c) => c.orgao === orgao).reduce((s, c) => s + c.valor, 0),
+              })),
+              porModalidade: comprasGov.reduce((acc: Record<string, number>, c) => {
+                acc[c.modalidade] = (acc[c.modalidade] || 0) + 1;
+                return acc;
+              }, {}),
+            },
+            contratos: comprasGov,
+            fontes: [
+              { fonte: 'Receita Federal / BrasilAPI', status: emp ? 'OK' : 'Parcial', totalRegistros: emp ? 1 : 0 },
+              { fonte: 'Compras.gov.br', status: 'OK', totalRegistros: comprasGov.length },
+            ],
+            geradoEm: new Date().toISOString(),
+          };
+          __dossieCache.set(cnpj, { ts: Date.now(), data: dossie });
+          return dossie;
+        })
+      );
+
+      return res.json({ success: true, data: lista });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao consultar historico.' });
     }
   }
 

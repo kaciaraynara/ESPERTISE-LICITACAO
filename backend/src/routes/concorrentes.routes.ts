@@ -35,4 +35,10 @@ router.post(
   handle(controller.integridade.bind(controller) as unknown as RequestHandler),
 );
 
+router.post(
+  '/historico',
+  fornecedor,
+  handle(controller.historico.bind(controller) as unknown as RequestHandler),
+);
+
 export default router;
