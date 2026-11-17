@@ -110,6 +110,42 @@ function formatarMoeda(valor?: number): string {
   }).format(valor);
 }
 
+function formatarDataHora(dataStr?: string | null): string {
+  if (!dataStr) return 'Ver no edital';
+  const d = new Date(dataStr);
+  if (Number.isNaN(d.getTime())) return 'Ver no edital';
+  const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const temHora = String(dataStr).includes('T') || String(dataStr).includes(':');
+  if (!temHora) return data;
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return hora === '00:00' ? data : `${data} às ${hora}`;
+}
+
+function getSemaforoViabilidade(score: number) {
+  if (score >= 75) {
+    return {
+      label: 'Alta viabilidade',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      dot: 'bg-emerald-500',
+      borda: 'border-l-4 border-l-emerald-500',
+    };
+  }
+  if (score >= 50) {
+    return {
+      label: 'Média viabilidade',
+      badge: 'border-amber-200 bg-amber-50 text-amber-800',
+      dot: 'bg-amber-500',
+      borda: 'border-l-4 border-l-amber-400',
+    };
+  }
+  return {
+    label: 'Baixa viabilidade',
+    badge: 'border-rose-200 bg-rose-50 text-rose-700',
+    dot: 'bg-rose-500',
+    borda: 'border-l-4 border-l-rose-500',
+  };
+}
+
 function formatarData(dataStr?: string | null): string {
   if (!dataStr) return 'Ver no edital';
   const d = new Date(dataStr);
@@ -199,18 +235,19 @@ function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
     return Math.min(99, Math.max(20, Math.round(existente)));
   }
 
-  let pontos = 68;
-  const objeto = (edital.objetoCompra || edital.objeto || '').toLowerCase();
-  const ramo = extrairPalavraChaveRamo(empresa);
+  let pontos = 42;
+  const objeto = (edital.objetoCompra || edital.objeto || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const termosEmpresa = expandirSinonimosRamo('', empresa);
 
-  if (ramo && objeto.includes(ramo)) {
-    pontos += 22;
-  }
+  const acertos = termosEmpresa.filter((t) => t && objeto.includes(t)).length;
+  if (acertos >= 2) pontos += 40;
+  else if (acertos === 1) pontos += 30;
 
   const ufEmpresa = empresa?.uf || empresa?.estado;
   const ufEdital = edital.unidadeOrgao?.ufSigla || edital.uf;
   if (ufEmpresa && ufEdital && ufEmpresa.toUpperCase() === ufEdital.toUpperCase()) {
-    pontos += 7;
+    pontos += 10;
   }
 
   const encerramento = edital.dataEncerramentoProposta || edital.dataEncerramento
@@ -218,11 +255,11 @@ function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
     : 0;
   if (encerramento > Date.now()) {
     const dias = (encerramento - Date.now()) / (1000 * 60 * 60 * 24);
-    if (dias >= 3) pontos += 3;
-    else if (dias < 1) pontos -= 12;
+    if (dias >= 3) pontos += 6;
+    else if (dias < 1) pontos -= 10;
   }
 
-  return Math.min(98, Math.max(35, pontos));
+  return Math.min(98, Math.max(25, pontos));
 }
 
 export default function LicitacoesPage({
@@ -256,6 +293,8 @@ export default function LicitacoesPage({
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
   const setEditalParaResumo = setEditalSelecionado;
+  const [cnaesExtrasApi, setCnaesExtrasApi] = useState<string[]>([]);
+
   const listaCnaesEmpresa = useMemo(() => {
     const cnpjLimpo = String(selectedCompany?.cnpj || '').replace(/\D/g, '');
     let cnaesSalvos: string[] = [];
@@ -268,9 +307,42 @@ export default function LicitacoesPage({
       emp?.cnaeDescricao || emp?.ramoAtividade || emp?.atividadePrincipal,
       ...(Array.isArray(emp?.cnaesSecundarios) ? emp.cnaesSecundarios : []),
       ...cnaesSalvos,
+      ...cnaesExtrasApi,
     ].filter(Boolean).map((item: any) => typeof item === 'string' ? item : item?.descricao || item?.text || '').filter(Boolean);
     return Array.from(new Set(todos)).slice(0, 8);
-  }, [selectedCompany]);
+  }, [selectedCompany, cnaesExtrasApi]);
+
+  
+
+  useEffect(() => {
+    const cnpjLimpo = String(selectedCompany?.cnpj || '').replace(/\D/g, '');
+    if (cnpjLimpo.length !== 14) return;
+    const cacheKey = `@Expertise:cnaes_${cnpjLimpo}`;
+    try {
+      const saved = localStorage.getItem(cacheKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCnaesExtrasApi(parsed);
+          return;
+        }
+      }
+    } catch {}
+    fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const lista = [
+          data.cnae_fiscal_descricao,
+          ...(Array.isArray(data.cnaes_secundarios) ? data.cnaes_secundarios.map((c: any) => c.descricao) : []),
+        ].filter(Boolean);
+        if (lista.length > 0) {
+          setCnaesExtrasApi(lista);
+          try { localStorage.setItem(cacheKey, JSON.stringify(lista)); } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [selectedCompany?.cnpj]);
 
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
 
@@ -559,6 +631,40 @@ export default function LicitacoesPage({
           </div>
         </div>
 
+        {/* Indicadores Reais do Radar */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/90 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Editais no Radar</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#081C3A]">{editaisOrdenados.length}</p>
+            </div>
+            <span className="rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#0070C0]">Base PNCP</span>
+          </div>
+          <div className="rounded-2xl border border-emerald-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Alta Viabilidade (Verde)</p>
+              <p className="mt-1 text-2xl font-extrabold text-emerald-700">
+                {editaisOrdenados.filter((e) => e._scoreCalculado >= 75).length}
+              </p>
+            </div>
+            <span className="h-3 w-3 rounded-full bg-emerald-500" />
+          </div>
+          <div className="rounded-2xl border border-amber-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Encerrando em 5 dias</p>
+              <p className="mt-1 text-2xl font-extrabold text-amber-700">
+                {editaisOrdenados.filter((e) => {
+                  const dt = e.dataEncerramentoProposta || e.dataEncerramento;
+                  if (!dt) return false;
+                  const diff = new Date(dt).getTime() - Date.now();
+                  return diff > 0 && diff <= 5 * 24 * 60 * 60 * 1000;
+                }).length}
+              </p>
+            </div>
+            <span className="h-3 w-3 rounded-full bg-amber-500" />
+          </div>
+        </div>
+
         {/* Notificação Temporária */}
         {aviso && (
           <div
@@ -843,6 +949,7 @@ export default function LicitacoesPage({
                 edital.modalidade ||
                 edital.nomeModalidade ||
                 'Pregão Eletrônico';
+              const semaforo = getSemaforoViabilidade(edital._scoreCalculado);
               const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
               const valor =
                 edital.valorTotalEstimado ??
@@ -854,15 +961,8 @@ export default function LicitacoesPage({
               // Link direto para o portal oficial do PNCP
               const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
 
-              const corScore =
-                score >= 80
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : score >= 60
-                  ? 'bg-blue-50 text-[#0070C0] border-blue-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200';
-
-              const labelScore =
-                score >= 80 ? 'Alta viabilidade' : score >= 60 ? 'Boa viabilidade' : 'Avaliar requisitos';
+              const corScore = semaforo.badge;
+              const labelScore = semaforo.label;
 
               return (
                 <div
@@ -872,9 +972,7 @@ export default function LicitacoesPage({
                 >
                   {/* Borda indicadora de escore */}
                   <div
-                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                      score >= 80 ? 'bg-[#FF6600]' : score >= 60 ? 'bg-[#0070C0]' : 'bg-slate-300'
-                    }`}
+                    className={`absolute left-0 top-0 bottom-0 w-1.5 ${semaforo.dot}`}
                   />
 
                   {/* Linha 1: Badges e Botões de Ação */}
@@ -975,7 +1073,7 @@ export default function LicitacoesPage({
                     <div>
                       <p className="text-[11px] font-medium text-slate-400">Data de Publicação</p>
                       <p className="text-xs font-semibold text-slate-700">
-                        {formatarData(dataPublicacaoReal)}
+                        {formatarDataHora(dataPublicacaoReal)}
                       </p>
                     </div>
 
@@ -989,7 +1087,7 @@ export default function LicitacoesPage({
                     <div>
                       <p className="text-[11px] font-medium text-slate-400">Encerramento / Sessão</p>
                       <p className="text-xs font-semibold text-[#081C3A]">
-                        {formatarData(dataEncerramento)}
+                        {formatarDataHora(dataEncerramento)}
                       </p>
                     </div>
 
