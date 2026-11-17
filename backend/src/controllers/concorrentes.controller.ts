@@ -1,3 +1,4 @@
+const __dossieCache = new Map<string, { ts: number; data: any }>();
 import { Response } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../shared/middlewares/auth.middleware';
@@ -152,6 +153,11 @@ export class ConcorrentesController {
   }
 
   async dossie(req: AuthRequest, res: Response) {
+    const __cnpjRaw = String(req.params?.cnpj || '').replace(/\D/g, '');
+    const __cached = __dossieCache.get(__cnpjRaw);
+    if (__cached && Date.now() - __cached.ts < 300000) {
+      return res.json({ success: true, data: __cached.data });
+    }
     const userId = req.user?.id;
 
     if (!userId) {

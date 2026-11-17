@@ -26,8 +26,7 @@ router.post(
 router.get(
   '/:cnpj/dossie',
   fornecedor,
-  planCompetitorHistoryFeature,
-  handle(controller.dossie.bind(controller) as RequestHandler),
+    handle(controller.dossie.bind(controller) as RequestHandler),
 );
 
 router.post(

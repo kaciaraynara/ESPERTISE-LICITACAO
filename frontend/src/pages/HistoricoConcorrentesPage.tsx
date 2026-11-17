@@ -93,13 +93,16 @@ export const HistoricoConcorrentesPage: React.FC = () => {
 
     setCarregando(true);
     try {
-      const resultados = await Promise.all(
+      const settled = await Promise.allSettled(
         Array.from(new Set(validos)).map(async (cnpj) => {
           const resp = await concorrentesApi.getDossie(cnpj);
           return resp.data?.data as DossieItem;
         })
       );
-      setDossies(resultados.filter(Boolean));
+      const resultados = settled
+        .filter((r): r is PromiseFulfilledResult<DossieItem> => r.status === 'fulfilled' && Boolean(r.value))
+        .map((r) => r.value);
+      setDossies(resultados);
       toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Nao foi possivel consultar os concorrentes agora.');

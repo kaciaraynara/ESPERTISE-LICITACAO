@@ -350,7 +350,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={protectFeature('radar_erros_edital', 'Radar de Nulidades', <NulidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.leitor_editais} element={protectFeature('resumo_edital_completo', 'Leitor Inteligente de Editais', <LeitorEditaisPage />)} />
             <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />
-            <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />
+            <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Envio Automático de Lances', <RoboPage />)} />
             <Route path={FORNECEDOR_ROUTES.disputa_ao_vivo} element={protectFeature('robo_lances', 'Disputa ao Vivo', <DisputaAoVivoPage />)} />
             <Route
@@ -423,7 +423,7 @@ export default function App() {
               element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
             />
             <Route path={FORNECEDOR_ROUTES.documentos} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
-            <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Termômetro de Oportunidade', <ScoreOportunidadesPage />)} />
+            <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.srp_carona} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
             <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={protectFeature('radar_editais', 'Editais Monitorados', <EditaisMonitoradosPage />)} />
             <Route path={FORNECEDOR_ROUTES.analise_viabilidade} element={protectFeature('analise_viabilidade', 'Análise de Viabilidade', <AnaliseViabilidadeDetalhePage />)} />
@@ -435,7 +435,7 @@ export default function App() {
             />
             <Route
               path={FORNECEDOR_ROUTES.investigacao_concorrencial}
-              element={protectFeature('inteligencia_concorrentes', 'Dossiê de Concorrentes', <InvestigacaoConcorrencialPage />)}
+              element={protectFeature('inteligencia_concorrentes', 'Inteligência Competitiva', <InvestigacaoConcorrencialPage />)}
             />
             <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
             <Route path="/fornecedor/relatorios-estrategicos" element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />

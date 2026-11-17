@@ -1,3 +1,4 @@
+const __radarFastCache = new Map<string, { ts: number; body: any }>();
 import { Response } from 'express';
 
 import { FiltrosBusca } from '../interfaces/pncp.interface';
