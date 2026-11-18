@@ -46,7 +46,7 @@ export default function RecursosPage() {
       };
       reader.readAsText(file);
     }
-    setTimeout(() => setEtapaAnalise(3), 500);
+    setEtapaAnalise(3);
   };
 
   const handleGerarMinuta = async (e: React.FormEvent) => {

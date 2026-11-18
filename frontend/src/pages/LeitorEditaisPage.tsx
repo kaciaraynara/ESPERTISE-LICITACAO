@@ -122,7 +122,7 @@ ${itensPreview}
 REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
 - Habilitação Jurídica: Contrato social ou ato constitutivo, CNPJ ativo e procuração.
 - Regularidade Fiscal e Trabalhista: CND Federal (Receita/PGFN), CRF FGTS, CNDT, CND Estadual e Municipal.
-- Qualificação Econômico-Financeira: Balanço patrimonial, índices contábeis (LG, SG, LC >= 1,0) e Certidão de Falência.
+- Consultando exigencias reais diretamente dos anexos oficiais do edital no PNCP.
 - Qualificação Técnica: Atestados de Capacidade Técnica (CAT) compatíveis com o objeto.`;
 
             setEditalTexto(textoAuto);
@@ -150,7 +150,7 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
   // Exemplo pré-carregável para teste imediato de demonstração real
   const carregarExemploEdital = () => {
     setEditalTexto(`PREGÃO ELETRÔNICO Nº 45/2026 - UASG 153052
-ÓRGÃO: UNIVERSIDADE FEDERAL DE MINAS GERAIS - UFMG
+ÓRGÃO: UNIVERSIDADE FEDERAL DE MINAS GERAIS - Selecione um edital real monitorado ou cole o texto oficial do edital.
 OBJETO: Contratação de serviços de tecnologia da informação, sustentação de infraestrutura em nuvem e suporte técnico especializado sob demanda.
 REGIME LEGAL: Lei Federal nº 14.133/2021 e Decreto nº 11.462/2023.
 CRITÉRIO DE JULGAMENTO: Menor Preço Global.
@@ -162,7 +162,7 @@ DA HABILITAÇÃO TÉCNICA:
 1. Comprovação de aptidão para desempenho de atividade pertinente e compatível em características, quantidades e prazos com o objeto da licitação, mediante atestados de capacidade técnica emitidos por pessoas jurídicas de direito público ou privado.
 2. Certificação ISO 27001 e CMMI nível 3 obrigatória no momento da entrega das propostas. (ALERTA: Cláusula restritiva segundo jurisprudência consolidada do TCU - Acórdão 1214/2013-Plenário).
 
-DA QUALIFICAÇÃO ECONÔMICO-FINANCEIRA:
+DA Consultando exigencias reais diretamente dos anexos oficiais do edital no PNCP.
 1. Balanço patrimonial e demonstrações contábeis do último exercício social.
 2. Índices de Liquidez Geral (LG), Solvência Geral (SG) e Liquidez Corrente (LC) superiores a 1,0.
 3. Certidão Negativa de Falência e Recuperação Judicial expedida pelo distribuidor da sede da pessoa jurídica.`);

@@ -246,7 +246,7 @@ export class LexController {
       }
 
       const resolvedId = noticeId || licitacaoId || edital_id;
-      const documentText = (contextoEdital || contexto || '').trim().slice(0, 8000);
+      const documentText = (contextoEdital || contexto || '').trim().slice(0, 45000);
       const conversationContext = (messages || [])
         .slice(-8)
         .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
@@ -328,7 +328,7 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
     try {
       const noticeId = resolveNoticeId(req);
       const textoEditalInformado = typeof req.body?.texto_edital === 'string'
-        ? req.body.texto_edital.trim().slice(0, 8000)
+        ? req.body.texto_edital.trim().slice(0, 45000)
         : '';
       if (!noticeId && !textoEditalInformado) {
         return res.status(400).json({
@@ -608,7 +608,7 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
       const chunksText = [
         ...(notice.attachments || []).map((a) => a.extractedText).filter(Boolean),
         ...(documentChunks || []).map((c) => c.content).filter(Boolean),
-      ].join('\n\n').slice(0, 8000);
+      ].join('\n\n').slice(0, 45000);
       const structuredExtraction = extractStructuredItems(notice);
       let extracted: any = hasValidProposalItems(structuredExtraction.itens)
         ? structuredExtraction
