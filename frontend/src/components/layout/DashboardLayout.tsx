@@ -57,7 +57,7 @@ export default function DashboardLayout() {
 
         {mobileMenuOpen ? (
           <div
-            id="mobile-navigation"
+            id="mobile-navigation" style={{ maxHeight: "calc(100vh - 5rem)", overflowY: "auto" }}
             className="absolute inset-x-0 top-20 z-20 border-b border-white/10 bg-brand-dark p-5 text-white shadow-xl md:hidden"
           >
             <nav aria-label="Navegação móvel">
