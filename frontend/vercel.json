@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/v1/:path*",
-      "destination": "http://3.145.128.6:3001/api/v1/:path*"
+      "destination": "https://espertise-licitacao.onrender.com/api/v1/:path*"
     },
     {
       "source": "/api/:path*",
-      "destination": "http://3.145.128.6:3001/api/:path*"
+      "destination": "https://espertise-licitacao.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
