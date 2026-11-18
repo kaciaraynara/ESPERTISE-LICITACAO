@@ -117,7 +117,10 @@ if (bidRobotEnabled) {
 }
 
 server.listen(port, () => {
-  console.info(JSON.stringify({
+  
+  try { setupCronJobs(); } catch (e) { console.warn('[Cron] Aviso:', e); }
+  void ensureDatabaseIndexes();
+console.info(JSON.stringify({
     event: 'EXPERTISE_API_STARTED',
     port,
     environment: process.env.NODE_ENV || 'development',
@@ -172,7 +175,7 @@ async function ensureDatabaseIndexes() {
   try {
     const { prisma } = await import('./database/prisma');
     await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm;').catch(() => null);
-    await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS idx_procurement_object_trgm ON "ProcurementNotice" USING gin ("object" gin_trgm_ops);').catch(() => null);
+    await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS idx_procurement_object_trgm ON "procurement_notices" USING gin ("object" gin_trgm_ops);').catch(() => null);
   } catch {
     // segue sem travar caso o banco gerenciado restrinja extensoes
   }

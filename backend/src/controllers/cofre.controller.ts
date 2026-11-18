@@ -39,8 +39,8 @@ export class CofreController {
       const metricas: MetricasCofre = {
         totalDocumentos: 0,
         validos: 0,
-        prestesAVencer: 1,
-        vencidos: 1
+        prestesAVencer: 0,
+        vencidos: 0
       };
 
       return res.json({ success: true, data: metricas });
