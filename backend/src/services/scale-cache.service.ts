@@ -20,9 +20,7 @@ function getRedis(): Redis | null {
 
 export async function scaleCacheGet<T = any>(key: string): Promise<T | null> {
   const hit = localCache.get(key);
-  if (hit && hit.exp > Date.now()) {
-    return hit.value as T;
-  }
+  if (hit && hit.exp > Date.now()) return hit.value as T;
   if (hit) localCache.delete(key);
 
   const r = getRedis();
@@ -34,9 +32,7 @@ export async function scaleCacheGet<T = any>(key: string): Promise<T | null> {
         localCache.set(key, { exp: Date.now() + 30000, value: parsed });
         return parsed as T;
       }
-    } catch {
-      // segue para fallback local
-    }
+    } catch {}
   }
   return null;
 }
@@ -52,8 +48,6 @@ export async function scaleCacheSet(key: string, value: any, ttlSeconds = 60): P
   if (r) {
     try {
       await r.set(key, JSON.stringify(value), 'EX', ttlSeconds);
-    } catch {
-      // ignora erro pontual de rede no Redis
-    }
+    } catch {}
   }
 }
