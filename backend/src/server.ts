@@ -167,3 +167,13 @@ server.on('error', (error: NodeJS.ErrnoException) => {
 });
 
 export default app;
+
+async function ensureDatabaseIndexes() {
+  try {
+    const { prisma } = await import('./database/prisma');
+    await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS pg_trgm;').catch(() => null);
+    await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS idx_procurement_object_trgm ON "ProcurementNotice" USING gin ("object" gin_trgm_ops);').catch(() => null);
+  } catch {
+    // segue sem travar caso o banco gerenciado restrinja extensoes
+  }
+}

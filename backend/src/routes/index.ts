@@ -1,3 +1,4 @@
+import { createSimpleRateLimit } from '../shared/middlewares/rate-limit.middleware';
 import { Router, RequestHandler } from 'express';
 import { prisma } from '../database/prisma';
 import { AIController } from '../controllers/ai.controller';
@@ -294,7 +295,7 @@ router.get(
 // ==========================================
 
 router.use('/catalogo', requirePlanFeature('catalogo_produtos'), catalogoRoutes);
-router.use('/concorrentes', concorrentesRoutes);
+router.use('/concorrentes', createSimpleRateLimit(45, 60000), concorrentesRoutes);
 router.use('/notificacoes', notificacoesRoutes);
 router.use('/contratos', contratosRoutes);
 router.use('/tax', taxRoutes);
@@ -546,7 +547,7 @@ if (lexEnabled) {
     ),
   );
 
-  router.use('/lex', lexRoutes);
+  router.use('/lex', createSimpleRateLimit(30, 60000), lexRoutes);
 
   // Alias legado: POST /auditoria/:licitacaoId → /lex/auditar
   router.post(
