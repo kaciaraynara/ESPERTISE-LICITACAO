@@ -1,3 +1,5 @@
+import { expandirTermosCnae } from '../services/cnae-dictionary.service';
+import { scaleCacheGet, scaleCacheSet } from '../services/scale-cache.service';
 const __radarFastCache = new Map<string, { ts: number; body: any }>();
 import { Response } from 'express';
 
