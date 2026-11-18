@@ -38,7 +38,7 @@ function formatarMoeda(v: number): string {
 export const RoboPage: React.FC = () => {
   const [edital, setEdital] = useState<EditalOption | null>(null);
   const [urlNavegador, setUrlNavegador] = useState('https://pncp.gov.br/app/editais');
-  const [urlAtiva, setUrlAtiva] = useState('https://pncp.gov.br/app/editais');
+  const [urlAtiva, setUrlAtiva] = useState('');
   const [reducaoPadrao, setReducaoPadrao] = useState(8);
   const [margemSeguranca, setMargemSeguranca] = useState(15);
   const [linhas, setLinhas] = useState<LinhaPlanilha[]>([]);
@@ -213,11 +213,17 @@ export const RoboPage: React.FC = () => {
         </div>
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-          <iframe
-            src={urlAtiva}
-            title="Portal de Disputa Integrado"
-            className="h-[360px] w-full bg-white"
-          />
+          {urlAtiva ? (
+            <iframe
+              src={urlAtiva}
+              title="Portal de Disputa Integrado"
+              className="h-[360px] w-full bg-white"
+            />
+          ) : (
+            <div className="flex h-44 flex-col items-center justify-center gap-2 p-4 text-center text-xs text-slate-500">
+              <span>Clique em um dos portais acima ou em <strong>Abrir Aqui</strong> para carregar a sala de disputa.</span>
+            </div>
+          )}
         </div>
         <p className="text-[11px] text-slate-500">
           Observacao: alguns portais governamentais bloqueiam exibicao embutida por seguranca do navegador. Caso a tela fique em branco, clique em <strong>Janela Externa</strong> para operar lado a lado com a planilha abaixo.
