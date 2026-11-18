@@ -13,7 +13,7 @@ export class CofreController {
     try {
       const documentos: any[] = [
         {
-          id: 'doc-01',
+          id: '',
           nome: 'Certidão Negativa de Débitos Federais (PGFN)',
           categoria: 'REGULARIDADE_FISCAL',
           orgaoEmissor: 'Receita Federal / PGFN',
@@ -37,8 +37,8 @@ export class CofreController {
   async getMetricas(req: Request, res: Response) {
     try {
       const metricas: MetricasCofre = {
-        totalDocumentos: 24,
-        validos: 22,
+        totalDocumentos: 0,
+        validos: 0,
         prestesAVencer: 1,
         vencidos: 1
       };

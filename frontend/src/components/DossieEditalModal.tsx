@@ -340,7 +340,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
       return;
     }
     try {
-      const storageKey = `expertise_dossie_chk_${edital.id}`;
+      const storageKey = `expertise_dossie_chk_${(edital as any).companyId || "conta"}_${edital.id}`;
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         setChecklist(JSON.parse(saved));
@@ -358,7 +358,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
       setChecklist((prev) => {
         const updated = { ...prev, [id]: !prev[id] };
         try {
-          localStorage.setItem(`expertise_dossie_chk_${edital.id}`, JSON.stringify(updated));
+          localStorage.setItem(`expertise_dossie_chk_${(edital as any).companyId || "conta"}_${edital.id}`, JSON.stringify(updated));
         } catch {
           // Ignora erros de localStorage
         }
