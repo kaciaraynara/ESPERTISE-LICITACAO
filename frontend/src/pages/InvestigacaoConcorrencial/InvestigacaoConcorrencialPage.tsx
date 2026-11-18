@@ -68,13 +68,8 @@ export const InvestigacaoConcorrencialPage: React.FC = () => {
 
     setCarregando(true);
     try {
-      const lista = await Promise.all(
-        Array.from(new Set(validos)).map(async (cnpj) => {
-          const r = await api.get(`/concorrentes/${encodeURIComponent(cnpj)}/dossie`);
-          return r.data?.data;
-        })
-      );
-      setDossies(lista.filter(Boolean));
+      const resp = await api.post('/concorrentes/historico', { cnpjs: Array.from(new Set(validos)) }, { timeout: 30000 });
+      setDossies(resp.data?.data || []);
       toast.success('Inteligencia competitiva atualizada.');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Erro ao buscar dados competitivos.');

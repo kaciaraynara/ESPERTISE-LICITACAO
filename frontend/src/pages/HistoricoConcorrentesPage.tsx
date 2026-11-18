@@ -22,7 +22,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { concorrentesApi } from '../services/api';
+import api from '../services/api';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 interface DossieItem {
@@ -93,15 +93,8 @@ export const HistoricoConcorrentesPage: React.FC = () => {
 
     setCarregando(true);
     try {
-      const settled = await Promise.allSettled(
-        Array.from(new Set(validos)).map(async (cnpj) => {
-          const resp = await concorrentesApi.getDossie(cnpj);
-          return resp.data?.data as DossieItem;
-        })
-      );
-      const resultados = settled
-        .filter((r): r is PromiseFulfilledResult<DossieItem> => r.status === 'fulfilled' && Boolean(r.value))
-        .map((r) => r.value);
+      const resp = await api.post('/concorrentes/historico', { cnpjs: Array.from(new Set(validos)) }, { timeout: 30000 });
+      const resultados = (resp.data?.data || []) as DossieItem[];
       setDossies(resultados);
       toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
     } catch (err: any) {
