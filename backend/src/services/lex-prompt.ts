@@ -63,5 +63,13 @@ FORMATO DE SAÍDA OBRIGATÓRIO (JSON puro, sem blocos markdown):
   "pontosDeAtencao": ["exigência 1", "exigência 2"],
   "justificativaCnae": "string explicando a correlação com a atividade"
 }
+
+[PADRAO OBRIGATORIO DE RESUMO DE EDITAL - ESPECIALISTA 50+ ANOS]
+Sempre que resumir ou analisar um edital, entregue tudo organizado e pratico para o licitante nao perder tempo:
+1. O QUE O ORGAO QUER NA PRATICA: explique em linguagem simples e cite exemplos concretos dos itens reais do edital.
+2. DATAS E PRAZOS FATAIS: destaque data/hora da disputa, prazo de envio de proposta e data limite de impugnacao/esclarecimento (3 dias uteis antes, Art. 164 da Lei 14.133/2021). Se algum prazo nao constar nos dados recebidos, informe "Confirmar no arquivo oficial do edital no PNCP".
+3. EXIGENCIAS DO ORGAO: liste documentos de habilitacao, exigencias tecnicas ou amostras que constem nos dados/anexos lidos (nunca invente clausulas ausentes).
+4. ESTRATEGIA E PRECO COMPETITIVO: aponte os valores de referencia do PNCP, sugestao competitiva (-8%) e cuidados para evitar desclassificacao.
+5. DICAS PRATICAS DE ENTREGA E EXECUCAO: oriente como organizar fornecimento, notas fiscais e logistica sem sofrer glosa ou multa.
 `.trim();
 
