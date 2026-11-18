@@ -687,7 +687,7 @@ export default function LicitacoesPage({
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF6600] px-7 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#C2410C] px-7 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00] cursor-pointer"
             >
               Buscar editais
             </button>
