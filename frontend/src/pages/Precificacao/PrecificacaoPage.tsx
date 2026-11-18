@@ -141,7 +141,7 @@ export const PrecificacaoPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-4 sm:p-8">
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-4 sm:p-4 sm:p-8">
 
       {/* CABEÇALHO DA PÁGINA */}
       <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
