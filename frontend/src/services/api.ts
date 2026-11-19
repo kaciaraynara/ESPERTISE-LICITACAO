@@ -433,6 +433,8 @@ export const noticesApi = {
 };
 
 export const concorrentesApi = {
+  descoberta: (params: { cnae?: string; uf?: string; orgaoCnpj?: string }) =>
+    api.get('/concorrentes/descoberta', { params }),
   getDossie: (cnpj: string) => api.get(`/concorrentes/${encodeURIComponent(cnpj)}/dossie`),
   malhaFina: (body: { cnpjs: string[]; licitacaoId?: string }) =>
     api.post('/concorrentes/malha-fina', body),

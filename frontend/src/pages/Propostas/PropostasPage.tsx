@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
@@ -10,7 +11,7 @@ import {
   ShieldCheck,
   TrendingUp,
 } from 'lucide-react';
-import { crmApi, propostasApi } from '../../services/api';
+import { crmApi, propostasApi, licitacoesApi } from '../../services/api';
 import { useCompany } from '../../contexts/CompanyContext';
 import * as pdfGen from '../../utils/pdfGenerator';
 
@@ -81,7 +82,7 @@ export function PropostasPage() {
       .catch(() => {});
   }, []);
 
-  const handleSelecionarOportunidade = (id: string) => {
+  const handleSelecionarOportunidade = async (id: string) => {
     setEditalEscolhidoId(id);
     const op = oportunidades.find((o) => String(o.id) === id);
     if (!op) return;
@@ -94,6 +95,28 @@ export function PropostasPage() {
         ? new Date(notice.dataEncerramentoProposta).toLocaleDateString('pt-BR')
         : ''
     );
+    const noticeId = notice.id || op.noticeId || op.licitacaoId;
+    if (noticeId) {
+      try {
+        const resItens = await licitacoesApi.obterItens(String(noticeId));
+        const lista = resItens?.data?.data?.itens || resItens?.data?.itens || resItens?.data?.data || [];
+        if (Array.isArray(lista) && lista.length > 0) {
+          setItens(lista.slice(0, 30).map((it: any, idx: number) => ({
+            id: String(it.id || idx + 1),
+            numero: Number(it.numeroItem || idx + 1),
+            descricao: String(it.descricao || it.especificacao || it.materialOuServico || `Item ${idx + 1}`),
+            marcaModelo: String(it.marca || 'Conforme edital'),
+            unidade: String(it.unidadeMedida || it.unidade || 'UN'),
+            quantidade: Number(it.quantidade || 1),
+            custoUnitario: Number(it.valorUnitarioEstimado || it.valorReferencia || 0) * 0.85,
+            valorUnitario: Number(it.valorUnitarioEstimado || it.valorReferencia || 0),
+          })));
+          toast.success(`${lista.length} itens do edital carregados automaticamente!`);
+        }
+      } catch {
+        // Mantem tabela editavel caso edital nao tenha itens estruturados no PNCP
+      }
+    }
     setObjeto(notice.objetoCompra || notice.objeto || op.notes || '');
   };
 
