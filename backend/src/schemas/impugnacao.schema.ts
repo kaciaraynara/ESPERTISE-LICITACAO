@@ -1,32 +1,36 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 export const gerarPecaImpugnacaoSchema = z.object({
   body: z.object({
-    noticeId: z.string().uuid({ message: 'ID do edital/notice inválido' }),
-    fundamentacaoLegal: z.array(z.string().min(3)).min(1, {
-      message: 'Informe ao menos uma fundamentação legal para a impugnação',
-    }),
+    numeroEdital: z.string().optional(),
+    numero_edital: z.string().optional(),
+    orgao: z.string().optional(),
+    objeto: z.string().optional(),
+    dataCertame: z.string().optional(),
+    data_certame: z.string().optional(),
+    pontos_impugnacao: z.union([z.string(), z.array(z.any())]).optional(),
     irregularidadesIdentificadas: z.array(
       z.object({
-        clausulaEdital: z.string().min(1, { message: 'Cláusula do edital é obrigatória' }),
-        descricaoErro: z.string().min(10, { message: 'Descreva a irregularidade com detalhes' }),
-        tipoIrregularidade: z.enum([
-          'RESTRIÇÃO_COMPETITIVIDADE',
-          'EXIGENCIA_EXCESSIVA',
-          'ERRO_ORCAMENTARIO',
-          'PRAZO_INSUFICIENTE',
-          'OUTROS',
-        ]),
-      })
-    ).min(1, { message: 'Adicione pelo menos uma irregularidade identificada' }),
-    solicitacaoDireta: z.enum(['ANULACAO_EDITAL', 'RETIFICACAO_CLAUSULA', 'SUSPENSAO_CERTAME']),
-  }),
-});
+        clausulaEdital: z.string().optional(),
+        descricao: z.string().optional(),
+        fundamentacaoLegal: z.string().optional(),
+      }).passthrough()
+    ).optional(),
+    solicitacaoDireta: z.enum(['ANULACAO_EDITAL', 'RETIFICACAO_CLAUSULA', 'SUSPENSAO_CERTAME']).optional(),
+  }).passthrough(),
+}).passthrough();
 
 export const calcularPrazoImpugnacaoSchema = z.object({
   body: z.object({
-    dataAberturaSessao: z.string().datetime({ message: 'Data de abertura deve estar em formato ISO 8601 UTC' }),
-    tipoPerfil: z.enum(['CIDADAO', 'LICITANTE']),
-    regimeLicitatorio: z.enum(['LEI_14133', 'LEI_8666', 'LEI_10520', 'ESTATAL_13303']),
-  }),
-});
+    dataCertame: z.string().optional(),
+    data_certame: z.string().optional(),
+    dataAbertura: z.string().optional(),
+    modalidade: z.string().optional(),
+  }).passthrough().optional(),
+  query: z.object({
+    dataCertame: z.string().optional(),
+    data_certame: z.string().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+export const gerarImpugnacaoSchema = gerarPecaImpugnacaoSchema;
