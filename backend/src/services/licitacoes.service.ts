@@ -20,7 +20,7 @@ import {
   type TenantRadarProfile,
 } from './cnae-to-keywords.service';
 
-const AUTOMATIC_RADAR_KEYWORD_LIMIT = 20;
+const AUTOMATIC_RADAR_KEYWORD_LIMIT = 60;
 const PNCP_MODALITIES = [4, 6, 8, 12] as const;
 
 function resolvePncpDownloadUrl(
@@ -375,7 +375,7 @@ export async function consultarRadarPncpTempoReal(
 }> {
   const { prisma } = require('../database/prisma');
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
-  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(100, Number(filtros.tamanhoPagina))) : 50;
+  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(2000, Number(filtros.tamanhoPagina))) : 50;
 
   const rawMod = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
   const normalizedMod = String(rawMod ?? '').trim().toLowerCase();

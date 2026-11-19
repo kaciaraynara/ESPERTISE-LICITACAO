@@ -167,7 +167,7 @@ export async function streamChatWithProvider(
     new Set([initialModel, ...VALID_GEMINI_MODELS]),
   );
 
-  const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 45000;
+  const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 20000;
   const genAI = new GoogleGenerativeAI(apiKey);
 
   let lastError: unknown = null;
