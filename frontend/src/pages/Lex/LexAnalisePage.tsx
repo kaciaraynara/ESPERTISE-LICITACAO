@@ -127,8 +127,14 @@ export const LexAnalisePage: React.FC = () => {
         .filter((m) => m.id !== 'welcome')
         .map((m) => ({ role: m.role, content: m.content }));
 
+      const noticeIdAtivo =
+        (editalSelecionado as any)?.numeroControlePNCP ||
+        (editalSelecionado as any)?.id ||
+        searchParams.get('noticeId') ||
+        undefined;
       const resp = await lexApi.chat({
         messages: payloadMessages,
+        ...(noticeIdAtivo ? { noticeId: noticeIdAtivo } : {}),
         contextoEdital: montarContextoEdital(editalSelecionado),
         stream: false,
         ...(anexoAtual
@@ -148,6 +154,7 @@ export const LexAnalisePage: React.FC = () => {
         data.data?.reply ||
         data.data?.resposta ||
         data.data?.response ||
+        data.data?.answer ||
         'Nao foi possivel obter o parecer agora. Tente novamente.';
 
       setMensagens((prev) => [

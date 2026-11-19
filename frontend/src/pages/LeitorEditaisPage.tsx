@@ -181,7 +181,7 @@ Aguardando leitura oficial dos anexos no PNCP.
     setAnaliseConcluida(false);
 
     try {
-      const prompt = `Você é o LEX, assistente especialista e consultor jurídico sênior em licitações públicas sob a Lei 14.133/2021.
+      const prompt = `Você é a Luli, assistente especialista e consultor jurídico sênior em licitações públicas sob a Lei 14.133/2021.
 Analise criteriosamente o seguinte edital e estruture um relatório de auditoria e conformidade completo:
 
 1. DADOS FUNDAMENTAIS & ENQUADRAMENTO: Órgão, Modalidade, Modo de Disputa, Critério de Julgamento, Regime Legal.
@@ -192,22 +192,28 @@ Analise criteriosamente o seguinte edital e estruture um relatório de auditoria
 6. DIRETRIZES PARA A PROPOSTA & PRECIFICAÇÃO: Recomendações estratégicas de preço, prazos de validade e proteção de margem.
 
 TEXTO DO EDITAL / DOCUMENTO:
-${editalTexto.slice(0, 12000)}`;
+${editalTexto.slice(0, 24000)}`;
 
+      let streamFalhou = false;
+      let acumulado = '';
       await streamAiChat({
         pergunta: prompt,
         noticeId: selectedEditalId || undefined,
-        providedDocumentText: editalTexto,
+        providedDocumentText: editalTexto.slice(0, 45000),
         onChunk: (chunk: string) => {
+          acumulado += chunk;
           setResultadoStreaming((prev) => prev + chunk);
         },
         onError: () => {
+          streamFalhou = true;
           toast.error('Não foi possível analisar o edital. Tente novamente.');
         },
       });
 
-      setAnaliseConcluida(true);
-      toast.success('Auditoria do edital concluída com sucesso!');
+      if (!streamFalhou && acumulado.trim().length > 0) {
+        setAnaliseConcluida(true);
+        toast.success('Auditoria do edital concluída com sucesso!');
+      }
     } catch (err: any) {
       toast.error(err?.message || 'Falha ao conectar com o motor de inteligência artificial.');
     } finally {

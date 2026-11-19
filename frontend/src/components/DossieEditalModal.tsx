@@ -321,7 +321,8 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
           noticeId: ed.numeroControlePNCP || ed.id,
         messages: [{ role: 'user', content: prompt }],
       } as any);
-      const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || '';
+      const d: any = resp?.data || {};
+      const texto = d?.data?.answer || d?.answer || d?.data?.reply || d?.reply || d?.data?.resposta || d?.resposta || d?.data?.response || d?.response || d?.data?.content || d?.content || d?.texto || '';
       setAnaliseLuli(texto || 'Não foi possível gerar a análise agora.');
       return texto || null;
     } catch {
