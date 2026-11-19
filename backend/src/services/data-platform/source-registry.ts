@@ -22,6 +22,7 @@ export const DATA_SOURCE_REGISTRY: Record<DataSourceCode, DataSourceDescriptor> 
     capabilities: [
       { entityType: 'procurement_notice', supportsIncremental: true, supportsBulk: true },
       { entityType: 'legal_document', supportsIncremental: true, supportsBulk: true },
+      { entityType: 'procurement_notice', supportsIncremental: true, supportsBulk: true },
       { entityType: 'bidding_history', supportsIncremental: true, supportsBulk: true },
     ],
     notes: 'Uses official PNCP API adapters already present in the backend.',
@@ -37,6 +38,17 @@ export const DATA_SOURCE_REGISTRY: Record<DataSourceCode, DataSourceDescriptor> 
       { entityType: 'bidding_history', supportsIncremental: true, supportsBulk: true },
     ],
     notes: 'Uses public Dados Abertos endpoints through the existing Compras.gov service.',
+  },
+  querido_diario: {
+    code: 'querido_diario',
+    name: 'Querido Diario (OKBR)',
+    accessMode: 'official_api',
+    envBaseUrl: 'QUERIDO_DIARIO_BASE_URL',
+    safeAccessOnly: true,
+    capabilities: [
+      { entityType: 'procurement_notice', supportsIncremental: true, supportsBulk: true },
+    ],
+    notes: 'Public municipal gazettes API without key requirement.',
   },
   portal_transparencia: {
     code: 'portal_transparencia',

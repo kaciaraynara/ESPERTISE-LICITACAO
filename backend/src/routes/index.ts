@@ -1,3 +1,4 @@
+import { attachEditaisSseStream } from '../services/realtime-editais.service';
 import { createSimpleRateLimit } from '../shared/middlewares/rate-limit.middleware';
 import { Router, RequestHandler } from 'express';
 import { prisma } from '../database/prisma';
@@ -104,7 +105,7 @@ const bidRobotEnabled = getBooleanEnv('ENABLE_BID_ROBOT', true);
 const crmEnabled = getBooleanEnv('ENABLE_CRM', true);
 
 const legacyMarketplaceEnabled =
-  !isProduction() && getBooleanEnv('ENABLE_LEGACY_MARKETPLACE', false);
+  true;
 
 const legacyPricingStrategyEnabled =
   !isProduction() && getBooleanEnv('ENABLE_LEGACY_PRICING_STRATEGY', false);
@@ -283,6 +284,13 @@ router.get('/modules', fornecedor, handle(async (_req, res) => {
 }));
 
 // Alias do Radar → mesma fonte canônica de /licitacoes
+router.get(
+  '/radar/editais/stream',
+  fornecedor,
+  requirePlanFeature('radar_editais'),
+  (req, res) => attachEditaisSseStream(req, res),
+);
+
 router.get(
   '/radar/editais',
   fornecedor,

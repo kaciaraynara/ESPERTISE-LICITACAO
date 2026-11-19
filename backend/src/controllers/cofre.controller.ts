@@ -11,22 +11,7 @@ export class CofreController {
 
   async listarDocumentos(req: Request, res: Response) {
     try {
-      const documentos: any[] = [
-        {
-          id: '',
-          nome: 'Certidão Negativa de Débitos Federais (PGFN)',
-          categoria: 'REGULARIDADE_FISCAL',
-          orgaoEmissor: 'Receita Federal / PGFN',
-          dataEmissao: '2026-03-01',
-          dataValidade: '2026-08-28',
-          diasParaVencer: 21,
-          status: 'ALERTA_VENCIMENTO',
-          versao: 'v2026.1',
-          tamanhoArquivo: '240 KB',
-          tag: 'Certidão Crítica',
-          arquivoUrl: '/uploads/cnd-federal.pdf'
-        }
-      ];
+      const documentos: any[] = [];
 
       return res.json({ success: true, data: documentos });
     } catch (error) {

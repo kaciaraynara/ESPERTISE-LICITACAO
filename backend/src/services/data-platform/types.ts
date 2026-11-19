@@ -2,6 +2,7 @@ export type DataSourceCode =
   | 'tcu'
   | 'pncp'
   | 'compras_gov'
+  | 'querido_diario'
   | 'portal_transparencia'
   | 'receita_federal'
   | 'cade';

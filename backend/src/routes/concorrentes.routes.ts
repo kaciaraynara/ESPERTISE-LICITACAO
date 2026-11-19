@@ -24,6 +24,12 @@ router.post(
 );
 
 router.get(
+  '/descoberta',
+  fornecedor,
+  handle(controller.descoberta.bind(controller) as unknown as RequestHandler),
+);
+
+router.get(
   '/:cnpj/dossie',
   fornecedor,
     handle(controller.dossie.bind(controller) as RequestHandler),

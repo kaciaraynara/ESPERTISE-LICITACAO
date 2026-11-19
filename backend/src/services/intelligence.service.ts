@@ -36,18 +36,21 @@ export async function consultarComprasGovContratos(cnpj: string): Promise<Array<
   const limpo = cnpj.replace(/\D/g, '');
   if (limpo.length !== 14) return [];
   try {
-    const url = `https://dadosabertos.compras.gov.br/modulo-contratos/1_consultarContratos?pagina=1&tamanhoPagina=20&cnpjFornecedor=${limpo}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const hoje = new Date();
+    const inicio = new Date(hoje.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const fim = hoje.toISOString().slice(0, 10);
+    const url = `https://dadosabertos.compras.gov.br/modulo-contratacoes/3_consultarResultadoItensContratacoes_PNCP_14133?pagina=1&tamanhoPagina=20&dataResultadoPncpInicial=${inicio}&dataResultadoPncpFinal=${fim}&niFornecedor=${limpo}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) return [];
     const json: any = await r.json();
     const lista = Array.isArray(json?.resultado) ? json.resultado : [];
     return lista.map((c: any, idx: number) => ({
-      id: String(c.id || c.numeroContrato || `comprasgov-${idx}`),
-      orgao: String(c.nomeOrgao || c.nomeUnidadeGestora || 'Orgao Federal'),
-      objeto: String(c.objeto || c.processo || 'Contrato Compras.gov.br'),
-      valor: Number(c.valorGlobal || c.valorInicial || 0),
-      dataAssinatura: c.dataAssinatura || c.dataPublicacao || null,
-      modalidade: String(c.modalidadeCompra || 'Compras.gov.br'),
+      id: String(c.idCompra || c.numeroControlePNCPCompra || `comprasgov-${idx}`),
+      orgao: String(c.orgaoEntidadeRazaoSocial || c.unidadeOrgaoNomeUnidade || 'Órgão Público'),
+      objeto: String(c.descricaoItem || c.nomeMaterialOuServico || c.numeroControlePNCPCompra || 'Item homologado PNCP/Compras.gov'),
+      valor: Number(c.valorTotalHomologado || c.valorUnitarioHomologado || 0),
+      dataAssinatura: c.dataResultado || c.dataResultadoPncp || null,
+      modalidade: String(c.porteFornecedorNome || 'Pregão / PNCP 14.133'),
     }));
   } catch {
     return [];
@@ -197,5 +200,53 @@ export async function consultarComprasGovPrecoCatmat(codigoItem?: string): Promi
     };
   } catch {
     return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
+  }
+}
+
+
+export async function descobrirConcorrentesPorCnae(cnae: string, uf?: string) {
+  const codigoCnae = String(cnae || '').replace(/\D/g, '').slice(0, 7);
+  if (!codigoCnae) return [];
+  try {
+    const url = `https://dadosabertos.compras.gov.br/modulo-fornecedor/1_consultarFornecedor?pagina=1&tamanhoPagina=20&codigoCnae=${codigoCnae}&ativo=true${uf ? '&uf=' + encodeURIComponent(uf) : ''}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const json: any = await r.json();
+    const lista = Array.isArray(json?.resultado) ? json.resultado : [];
+    return lista.map((f: any) => ({
+      cnpj: String(f.cnpj || f.niFornecedor || '').replace(/\D/g, ''),
+      razaoSocial: String(f.nome || f.razaoSocial || 'Fornecedor Habilitado'),
+      uf: f.uf || uf || null,
+      municipio: f.municipio || null,
+      porte: f.porteEmpresa || f.porte || null,
+      cnae: codigoCnae,
+    })).filter((f: any) => f.cnpj.length === 14);
+  } catch {
+    return [];
+  }
+}
+
+export async function descobrirVencedoresPorOrgao(orgaoCnpj: string) {
+  const limpo = String(orgaoCnpj || '').replace(/\D/g, '');
+  if (limpo.length !== 14) return [];
+  try {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const fim = hoje.toISOString().slice(0, 10);
+    const url = `https://dadosabertos.compras.gov.br/modulo-contratacoes/3_consultarResultadoItensContratacoes_PNCP_14133?pagina=1&tamanhoPagina=20&dataResultadoPncpInicial=${inicio}&dataResultadoPncpFinal=${fim}&orgaoEntidadeCnpj=${limpo}`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const json: any = await r.json();
+    const lista = Array.isArray(json?.resultado) ? json.resultado : [];
+    return lista.map((c: any) => ({
+      cnpj: String(c.niFornecedor || '').replace(/\D/g, ''),
+      razaoSocial: String(c.nomeRazaoSocialFornecedor || 'Empresa Vencedora'),
+      porte: c.porteFornecedorNome || null,
+      valorHomologado: Number(c.valorTotalHomologado || c.valorUnitarioHomologado || 0),
+      objeto: String(c.descricaoItem || c.nomeMaterialOuServico || ''),
+      dataResultado: c.dataResultado || c.dataResultadoPncp || null,
+    })).filter((x: any) => x.cnpj.length === 14);
+  } catch {
+    return [];
   }
 }

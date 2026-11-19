@@ -103,7 +103,7 @@ export class LicitacoesController {
     res: Response,
   ): Promise<Response> => {
     try {
-      void ensureFreshPncpSync();
+      // sync movido para cron em background
       const filtros = buildFiltros(req.query as Record<string, unknown>);
       const userId = req.user?.id;
       const resultado = await listarLicitacoes(filtros, userId, req.user?.tenantId);

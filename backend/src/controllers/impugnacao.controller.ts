@@ -6,10 +6,15 @@ import { NoticesErrorRadarService } from '../services/notices-error-radar.servic
 import { calcularPrazoDecadencialImpugnacao } from '../utils/prazos.util';
 
 const prazoSchema = z.object({
-  data_certame: z.string().trim().min(1, 'Data do certame obrigatória'),
-});
+  data_certame: z.string().trim().optional(),
+  dataCertame: z.string().trim().optional(),
+  dataAbertura: z.string().trim().optional(),
+}).transform((d) => ({
+  data_certame: d.data_certame || d.dataCertame || d.dataAbertura || '',
+})).refine((d) => d.data_certame.length > 0, { message: 'Data do certame obrigatória' });
 
 const pecaSchema = z.object({
+  noticeId: z.string().trim().optional(),
   notice_id: z.string().trim().optional(),
   edital_id: z.string().trim().optional(),
   orgao: z.string().trim().optional(),
@@ -21,7 +26,8 @@ const pecaSchema = z.object({
   objeto: z.string().trim().optional(),
   criterio_julgamento: z.string().trim().optional(),
   plataforma: z.string().trim().optional(),
-  data_certame: z.string().trim().min(1, 'Data do certame obrigatória'),
+  data_certame: z.string().trim().optional(),
+  dataCertame: z.string().trim().optional(),
   nome_empresa: z.string().trim().optional(),
   cnpj_empresa: z.string().trim().optional(),
   representante_legal: z.string().trim().optional(),
@@ -125,7 +131,7 @@ export class ImpugnacaoController {
         objeto: body.objeto,
         criterioJulgamento: body.criterio_julgamento,
         plataforma: body.plataforma,
-        dataCertame: body.data_certame,
+        dataCertame: body.data_certame || body.dataCertame || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
         nomeEmpresa: body.nome_empresa,
         cnpjEmpresa: body.cnpj_empresa,
         representanteLegal: body.representante_legal,

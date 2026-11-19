@@ -610,7 +610,7 @@ export async function buscarContratacoesPNCP(
   const uf = normalizeUf(filtros.uf);
   const isUfEmpty = !uf;
   // Quando uf for vazia ("Todas as UFs"), NUNCA faz busca em paralelo (Promise.all). Faz apenas 1 requisição rápida de 50 registros para evitar timeout.
-  const deveBuscarEmParalelo = isUfEmpty ? false : rawTamanho > 50;
+  const deveBuscarEmParalelo = (pagina === 1 && filtros.endpoint === 'proposta' && !filtros.cnpj) ? true : (isUfEmpty ? false : rawTamanho > 50);
   const tamanhoPorChamada = isUfEmpty ? 50 : (deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho)));
 
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
@@ -716,11 +716,27 @@ export async function buscarContratacoesPNCP(
     let rawCombinedItems: unknown[] = [];
     let totalOficial: number | null = null;
 
-    if (deveBuscarEmParalelo) {
-      if (pagina === 1 && isPropostaEndpoint && !cnpj) {
+    if (pagina === 1 && isPropostaEndpoint && !cnpj) {
+      const probe = await executarRequisicao(1, tamanhoPorChamada);
+      totalOficial = probe.total;
+      const totalPages = totalOficial ? Math.ceil(totalOficial / tamanhoPorChamada) : 1;
+      if (totalPages > 2) {
+        const [resLast, resPrev] = await Promise.all([
+          executarRequisicao(totalPages, tamanhoPorChamada),
+          executarRequisicao(totalPages - 1, tamanhoPorChamada),
+        ]);
+        rawCombinedItems = [...resLast.items, ...resPrev.items];
+      } else if (totalPages === 2) {
+        const res2 = await executarRequisicao(2, tamanhoPorChamada);
+        rawCombinedItems = [...probe.items, ...res2.items];
+      } else {
+        rawCombinedItems = probe.items;
+      }
+    } else if (deveBuscarEmParalelo) {
+      if (false) {
         const probe = await executarRequisicao(1, 50);
         totalOficial = probe.total;
-        const totalPages = totalOficial ? Math.ceil(totalOficial / 50) : 1;
+        const totalPages = totalOficial ? Math.ceil(Number(totalOficial) / 50) : 1;
         if (totalPages > 2) {
           const [resLast, resPrev] = await Promise.all([
             executarRequisicao(totalPages, 50),

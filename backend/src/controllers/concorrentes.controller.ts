@@ -1,3 +1,4 @@
+import { descobrirConcorrentesPorCnae, descobrirVencedoresPorOrgao } from '../services/intelligence.service';
 
 function extractTransparenciaToken(raw?: string): string {
   const t = String(raw || '').trim();
@@ -534,6 +535,30 @@ export class ConcorrentesController {
       return res.json({ success: true, data: lista });
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Erro ao consultar historico.' });
+    }
+  }
+
+
+  async descoberta(req: AuthRequest, res: Response) {
+    try {
+      const cnae = String(req.query.cnae || '').trim();
+      const uf = String(req.query.uf || '').trim() || undefined;
+      const orgaoCnpj = String(req.query.orgaoCnpj || '').trim();
+
+      const [porCnae, porOrgao] = await Promise.all([
+        cnae ? descobrirConcorrentesPorCnae(cnae, uf) : Promise.resolve([]),
+        orgaoCnpj ? descobrirVencedoresPorOrgao(orgaoCnpj) : Promise.resolve([]),
+      ]);
+
+      return res.json({
+        success: true,
+        data: {
+          concorrentesCnae: porCnae,
+          vencedoresOrgao: porOrgao,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || 'Erro ao descobrir concorrentes' });
     }
   }
 

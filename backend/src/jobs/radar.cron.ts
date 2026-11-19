@@ -1,3 +1,6 @@
+import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
+import { syncPortalTransparenciaEditais } from '../services/portal-transparencia-licitacoes.service';
+import { emitEditaisAtualizados } from '../services/realtime-editais.service';
 import {
   avaliarCompatibilidadeCnae,
   analisarEditalParaCnae,
@@ -356,6 +359,9 @@ export function setupPncpDailyCron(): cron.ScheduledTask | null {
         await syncPncpLast24Hours();
         await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 6 }).catch(() => null);
         await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 4 }).catch(() => null);
+        await syncQueridoDiarioEditais().catch(() => null);
+        await syncPortalTransparenciaEditais().catch(() => null);
+        emitEditaisAtualizados({ fonte: 'cron_multifonte', quantidade: 1 });
       } catch (err: any) {
         console.error('[PNCP Cron] Erro não capturado no ciclo do cron:', err);
       }

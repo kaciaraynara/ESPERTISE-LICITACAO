@@ -1,3 +1,6 @@
+
+const __isUuid = (val: any): boolean =>
+  typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
 import { SYSTEM_PROMPT_LEX } from './lex-prompt';
@@ -1006,7 +1009,7 @@ export class AiGroundingService {
         retrievalSessionId,
         sourceType: citation.sourceType,
         sourceId: citation.sourceId,
-        chunkId: citation.chunkId ?? null,
+        chunkId: __isUuid(citation.chunkId) ? citation.chunkId! : null,
         ruleCode: citation.ruleCode ?? null,
         citationType: citation.citationType,
         label: citation.label ?? null,
@@ -1032,7 +1035,7 @@ export class AiGroundingService {
         aiRunId,
         tenantId: normalizeNullableString(context.tenantId, 120),
         userId: normalizeNullableString(context.user?.id, 120),
-        procurementNoticeId: retrieval.sourceIds[0] ?? null,
+        procurementNoticeId: __isUuid(retrieval.sourceIds[0]) ? retrieval.sourceIds[0] : null,
         analysisType: purpose,
         status: 'completed',
         title: 'Análise LEX com distinção epistêmica e grounding',
@@ -1059,7 +1062,7 @@ export class AiGroundingService {
           legalAnalysisId: legalAnalysis.id,
           sourceType: citation.sourceType,
           sourceId: citation.sourceId,
-          chunkId: citation.chunkId ?? null,
+          chunkId: __isUuid(citation.chunkId) ? citation.chunkId! : null,
           ruleCode: citation.ruleCode ?? null,
           evidenceType: citation.citationType,
           excerpt: citation.excerpt,
