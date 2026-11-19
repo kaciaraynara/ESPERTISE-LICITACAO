@@ -619,9 +619,7 @@ export async function buscarContratacoesPNCP(
   const userModChoice = resolveOptionalModalityCode(userModInput);
   const modalidade = isUfEmpty
     ? (userModChoice ?? 6)
-    : (isPropostaEndpoint
-      ? userModChoice
-      : positiveInteger(
+    : (isPropostaEndpoint ? (userModChoice ?? 6) : positiveInteger(
         userModChoice ?? userModInput,
         'codigoModalidadeContratacao',
         DEFAULT_MODALIDADE,
@@ -719,17 +717,34 @@ export async function buscarContratacoesPNCP(
     let totalOficial: number | null = null;
 
     if (deveBuscarEmParalelo) {
-      // Busca 2 páginas de 50 em paralelo (Promise.all) para entregar lote de 100
-      const subPage1 = (pagina - 1) * 2 + 1;
-      const subPage2 = (pagina - 1) * 2 + 2;
+      if (pagina === 1 && isPropostaEndpoint && !cnpj) {
+        const probe = await executarRequisicao(1, 50);
+        totalOficial = probe.total;
+        const totalPages = totalOficial ? Math.ceil(totalOficial / 50) : 1;
+        if (totalPages > 2) {
+          const [resLast, resPrev] = await Promise.all([
+            executarRequisicao(totalPages, 50),
+            executarRequisicao(totalPages - 1, 50),
+          ]);
+          rawCombinedItems = [...resLast.items, ...resPrev.items];
+        } else if (totalPages === 2) {
+          const res2 = await executarRequisicao(2, 50);
+          rawCombinedItems = [...probe.items, ...res2.items];
+        } else {
+          rawCombinedItems = probe.items;
+        }
+      } else {
+        const subPage1 = (pagina - 1) * 2 + 1;
+        const subPage2 = (pagina - 1) * 2 + 2;
 
-      const [res1, res2] = await Promise.all([
-        executarRequisicao(subPage1, 50),
-        executarRequisicao(subPage2, 50),
-      ]);
+        const [res1, res2] = await Promise.all([
+          executarRequisicao(subPage1, 50),
+          executarRequisicao(subPage2, 50),
+        ]);
 
-      rawCombinedItems = [...res1.items, ...res2.items];
-      totalOficial = res1.total ?? res2.total;
+        rawCombinedItems = [...res1.items, ...res2.items];
+        totalOficial = res1.total ?? res2.total;
+      }
     } else {
       const res = await executarRequisicao(pagina, tamanhoPorChamada);
       rawCombinedItems = res.items;
@@ -761,9 +776,9 @@ export async function buscarContratacoesPNCP(
     // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
     // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
     const openItems = deduplicated.filter((item) => {
-      if (!item.dataEncerramentoProposta) return false;
+      if (!item.dataEncerramentoProposta) return !isPropostaEndpoint;
       const closing = new Date(item.dataEncerramentoProposta);
-      if (isNaN(closing.getTime())) return false;
+      if (isNaN(closing.getTime())) return !isPropostaEndpoint;
       return closing > now;
     });
 

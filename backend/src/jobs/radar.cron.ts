@@ -191,7 +191,7 @@ export async function syncPncpLast24Hours(): Promise<{
             codigoModalidadeContratacao: modalidade.codigo,
             pagina,
             tamanhoPagina: PAGE_SIZE,
-            endpoint: 'proposta',
+            endpoint: 'publicacao',
           }),
           {
             context: `${modalidade.nome} (pág ${pagina})`,

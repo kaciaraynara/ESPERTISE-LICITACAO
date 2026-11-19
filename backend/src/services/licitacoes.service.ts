@@ -625,7 +625,7 @@ export async function listarLicitacoes(
   if (
     filtros.tempoReal === true
     || filtros.tempoReal === 'true'
-    || filtros.endpoint === 'proposta'
+    
   ) {
     return consultarRadarPncpTempoReal(filtros);
   }
@@ -812,6 +812,10 @@ export async function listarLicitacoes(
       });
     }
     setLicitacoesCache(paginationCountCache, whereCacheKey, count, 60_000);
+  }
+
+  if (rows.length === 0 && page === 1) {
+    return consultarRadarPncpTempoReal(filtros);
   }
 
   const companyProfile = tenantRadarProfile
