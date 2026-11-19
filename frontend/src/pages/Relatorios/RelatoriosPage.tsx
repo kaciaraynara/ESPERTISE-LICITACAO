@@ -168,7 +168,7 @@ export const RelatoriosPage: React.FC = () => {
             Nenhum edital cadastrado na sua Gestão de Disputas
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed mb-6">
-            Os Relatórios Estratégicos calculam dinamicamente sua taxa de conversão (Win Rate), volume financeiro em disputa, faturamento adjudicado e ticket médio a partir das oportunidades ativas na sua Gestão de Disputas.
+            Os Relatórios Estratégicos calculam dinamicamente sua taxa de vitória, volume financeiro em disputa, faturamento adjudicado e ticket médio a partir das oportunidades ativas na sua Gestão de Disputas.
           </p>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left text-xs text-slate-600 space-y-2 mb-6">
             <p className="font-bold text-slate-800">Como ativar suas métricas reais:</p>
@@ -209,7 +209,7 @@ export const RelatoriosPage: React.FC = () => {
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                  Taxa de Vitória (Win Rate)
+                  Taxa de Vitória
                 </span>
                 <TrendingUp size={18} className="text-blue-500" />
               </div>
@@ -328,7 +328,7 @@ export const RelatoriosPage: React.FC = () => {
                         </span>
                       </div>
                       <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg self-start sm:self-auto">
-                        {portal.winRate}% Win Rate
+                        {portal.winRate}% de Vitórias
                       </span>
                     </div>
                   ))}

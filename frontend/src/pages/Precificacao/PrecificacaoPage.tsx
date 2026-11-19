@@ -161,7 +161,7 @@ export const PrecificacaoPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm text-right">
-            <span className="text-[10px] font-bold text-slate-400 block uppercase">Limite de Segurança (Breakeven)</span>
+            <span className="text-[10px] font-bold text-slate-400 block uppercase">Preço Mínimo sem Prejuízo</span>
             <span className="text-sm font-black text-rose-600">
               {isLoading ? <Loader2 size={16} className="animate-spin inline text-rose-600" /> : formatarMoeda(calculo.precoBreakeven)}
             </span>
@@ -387,7 +387,7 @@ export const PrecificacaoPage: React.FC = () => {
           <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex items-start gap-4">
             <Zap className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
             <div className="text-xs">
-              <h4 className="font-bold text-amber-900">Parâmetro de Disputa (Envio Automático de Lances)</h4>
+              <h4 className="font-bold text-amber-900">Parâmetro de Disputa (Sala de Disputa (Planilha de Lances))</h4>
               <p className="text-amber-700 mt-1">
                 Ao exportar esta estratégia para o **Envio Automático de Lances**, o preço teto de parada será configurado em **{formatarMoeda(calculo.precoBreakeven)}**. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
               </p>
