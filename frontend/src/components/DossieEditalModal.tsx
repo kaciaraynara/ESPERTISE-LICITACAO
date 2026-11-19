@@ -318,7 +318,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
 
       const resp = await lexApi.chat({
         stream: false,
-        noticeId: ed.numeroControlePNCP || edital.id,
+          noticeId: ed.numeroControlePNCP || ed.id,
         messages: [{ role: 'user', content: prompt }],
       } as any);
       const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || '';

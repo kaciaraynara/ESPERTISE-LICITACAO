@@ -264,6 +264,13 @@ export class LexController {
       const groundingContext = buildGroundingContext(req);
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
       if (stream === false) {
+      const __noticeIdChat = String(req.body?.noticeId || req.body?.edital_id || '').trim();
+      let __pncpChatExtra = '';
+      if (__noticeIdChat && typeof fetchPncpLinkContext === 'function') {
+        try {
+          __pncpChatExtra = await fetchPncpLinkContext(__noticeIdChat);
+        } catch {}
+      }
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
         const [companyRadar, pncpLinkData, radarSearchData] = await Promise.all([
           buildCompanyOperationalRadar((req.user as any)?.companyId),

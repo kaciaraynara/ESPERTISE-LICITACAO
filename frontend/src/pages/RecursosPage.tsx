@@ -36,6 +36,15 @@ export default function RecursosPage() {
     setEtapaAnalise(2);
 
     // Se for arquivo de texto, tenta extrair conteúdo para o campo de motivos
+    if (!file.type.includes('text') && !file.name.endsWith('.txt')) {
+      const b64Reader = new FileReader();
+      b64Reader.onload = () => {
+        const raw = String(b64Reader.result || '');
+        const b64 = raw.includes(',') ? raw.split(',')[1] : raw;
+        sessionStorage.setItem('expertise_recurso_anexo_b64', JSON.stringify({ name: file.name, base64: b64 }));
+      };
+      b64Reader.readAsDataURL(file);
+    }
     if (file.type.includes('text') || file.name.endsWith('.txt')) {
       const reader = new FileReader();
       reader.onload = (e) => {
