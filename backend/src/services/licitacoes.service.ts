@@ -13,6 +13,7 @@ import {
   parsePncpControlNumber,
   parsePncpDateToIso,
 } from './pncp.service';
+import { buscarLicitacoesComprasGov } from './comprasgov.service';
 import {
   getTenantRadarProfile,
   keywordsForCnae,
@@ -410,16 +411,51 @@ export async function consultarRadarPncpTempoReal(
   let resultadoPncp: ResultadoConsultaPNCP;
   try {
     // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
-    resultadoPncp = await buscarContratacoesPNCP({
-      endpoint: 'proposta',
-      pagina: page,
-      tamanhoPagina: size,
-      ...(uf ? { uf } : {}),
-      ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
-      ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
-      ...(filtros.cnpj ? { cnpj: filtros.cnpj } : {}),
-      ...(palavraChave ? { palavraChave } : {}),
-    });
+    const [pncpRes, comprasRes] = await Promise.allSettled([
+      buscarContratacoesPNCP({
+        endpoint: 'proposta',
+        pagina: page,
+        tamanhoPagina: size,
+        ...(uf ? { uf } : {}),
+        ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
+        ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
+      }),
+      buscarLicitacoesComprasGov({
+        pagina: page,
+        ...(uf ? { uf } : {}),
+        ...(!isAllModalities && rawMod ? { modalidade: rawMod } : {}),
+      }),
+    ]);
+
+    resultadoPncp = pncpRes.status === 'fulfilled'
+      ? pncpRes.value
+      : { data: [], totalRegistros: 0, pagina: page, tamanhoPagina: size };
+
+    if (comprasRes.status === 'fulfilled' && Array.isArray(comprasRes.value?.data) && comprasRes.value.data.length > 0) {
+      const seen = new Set((resultadoPncp.data || []).map((x: any) => String(x.numeroControlePNCP || '')));
+      const extras = comprasRes.value.data
+        .map((c: any) => {
+          const ctrlId = String(c.numeroControlePNCP || c.id || c.numero_pregao || '').trim();
+          return { c, ctrlId };
+        })
+        .filter(({ ctrlId }) => ctrlId.length > 0 && !seen.has(ctrlId))
+        .map(({ c, ctrlId }) => ({
+          numeroControlePNCP: ctrlId,
+          objeto: String(c.objeto || 'Objeto não informado'),
+          modalidadeNome: String(c.modalidade || 'Pregão Eletrônico'),
+          orgaoEntidade: { razaoSocial: String(c.orgao || c.orgaoNome || 'Órgão Público'), cnpj: String(c.cnpjOrgao || '') },
+          unidadeOrgao: { ufSigla: String(c.uf || ''), municipioNome: String(c.municipio || '') },
+          valorTotalEstimado: c.valorEstimado != null ? Number(c.valorEstimado) : undefined,
+          dataPublicacaoPncp: String(c.dataPublicacao || new Date().toISOString()),
+          dataAberturaProposta: String(c.dataAbertura || c.dataPublicacao || new Date().toISOString()),
+          dataEncerramentoProposta: c.dataEncerramento || c.dataAbertura || undefined,
+          situacaoCompraNome: String(c.situacao || 'Divulgada no Compras.gov.br'),
+          linkEditalPNCP: c.linkEdital || c.url || undefined,
+          srp: Boolean(c.srp),
+        }));
+      resultadoPncp.data = [...(resultadoPncp.data || []), ...extras];
+      resultadoPncp.totalRegistros = (resultadoPncp.totalRegistros || 0) + extras.length;
+    }
   } catch (apiError: any) {
     // Fallback: se falhar (503, timeout, etc.), retorne cache do banco local (prisma), NUNCA erro 500 ou array vazio se houver cache.
     try {

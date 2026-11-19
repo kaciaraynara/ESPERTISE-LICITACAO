@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
 import { buscarContratacoesPNCP, LicitacaoPNCP, PncpServiceError } from '../services/pncp.service';
+import { buscarLicitacoesComprasGov } from '../services/comprasgov.service';
 import { setupCndRenewalCron } from './cnd-renewal.cron';
 import { setupPrivacyJob } from './privacy.job';
 import { setupPlanResetCron } from './plan-reset.cron';
@@ -16,7 +17,7 @@ import { NotificationsWorker } from '../workers/notifications.worker';
 import { enviarAlertaEditaisCnae } from '../services/resend.service';
 
 
-const DEFAULT_CRON_SCHEDULE = '0 2,14 * * *'; // 2h e 14h todos os dias
+const DEFAULT_CRON_SCHEDULE = '0 */2 * * *'; // 2h e 14h todos os dias
 const DEFAULT_DEADLINE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const DEFAULT_CERTIFICATE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const TIMEZONE = 'America/Sao_Paulo';
@@ -353,6 +354,8 @@ export function setupPncpDailyCron(): cron.ScheduledTask | null {
     async () => {
       try {
         await syncPncpLast24Hours();
+        await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 6 }).catch(() => null);
+        await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 4 }).catch(() => null);
       } catch (err: any) {
         console.error('[PNCP Cron] Erro não capturado no ciclo do cron:', err);
       }
@@ -459,6 +462,10 @@ export function setupCronJobs(): void {
   setupDataPlatformWorkers();
   setupCnaeAlertCron();
   setupDailyOpportunityAlertsCron();
+  setTimeout(() => {
+    ensureFreshPncpSync().catch(() => null);
+    buscarLicitacoesComprasGov({ pagina: 1, modalidade: 6 }).catch(() => null);
+  }, 15_000);
 }
 /**
  * Cron de Alerta Diário de Editais por CNAE (Resend + Agente Semântico de IA)
@@ -727,7 +734,7 @@ let pncpSyncInFlight = false;
 
 export async function ensureFreshPncpSync(): Promise<void> {
   const now = Date.now();
-  if (pncpSyncInFlight || now - lastPncpBackgroundCheckAt < 6 * 60 * 60 * 1000) {
+  if (pncpSyncInFlight || now - lastPncpBackgroundCheckAt < 2 * 60 * 60 * 1000) {
     return;
   }
   lastPncpBackgroundCheckAt = now;
@@ -737,7 +744,7 @@ export async function ensureFreshPncpSync(): Promise<void> {
       orderBy: { updatedAt: 'desc' },
       select: { updatedAt: true },
     });
-    const staleMs = 6 * 60 * 60 * 1000;
+    const staleMs = 2 * 60 * 60 * 1000;
     if (!latest || now - new Date(latest.updatedAt).getTime() > staleMs) {
       pncpSyncInFlight = true;
       void syncPncpLast24Hours()
