@@ -1,3 +1,4 @@
+import https from 'https';
 import axios from 'axios';
 import crypto from 'crypto';
 import { prisma } from '../database/prisma';
@@ -25,8 +26,11 @@ export async function syncQueridoDiarioEditais(options: { daysBack?: number; siz
   const until = end.toISOString().slice(0, 10);
 
   try {
+    const httpsAgent = new https.Agent({ minVersion: 'TLSv1.2' });
     const response = await axios.get(`${QD_BASE_URL}/gazettes`, {
       timeout: 20000,
+      httpsAgent,
+      headers: { 'User-Agent': 'Expertise-Licitatoria/1.0', Accept: 'application/json' },
       params: {
         querystring: '"pregão eletrônico" OR "edital de licitação" OR "concorrência pública"',
         published_since: since,
