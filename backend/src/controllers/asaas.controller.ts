@@ -3,8 +3,10 @@ import { prisma } from '../database/prisma';
 import type { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { asaasService, AsaasConfigError, AsaasWebhookAuthError } from '../services/asaas.service';
 import { getPlanDefinition, getPlanLimits, normalizePlanId, type PlanId } from '../services/plans/plan.constants';
+import { EXPERTISE_FISCAL_ADDON } from '../config/plan-features';
 
 type AsaasPlanId = Extract<PlanId, 'basic' | 'pro' | 'master'>;
+type BillingCycle = 'MONTHLY' | 'YEARLY';
 
 const ALIAS_PLANOS: Record<string, AsaasPlanId> = {
   basic: 'basic',
@@ -18,10 +20,17 @@ const ALIAS_PLANOS: Record<string, AsaasPlanId> = {
 };
 
 const GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
+const ANUAL_MULTIPLIER = 9.6; // 12 meses com 20% de desconto no anual
+const TRIAL_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
 
 function resolvePlanKey(input?: string | null): AsaasPlanId | null {
   const key = String(input || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return ALIAS_PLANOS[key] || null;
+}
+
+function resolveCycle(input?: string | null): BillingCycle {
+  const raw = String(input || '').trim().toUpperCase();
+  return raw === 'YEARLY' || raw === 'ANUAL' ? 'YEARLY' : 'MONTHLY';
 }
 
 function toPrismaPlanType(planId: AsaasPlanId): any {
@@ -39,18 +48,37 @@ export class AsaasController {
       success: true,
       data: planIds.map((planId) => {
         const definition = getPlanDefinition(planId);
+        const valorMensal = definition.valorMensalCentavos / 100;
+        const valorAnualCentavos = Math.round(definition.valorMensalCentavos * ANUAL_MULTIPLIER);
         return {
           id: definition.id,
           nome: definition.nome,
           descricao: definition.descricao,
-          valor: definition.valorMensalCentavos / 100,
+          valor: valorMensal,
           valorCentavos: definition.valorMensalCentavos,
+          valorAnual: valorAnualCentavos / 100,
+          valorAnualCentavos,
+          descontoAnualPercent: 20,
           destaque: definition.id === 'pro',
           features: definition.features,
           limites: getPlanLimits(planId),
           asaasConfigurado: configured,
         };
       }),
+      addons: [
+        {
+          id: EXPERTISE_FISCAL_ADDON.slug,
+          nome: EXPERTISE_FISCAL_ADDON.nome,
+          descricao: EXPERTISE_FISCAL_ADDON.descricao,
+          valor: EXPERTISE_FISCAL_ADDON.priceCents / 100,
+          valorCentavos: EXPERTISE_FISCAL_ADDON.priceCents,
+          valorAnual: Math.round(EXPERTISE_FISCAL_ADDON.priceCents * ANUAL_MULTIPLIER) / 100,
+          valorAnualCentavos: Math.round(EXPERTISE_FISCAL_ADDON.priceCents * ANUAL_MULTIPLIER),
+          descontoAnualPercent: 20,
+          features: EXPERTISE_FISCAL_ADDON.features,
+          asaasConfigurado: configured,
+        },
+      ],
     });
   }
 
@@ -58,7 +86,7 @@ export class AsaasController {
     if (!req.user) return res.status(401).json({ success: false, message: 'Não autenticado' });
     const now = new Date();
 
-    const [sub, dbUser] = await Promise.all([
+    const [sub, dbUser, activeAddons] = await Promise.all([
       prisma.subscription.findFirst({
         where: { userId: req.user.id, categoria: 'plataforma' },
         orderBy: { updatedAt: 'desc' },
@@ -67,11 +95,23 @@ export class AsaasController {
         where: { id: req.user.id },
         select: { trialEndsAt: true, createdAt: true },
       }),
+      prisma.companyAddonSubscription.findMany({
+        where: {
+          company: { userId: req.user.id },
+          status: { in: ['ACTIVE', 'TRIAL'] },
+        },
+        select: { addonSlug: true, status: true, expiresAt: true },
+      }),
     ]);
+
+    const addonsAtivos = activeAddons
+      .filter((a) => !a.expiresAt || new Date(a.expiresAt) > now)
+      .map((a) => a.addonSlug);
+    const addonFeatures = addonsAtivos.includes('expertise_fiscal') ? [...EXPERTISE_FISCAL_ADDON.features] : [];
 
     const effectiveTrialEndsAt =
       dbUser?.trialEndsAt ??
-      (dbUser?.createdAt ? new Date(new Date(dbUser.createdAt).getTime() + 10 * 24 * 60 * 60 * 1000) : null);
+      (dbUser?.createdAt ? new Date(new Date(dbUser.createdAt).getTime() + TRIAL_DAYS_MS) : null);
     const isUserTrialActive = Boolean(effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now);
 
     if (!sub) {
@@ -82,7 +122,8 @@ export class AsaasController {
           data: {
             plano: 'master',
             nome: 'Master (Teste 10 Dias)',
-            features: masterDef.features,
+            features: Array.from(new Set([...masterDef.features, ...addonFeatures])),
+            addonsAtivos,
             status: 'trialing',
             ativa: true,
             isTrialActive: true,
@@ -99,7 +140,8 @@ export class AsaasController {
         success: true,
         data: {
           plano: 'free',
-          features: [],
+          features: addonFeatures,
+          addonsAtivos,
           status: 'none',
           ativa: false,
           isTrialActive: false,
@@ -121,7 +163,8 @@ export class AsaasController {
       data: {
         plano,
         nome: getPlanDefinition(plano).nome,
-        features: getPlanDefinition(plano).features,
+        features: Array.from(new Set([...getPlanDefinition(plano).features, ...addonFeatures])),
+        addonsAtivos,
         status: isExpired ? (sub.status === 'trialing' ? 'expired_trial' : 'expired') : sub.status,
         ativa: isAtiva || isUserTrialActive,
         isTrialActive,
@@ -144,7 +187,7 @@ export class AsaasController {
       return res.status(409).json({ success: false, message: 'Período de teste já utilizado para esta conta.' });
     }
     const now = new Date();
-    const fim = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const fim = new Date(now.getTime() + TRIAL_DAYS_MS);
     await prisma.subscription.create({
       data: {
         userId: req.user.id,
@@ -174,8 +217,9 @@ export class AsaasController {
       const paid = payments.some((p: any) => ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(String(p.status)));
       if (paid) {
         const targetPlan = resolvePlanKey(sub.pendingPlanId || sub.plano) || 'pro';
+        const isYearly = String(sub.asaasPlanCode || '').includes('YEARLY');
         const now = new Date();
-        const nextEnd = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+        const nextEnd = new Date(now.getTime() + (isYearly ? 366 : 31) * 24 * 60 * 60 * 1000);
         await prisma.subscription.update({
           where: { id: sub.id },
           data: {
@@ -202,9 +246,14 @@ export class AsaasController {
 
   async criarCheckout(req: AuthRequest, res: Response) {
     if (!req.user) return res.status(401).json({ success: false, message: 'Não autenticado' });
-    const resolved = resolvePlanKey(typeof req.body?.plano === 'string' ? req.body.plano : '');
-    if (!resolved) {
-      return res.status(400).json({ success: false, message: 'Plano inválido. Use basic, pro ou master.' });
+
+    const rawPlano = String(req.body?.plano || '').trim().toLowerCase();
+    const isFiscalAddon = rawPlano === 'expertise_fiscal' || rawPlano === 'expertise_fiscal_addon';
+    const resolved = isFiscalAddon ? null : resolvePlanKey(rawPlano);
+    const ciclo = resolveCycle(req.body?.ciclo || req.body?.cycle);
+
+    if (!isFiscalAddon && !resolved) {
+      return res.status(400).json({ success: false, message: 'Plano inválido. Use basic, pro, master ou expertise_fiscal.' });
     }
 
     if (!asaasService.isConfigured()) {
@@ -217,7 +266,7 @@ export class AsaasController {
 
     const [user, company] = await Promise.all([
       prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true, nome: true, telefone: true } }),
-      prisma.company.findFirst({ where: { userId: req.user.id }, select: { cnpj: true, razaoSocial: true } }),
+      prisma.company.findFirst({ where: { userId: req.user.id }, select: { id: true, tenantId: true, cnpj: true, razaoSocial: true } }),
     ]);
 
     if (!user?.email) {
@@ -233,11 +282,10 @@ export class AsaasController {
       });
     }
 
-    const definition = getPlanDefinition(resolved);
     const appUrl = (process.env.FRONTEND_URL || 'https://expertise-licitatoria.vercel.app').trim().replace(/\/+$/, '');
     const now = new Date();
     const todayIso = now.toISOString().slice(0, 10);
-    const pendingPeriodEnd = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const pendingPeriodEnd = new Date(now.getTime() + TRIAL_DAYS_MS);
 
     try {
       const customer = await asaasService.findOrCreateCustomer({
@@ -247,11 +295,47 @@ export class AsaasController {
         phone: user.telefone || undefined,
       });
 
+      if (isFiscalAddon) {
+        const valor =
+          ciclo === 'YEARLY'
+            ? Math.round(EXPERTISE_FISCAL_ADDON.priceCents * ANUAL_MULTIPLIER) / 100
+            : EXPERTISE_FISCAL_ADDON.priceCents / 100;
+        const companyId = company?.id || '';
+        const extRef = `addon:${req.user.id}:${companyId}:expertise_fiscal:${ciclo}`;
+
+        const subAsaas = await asaasService.createSubscription({
+          customer: customer.id,
+          value: valor,
+          cycle: ciclo,
+          description: `Add-on Expertise Fiscal (${ciclo === 'YEARLY' ? 'Anual 20% OFF' : 'Mensal'})`,
+          externalReference: extRef,
+          nextDueDate: todayIso,
+          successUrl: `${appUrl}/fornecedor/planos?status=sucesso&addon=expertise_fiscal`,
+        });
+
+        const checkoutUrl = await asaasService.getFirstPaymentUrl(subAsaas.id);
+        if (!subAsaas?.id || !checkoutUrl) {
+          return res.status(502).json({ success: false, message: 'Não foi possível gerar o link do Add-on Fiscal no Asaas.' });
+        }
+
+        return res.json({
+          success: true,
+          data: { url: checkoutUrl, subscriptionId: subAsaas.id, plano: 'expertise_fiscal', ciclo },
+        });
+      }
+
+      const definition = getPlanDefinition(resolved!);
+      const valor =
+        ciclo === 'YEARLY'
+          ? Math.round(definition.valorMensalCentavos * ANUAL_MULTIPLIER) / 100
+          : definition.valorMensalCentavos / 100;
+
       const subAsaas = await asaasService.createSubscription({
         customer: customer.id,
-        value: definition.valorMensalCentavos / 100,
-        description: `Expertise Licitatória — ${definition.nome}`,
-        externalReference: `${req.user.id}:${resolved}`,
+        value: valor,
+        cycle: ciclo,
+        description: `Expertise Licitatória — ${definition.nome} (${ciclo === 'YEARLY' ? 'Anual 20% OFF' : 'Mensal'})`,
+        externalReference: `${req.user.id}:${resolved}:${ciclo}`,
         nextDueDate: todayIso,
         successUrl: `${appUrl}/fornecedor/planos?status=sucesso`,
       });
@@ -276,29 +360,25 @@ export class AsaasController {
           status: 'trialing',
           periodoInicio: now,
           periodoFim: pendingPeriodEnd,
-          pendingPlanId: resolved,
+          pendingPlanId: resolved!,
           pendingPlanAt: now,
           asaasCustomerId: customer.id,
           asaasSubscriptionId: subAsaas.id,
-          asaasPlanCode: resolved,
+          asaasPlanCode: `${resolved}:${ciclo}`,
         },
         update: {
           email: user.email,
-          pendingPlanId: resolved,
+          pendingPlanId: resolved!,
           pendingPlanAt: now,
           asaasCustomerId: customer.id,
           asaasSubscriptionId: subAsaas.id,
-          asaasPlanCode: resolved,
+          asaasPlanCode: `${resolved}:${ciclo}`,
         },
       });
 
       return res.json({
         success: true,
-        data: {
-          url: checkoutUrl,
-          subscriptionId: subAsaas.id,
-          plano: resolved,
-        },
+        data: { url: checkoutUrl, subscriptionId: subAsaas.id, plano: resolved, ciclo },
       });
     } catch (error: any) {
       console.error('[Asaas] Erro ao criar checkout:', error?.response?.data || error.message);
@@ -321,6 +401,40 @@ export class AsaasController {
       const subscriptionObj = req.body?.subscription || {};
       const asaasSubId = String(payment.subscription || subscriptionObj.id || '').trim();
       const externalRef = String(payment.externalReference || subscriptionObj.externalReference || '').trim();
+      const now = new Date();
+
+      if (externalRef.startsWith('addon:')) {
+        const [, refUserId, refCompanyId, addonSlug, refCiclo] = externalRef.split(':');
+        const targetCompany = refCompanyId
+          ? await prisma.company.findUnique({ where: { id: refCompanyId }, select: { id: true, tenantId: true } })
+          : await prisma.company.findFirst({ where: { userId: refUserId }, select: { id: true, tenantId: true } });
+
+        if (targetCompany) {
+          const isYearly = refCiclo === 'YEARLY';
+          const expiresAt = new Date(now.getTime() + (isYearly ? 366 : 31) * 24 * 60 * 60 * 1000);
+          if (['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(event)) {
+            await prisma.companyAddonSubscription.upsert({
+              where: { companyId_addonSlug: { companyId: targetCompany.id, addonSlug: addonSlug || 'expertise_fiscal' } },
+              create: {
+                tenantId: targetCompany.tenantId,
+                companyId: targetCompany.id,
+                addonSlug: addonSlug || 'expertise_fiscal',
+                status: 'ACTIVE',
+                priceCents: EXPERTISE_FISCAL_ADDON.priceCents,
+                activatedAt: now,
+                expiresAt,
+              },
+              update: { status: 'ACTIVE', activatedAt: now, expiresAt },
+            });
+          } else if (['SUBSCRIPTION_DELETED', 'SUBSCRIPTION_INACTIVATED', 'PAYMENT_REFUNDED'].includes(event)) {
+            await prisma.companyAddonSubscription.updateMany({
+              where: { companyId: targetCompany.id, addonSlug: addonSlug || 'expertise_fiscal' },
+              data: { status: 'CANCELED' },
+            });
+          }
+        }
+        return res.status(200).json({ received: true, event, addon: true });
+      }
 
       if (!asaasSubId && !externalRef) {
         return res.status(200).json({ received: true, ignored: true });
@@ -334,10 +448,10 @@ export class AsaasController {
         return res.status(200).json({ received: true, subscriptionNotFound: true });
       }
 
-      const now = new Date();
       if (['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(event)) {
         const targetPlan = resolvePlanKey(sub.pendingPlanId || sub.plano) || 'pro';
-        const nextEnd = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
+        const isYearly = String(sub.asaasPlanCode || externalRef).includes('YEARLY');
+        const nextEnd = new Date(now.getTime() + (isYearly ? 366 : 31) * 24 * 60 * 60 * 1000);
         await prisma.subscription.update({
           where: { id: sub.id },
           data: {

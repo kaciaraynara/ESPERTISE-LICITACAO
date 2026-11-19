@@ -15,7 +15,10 @@ export class AsaasWebhookAuthError extends Error {
 }
 
 function getAsaasBaseUrl(): string {
-  const raw = (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').trim().replace(/\/+$/, '');
+  let raw = (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').trim();
+  const mdMatch = raw.match(/\((https?:\/\/[^)]+)\)/);
+  if (mdMatch) raw = mdMatch[1];
+  raw = raw.replace(/^\[|\]$/g, '').replace(/\/+$/, '');
   return raw;
 }
 
@@ -77,13 +80,14 @@ export const asaasService = {
     description: string;
     externalReference: string;
     nextDueDate: string;
+    cycle?: 'MONTHLY' | 'YEARLY';
     successUrl?: string;
   }) {
     const client = asaasClient();
     const payload: Record<string, unknown> = {
       customer: input.customer,
       billingType: 'UNDEFINED', // Permite Pix, Boleto ou Cartão de Crédito no checkout Asaas
-      cycle: 'MONTHLY',
+      cycle: input.cycle || 'MONTHLY',
       value: input.value,
       nextDueDate: input.nextDueDate,
       description: input.description,
