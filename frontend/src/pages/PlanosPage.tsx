@@ -38,7 +38,7 @@ interface Plan {
   valorCentavos: number;
   destaque: boolean;
   features: string[];
-  mercadoPagoConfigurado: boolean;
+  asaasConfigurado: boolean;
   limites: PlanLimits;
 }
 
@@ -82,7 +82,7 @@ const FALLBACK_PLANS: Plan[] = [
       'gestao_contratual',
       'credenciamento',
     ],
-    mercadoPagoConfigurado: true,
+    asaasConfigurado: true,
     limites: {
       maxCompanies: 5,
       maxUsers: 2,
@@ -111,7 +111,7 @@ const FALLBACK_PLANS: Plan[] = [
       'lex_ia_avancada',
       'relatorios_estrategicos',
     ],
-    mercadoPagoConfigurado: true,
+    asaasConfigurado: true,
     limites: {
       maxCompanies: 10,
       maxUsers: 5,
@@ -148,7 +148,7 @@ const FALLBACK_PLANS: Plan[] = [
       'assistente_repactuacao',
       'assistente_reequilibrio',
     ],
-    mercadoPagoConfigurado: true,
+    asaasConfigurado: true,
     limites: {
       maxCompanies: 20,
       maxUsers: 10,

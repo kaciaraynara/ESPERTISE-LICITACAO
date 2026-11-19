@@ -33,7 +33,7 @@ import prazosRoutes from './prazos.routes';
 import empresasRoutes from './empresas.routes';
 import authRoutes from './auth.routes';
 import adminRoutes, { resolveAdminSecretPath } from './admin.routes';
-import mercadoPagoRoutes from './mercadopago.routes';
+import asaasRoutes from './asaas.routes';
 import cofreRoutes from './cofre.routes';
 import crmRoutes from './crm.routes';
 import precificacaoRoutes from './precificacao.routes';
@@ -46,7 +46,7 @@ import taxRoutes from './tax.routes';
 import guaranteesRoutes from './guarantees.routes';
 import proposalsRoutes from './proposals.routes';
 import { proposalAutomationController } from '../controllers/proposal-automation.controller';
-import { MercadoPagoController } from '../controllers/mercadopago.controller';
+import { AsaasController } from '../controllers/asaas.controller';
 
 // Middlewares
 import {
@@ -96,7 +96,7 @@ const transparencia = new TransparenciaController();
 const dashboard = new DashboardController();
 const pipeline = new PipelineController();
 const pricing = new PricingController();
-const mercadoPago = new MercadoPagoController();
+const asaas = new AsaasController();
 const govbr = new GovBrController();
 const lex = new LexController();
 
@@ -122,7 +122,7 @@ const handle =
 
 router.use('/auth', authRoutes);
 router.use(adminRoutes);
-router.use('/pagamentos', mercadoPagoRoutes);
+router.use('/pagamentos', asaasRoutes);
 
 router.get(
   '/public/cnpj/:cnpj',
@@ -134,8 +134,8 @@ router.get(
 );
 
 router.post(
-  '/webhooks/mercadopago',
-  handle(mercadoPago.webhook.bind(mercadoPago) as RequestHandler),
+  '/webhooks/asaas',
+  handle(asaas.webhook.bind(asaas) as RequestHandler),
 );
 
 router.post(

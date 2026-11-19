@@ -741,7 +741,7 @@ export interface MinhaAssinaturaResponse {
   isTrialActive?: boolean;
   trialEndsAt?: string | null;
   diasRestantes?: number;
-  gateway: 'mercado_pago' | null;
+  gateway: 'asaas' | null;
   periodo_fim?: string;
   pendingPlanId?: string | null;
   pendingPlanAt?: string | null;
