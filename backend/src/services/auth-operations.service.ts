@@ -68,7 +68,7 @@ export class AuthOperationsService {
       : null;
 
     const fallbackTrialEndsAt = user.createdAt
-      ? new Date(new Date(user.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+      ? new Date(new Date(user.createdAt).getTime() + 10 * 24 * 60 * 60 * 1000)
       : null;
     const rawTrialEndsAt = user.trialEndsAt || primaryCompany?.trialEndsAt || fallbackTrialEndsAt;
     const isTrialActive = Boolean(rawTrialEndsAt && new Date(rawTrialEndsAt) > new Date());
@@ -242,7 +242,7 @@ export class AuthOperationsService {
         },
       });
       // Janela de Free Trial oficial de 15 dias (plano Master / Full)
-      const trialEndsAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+      const trialEndsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
 
       const user = await tx.user.create({
         data: {

@@ -71,7 +71,7 @@ export class AsaasController {
 
     const effectiveTrialEndsAt =
       dbUser?.trialEndsAt ??
-      (dbUser?.createdAt ? new Date(new Date(dbUser.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000) : null);
+      (dbUser?.createdAt ? new Date(new Date(dbUser.createdAt).getTime() + 10 * 24 * 60 * 60 * 1000) : null);
     const isUserTrialActive = Boolean(effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now);
 
     if (!sub) {
@@ -81,7 +81,7 @@ export class AsaasController {
           success: true,
           data: {
             plano: 'master',
-            nome: 'Master (Trial 15 Dias)',
+            nome: 'Master (Teste 10 Dias)',
             features: masterDef.features,
             status: 'trialing',
             ativa: true,
@@ -144,7 +144,7 @@ export class AsaasController {
       return res.status(409).json({ success: false, message: 'Período de teste já utilizado para esta conta.' });
     }
     const now = new Date();
-    const fim = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    const fim = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
     await prisma.subscription.create({
       data: {
         userId: req.user.id,
@@ -237,7 +237,7 @@ export class AsaasController {
     const appUrl = (process.env.FRONTEND_URL || 'https://expertise-licitatoria.vercel.app').trim().replace(/\/+$/, '');
     const now = new Date();
     const todayIso = now.toISOString().slice(0, 10);
-    const pendingPeriodEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    const pendingPeriodEnd = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
 
     try {
       const customer = await asaasService.findOrCreateCustomer({

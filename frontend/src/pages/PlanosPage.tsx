@@ -444,7 +444,7 @@ export default function PlanosPage() {
                 Acesso Master Liberado
               </div>
               <h2 className="text-base sm:text-lg font-black tracking-tight text-emerald-950">
-                Você está no Período de Testes Oficial (15 Dias de Plano Master)
+                Você está no Período de Testes Oficial (10 dias de Plano Master)
               </h2>
               <p className="text-xs sm:text-sm text-emerald-800 font-medium">
                 Todas as 4 Centrais Estratégicas estão ativas por mais <strong>{trialDaysRemaining} dias</strong>. Garanta a continuidade da sua operação assinando seu plano antes do término.
