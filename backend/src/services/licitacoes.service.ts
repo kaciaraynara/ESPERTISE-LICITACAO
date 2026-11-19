@@ -821,7 +821,7 @@ export async function listarLicitacoes(
       select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
       skip: (page - 1) * size,
       take: size,
-      orderBy: { publishedAt: 'desc' },
+      orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
     });
   } else {
     if (typeof prisma.$transaction === 'function') {
@@ -832,7 +832,7 @@ export async function listarLicitacoes(
           select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
           skip: (page - 1) * size,
           take: size,
-          orderBy: { publishedAt: 'desc' },
+          orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
         }),
       ]);
       count = typeof res?.[0] === 'number' ? res[0] : 0;
@@ -844,7 +844,7 @@ export async function listarLicitacoes(
         select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
         skip: (page - 1) * size,
         take: size,
-        orderBy: { publishedAt: 'desc' },
+        orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
       });
     }
     setLicitacoesCache(paginationCountCache, whereCacheKey, count, 60_000);

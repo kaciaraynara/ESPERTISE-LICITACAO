@@ -46,7 +46,7 @@ export async function consultarComprasGovContratos(cnpj: string): Promise<Array<
     const lista = Array.isArray(json?.resultado) ? json.resultado : [];
     return lista.map((c: any, idx: number) => ({
       id: String(c.idCompra || c.numeroControlePNCPCompra || `comprasgov-${idx}`),
-      orgao: String(c.orgaoEntidadeRazaoSocial || c.unidadeOrgaoNomeUnidade || 'Órgão Público'),
+      orgao: String(c.orgaoEntidadeRazaoSocial || c.unidadeOrgaoNomeUnidade || (c.orgaoEntidadeCnpj ? `Órgão CNPJ ${c.orgaoEntidadeCnpj}` : 'Órgão Público')),
       objeto: String(c.descricaoItem || c.nomeMaterialOuServico || c.numeroControlePNCPCompra || 'Item homologado PNCP/Compras.gov'),
       valor: Number(c.valorTotalHomologado || c.valorUnitarioHomologado || 0),
       dataAssinatura: c.dataResultado || c.dataResultadoPncp || null,
@@ -215,10 +215,10 @@ export async function descobrirConcorrentesPorCnae(cnae: string, uf?: string) {
     const lista = Array.isArray(json?.resultado) ? json.resultado : [];
     return lista.map((f: any) => ({
       cnpj: String(f.cnpj || f.niFornecedor || '').replace(/\D/g, ''),
-      razaoSocial: String(f.nome || f.razaoSocial || 'Fornecedor Habilitado'),
-      uf: f.uf || uf || null,
-      municipio: f.municipio || null,
-      porte: f.porteEmpresa || f.porte || null,
+      razaoSocial: String(f.nomeRazaoSocialFornecedor || f.nome || f.razaoSocial || f.nomeFantasia || 'Fornecedor Habilitado').trim(),
+      uf: f.ufSigla || f.uf || f.siglaUf || uf || null,
+      municipio: f.nomeMunicipio || f.municipio || null,
+      porte: f.porteEmpresaNome || f.porteEmpresa || f.porte || null,
       cnae: codigoCnae,
     })).filter((f: any) => f.cnpj.length === 14);
   } catch {
