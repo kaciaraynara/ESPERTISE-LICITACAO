@@ -385,8 +385,8 @@ export const lexApi = {
   auditar: (body: { edital_id?: string; texto_edital?: string }) => api.post('/lex/auditar', body, { timeout: 90000 }),
   proposta: (body: { edital_id?: string; texto_edital?: string; nome_empresa?: string }) => api.post('/lex/proposta', body, { timeout: 90000 }),
   analise: (body: { noticeId?: string; licitacaoId?: string; edital_id?: string }) => api.post('/lex/analise', body, { timeout: 90000 }),
-  impugnacao: (body: { edital_id?: string; texto_edital?: string; contexto?: string }) => api.post('/lex/impugnacao', body, { timeout: 90000 }),
-  recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; noticeId?: string }) =>
+  impugnacao: (body: { edital_id?: string; noticeId?: string; texto_edital?: string; contexto?: string; pergunta?: string }) => api.post('/lex/impugnacao', body, { timeout: 90000 }),
+  recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; texto_edital?: string; contexto?: string; noticeId?: string }) =>
     api.post('/lex/recurso', body, { timeout: 90000 }),
   chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean }) => api.post('/lex/chat', body, { timeout: 90000 }),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useRef, useState } from 'react';
 import {
   Upload,
@@ -72,17 +73,30 @@ export default function RecursosPage() {
 
     try {
       // Chama inteligência jurídica conectada ao backend com jurisprudência da Lei 14.133/2021
+      const contextoCompleto = [
+        `Empresa: ${empresa} (CNPJ: ${cnpj})`,
+        `Órgão: ${orgao || 'Administração Licitante'}`,
+        `Processo: ${numeroProcesso || 'Edital Oficial'}`,
+        `Modalidade: ${modalidade}`,
+        objeto ? `Objeto: ${objeto}` : '',
+        `Documento anexado: ${arquivoNome || 'Nenhum'}`,
+        motivos ? `Fatos e motivos informados:\n${motivos}` : '',
+      ].filter(Boolean).join('\n');
+
       const resp = await lexApi.recurso({
         motivoDesclassificacao: motivos || 'Inabilitação indevida ou desclassificação desproporcional da proposta',
-        contextoAdicional: `Órgão: ${orgao || 'Administração Licitante'}, Processo: ${numeroProcesso || 'Edital Oficial'}, Modalidade: ${modalidade}, Objeto: ${objeto}, Documento anexado: ${arquivoNome || 'Nenhum'}`.trim(),
+        contextoAdicional: contextoCompleto,
       });
 
       const data = resp?.data as any;
-      if (data?.resposta || data?.content || data?.texto_recurso) {
+      if (data?.status === 'insufficient_evidence') {
+        toast(data?.resposta || 'Adicione mais detalhes nos fatos/motivos para fundamentar o recurso com IA.', { icon: '⚠️' });
+      } else if (data?.resposta || data?.content || data?.texto_recurso) {
         analiseIaPersonalizada = String(data?.resposta || data?.content || data?.texto_recurso).trim();
+        toast.success('Fundamentação jurídica gerada com sucesso pela IA!');
       }
     } catch {
-      // Fallback seguro caso backend esteja temporariamente sem conexão com IA
+      toast.error('Falha ao consultar a IA jurídica; minuta montada com modelo-base.');
     } finally {
       setGerandoIa(false);
     }

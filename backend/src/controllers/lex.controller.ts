@@ -441,20 +441,35 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
 
   async impugnacao(req: AuthRequest, res: Response) {
     try {
-      const { contexto } = (req.body || {}) as { contexto?: string };
+      const { pergunta, contexto, texto_edital, stream } = (req.body || {}) as {
+        pergunta?: string;
+        contexto?: string;
+        texto_edital?: string;
+        stream?: boolean;
+      };
       const noticeId = resolveNoticeId(req);
-      const result = await this.grounding.runLex(
-        {
-          pergunta:
-            'Liste pontos de atenção que podem exigir revisão jurídica para eventual impugnação e analise o prazo tempestivo. Não redija peça final e não afirme ilegalidade.',
-          contexto,
-          noticeId,
-          purpose: 'lex_impugnacao_precheck',
-          metadata: { endpoint: '/lex/impugnacao' },
-        },
-        buildGroundingContext(req),
-      );
+      const isStream = stream === true || req.query?.stream === 'true';
+      const groundingContext = buildGroundingContext(req);
+      const groundingInput = {
+        pergunta:
+          (pergunta && pergunta.trim()) ||
+          'Liste pontos de atenção que podem exigir revisão jurídica para eventual impugnação e analise o prazo tempestivo. Não redija peça final e não afirme ilegalidade.',
+        contexto: contexto?.trim() || undefined,
+        providedDocumentText: texto_edital?.trim() || undefined,
+        noticeId,
+        purpose: 'lex_impugnacao_precheck',
+        metadata: { endpoint: '/lex/impugnacao' },
+      };
 
+      if (isStream) {
+        return streamGroundedResultToSse(
+          res,
+          (onChunk) => this.grounding.runLex({ ...groundingInput, options: { onChunk } }, groundingContext),
+          { noticeId, endpoint: '/lex/impugnacao' },
+        );
+      }
+
+      const result = await this.grounding.runLex(groundingInput, groundingContext);
       const rawText = (result.resposta || result.content || '').trim();
       const extra = {
         texto_impugnacao: rawText || 'Não foi possível gerar a análise de impugnação sem os trechos do edital.',
@@ -468,30 +483,46 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
 
   async gerarRecurso(req: AuthRequest, res: Response) {
     try {
-      const { motivoDesclassificacao, contextoAdicional } = (req.body || {}) as {
+      const { motivoDesclassificacao, contextoAdicional, texto_edital, contexto, stream } = (req.body || {}) as {
         motivoDesclassificacao?: string;
         contextoAdicional?: string;
+        texto_edital?: string;
+        contexto?: string;
+        stream?: boolean;
       };
+      const noticeId = resolveNoticeId(req);
+      const isStream = stream === true || req.query?.stream === 'true';
+      const groundingContext = buildGroundingContext(req);
+      const docText = [texto_edital, contextoAdicional].filter((v) => v && v.trim()).join('\n\n').trim() || undefined;
 
       const instrucao = `
 Aja como especialista em contratações públicas sob a Lei 14.133/2021.
 O motivo apontado para desclassificação/inabilitação foi: "${motivoDesclassificacao || 'Não especificado'}".
 Contexto adicional: "${contextoAdicional || ''}".
-Com base no edital recuperado e nas orientações do TCU, elabore tópicos de recurso administrativo.
+Com base no edital recuperado ou no contexto informado e nas orientações do TCU, elabore tópicos de recurso administrativo.
 Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios da razoabilidade, proporcionalidade e vinculação ao instrumento convocatório como teses a serem revisadas por advogado.
       `.trim();
 
-      const result = await this.grounding.runLex(
-        {
-          pergunta: instrucao,
-          noticeId: resolveNoticeId(req),
-          purpose: 'lex_recurso_administrativo',
-          metadata: { endpoint: '/lex/recurso' },
-        },
-        buildGroundingContext(req),
-      );
+      const groundingInput = {
+        pergunta: instrucao,
+        contexto: contexto?.trim() || undefined,
+        providedDocumentText: docText,
+        noticeId,
+        purpose: 'lex_recurso_administrativo',
+        metadata: { endpoint: '/lex/recurso' },
+      };
 
-      return groundedResponse(res, result);
+      if (isStream) {
+        return streamGroundedResultToSse(
+          res,
+          (onChunk) => this.grounding.runLex({ ...groundingInput, options: { onChunk } }, groundingContext),
+          { noticeId, endpoint: '/lex/recurso' },
+        );
+      }
+
+      const result = await this.grounding.runLex(groundingInput, groundingContext);
+      const rawText = (result.resposta || result.content || '').trim();
+      return groundedResponse(res, result, { texto_recurso: rawText });
     } catch (err: any) {
       return handleLexError(res, err);
     }
