@@ -272,6 +272,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
+      { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitor de Editais', icon: FileText },
       { path: FORNECEDOR_ROUTES.academia, label: 'Academia do Licitante', icon: GraduationCap, requiredFeature: 'academia_licitante' },
     ],
   },

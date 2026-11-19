@@ -11,6 +11,40 @@ export interface HeaderProps {
   mobileMenuOpen?: boolean;
 }
 
+const HEADER_TITLES: Record<string, string> = {
+  '/fornecedor/dashboard': 'Painel de Comando do Licitante',
+  '/fornecedor/radar': 'Radar de Oportunidades',
+  '/fornecedor/score-viabilidade': 'Análise de Viabilidade',
+  '/fornecedor/historico-concorrentes': 'Histórico de Concorrentes',
+  '/fornecedor/investigacao': 'Inteligência Competitiva',
+  '/fornecedor/disputas': 'Gestão de Disputas',
+  '/fornecedor/propostas': 'Gerador de Propostas',
+  '/fornecedor/robo-lances': 'Sala de Disputa & Lances',
+  '/fornecedor/disputa-ao-vivo': 'Disputa Ao Vivo',
+  '/fornecedor/srp': 'Buscador SRP e Carona',
+  '/fornecedor/catalogo': 'Catálogo de Produtos',
+  '/fornecedor/precificacao': 'Precificação Estratégica',
+  '/fornecedores': 'Rede de Fornecedores',
+  '/fornecedor/leitor-editais': 'Leitor Inteligente de Editais',
+  '/fornecedor/lex': 'Análise com a Luli',
+  '/fornecedor/impugnacao': 'Impugnação de Editais',
+  '/fornecedor/recursos': 'Recursos Administrativos',
+  '/fornecedor/defesas-recursos': 'Central de Defesas e Recursos',
+  '/fornecedor/radar-nulidades': 'Radar de Nulidades',
+  '/fornecedor/cofre': 'Cofre de Documentos',
+  '/fornecedor/certidoes': 'Certidões Negativas',
+  '/fornecedor/habilitacao': 'Matriz de Habilitação',
+  '/fornecedor/prazos': 'Prazos Fatais e Alertas',
+  '/fornecedor/gestao-pos-vitoria': 'Gestão Pós-Vitória',
+  '/fornecedor/contratos': 'Gestão Contratual',
+  '/fornecedor/expertise-fiscal': 'Expertise Fiscal',
+  '/fornecedor/academia': 'Academia do Licitante',
+  '/fornecedor/relatorios': 'Relatórios Estratégicos',
+  '/fornecedor/empresa': 'Minha Empresa',
+  '/fornecedor/planos': 'Planos e Assinatura',
+  '/fornecedor/configuracoes': 'Configurações',
+};
+
 export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
   const { selectedCompany } = useCompany();
   const user = useAuthStore((state) => state.user);
@@ -88,7 +122,7 @@ export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
         <div className="hidden min-w-0 items-center gap-3 md:flex">
           <span className="h-7 w-1 rounded-full bg-brand-orange" aria-hidden="true" />
           <h1 className="truncate text-base font-black text-brand-dark tracking-tight">
-            Visão Geral do Mercado
+            {HEADER_TITLES[typeof window !== 'undefined' ? window.location.pathname : ''] || 'Visão Geral do Mercado'}
           </h1>
         </div>
       </div>
