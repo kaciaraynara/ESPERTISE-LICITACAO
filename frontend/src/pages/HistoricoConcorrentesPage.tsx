@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Plus,
@@ -22,7 +22,8 @@ import {
   CartesianGrid,
 } from 'recharts';
 import toast from 'react-hot-toast';
-import api from '../services/api';
+import api, { concorrentesApi } from '../services/api';
+import { useCompany } from '../contexts/CompanyContext';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 interface DossieItem {
@@ -61,6 +62,23 @@ export const HistoricoConcorrentesPage: React.FC = () => {
   const [abaAtiva, setAbaAtiva] = useState<'ranking' | 'regiao' | 'atividades' | 'potencial'>('ranking');
   const [carregando, setCarregando] = useState(false);
   const [dossies, setDossies] = useState<DossieItem[]>([]);
+  const { selectedCompany } = useCompany();
+  const [sugeridos, setSugeridos] = useState<Array<{ cnpj: string; razaoSocial: string; uf?: string; porte?: string }>>([]);
+
+  useEffect(() => {
+    const cnae = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal || '';
+    const uf = (selectedCompany as any)?.estado || (selectedCompany as any)?.uf || '';
+    if (!cnae) return;
+    concorrentesApi.descoberta({ cnae: String(cnae), uf: uf ? String(uf) : undefined })
+      .then((res) => {
+        const lista = res?.data?.data?.concorrentesCnae || [];
+        if (Array.isArray(lista) && lista.length > 0) {
+          setSugeridos(lista.slice(0, 6));
+          setCnpjs((prev) => prev.every((c) => !c.trim()) ? lista.slice(0, 3).map((x: any) => formatCnpjMask(x.cnpj)) : prev);
+        }
+      })
+      .catch(() => null);
+  }, [selectedCompany]);
 
   const atualizarCnpj = (idx: number, valor: string) => {
     const copia = [...cnpjs];
@@ -87,7 +105,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       .filter((c) => isValidCnpj(c, { optional: false }));
 
     if (validos.length === 0) {
-      toast.error('Digite pelo menos um CNPJ valido para consultar.');
+      toast.error('Digite ou selecione pelo menos um CNPJ válido para consultar.');
       return;
     }
 
@@ -160,7 +178,29 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {cnpjs.map((val, idx) => (
+          {sugeridos.length > 0 && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+            <p className="mb-2 text-xs font-semibold text-blue-900">
+              Concorrentes ativos no seu CNAE (Compras.gov.br) — clique para incluir:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {sugeridos.map((s) => (
+                <button
+                  key={s.cnpj}
+                  type="button"
+                  onClick={() => {
+                    const masked = formatCnpjMask(s.cnpj);
+                    setCnpjs((prev) => (prev.includes(masked) ? prev : [...prev.filter(Boolean), masked].slice(0, 6)));
+                  }}
+                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 transition"
+                >
+                  + {s.razaoSocial.slice(0, 32)} {s.uf ? `(${s.uf})` : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {cnpjs.map((val, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <input
                 type="text"

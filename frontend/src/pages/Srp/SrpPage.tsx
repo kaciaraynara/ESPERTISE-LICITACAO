@@ -33,6 +33,7 @@ export const SrpPage: React.FC = () => {
     try {
       const resp = await licitacoesApi.listar({
         local: true,
+        srp: true,
         q: termo.trim() || undefined,
         uf: uf.trim().toUpperCase() || undefined,
       } as any);
