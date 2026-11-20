@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Response } from 'express';
 
@@ -36,7 +37,7 @@ export interface ChatProviderOptions {
   onChunk?: (chunk: string) => void | Promise<void>;
 }
 
-export const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+export const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
 
 const VALID_GEMINI_MODELS = FALLBACK_MODELS;
 
@@ -174,9 +175,18 @@ export async function streamChatWithProvider(
 
   for (const modelName of candidateModels) {
     try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-
       const streamTask = (async () => {
+        if (apiKey.trim().startsWith('AQ.')) {
+          const restResp = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
+            { contents: [{ parts: [{ text: fullPrompt }] }] },
+            { headers: { 'x-goog-api-key': apiKey.trim() }, timeout: timeoutMs },
+          );
+          const text = String(restResp.data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+          if (text) await onChunk(text);
+          return text;
+        }
+        const model = genAI.getGenerativeModel({ model: modelName });
         const resultStream = await model.generateContentStream(fullPrompt);
         let accumulatedText = '';
         for await (const chunk of resultStream.stream) {
