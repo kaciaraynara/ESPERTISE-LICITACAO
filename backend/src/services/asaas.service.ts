@@ -81,12 +81,14 @@ export const asaasService = {
     externalReference: string;
     nextDueDate: string;
     cycle?: 'MONTHLY' | 'YEARLY';
+    billingType?: 'PIX' | 'CREDIT_CARD';
     successUrl?: string;
   }) {
     const client = asaasClient();
     const payload: Record<string, unknown> = {
       customer: input.customer,
-      billingType: 'UNDEFINED', // Permite Pix, Boleto ou Cartão de Crédito no checkout Asaas
+      billingType: input.billingType || 'PIX',
+      ...(input.billingType !== 'CREDIT_CARD' ? { pixAutomaticAuthorizationMode: 'OPTIONAL' } : {}),
       cycle: input.cycle || 'MONTHLY',
       value: input.value,
       nextDueDate: input.nextDueDate,

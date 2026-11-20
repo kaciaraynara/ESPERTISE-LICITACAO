@@ -251,6 +251,8 @@ export class AsaasController {
     const isFiscalAddon = rawPlano === 'expertise_fiscal' || rawPlano === 'expertise_fiscal_addon';
     const resolved = isFiscalAddon ? null : resolvePlanKey(rawPlano);
     const ciclo = resolveCycle(req.body?.ciclo || req.body?.cycle);
+    const rawBilling = String(req.body?.billingType || req.body?.formaPagamento || 'PIX').trim().toUpperCase();
+    const billingType: 'PIX' | 'CREDIT_CARD' = rawBilling === 'CREDIT_CARD' || rawBilling === 'CARTAO' ? 'CREDIT_CARD' : 'PIX';
 
     if (!isFiscalAddon && !resolved) {
       return res.status(400).json({ success: false, message: 'Plano inválido. Use basic, pro, master ou expertise_fiscal.' });
@@ -307,6 +309,7 @@ export class AsaasController {
           customer: customer.id,
           value: valor,
           cycle: ciclo,
+          billingType,
           description: `Add-on Expertise Fiscal (${ciclo === 'YEARLY' ? 'Anual 20% OFF' : 'Mensal'})`,
           externalReference: extRef,
           nextDueDate: todayIso,
@@ -334,6 +337,7 @@ export class AsaasController {
         customer: customer.id,
         value: valor,
         cycle: ciclo,
+          billingType,
         description: `Expertise Licitatória — ${definition.nome} (${ciclo === 'YEARLY' ? 'Anual 20% OFF' : 'Mensal'})`,
         externalReference: `${req.user.id}:${resolved}:${ciclo}`,
         nextDueDate: todayIso,
