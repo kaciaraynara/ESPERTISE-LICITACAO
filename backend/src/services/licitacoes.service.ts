@@ -850,6 +850,26 @@ export async function listarLicitacoes(
     setLicitacoesCache(paginationCountCache, whereCacheKey, count, 60_000);
   }
 
+  if (count === 0 && !filtros.q && !filtros.termo && searchTerms.length > 0) {
+    const andSemCnae = and.filter((item) => !(item?.OR && Array.isArray(item.OR) && item.OR[0]?.object));
+    const whereSemCnae: any = andSemCnae.length > 0 ? { AND: andSemCnae, publishedAt: { not: null } } : { publishedAt: { not: null } };
+    const [fbCount, fbRows] = await Promise.all([
+      prisma.procurementNotice.count({ where: whereSemCnae }),
+      prisma.procurementNotice.findMany({
+        where: whereSemCnae,
+        select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
+        skip: (page - 1) * size,
+        take: size,
+        orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
+      }),
+    ]);
+    if (fbCount > 0) {
+      count = fbCount;
+      rows = fbRows;
+      avisoRadar = 'Nenhum edital encontrado exatamente para o seu CNAE neste filtro; exibindo os editais disponíveis na base.';
+    }
+  }
+
   if (rows.length === 0 && page === 1) {
     return consultarRadarPncpTempoReal(filtros);
   }
