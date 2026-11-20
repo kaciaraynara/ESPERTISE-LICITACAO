@@ -437,7 +437,7 @@ export default function PlanosPage() {
         <div className="rounded-3xl border border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-5 text-emerald-950 shadow-md">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white font-black text-2xl shadow-md">
-              ⚡
+              <ShieldCheck className="w-6 h-6" weight="fill" />
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 text-[10px] font-black uppercase tracking-wider mb-1">
