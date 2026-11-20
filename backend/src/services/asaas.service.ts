@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 
 export class AsaasConfigError extends Error {
   constructor(message: string) {
@@ -88,7 +88,6 @@ export const asaasService = {
     const payload: Record<string, unknown> = {
       customer: input.customer,
       billingType: input.billingType || 'PIX',
-      ...(input.billingType !== 'CREDIT_CARD' ? { pixAutomaticAuthorizationMode: 'OPTIONAL' } : {}),
       cycle: input.cycle || 'MONTHLY',
       value: input.value,
       nextDueDate: input.nextDueDate,

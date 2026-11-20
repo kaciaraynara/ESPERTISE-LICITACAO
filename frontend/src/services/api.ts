@@ -749,9 +749,9 @@ export interface MinhaAssinaturaResponse {
 
 export const pagamentosApi = {
   planos: () => api.get('/pagamentos/planos'),
-  criarCheckout: (body: { plano: string; successUrl?: string; cancelUrl?: string }) =>
+  criarCheckout: (body: { plano: string; billingType?: 'PIX' | 'CREDIT_CARD'; ciclo?: 'MONTHLY' | 'YEARLY'; successUrl?: string; cancelUrl?: string }) =>
     api.post('/pagamentos/checkout', body),
-  criarCheckoutAutenticado: (body: { plano: string; successUrl?: string; cancelUrl?: string }) =>
+  criarCheckoutAutenticado: (body: { plano: string; billingType?: 'PIX' | 'CREDIT_CARD'; ciclo?: 'MONTHLY' | 'YEARLY'; successUrl?: string; cancelUrl?: string }) =>
     api.post('/pagamentos/checkout', body),
   reconciliarAssinatura: () => api.post('/pagamentos/assinatura/reconciliar', {}),
   ativarTrial: () => api.post('/pagamentos/trial/ativar', {}),

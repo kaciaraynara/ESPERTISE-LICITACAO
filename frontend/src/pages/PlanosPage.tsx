@@ -303,6 +303,7 @@ export default function PlanosPage() {
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'mensal' | 'anual'>('mensal');
+  const [formaPagamento, setFormaPagamento] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
 
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [isConsultantModalOpen, setIsConsultantModalOpen] = useState(false);
@@ -400,7 +401,7 @@ export default function PlanosPage() {
 
     setCheckoutLoading(plan.id);
     try {
-      const response = await pagamentosApi.criarCheckout({ plano: plan.id });
+      const response = await pagamentosApi.criarCheckout({ plano: plan.id, billingType: formaPagamento, ciclo: billingPeriod === 'anual' ? 'YEARLY' : 'MONTHLY' });
       const checkoutUrl = response.data?.data?.url;
       if (response.data?.success && checkoutUrl) {
         window.location.href = checkoutUrl;
@@ -512,6 +513,7 @@ export default function PlanosPage() {
           </div>
         </div>
       ) : (
+        <>
         <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
         <span className="text-xs font-bold uppercase text-slate-500 mr-1">Pagamento:</span>
         <button
@@ -671,6 +673,7 @@ export default function PlanosPage() {
             );
           })}
         </div>
+        </>
       )}
 
       <section className="rounded-3xl border-2 border-indigo-500/30 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 sm:p-10 shadow-2xl relative overflow-hidden">
