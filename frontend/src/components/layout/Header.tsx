@@ -1,5 +1,5 @@
 import { CalendarBlank, List, X } from '@phosphor-icons/react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import BrandLogo from '@components/brand/BrandLogo';
 import { useAuthStore } from '@/store/auth.store';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -46,6 +46,7 @@ const HEADER_TITLES: Record<string, string> = {
 };
 
 export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
+  const { pathname } = useLocation();
   const { selectedCompany } = useCompany();
   const user = useAuthStore((state) => state.user);
 
@@ -122,7 +123,7 @@ export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {
         <div className="hidden min-w-0 items-center gap-3 md:flex">
           <span className="h-7 w-1 rounded-full bg-brand-orange" aria-hidden="true" />
           <h1 className="truncate text-base font-black text-brand-dark tracking-tight">
-            {HEADER_TITLES[typeof window !== 'undefined' ? window.location.pathname : ''] || 'Visão Geral do Mercado'}
+            {HEADER_TITLES[pathname] || 'Visão Geral do Mercado'}
           </h1>
         </div>
       </div>
