@@ -304,6 +304,7 @@ export default function PlanosPage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [billingPeriod, setBillingPeriod] = useState<'mensal' | 'anual'>('mensal');
   const [formaPagamento, setFormaPagamento] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
+  const [formaPagamento, setFormaPagamento] = useState<'PIX' | 'CREDIT_CARD'>('PIX');
 
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [isConsultantModalOpen, setIsConsultantModalOpen] = useState(false);
