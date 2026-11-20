@@ -93,9 +93,7 @@ export const asaasService = {
       description: input.description,
       externalReference: input.externalReference,
     };
-    if (input.successUrl) {
-      payload.callback = { successUrl: input.successUrl, autoRedirect: true };
-    }
+    // callback.successUrl omitido para nao exigir configuracao previa de website no Asaas
     const res = await client.post('/subscriptions', payload);
     return res.data;
   },
