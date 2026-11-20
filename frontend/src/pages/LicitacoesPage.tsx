@@ -376,7 +376,7 @@ export default function LicitacoesPage({
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
         const buildParams = (termo: string, localOnly: boolean) => {
-          const p: Record<string, any> = { limit: 1000, local: localOnly };
+          const p: Record<string, any> = { limit: 200, local: localOnly };
           if (termo.trim()) p.q = termo.trim();
           if (ufSelecionada) p.uf = ufSelecionada;
           if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();

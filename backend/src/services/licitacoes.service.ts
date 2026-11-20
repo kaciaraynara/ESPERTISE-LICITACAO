@@ -20,7 +20,7 @@ import {
   type TenantRadarProfile,
 } from './cnae-to-keywords.service';
 
-const AUTOMATIC_RADAR_KEYWORD_LIMIT = 60;
+const AUTOMATIC_RADAR_KEYWORD_LIMIT = 20;
 const PNCP_MODALITIES = [4, 6, 8, 12] as const;
 
 function resolvePncpDownloadUrl(
