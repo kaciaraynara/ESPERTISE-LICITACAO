@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -43,6 +44,7 @@ export function PropostasPage() {
 
   const [etapa, setEtapa] = useState(1);
   const [oportunidades, setOportunidades] = useState<any[]>([]);
+  const [searchParams] = useSearchParams();
   const [editalEscolhidoId, setEditalEscolhidoId] = useState('');
 
   const [orgao, setOrgao] = useState('');
@@ -81,6 +83,14 @@ export function PropostasPage() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const edParam = searchParams.get('edital');
+    if (edParam && oportunidades.length > 0 && !editalEscolhidoId) {
+      const match = oportunidades.find((o) => String(o.id) === edParam || String(o.noticeId) === edParam || String(o.notice?.id) === edParam);
+      if (match) void handleSelecionarOportunidade(String(match.id));
+    }
+  }, [oportunidades, searchParams]);
 
   const handleSelecionarOportunidade = async (id: string) => {
     setEditalEscolhidoId(id);
@@ -213,7 +223,7 @@ export function PropostasPage() {
       try {
         const resp = await propostasApi.criarRascunho({
           companyId: emp.id,
-          procurementNoticeId: editalEscolhidoId || undefined,
+          procurementNoticeId: oportunidades.find((o) => String(o.id) === editalEscolhidoId)?.noticeId || oportunidades.find((o) => String(o.id) === editalEscolhidoId)?.notice?.id || undefined,
           titulo: `Proposta Comercial - ${orgao || 'Órgão Licitante'} (${numeroProcesso || 'Processo'})`,
           validadeDias,
           prazoEntregaDias: 15,

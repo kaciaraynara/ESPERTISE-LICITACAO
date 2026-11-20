@@ -89,8 +89,8 @@ export const InvestigacaoConcorrencialPage: React.FC = () => {
   const mapaMes: Record<string, number> = {};
   dossies.forEach((d) => {
     (d.contratos || []).forEach((c: any) => {
-      if (!c.dataPublicacao) return;
-      const dt = new Date(c.dataPublicacao);
+      if (!(c.dataAssinatura || c.dataPublicacao)) return;
+      const dt = new Date((c.dataAssinatura || c.dataPublicacao));
       if (Number.isNaN(dt.getTime())) return;
       const chave = `${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
       mapaMes[chave] = (mapaMes[chave] || 0) + 1;
