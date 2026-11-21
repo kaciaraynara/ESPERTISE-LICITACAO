@@ -225,7 +225,8 @@ export function construirHtmlPdfProposta(dados: any): string {
   const emp = (dados as any).empresa || proposta?.company;
   const razaoSocial = emp?.razaoSocial || proposta?.company?.razaoSocial || 'EMPRESA PROPONENTE';
   const nomeFantasia = emp?.nomeFantasia || proposta?.company?.nomeFantasia || razaoSocial;
-  const cnpj = emp?.cnpj || proposta?.company?.cnpj || 'Não informado';
+  const cnpjRaw = String(emp?.cnpj || proposta?.company?.cnpj || '').replace(/\D/g, '');
+  const cnpj = cnpjRaw.length === 14 ? cnpjRaw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (emp?.cnpj || proposta?.company?.cnpj || 'Não informado');
   const email = emp?.email || proposta?.company?.email || 'Não informado';
   const telefone = emp?.telefone || proposta?.company?.telefone || 'Não informado';
   const endereco = emp?.endereco || proposta?.company?.endereco || '';
@@ -295,7 +296,9 @@ export function construirHtmlPdfProposta(dados: any): string {
     })
     .join('');
 
-  const declaracoesHtml = DECLARACOES_OBRIGATORIAS_14133
+  const isMeEpp = /\b(me|epp|micro|pequeno)\b/i.test(String((dados as any).enquadramento || emp?.porte || emp?.enquadramento || ''));
+  const prazoEntregaTexto = /^\d+$/.test(String(entrega).trim()) ? (String(entrega).trim() + ' dias corridos após o recebimento da Nota de Empenho ou Ordem de Fornecimento.') : String(entrega);
+  const declaracoesHtml = DECLARACOES_OBRIGATORIAS_14133.filter((dec) => isMeEpp || !/ME\/EPP|123\/2006/i.test(dec.titulo + ' ' + dec.amparoLegal))
     .map(
       (dec) => `
       <div class="declaracao-item">
@@ -514,13 +517,13 @@ export function construirHtmlPdfProposta(dados: any): string {
         </table>
 
         <div class="total-banner">
-          VALOR GLOBAL DA PROPOSTA: <span style="color:#0070C0;">${formatarMoeda(totalCalculado)}</span><br/>
-          <span style="font-size:8.5pt; font-weight:normal; color:#334155;">(${escapeHtml(valorPorExtenso(totalCalculado))})</span>
+          VALOR GLOBAL DA PROPOSTA: <span style="color:#0070C0;">${formatarMoeda(totalFinalCalculado)}</span><br/>
+          <span style="font-size:8.5pt; font-weight:normal; color:#334155;">(${escapeHtml(valorPorExtenso(totalFinalCalculado))})</span>
         </div>
 
         <div class="section-title">4. Demonstração de Exequibilidade e Integralidade dos Custos (Art. 59 e Art. 63, § 1º)</div>
         <div class="box-texto">
-          Em estrita observância ao <strong>Art. 59, inciso III e § 4º</strong>, e ao <strong>Art. 63, § 1º da Lei Federal nº 14.133/2021</strong>, bem como à <strong>Súmula nº 262 do Tribunal de Contas da União (TCU)</strong>, demonstramos que o valor global ofertado de <strong>${formatarMoeda(totalCalculado)}</strong> frente ao custo direto base apurado de <strong>${formatarMoeda(somaCustosDiretos)}</strong> (margem bruta de cobertura de <strong>${formatarMoeda(diferencaBruta)}</strong>) garante plena exequibilidade contratual e compreende integralmente:
+          Em estrita observância ao <strong>Art. 59, inciso III e § 4º</strong>, e ao <strong>Art. 63, § 1º da Lei Federal nº 14.133/2021</strong>, bem como à <strong>Súmula nº 262 do Tribunal de Contas da União (TCU)</strong>, demonstramos que o valor global ofertado de <strong>${formatarMoeda(totalFinalCalculado)}</strong> frente ao custo direto base apurado de <strong>${formatarMoeda(somaCustosDiretos)}</strong> (margem bruta de cobertura de <strong>${formatarMoeda(diferencaBruta)}</strong>) garante plena exequibilidade contratual e compreende integralmente:
           <ul>
             <li>Todos os custos diretos de aquisição, insumos, materiais, equipamentos e mão de obra necessária à execução do objeto;</li>
             <li>Todos os encargos trabalhistas, previdenciários, sociais, fundiários e direitos previstos em convenções coletivas de trabalho aplicáveis;</li>
@@ -533,8 +536,8 @@ export function construirHtmlPdfProposta(dados: any): string {
         <div class="box-texto">
           <ul>
             <li><strong>Validade da Proposta:</strong> ${validade} (sessenta) dias corridos a contar da abertura da sessão pública (Art. 90, § 3º da Lei nº 14.133/2021).</li>
-            <li><strong>Prazo de Entrega / Execução:</strong> ${entrega} dias corridos após o recebimento da Nota de Empenho ou Ordem de Fornecimento.</li>
-            <li><strong>Garantia e Substituição:</strong> ${escapeHtml(garantia)} Compromisso de substituição imediata, sem ônus à Administração, em caso de desconformidade.</li>
+            <li><strong>Prazo de Entrega / Execução:</strong> ${escapeHtml(prazoEntregaTexto)}</li>
+            <li><strong>Garantia e Substituição:</strong> ${escapeHtml(garantia)}</li>
             <li><strong>Condições de Pagamento:</strong> ${escapeHtml(pagamento)}</li>
             <li><strong>Submissão ao Edital:</strong> Declaramos integral concordância com todas as regras do Edital, Termo de Referência e Minuta do Contrato.</li>
           </ul>

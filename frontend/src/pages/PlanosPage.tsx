@@ -3,7 +3,6 @@ import {
   Check,
   Crown,
   RocketLaunch,
-  Star,
   ShieldCheck,
   Spinner,
   WhatsappLogo,
@@ -16,6 +15,9 @@ import {
   ArrowSquareOut,
   ChatCircleDots,
   Scales,
+  QrCode,
+  CreditCard,
+  LockKey,
 } from '@phosphor-icons/react';
 import { pagamentosApi } from '@services/api';
 import toast from 'react-hot-toast';
@@ -434,71 +436,62 @@ export default function PlanosPage() {
   return (
     <div className="p-6 lg:p-10 max-w-7xl mx-auto space-y-10 font-sans selection:bg-brand-orange selection:text-white">
       {userTrialActive && (
-        <div className="rounded-3xl border border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-6 flex flex-col sm:flex-row items-center justify-between gap-5 text-emerald-950 shadow-md">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white font-black text-2xl shadow-md">
-              <ShieldCheck className="w-6 h-6" weight="fill" />
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+              <ShieldCheck className="w-5 h-5" weight="fill" />
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 text-[10px] font-black uppercase tracking-wider mb-1">
-                Acesso Master Liberado
-              </div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight text-emerald-950">
-                Você está no Período de Testes Oficial (10 dias de Plano Master)
-              </h2>
-              <p className="text-xs sm:text-sm text-emerald-800 font-medium">
-                Todas as 4 Centrais Estratégicas estão ativas por mais <strong>{trialDaysRemaining} dias</strong>. Garanta a continuidade da sua operação assinando seu plano antes do término.
+              <p className="text-sm font-semibold text-emerald-950">
+                Período de testes ativo • Plano Master liberado por {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia' : 'dias'}
+              </p>
+              <p className="text-xs text-emerald-800">
+                Escolha sua forma de pagamento e assine antes do término para manter sua operação ativa.
               </p>
             </div>
           </div>
-          <span className="shrink-0 px-4 py-2 rounded-xl text-xs font-black bg-emerald-700 text-white uppercase tracking-wider shadow-sm">
+          <span className="shrink-0 self-start sm:self-auto rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">
             {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia restante' : 'dias restantes'}
           </span>
         </div>
       )}
 
-      <div className="text-center max-w-3xl mx-auto space-y-4">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-dark/5 border border-brand-dark/15 text-brand-dark text-xs font-black uppercase tracking-wider">
-          <ShieldCheck className="w-4 h-4 text-brand-orange" weight="fill" />
-          Planos Comerciais • Plataforma Oficial 2026
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="space-y-1.5 max-w-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            Planos e Assinatura
+          </h1>
+          <p className="text-sm text-slate-600">
+            Escolha a estrutura ideal para sua empresa operar na Lei 14.133/2021. Sem fidelidade e sem comissão sobre contratos.
+          </p>
         </div>
 
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-brand-dark tracking-tight">
-          Escale suas Vendas para o Governo
-        </h1>
-
-        <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-medium max-w-2xl mx-auto">
-          Escolha a estrutura adequada para sua empresa vencer mais licitações sob a Nova Lei 14.133/2021. Sem fidelidade, sem carência e sem comissão sobre contratos ganhos.
-        </p>
-
-        <div className="pt-4 flex items-center justify-center">
-          <div className="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-slate-100 border border-slate-200 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setBillingPeriod('mensal')}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                billingPeriod === 'mensal'
-                  ? 'bg-white text-brand-dark shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Faturamento Mensal
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingPeriod('anual')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                billingPeriod === 'anual'
-                  ? 'bg-brand-dark text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>Faturamento Anual</span>
-              <span className="bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs">
-                -20% OFF
-              </span>
-            </button>
-          </div>
+        <div className="inline-flex self-start md:self-auto items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setBillingPeriod('mensal')}
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              billingPeriod === 'mensal'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Mensal
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingPeriod('anual')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              billingPeriod === 'anual'
+                ? 'bg-[#081C3A] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Anual</span>
+            <span className="rounded-md bg-brand-orange px-1.5 py-0.5 text-[10px] font-bold text-white">
+              -20%
+            </span>
+          </button>
         </div>
       </div>
 
@@ -506,57 +499,115 @@ export default function PlanosPage() {
         <div className="flex h-72 w-full items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <Spinner className="h-8 w-8 animate-spin text-brand-orange" />
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Carregando catálogo corporativo...
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Carregando planos...
             </span>
           </div>
         </div>
       ) : (
         <>
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-        <span className="text-xs font-bold uppercase text-slate-500 mr-1">Pagamento:</span>
-        <button
-          type="button"
-          onClick={() => setFormaPagamento('PIX')}
-          className={`rounded-xl px-4 py-2 text-xs font-bold transition ${formaPagamento === 'PIX' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-        >
-          Pix / Pix Recorrente
-        </button>
-        <button
-          type="button"
-          onClick={() => setFormaPagamento('CREDIT_CARD')}
-          className={`rounded-xl px-4 py-2 text-xs font-bold transition ${formaPagamento === 'CREDIT_CARD' ? 'bg-[#081C3A] text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-        >
-          Cartão de Crédito
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10 items-stretch">
-          {plans.map((plan) => {
-            const isCurrentPlan = activePlanId === plan.id;
-            const basePrice = plan.valorCentavos > 0 ? plan.valorCentavos / 100 : plan.valor;
-            const monthlyPrice = billingPeriod === 'anual' ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
-            const buttonCopy = getButtonCopy(plan, isCurrentPlan);
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Passo 1 • Forma de pagamento
+                </p>
+                <h2 className="text-base font-bold text-slate-900">
+                  Selecione como deseja pagar antes de escolher o plano
+                </h2>
+              </div>
+              <div className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                <LockKey className="w-3.5 h-3.5 text-emerald-600" weight="fill" />
+                <span>Pagamento seguro via Asaas • Sem boleto ou débito</span>
+              </div>
+            </div>
 
-            return (
-              <div
-                key={plan.id}
-                className={`relative flex flex-col rounded-3xl border p-8 shadow-xl transition-all duration-300 hover:-translate-y-1.5 ${
-                  plan.destaque
-                    ? 'border-brand-orange bg-gradient-to-b from-brand-dark via-[#0a2347] to-brand-dark text-white transform md:-translate-y-3 md:hover:-translate-y-5 shadow-orange-500/10'
-                    : 'border-slate-200 bg-white text-slate-800'
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-4">
+              <button
+                type="button"
+                onClick={() => setFormaPagamento('PIX')}
+                className={`flex items-start gap-3.5 rounded-xl p-4 text-left transition-all cursor-pointer ${
+                  formaPagamento === 'PIX'
+                    ? 'border-2 border-emerald-600 bg-emerald-50/40 ring-4 ring-emerald-500/10'
+                    : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
                 }`}
               >
-                {plan.destaque && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-orange text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
-                    <Star weight="fill" className="w-3.5 h-3.5" /> Mais Escolhido
-                  </div>
-                )}
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  formaPagamento === 'PIX' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  <QrCode className="w-5 h-5" weight="bold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-bold text-slate-900 block">Pix ou Pix Recorrente</span>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Liberação imediata via QR Code ou Copia e Cola.
+                  </p>
+                </div>
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                  formaPagamento === 'PIX'
+                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                    : 'border-slate-300 bg-white'
+                }`}>
+                  {formaPagamento === 'PIX' && <Check className="w-3 h-3" weight="bold" />}
+                </span>
+              </button>
 
-                {plan.id === 'master' && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-brand-dark text-amber-400 border border-amber-400/30 px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md whitespace-nowrap">
-                    <Crown weight="fill" className="w-3.5 h-3.5" /> Enterprise • Premium
-                  </div>
-                )}
+              <button
+                type="button"
+                onClick={() => setFormaPagamento('CREDIT_CARD')}
+                className={`flex items-start gap-3.5 rounded-xl p-4 text-left transition-all cursor-pointer ${
+                  formaPagamento === 'CREDIT_CARD'
+                    ? 'border-2 border-[#081C3A] bg-slate-50 ring-4 ring-[#081C3A]/10'
+                    : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
+                }`}
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                  formaPagamento === 'CREDIT_CARD' ? 'bg-[#081C3A] text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  <CreditCard className="w-5 h-5" weight="bold" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-bold text-slate-900 block">Cartão de Crédito</span>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Renovação automática mensal ou anual no cartão.
+                  </p>
+                </div>
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                  formaPagamento === 'CREDIT_CARD'
+                    ? 'border-[#081C3A] bg-[#081C3A] text-white'
+                    : 'border-slate-300 bg-white'
+                }`}>
+                  {formaPagamento === 'CREDIT_CARD' && <Check className="w-3 h-3" weight="bold" />}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {plans.map((plan) => {
+              const isCurrentPlan = activePlanId === plan.id;
+              const basePrice = plan.valorCentavos > 0 ? plan.valorCentavos / 100 : plan.valor;
+              const monthlyPrice = billingPeriod === 'anual' ? Math.round(basePrice * 0.8 * 100) / 100 : basePrice;
+              const buttonCopy = getButtonCopy(plan, isCurrentPlan);
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col rounded-2xl border p-7 transition-all ${
+                    plan.destaque
+                      ? 'border-[#081C3A] bg-[#081C3A] text-white shadow-lg'
+                      : 'border-slate-200 bg-white text-slate-800 shadow-xs'
+                  }`}
+                >
+                  {(plan.destaque || plan.id === 'master') && (
+                    <span className={`self-start mb-3 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold ${
+                      plan.destaque
+                        ? 'bg-brand-orange text-white'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {plan.destaque ? 'Mais escolhido' : 'Enterprise'}
+                    </span>
+                  )}
 
                 <div className="mb-6 pt-2">
                   <h3 className={`text-2xl font-black ${plan.destaque ? 'text-white' : 'text-brand-dark'}`}>

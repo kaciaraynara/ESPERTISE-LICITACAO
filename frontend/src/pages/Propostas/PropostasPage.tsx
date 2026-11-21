@@ -182,6 +182,10 @@ export function PropostasPage() {
 
   const handleGerarPdf = async () => {
     const emp = selectedCompany as any;
+    if (!emp?.cnpj || String(emp.cnpj).replace(/\D/g, '').length < 11) { toast.error('Cadastre o CNPJ válido da empresa em Minha Empresa antes de gerar a proposta.'); return; }
+    if (!emp?.endereco || (!emp?.telefone && !emp?.email)) { toast.error('Complete endereço e telefone ou e-mail em Minha Empresa antes de gerar a proposta.'); return; }
+    if (!orgao.trim() || !numeroProcesso.trim() || !objeto.trim()) { toast.error('Preencha Órgão, Nº do Processo/Edital e Objeto real antes de gerar o PDF.'); return; }
+    if (totalGeral <= 0 || itens.some((i) => i.quantidade <= 0 || i.valorUnitario <= 0 || i.custoUnitario <= 0)) { toast.error('Informe custo unitário e valor unitário maiores que zero em todos os itens.'); return; }
     const gerarFn =
       (pdfGen as any).gerarPropostaComercialPdf ||
       (pdfGen as any).gerarPropostaPDF ||
@@ -198,9 +202,11 @@ export function PropostasPage() {
           email: emp?.email || '',
         },
         orgao: orgao || 'Órgão Licitante',
-        numeroProcesso: numeroProcesso || '001/2026',
+        numeroProcesso,
         modalidade,
-        objeto: objeto || 'Fornecimento conforme especificações do edital',
+        objeto,
+        enquadramento: emp?.porte || emp?.enquadramento || 'Ampla Concorrência',
+        totalCalculado: totalGeral,
         validadeDias,
         prazoEntrega,
         garantia,
@@ -210,6 +216,9 @@ export function PropostasPage() {
           unidade: i.unidade,
           quantidade: i.quantidade,
           marca: i.marcaModelo,
+          custoDireto: i.custoUnitario,
+          encargosPercentual: despesasPercentual,
+          margemLucroPercentual: margemPercentual,
           valorUnitario: i.valorUnitario,
           valorTotal: i.quantidade * i.valorUnitario,
         })),
