@@ -78,10 +78,27 @@ function Test-ApexRedirect() {
   }
 }
 
+function Get-GitHubHead {
+  try {
+    $body = & curl.exe -sS --max-time 20 -H 'Accept: application/vnd.github+json' -H 'User-Agent: expertise-local' 'https://api.github.com/repos/kaciaraynara/ESPERTISE-LICITACAO/commits/main' 2>$null
+    $json = $body | ConvertFrom-Json
+    if ($json.sha) { return $json.sha.Substring(0, 7) }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 Write-Host '=== Verificacao de producao ===' -ForegroundColor Cyan
 
 Test-JsonField 'Backend health' "$backend/health" 'status' 'ok'
 Test-JsonField 'Backend versao (service)' "$backend/health" 'service' 'expertise-api'
+$expectedVersion = Get-GitHubHead
+if ($expectedVersion) {
+  Test-JsonField 'Backend versao (commit)' "$backend/health" 'version' $expectedVersion
+} else {
+  Write-Host '[AVISO] GitHub indisponivel; commit do backend nao comparado.' -ForegroundColor Yellow
+}
 # A versao publicada pode nao expor o campo "database", mas o 200 de readiness
 # so ocorre depois de um SELECT 1 real no Neon.
 Test-JsonField 'Backend readiness (Neon)' "$backend/health/readiness" 'status' 'ready'

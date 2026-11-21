@@ -151,9 +151,12 @@ router.post(
 // ==========================================
 
 router.get('/health', (_req, res) => {
+  const version = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 7);
+
   return res.status(200).json({
     status: 'ok',
     service: 'expertise-api',
+    version: version || 'dev',
     timestamp: new Date().toISOString(),
   });
 });

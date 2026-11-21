@@ -63,8 +63,17 @@ app.use(cors({
 }));
 
 // 2. Health Checks
+// Identifica a versao publicada para auditoria de deploy.
+const deployedCommit = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 7);
+
 const healthHandler = (_req: express.Request, res: express.Response) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+  res.status(200).json({
+    status: 'ok',
+    service: 'expertise-api',
+    version: deployedCommit || 'dev',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
 };
 
 const readinessHandler = async (_req: express.Request, res: express.Response) => {
@@ -79,10 +88,11 @@ const readinessHandler = async (_req: express.Request, res: express.Response) =>
   }
 };
 
+// As rotas versionadas (/api/v1/health e /api/v1/health/readiness) sao
+// registradas pelo router em routes/index.ts. Manter duplicatas aqui
+// sombreava o handler do router e escondia o campo `service`.
 app.get('/health', healthHandler);
-app.get('/api/v1/health', healthHandler);
 app.get('/health/readiness', readinessHandler);
-app.get('/api/v1/health/readiness', readinessHandler);
 
 // 3. Documentação Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
