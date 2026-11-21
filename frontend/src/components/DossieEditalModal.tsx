@@ -197,17 +197,19 @@ export default function DossieEditalModal({
     const modalidadeNome = ed.modalidadeNome || ed.modalidade || 'Licitacao Publica';
     const nomeCompletoEdital = `${modalidadeNome} ${numeroCompra} - ${orgaoNome}`;
     const urlOficial = buildOfficialPncpPortalUrl(ed);
+    const formatParecerHtml = (txt: string) => escapeHtml(txt).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>');
 
     const itensRows = itens.slice(0, 50).map((it: any, idx: number) => {
       const unit = Number(it.valorUnitarioEstimado || 0);
-      const comp8 = unit > 0 ? formatCurrency(unit * 0.92) : '-';
+      const qtdItem = Number(it.quantidade || 1);
+      const totalEstItem = unit > 0 ? formatCurrency(unit * qtdItem) : 'Ver TR';
       return `
       <tr>
         <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;">${it.numeroItem ?? idx + 1}</td>
         <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;">${escapeHtml(it.descricao || it.materialOuServicoNome || 'Item')}</td>
         <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;">${it.quantidade ?? '-'} ${escapeHtml(it.unidadeMedida || '')}</td>
         <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;">${unit > 0 ? formatCurrency(unit) : 'Ver TR'}</td>
-        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;font-weight:700;color:#15803d;">${comp8}</td>
+        <td style="padding:7px;border-bottom:1px solid #e2e8f0;font-size:11px;text-align:right;font-weight:700;color:#15803d;">${totalEstItem}</td>
       </tr>`;
     }).join('');
 
@@ -238,36 +240,36 @@ export default function DossieEditalModal({
       <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatoria" />
       <div>
         <div style="font-size:15px;font-weight:800;color:#081C3A;">EXPERTISE LICITATORIA</div>
-        <div style="font-size:11px;color:#64748b;">Parecer Tecnico e Resumo Executivo do Edital</div>
+        <div style="font-size:11px;color:#64748b;">Parecer Técnico e Resumo Executivo do Edital</div>
       </div>
     </div>
     <div class="badge">${escapeHtml(nomeCompletoEdital)}</div>
   </div>
 
-  <h2>1. Identificacao Completa do Certame</h2>
+  <h2>1. Identificação Completa do Certame</h2>
   <div class="box grid">
     <div><strong>Edital / Processo:</strong><br/>${escapeHtml(nomeCompletoEdital)}</div>
     <div><strong>Valor Total Estimado:</strong><br/>${escapeHtml(formatCurrency(ed.valorTotalEstimado ?? ed.valorEstimado))}</div>
     <div><strong>Modalidade / Julgamento:</strong><br/>${escapeHtml(modalidadeNome)} (${escapeHtml(criterioJulgamento || modoDisputa || 'Conforme Edital')})</div>
-    <div><strong>Abertura / Prazo:</strong><br/>${escapeHtml(formatPncpDateTime(ed.dataAberturaProposta || ed.dataEncerramentoProposta))}</div>
+    <div><strong>Abertura / Prazo:</strong><br/>${escapeHtml(formatPncpDateTime(ed.dataAberturaProposta || ed.dataEncerramentoProposta || ed.dataAbertura || ed.dataPublicacaoPncp || ed.dataPublicacao))}</div>
     ${urlOficial ? `<div style="grid-column:span 2;"><strong>Portal Oficial PNCP:</strong><br/>${escapeHtml(urlOficial)}</div>` : ''}
   </div>
 
-  <h2>2. Objeto Integral da Contratacao</h2>
+  <h2>2. Objeto Integral da Contratação</h2>
   <div class="box">${escapeHtml(ed.objeto || ed.objetoCompra || 'Objeto nao informado no PNCP.')}</div>
 
-  <h2>3. Parecer Tecnico-Juridico da Luli (Leitura Real)</h2>
-  <div class="box">${escapeHtml(parecerTexto || 'Analise baseada exclusivamente nos metadados e itens oficiais retornados pelo PNCP. Consulte o arquivo integral do Termo de Referencia no portal oficial antes do envio da proposta.')}</div>
+  <h2>3. Parecer Técnico-Jurídico da Luli</h2>
+  <div class="box">${formatParecerHtml(parecerTexto || 'Análise preliminar baseada nos metadados e itens oficiais do PNCP. Consulte o arquivo integral do Termo de Referência no portal oficial antes do envio da proposta.')}</div>
 
-  ${itens.length > 0 ? `<h2>4. Itens Oficiais do PNCP e Referencia Competitiva (-8%)</h2>
+  ${itens.length > 0 ? `<h2>4. Itens Oficiais do PNCP e Valores de Referência</h2>
   <table>
     <thead>
       <tr>
         <th>Item</th>
-        <th>Descricao</th>
+        <th>Descrição</th>
         <th style="text-align:right;">Qtd / Unid.</th>
         <th style="text-align:right;">Ref. PNCP</th>
-        <th style="text-align:right;">Sugestao (-8%)</th>
+        <th style="text-align:right;">Total Estimado</th>
       </tr>
     </thead>
     <tbody>${itensRows}</tbody>
@@ -278,7 +280,7 @@ export default function DossieEditalModal({
     <ul>
       <li><strong>Passo 1 - Conferencia do CNAE e Edital Oficial:</strong> Verifique se o CNAE da empresa e compativel com o objeto e leia na integra os anexos do edital no portal oficial do PNCP.</li>
       <li><strong>Passo 2 - Documentacao de Habilitacao (Art. 62 a 70):</strong> Separe Contrato Social, Cartao CNPJ, CND Federal/PGFN, CRF/FGTS, CNDT Trabalhista, CNDs Estadual/Municipal, Balanco Patrimonial e Atestados de Capacidade Tecnica (quando exigidos no TR).</li>
-      <li><strong>Passo 3 - Prazo de Impugnacao ou Esclarecimento (Art. 164):</strong> Caso identifique clausula restritiva ou duvida tecnica, protocole ate <strong>3 dias uteis antes</strong> da data de abertura da sessao.</li>
+      
       <li><strong>Passo 4 - Cadastro da Proposta e Margem de Disputa:</strong> Envie a proposta inicial no portal oficial antes do horario limite e defina seu piso minimo seguro na Sala de Disputa antes do inicio dos lances.</li>
     </ul>
   </div>

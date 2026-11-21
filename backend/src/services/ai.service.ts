@@ -92,25 +92,27 @@ export function buildDeterministicLegalDossierFromPrompt(fullPrompt: string): st
   const modalidade = modalidadeMatch ? modalidadeMatch[1].trim() : 'Pregão Eletrônico / Concorrência (Lei 14.133/2021)';
   const valor = valorMatch ? valorMatch[1].trim() : 'Conforme itens do Termo de Referência';
 
-  return `Análise técnica estruturada sobre os dados oficiais do certame:
+  const isContratacaoDireta = /dispensa|inexigibilidade|credenciamento/i.test(modalidade);
+  const blocoRito = isContratacaoDireta
+    ? `- **Rito Legal (Contratação Direta — Lei 14.133/2021, Arts. 72 a 79 e IN SEGES/ME nº 67/2021)**: Não se aplica o rito de impugnação de 3 dias úteis do Pregão (Art. 164) nem disputa em modo Aberto-Fechado. A seleção ocorre por aviso de dispensa eletrônica com envio de proposta e lances na janela definida no aviso oficial.
+- **Habilitação Simplificada (Art. 70, III c/c Art. 68)**: Confira previamente CND Federal/PGFN, CRF/FGTS, CNDT e compatibilidade estrita do CNAE com o objeto antes de registrar o lance.`
+    : `- **Prazos Legais (Lei 14.133/2021)**: Impugnação e pedidos de esclarecimento até **3 (três) dias úteis** antes da data de abertura (Art. 164). Intenção de recurso imediata após a fase de julgamento/habilitação, com **3 (três) dias úteis** para razões recursais (Art. 165, I).
+- **Empate Ficto ME/EPP (LC 123/2006, Art. 44, § 2º)**: No pregão/concorrência, propostas de ME/EPP até **5% (cinco por cento)** superiores ao melhor preço de empresa de médio/grande porte têm direito de cobrir o lance em até **5 (cinco) minutos** após o encerramento da disputa.
+- **Estratégia Operacional e Rito de Negociação (Art. 61 da Lei 14.133/2021 e IN SEGES/ME nº 73/2022)**: Preserve sua margem mínima sustentável na disputa e, ao ser convocado no chat (Art. 61), envie a proposta readequada dentro do prazo do edital.`;
+
+  return `Análise técnica preliminar sobre os dados oficiais do certame:
 - **Órgão Licitante**: ${orgao}
 - **Modalidade / Regime**: ${modalidade}
 - **Objeto**: ${objeto}
 - **Valor Estimado de Referência**: ${valor}
 
-- **Prazos Legais (Lei 14.133/2021)**: Impugnação e pedidos de esclarecimento até **3 (três) dias úteis** antes da data de abertura (Art. 164). Intenção de recurso imediata após a fase de julgamento/habilitação, com **3 (três) dias úteis** para razões recursais (Art. 165, I).
-- **Empate Ficto ME/EPP (LC 123/2006, Art. 44, § 2º)**: No pregão, propostas de ME/EPP até **5% (cinco por cento)** superiores ao melhor preço de empresa de médio/grande porte têm direito de cobrir o lance em até **5 (cinco) minutos** após o encerramento da disputa.
+${blocoRito}
 - **Piso de Exequibilidade e Diligência (Art. 59, §§ 2º e 4º c/c Súmula 262/TCU)**: Presunção relativa de inexequibilidade; o licitante tem direito de demonstrar a viabilidade da sua estrutura de custos antes de qualquer desclassificação.
-
-- **Qualificação Técnica (Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU)**: Eventuais exigências de atestados de capacidade técnica devem restringir-se às parcelas de maior relevância (valor significativo >= 4% do total) e estão limitadas a no máximo **50% (cinquenta por cento)** dos quantitativos licitados.
-- **Formalismo Moderado e Diligência (Art. 64 da Lei 14.133/2021 e Acórdão 1211/2021-TCU-Plenário)**: A ausência de documento preexistente ou falha meramente formal deve ser suprida mediante diligência promovida pelo pregoeiro/agente de contratação.
-
-- **Estratégia Operacional e Rito de Negociação (Art. 61 da Lei 14.133/2021 e IN SEGES/ME nº 73/2022)**:
-  1. Na disputa em modo **Aberto** ou **Aberto-Fechado**, preserve sua margem mínima sustentável  calculada com os tributos reais do seu regime fiscal.
-  2. Quando convocado pelo Pregoeiro para negociação no chat (Art. 61), responda prontamente mantendo cordialidade técnica e conceda eventual desconto apenas dentro da gordura planejada, apresentando a proposta readequada no prazo do edital (usualmente 2 horas prorrogáveis mediante solicitação fundamentada antes do vencimento).
+- **Qualificação Técnica (Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU)**: Eventuais exigências de atestados devem restringir-se às parcelas de maior relevância (valor significativo >= 4% do total) e limitadas a no máximo **50% (cinquenta por cento)** dos quantitativos licitados.
+- **Formalismo Moderado (Art. 64 e Acórdão 1211/2021-TCU-Plenário)**: Falha meramente formal ou ausência de documento preexistente deve ser suprida por diligência.
 
 **Próximo passo:**
-Verifique a aderência dos itens no simulador de **Formação de Preço**, valide as certidões no **Cofre de Documentos** e acompanhe o cronograma na **Mesa Operacional de Disputa**.`;
+Monte sua composição real na **Planilha de Formação de Custos**, valide as certidões no **Cofre de Documentos** e confira o anexo integral do Termo de Referência.`;
 }
 
 function buildPromptFromMessages(messages: GroundingAIMessage[]): string {
