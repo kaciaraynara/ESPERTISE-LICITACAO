@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AlertCircle, Calculator, Zap, Percent, Loader2, FileText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { precificacaoApi, licitacoesApi, propostasApi } from '@services/api';
+import { precificacaoApi, licitacoesApi, propostasApi, catalogoApi } from '@services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 
 export const PrecificacaoPage: React.FC = () => {
@@ -38,7 +38,18 @@ export const PrecificacaoPage: React.FC = () => {
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
   const [gerandoProposta, setGerandoProposta] = useState(false);
-  const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
+  const [termoRef, setTermoRef] = useState('');
+  const [buscandoRef, setBuscandoRef] = useState(false);
+  const [refMercado, setRefMercado] = useState<any>(null);
+  const buscarReferenciaMercado = async () => {
+    if (termoRef.trim().length < 2) { toast.error('Digite ao menos 2 letras do produto ou serviço.'); return; }
+    setBuscandoRef(true);
+    try {
+      const r = await catalogoApi.referenciaMercado(termoRef.trim());
+      setRefMercado(r.data?.data || null);
+    } catch { toast.error('Falha ao consultar referências de mercado.'); } finally { setBuscandoRef(false); }
+  };
+const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
 
   const { data: editalData } = useQuery({
     queryKey: ['precificacao-edital', noticeId],
@@ -328,6 +339,102 @@ export const PrecificacaoPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* BANCO DE PREÇOS PRATICADOS NO GOVERNO */}
+      <div className="mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-slate-900">Catálogo de Preços Praticados no Governo (PNCP)</h3>
+            <p className="text-xs text-slate-500">Pesquise itens reais para não montar sua planilha às cegas.</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={termoRef}
+              onChange={(e) => setTermoRef(e.target.value)}
+              placeholder="Ex.: software, notebook, limpeza..."
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 w-56"
+            />
+            <button
+              type="button"
+              onClick={buscarReferenciaMercado}
+              disabled={buscandoRef}
+              className="rounded-lg bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+            >
+              {buscandoRef ? 'Buscando...' : 'Consultar Preços'}
+            </button>
+          </div>
+        </div>
+        {refMercado && (
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex flex-wrap gap-4 text-xs">
+              <span><strong>Amostras:</strong> {refMercado.totalAmostras}</span>
+              <span><strong>Mínimo:</strong> {formatarMoeda(refMercado.estatisticas?.minimo || 0)}</span>
+              <span className="text-emerald-700"><strong>Mediana:</strong> {formatarMoeda(refMercado.estatisticas?.mediana || 0)}</span>
+              <span><strong>Média:</strong> {formatarMoeda(refMercado.estatisticas?.media || 0)}</span>
+              <span><strong>Máximo:</strong> {formatarMoeda(refMercado.estatisticas?.maximo || 0)}</span>
+            </div>
+            {Array.isArray(refMercado.amostras) && refMercado.amostras.length > 0 && (
+              <div className="max-h-40 overflow-y-auto text-xs divide-y divide-slate-100">
+                {refMercado.amostras.slice(0, 5).map((a: any) => (
+                  <div key={a.id} className="py-1.5 flex items-center justify-between gap-2">
+                    <span className="truncate text-slate-700">{a.descricao} — <em>{a.orgao} ({a.uf})</em></span>
+                    <span className="font-bold text-slate-900 shrink-0">{formatarMoeda(a.valorUnitario)}/{a.unidade}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* BANCO DE PREÇOS PRATICADOS NO GOVERNO */}
+      <div className="mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-slate-900">Catálogo de Preços Praticados no Governo (PNCP)</h3>
+            <p className="text-xs text-slate-500">Pesquise itens reais para não montar sua planilha às cegas.</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={termoRef}
+              onChange={(e) => setTermoRef(e.target.value)}
+              placeholder="Ex.: software, notebook, limpeza..."
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 w-56"
+            />
+            <button
+              type="button"
+              onClick={buscarReferenciaMercado}
+              disabled={buscandoRef}
+              className="rounded-lg bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+            >
+              {buscandoRef ? 'Buscando...' : 'Consultar Preços'}
+            </button>
+          </div>
+        </div>
+        {refMercado && (
+          <div className="pt-3 border-t border-slate-100 space-y-2">
+            <div className="flex flex-wrap gap-4 text-xs">
+              <span><strong>Amostras:</strong> {refMercado.totalAmostras}</span>
+              <span><strong>Mínimo:</strong> {formatarMoeda(refMercado.estatisticas?.minimo || 0)}</span>
+              <span className="text-emerald-700"><strong>Mediana:</strong> {formatarMoeda(refMercado.estatisticas?.mediana || 0)}</span>
+              <span><strong>Média:</strong> {formatarMoeda(refMercado.estatisticas?.media || 0)}</span>
+              <span><strong>Máximo:</strong> {formatarMoeda(refMercado.estatisticas?.maximo || 0)}</span>
+            </div>
+            {Array.isArray(refMercado.amostras) && refMercado.amostras.length > 0 && (
+              <div className="max-h-40 overflow-y-auto text-xs divide-y divide-slate-100">
+                {refMercado.amostras.slice(0, 5).map((a: any) => (
+                  <div key={a.id} className="py-1.5 flex items-center justify-between gap-2">
+                    <span className="truncate text-slate-700">{a.descricao} — <em>{a.orgao} ({a.uf})</em></span>
+                    <span className="font-bold text-slate-900 shrink-0">{formatarMoeda(a.valorUnitario)}/{a.unidade}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* GRID PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

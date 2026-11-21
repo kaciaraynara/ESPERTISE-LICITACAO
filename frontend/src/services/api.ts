@@ -292,6 +292,7 @@ export const empresasApi = {
 export const catalogoApi = {
   listar: () => api.get('/catalogo'),
   listarMercado: () => api.get('/catalogo/mercado'),
+  referenciaMercado: (termo: string) => api.get('/catalogo/referencia-mercado', { params: { termo } }),
   criar: (body: Record<string, unknown>) => api.post('/catalogo', body),
   atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/catalogo/${encodeURIComponent(id)}`, body),
   remover: (id: string) => api.delete(`/catalogo/${encodeURIComponent(id)}`),

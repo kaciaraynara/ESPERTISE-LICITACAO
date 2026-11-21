@@ -12,6 +12,8 @@ const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => 
 const fornecedorOuContador = requireRole('fornecedor') as RequestHandler;
 
 router.get('/', fornecedorOuContador, handle(controller.listar.bind(controller) as RequestHandler));
+router.get('/referencia-mercado', fornecedorOuContador, handle(controller.referenciaMercado.bind(controller) as RequestHandler));
+router.get('/referencia-mercado', fornecedorOuContador, handle(controller.referenciaMercado.bind(controller) as RequestHandler));
 router.get('/mercado', fornecedorOuContador, handle(controller.listarMercado.bind(controller) as RequestHandler));
 router.post('/', fornecedorOuContador, handle(controller.criar.bind(controller) as RequestHandler));
 router.patch('/:id', fornecedorOuContador, handle(controller.atualizar.bind(controller) as RequestHandler));

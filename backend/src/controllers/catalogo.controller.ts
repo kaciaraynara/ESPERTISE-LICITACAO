@@ -229,8 +229,72 @@ export class CatalogoController {
       throw new ApiError('Item não encontrado ou acesso negado', 404);
     }
 
-    await prisma.catalogItem.delete({ where: { id } });
+        await prisma.catalogItem.delete({ where: { id } });
 
     return res.status(204).send();
+  }
+
+  public async referenciaMercado(req: AuthRequest, res: Response) {
+    const termo = String(req.query?.termo || req.query?.q || '').trim();
+    if (termo.length < 2) {
+      return res.status(400).json({ success: false, message: 'Informe ao menos 2 caracteres para pesquisar preços de referência.' });
+    }
+
+    const itensPncp = await prisma.procurementItem.findMany({
+      where: {
+        description: { contains: termo, mode: 'insensitive' },
+        estimatedUnitValue: { gt: 0 },
+      },
+      take: 40,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        description: true,
+        unit: true,
+        quantity: true,
+        estimatedUnitValue: true,
+        procurementNotice: {
+          select: {
+            buyerName: true,
+            uf: true,
+            modality: true,
+            externalId: true,
+            publishedAt: true,
+          },
+        },
+      },
+    });
+
+    const valores = itensPncp
+      .map((i) => Number(i.estimatedUnitValue))
+      .filter((v) => Number.isFinite(v) && v > 0)
+      .sort((a, b) => a - b);
+
+    const minimo = valores.length > 0 ? valores[0] : 0;
+    const maximo = valores.length > 0 ? valores[valores.length - 1] : 0;
+    const mediana = valores.length > 0 ? valores[Math.floor(valores.length / 2)] : 0;
+    const media = valores.length > 0 ? Math.round((valores.reduce((a, b) => a + b, 0) / valores.length) * 100) / 100 : 0;
+
+    const amostras = itensPncp.slice(0, 15).map((i) => ({
+      id: i.id,
+      descricao: i.description,
+      unidade: i.unit || 'UN',
+      quantidade: Number(i.quantity || 1),
+      valorUnitario: Number(i.estimatedUnitValue),
+      orgao: i.procurementNotice?.buyerName || 'Órgão Público',
+      uf: i.procurementNotice?.uf || '',
+      modalidade: i.procurementNotice?.modality || '',
+      numeroControle: i.procurementNotice?.externalId || '',
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        termo,
+        totalAmostras: valores.length,
+        estatisticas: { minimo, mediana, media, maximo },
+        amostras,
+      },
+    });
   }
 }
