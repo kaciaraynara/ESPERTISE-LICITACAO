@@ -15,6 +15,7 @@ import {
   buscarItensPNCP,
   buscarArquivosPNCP,
   parsePncpControlNumber,
+  buscarPcasPNCP,
 } from '../services/pncp.service';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { proposalAutomationService } from '../services/proposal-automation.service';
@@ -546,6 +547,31 @@ export class LicitacoesController {
         success: true,
         data,
         total: data.length,
+      });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+  listarPcas = async (req: AuthRequest, res: Response) => {
+    try {
+      const ano = req.query.ano ? Number(req.query.ano) : undefined;
+      const pagina = req.query.pagina ? Number(req.query.pagina) : 1;
+      const tamanhoPagina = req.query.tamanhoPagina ? Number(req.query.tamanhoPagina) : 20;
+      const q = stringParam(req.query.q);
+      const uf = stringParam(req.query.uf);
+      const esfera = stringParam(req.query.esfera);
+
+      const resultado = await buscarPcasPNCP({
+        anoPca: ano,
+        pagina,
+        tamanhoPagina,
+        palavraChave: q,
+        uf,
+      });
+
+      return res.json({
+        success: true,
+        ...resultado,
       });
     } catch (error) {
       return sendPncpError(res, error);

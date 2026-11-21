@@ -1146,6 +1146,8 @@ router.get(
 // LICITAÇÕES E SINCRONIZAÇÃO
 // ==========================================
 
+router.get('/licitacoes/pca', fornecedor, handle(licitacoes.listarPcas.bind(licitacoes) as RequestHandler));
+
 router.get(
   '/licitacoes',
   fornecedor,

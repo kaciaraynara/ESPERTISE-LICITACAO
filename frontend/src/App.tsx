@@ -91,6 +91,7 @@ const RoboPage = React.lazy(() => import('./pages/RoboPage'));
 const DisputaAoVivoPage = React.lazy(() => import('./pages/DisputaAoVivoPage'));
 const ContenciosoHubPage = React.lazy(() => import('./pages/Contencioso/ContenciosoHubPage'));
 const GestaoPosVitoriaPage = React.lazy(() => import('./pages/GestaoPosVitoriaPage'));
+const PcaPage = React.lazy(() => import('./pages/Pca/PcaPage'));
 const SrpPage = React.lazy(() =>
   import('./pages/Srp/SrpPage').then((module) => ({ default: module.SrpPage })),
 );
@@ -381,6 +382,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.certidoes} element={protectFeature('certidoes', 'Certidões', <CertidoesPage />)} />
             <Route path="/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
             <Route path="/fornecedor/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+            <Route path="/fornecedor/pca" element={<PcaPage />} />
             <Route path={FORNECEDOR_ROUTES.srp} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
             <Route path={FORNECEDOR_ROUTES.academia} element={protectFeature('academia_licitante', 'Academia do Licitante', <AcademiaPage />)} />
             <Route

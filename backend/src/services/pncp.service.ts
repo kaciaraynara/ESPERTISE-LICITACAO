@@ -1005,3 +1005,109 @@ export class PncpService {
     };
   }
 }
+
+export interface PcaOportunidade {
+  idPcaPncp: string;
+  anoPca: number;
+  orgaoNome: string;
+  cnpjOrgao: string;
+  uf: string;
+  municipio: string;
+  dataPublicacao: string | null;
+  dataAtualizacao: string | null;
+  dataDesejada: string | null;
+  diasAtePrevisao: number | null;
+  janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO';
+  categoria: string;
+  descricaoItem: string;
+  valorTotalEstimado: number;
+  linkPcaPncp: string;
+  insightEstrategico: string;
+}
+
+export async function buscarPcasPNCP(filtros: {
+  anoPca?: number;
+  uf?: string;
+  palavraChave?: string;
+  pagina?: number;
+  tamanhoPagina?: number;
+} = {}): Promise<{ items: PcaOportunidade[]; total: number }> {
+  const hoje = new Date();
+  const dataFinal = formatDate(hoje);
+  const dataInicial = addDays(dataFinal, -30);
+  const pagina = Math.max(1, Number(filtros.pagina || 1));
+  const tamanhoPagina = Math.min(50, Math.max(10, Number(filtros.tamanhoPagina || 50)));
+  const rawBaseUrl = (process.env.PNCP_CONSULTA_BASE_URL || process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = rawBaseUrl.includes('/api/pncp/v1') ? rawBaseUrl.replace('/api/pncp/v1', '/api/consulta/v1') : rawBaseUrl;
+
+  const { data } = await axios.get(`${baseUrl}/pca/atualizacao`, {
+    params: { dataInicial, dataFinal, pagina, tamanhoPagina },
+    timeout: timeoutMs(),
+    headers: { Accept: 'application/json' },
+  });
+
+  const registros = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+  const lista: PcaOportunidade[] = [];
+
+  for (const reg of registros) {
+    const orgao = reg?.orgaoEntidade || {};
+    const unidade = reg?.unidadeOrgao || {};
+    const orgaoNome = String(orgao.razaoSocial || reg.nomeOrgao || 'Órgão Público').trim();
+    const cnpjOrgao = String(orgao.cnpj || reg.cnpjOrgao || '').replace(/\D/g, '');
+    const uf = String(unidade.ufSigla || reg.uf || '').toUpperCase();
+    const municipio = String(unidade.municipioNome || '').trim();
+    const anoPca = Number(reg.anoPca || hoje.getFullYear());
+    const idPca = String(reg.idPcaPncp || reg.numeroControlePncp || `${cnpjOrgao}-${anoPca}`);
+    const itens = Array.isArray(reg.itens) && reg.itens.length > 0 ? reg.itens : [reg];
+
+    for (const it of itens.slice(0, 5)) {
+      const descricao = String(it.descricaoItem || it.descricao || reg.tituloPca || reg.categoriaItemPcaNome || 'Contratação prevista no PCA').trim();
+      const categoria = String(it.categoriaItemPcaNome || reg.categoriaItemPcaNome || 'Geral').trim();
+      const valor = Number(it.valorTotal || it.valorTotalEstimado || reg.valorTotalEstimado || 0);
+      const dataDesRaw = it.dataDesejada || reg.dataDesejada || null;
+      const dataDesejada = dataDesRaw ? normalizePncpIsoDate(dataDesRaw) : null;
+      const diasAtePrevisao = dataDesejada ? Math.ceil((new Date(dataDesejada).getTime() - Date.now()) / 86400000) : null;
+      const janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO' =
+        diasAtePrevisao !== null && diasAtePrevisao <= 30 ? 'IMEDIATA' : diasAtePrevisao !== null && diasAtePrevisao <= 90 ? 'ESTRATEGICA' : 'PLANEJAMENTO';
+
+      const insightEstrategico =
+        janelaTatica === 'IMEDIATA'
+          ? 'Janela crítica (<=30 dias): o edital pode sair a qualquer momento. Feche cotações com fornecedores e valide certidões no Cofre agora.'
+          : janelaTatica === 'ESTRATEGICA'
+          ? 'Janela ideal de preparação (31 a 90 dias): antecipe atestados técnicos, estude contratações anteriores do órgão e monte sua planilha base.'
+          : 'Planejamento antecipado (>90 dias): monitore o órgão no Radar para ser avisado assim que o Termo de Referência for publicado.';
+
+      lista.push({
+        idPcaPncp: idPca,
+        anoPca,
+        orgaoNome,
+        cnpjOrgao,
+        uf,
+        municipio,
+        dataPublicacao: normalizePncpIsoDate(reg.dataPublicacaoPncp || reg.dataPublicacao) || null,
+        dataAtualizacao: normalizePncpIsoDate(reg.dataAtualizacaoGlobal || reg.dataAtualizacao) || null,
+        dataDesejada: dataDesejada ?? null,
+        diasAtePrevisao,
+        janelaTatica,
+        categoria,
+        descricaoItem: descricao,
+        valorTotalEstimado: Number.isFinite(valor) ? valor : 0,
+        linkPcaPncp: 'https://pncp.gov.br/app/pca',
+        insightEstrategico,
+      });
+    }
+  }
+
+  const filtrados = lista.filter((item) => {
+    if (filtros.anoPca && item.anoPca !== Number(filtros.anoPca)) return false;
+    if (filtros.uf && item.uf !== filtros.uf.toUpperCase()) return false;
+    if (filtros.palavraChave) {
+      const q = normalizeSearchText(filtros.palavraChave);
+      const alvo = normalizeSearchText(`${item.descricaoItem} ${item.categoria} ${item.orgaoNome}`);
+      if (!alvo.includes(q)) return false;
+    }
+    return true;
+  });
+
+  return { items: filtrados, total: Number(data?.totalRegistros || filtrados.length) };
+}
