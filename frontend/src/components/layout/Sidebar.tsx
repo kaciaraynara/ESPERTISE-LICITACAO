@@ -508,7 +508,7 @@ export default function Sidebar() {
   return (
     <>
       <div
-        className={`shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
+        className={`hidden md:block shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
           }`}
         aria-hidden="true"
       />
@@ -529,7 +529,7 @@ export default function Sidebar() {
         style={{
           transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
         }}
-        className={`fixed left-0 top-0 bottom-0 z-40 flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
+        className={`fixed left-0 top-0 bottom-0 z-40 hidden md:flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
           }`}
       >
         <div
