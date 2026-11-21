@@ -11,6 +11,7 @@ import {
 import { Link } from 'react-router-dom';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '@/contexts/CompanyContext';
+import { certidoesApi, documentosApi } from '@/services/api';
 
 export const HabilitacaoPage: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -18,6 +19,46 @@ export const HabilitacaoPage: React.FC = () => {
   const storageKey = `balancete_indices_${companyId}`;
 
   const [abaAtiva, setAbaAtiva] = useState<'CHECKLIST' | 'INDICES_FINANCEIROS' | 'ATESTADOS'>('CHECKLIST');
+  const [certidoesReais, setCertidoesReais] = useState<any[]>([]);
+  const [docsReais, setDocsReais] = useState<any[]>([]);
+
+  useEffect(() => {
+    const empParam = companyId && companyId !== 'default' ? { empresa_id: companyId } : undefined;
+    Promise.all([
+      certidoesApi.listar(empParam).catch(() => null),
+      documentosApi.listar(empParam).catch(() => null),
+    ]).then(([resC, resD]) => {
+      const cList = resC?.data?.data || resC?.data?.items || resC?.data || [];
+      const dList = resD?.data?.data || resD?.data?.items || resD?.data || [];
+      setCertidoesReais(Array.isArray(cList) ? cList : []);
+      setDocsReais(Array.isArray(dList) ? dList : []);
+    });
+  }, [companyId]);
+
+  const checkDocStatus = (termos: string[]): { status: 'CONFORME' | 'ATENCAO'; obs: string } => {
+    const match = docsReais.find((d: any) => {
+      const txt = `${d.nome || ''} ${d.titulo || ''} ${d.tipo || ''} ${d.categoria || ''}`.toLowerCase();
+      return termos.some((t) => txt.includes(t));
+    });
+    if (match) return { status: 'CONFORME', obs: `Documento localizado no Cofre (${match.nome || match.titulo || 'arquivo anexado'}).` };
+    return { status: 'ATENCAO', obs: 'Documento ainda não anexado no Cofre de Documentos.' };
+  };
+
+  const checkCertStatus = (termos: string[], label: string): { status: 'CONFORME' | 'ATENCAO'; obs: string } => {
+    const match = certidoesReais.find((c: any) => {
+      const txt = `${c.tipo || ''} ${c.nome || ''} ${c.orgaoEmissor || ''}`.toLowerCase();
+      return termos.some((t) => txt.includes(t));
+    });
+    if (!match) return { status: 'ATENCAO', obs: `${label} ainda não sincronizada em Certidões.` };
+    const st = String(match.status || '').toUpperCase();
+    const venc = match.dataValidade || match.validade || match.expiresAt;
+    const vencida = st.includes('VENCID') || st.includes('IRREG') || (venc && new Date(venc).getTime() < Date.now());
+    if (vencida) return { status: 'ATENCAO', obs: `${label} vencida ou irregular — renove antes da disputa.` };
+    if (st.includes('VALID') || st.includes('EM_DIA') || st.includes('REGULAR')) {
+      return { status: 'CONFORME', obs: `${label} regular e válida no sistema.` };
+    }
+    return { status: 'ATENCAO', obs: `${label} aguardando validação de validade.` };
+  };
 
   // Calculadora de Índices Econômico-Financeiros (Art. 69 da Lei 14.133/21)
   // Iniciam estritamente como strings vazias ("") para novas empresas
@@ -95,26 +136,26 @@ export const HabilitacaoPage: React.FC = () => {
     {
       pilar: 'Habilitação Jurídica (Art. 66)',
       itens: [
-        { nome: 'Contrato Social Consolidado / Estatuto Social', status: 'CONFORME', obs: 'Última alteração contratual registrada na Junta Comercial.' },
-        { nome: 'Procuração dos Representantes Legais / E-CNPJ', status: 'CONFORME', obs: 'Poderes de representação em licitações válidos.' },
-        { nome: 'Inscrição no Cadastro Nacional da Pessoa Jurídica (CNPJ)', status: 'CONFORME', obs: 'Situação cadastral Ativa na Receita Federal.' },
+        { nome: 'Contrato Social Consolidado / Estatuto Social', ...checkDocStatus(['contrato social', 'estatuto', 'alteracao']) },
+        { nome: 'Procuração dos Representantes Legais / E-CNPJ', ...checkDocStatus(['procuracao', 'procuração', 'representante', 'e-cnpj']) },
+        { nome: 'Inscrição no Cadastro Nacional da Pessoa Jurídica (CNPJ)', status: selectedCompany?.cnpj ? 'CONFORME' : 'ATENCAO', obs: selectedCompany?.cnpj ? `CNPJ ativo cadastrado: ${selectedCompany.cnpj}` : 'Cadastre o CNPJ em Minha Empresa.' },
       ],
     },
     {
       pilar: 'Qualificação Técnica (Art. 67)',
       itens: [
-        { nome: 'Atestados de Capacidade Técnica (Mínimo 50% do objeto)', status: 'CONFORME', obs: 'Atestados registrados compatíveis em características e prazos.' },
-        { nome: 'Registro ou Inscrição no Conselho Profissional (CREA/CRA/CRC)', status: 'CONFORME', obs: 'Certidão de Registro de Pessoa Jurídica regular.' },
-        { nome: 'Declaração de Indicação de Equipe Técnica Especializada', status: 'ATENCAO', obs: 'Exige confirmação dos termos de anuência dos responsáveis técnicos.' },
+        { nome: 'Atestados de Capacidade Técnica (Mínimo 50% do objeto)', ...checkDocStatus(['atestado', 'capacidade', 'acervo']) },
+        { nome: 'Registro ou Inscrição no Conselho Profissional (CREA/CRA/CRC)', ...checkDocStatus(['crea', 'cra', 'crc', 'conselho']) },
+        { nome: 'Declaração de Indicação de Equipe Técnica Especializada', ...checkDocStatus(['equipe', 'responsavel tecnico', 'responsável técnico']) },
       ],
     },
     {
       pilar: 'Regularidade Fiscal, Social e Trabalhista (Art. 68)',
       itens: [
-        { nome: 'Certidão Negativa de Débitos Federais (Receita / PGFN)', status: 'CONFORME', obs: 'Certidão de débitos tributários federais.' },
-        { nome: 'Certificado de Regularidade do FGTS (CRF)', status: 'CONFORME', obs: 'Válido e sincronizado com a Caixa Econômica.' },
-        { nome: 'Certidão Negativa de Débitos Trabalhistas (CNDT - TST)', status: 'CONFORME', obs: 'Inexistência de débitos inadimplidos.' },
-        { nome: 'Certidões Negativas Estadual e Municipal (ICMS / ISS)', status: 'CONFORME', obs: 'Emitidas perante a SEFAZ e Prefeitura da sede.' },
+        { nome: 'Certidão Negativa de Débitos Federais (Receita / PGFN)', ...checkCertStatus(['federal', 'pgfn', 'receita'], 'CND Federal/PGFN') },
+        { nome: 'Certificado de Regularidade do FGTS (CRF)', ...checkCertStatus(['fgts', 'crf', 'caixa'], 'CRF/FGTS') },
+        { nome: 'Certidão Negativa de Débitos Trabalhistas (CNDT - TST)', ...checkCertStatus(['trabalhista', 'cndt', 'tst'], 'CNDT') },
+        { nome: 'Certidões Negativas Estadual e Municipal (ICMS / ISS)', ...checkCertStatus(['estadual', 'municipal', 'sefaz', 'iss'], 'CND Estadual/Municipal') },
       ],
     },
     {
@@ -136,7 +177,7 @@ export const HabilitacaoPage: React.FC = () => {
             ? `LG: ${liquidezGeral.toFixed(2)} | LC: ${liquidezCorrente.toFixed(2)} | SG: ${solvenciaGeral.toFixed(2)}`
             : 'Aguardando preenchimento dos dados do balanço patrimonial para cálculo dos índices.',
         },
-        { nome: 'Certidão Negativa de Falência e Recuperação Judicial', status: 'CONFORME', obs: 'Expedida pelo distribuidor da sede da comarca.' },
+        { nome: 'Certidão Negativa de Falência e Recuperação Judicial', ...checkDocStatus(['falencia', 'falência', 'recuperacao', 'distribuidor']) },
       ],
     },
   ];

@@ -27,6 +27,7 @@ export const SrpPage: React.FC = () => {
   const [apenasVigentes, setApenasVigentes] = useState(true);
   const [carregando, setCarregando] = useState(false);
   const [registros, setRegistros] = useState<any[]>([]);
+  const [qtdRegistradaAta, setQtdRegistradaAta] = useState<number>(1000);
 
   const buscarAtas = async () => {
     setCarregando(true);
@@ -71,9 +72,9 @@ export const SrpPage: React.FC = () => {
             <Layers className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-[#081C3A]">SRP e Gestao de Atas</h1>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">SRP e Gestão de Atas</h1>
             <p className="text-xs text-slate-500">
-              Sistema para adesoes, controle de vigencia e busca de registros de precos reais
+              Sistema para adesões, controle de vigência e busca de registros de preços reais
             </p>
           </div>
         </div>
@@ -82,10 +83,10 @@ export const SrpPage: React.FC = () => {
       {/* Abas */}
       <div className="flex flex-wrap gap-2">
         {[
-          { id: 'geral', label: 'Visao Geral' },
+          { id: 'geral', label: 'Visão Geral' },
           { id: 'buscador', label: 'Buscador de SRP' },
           { id: 'vigentes', label: 'Atas Vigentes' },
-          { id: 'carona', label: 'Adesoes (Carona)' },
+          { id: 'carona', label: 'Adesões (Carona)' },
         ].map((t) => (
           <button
             key={t.id}
@@ -101,6 +102,35 @@ export const SrpPage: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {aba === 'carona' && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm space-y-4">
+          <div>
+            <h2 className="text-sm font-extrabold text-[#081C3A]">Calculadora Legal de Adesão / Carona (Art. 86, §§ 4º e 5º da Lei 14.133/2021)</h2>
+            <p className="text-xs text-slate-600 mt-0.5">Simule os limites legais máximos permitidos para adesão tardia em Atas de Registro de Preços.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Quantidade Total Registrada na Ata</label>
+              <input
+                type="number"
+                min="1"
+                value={qtdRegistradaAta}
+                onChange={(e) => setQtdRegistradaAta(Math.max(1, Number(e.target.value) || 0))}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-[#081C3A]"
+              />
+            </div>
+            <div className="rounded-xl bg-white border border-slate-200 p-3">
+              <span className="text-[11px] font-bold text-slate-500 block">Limite por Órgão Aderente (50%)</span>
+              <span className="text-lg font-extrabold text-[#0070C0]">{Math.floor(qtdRegistradaAta * 0.5).toLocaleString('pt-BR')} un.</span>
+            </div>
+            <div className="rounded-xl bg-white border border-slate-200 p-3">
+              <span className="text-[11px] font-bold text-slate-500 block">Teto Global de Adesões (200% / dobro)</span>
+              <span className="text-lg font-extrabold text-emerald-700">{(qtdRegistradaAta * 2).toLocaleString('pt-BR')} un.</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Buscador */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
@@ -152,7 +182,7 @@ export const SrpPage: React.FC = () => {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <Building2 className="h-4 w-4 text-emerald-600" /> Orgaos Participantes
+            <Building2 className="h-4 w-4 text-emerald-600" /> Órgãos Participantes
           </div>
           <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{orgaosUnicos}</div>
         </div>
@@ -177,7 +207,7 @@ export const SrpPage: React.FC = () => {
           <thead>
             <tr className="border-b border-slate-200 text-slate-500">
               <th className="py-2 pr-3">Processo / PNCP</th>
-              <th className="py-2 pr-3">Orgao / Entidade</th>
+              <th className="py-2 pr-3">Órgão / Entidade</th>
               <th className="py-2 pr-3">Objeto</th>
               <th className="py-2 pr-3">Valor (R$)</th>
               <th className="py-2 text-right">Portal</th>
@@ -192,10 +222,10 @@ export const SrpPage: React.FC = () => {
                     {item.numeroCompra || item.numeroEdital || item.numeroControlePNCP || 'PNCP'}
                   </td>
                   <td className="py-3 pr-3 font-medium text-slate-700">
-                    {item.orgao || item.orgaoEntidade?.razaoSocial || 'Orgao Publico'}
+                    {item.orgao || item.orgaoEntidade?.razaoSocial || 'Órgão Público'}
                   </td>
                   <td className="max-w-md truncate py-3 pr-3 text-slate-600">
-                    {item.objeto || item.objetoCompra || 'Objeto nao informado'}
+                    {item.objeto || item.objetoCompra || 'Objeto não informado'}
                   </td>
                   <td className="py-3 pr-3 font-bold text-emerald-700">
                     {formatarMoeda(item.valorTotalEstimado ?? item.valorEstimado)}

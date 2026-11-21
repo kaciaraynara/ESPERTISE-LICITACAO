@@ -1330,9 +1330,6 @@ router.post(
   requirePlanFeature(
     'impugnation.simple',
   ),
-  validate(
-    gerarPecaImpugnacaoSchema,
-  ),
   handle(
     impugnacao.gerarPeca.bind(
       impugnacao,
