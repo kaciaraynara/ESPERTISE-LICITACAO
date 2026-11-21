@@ -7,12 +7,31 @@ import { precificacaoApi, licitacoesApi, propostasApi } from '@services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 
 export const PrecificacaoPage: React.FC = () => {
+  const [detalheCustos, setDetalheCustos] = useState({
+    aquisicaoOuSoftware: 0,
+    manutencaoSuporte: 0,
+    funcionariosEncargos: 0,
+    proLabore: 0,
+    viagemEstadiaFrete: 0,
+  });
   const [custos, setCustos] = useState({
     custoProdutoServico: 0,
     impostosPercentual: 8.5,
     custoOperacionalPercentual: 5.0,
     margemDesejadaPercentual: 18.0,
   });
+
+  const atualizarDetalhe = (campo: keyof typeof detalheCustos, valor: number) => {
+    const proximo = { ...detalheCustos, [campo]: valor };
+    setDetalheCustos(proximo);
+    const soma =
+      proximo.aquisicaoOuSoftware +
+      proximo.manutencaoSuporte +
+      proximo.funcionariosEncargos +
+      proximo.proLabore +
+      proximo.viagemEstadiaFrete;
+    setCustos((prev) => ({ ...prev, custoProdutoServico: soma }));
+  };
 
   const [valorMaximoEdital, setValorMaximoEdital] = useState<number>(0);
   const [searchParams] = useSearchParams();
@@ -69,6 +88,7 @@ export const PrecificacaoPage: React.FC = () => {
             return acc + custo * qtd;
           }, 0);
           const custoSugerido = custoItens > 0 ? custoItens : Math.round(editalData.valorFinal * 0.65);
+          setDetalheCustos((d) => ({ ...d, aquisicaoOuSoftware: custoSugerido }));
           return { ...prev, custoProdutoServico: custoSugerido };
         }
         return prev;
@@ -187,7 +207,7 @@ export const PrecificacaoPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-4 sm:p-4 sm:p-8">
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-800 p-4 sm:p-8">
 
       {/* CABEÇALHO DA PÁGINA */}
       <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -312,87 +332,149 @@ export const PrecificacaoPage: React.FC = () => {
       {/* GRID PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-        {/* COLUNA ESQUERDA: ENTRADA DE PARÂMETROS */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
-            <Percent size={16} className="text-orange-500" />
-            Composição da Planilha de Custos
-          </h3>
-
-          {/* Custo Direto */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Custo Direto de Aquisição / Produção (R$)
-            </label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={custos.custoProdutoServico}
-              onChange={(e) => setCustos({ ...custos, custoProdutoServico: e.target.value === '' ? 0 : Number(e.target.value) })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
+        {/* COLUNA ESQUERDA: PLANILHA COMPLETA DE CUSTOS */}
+        <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Percent size={16} className="text-orange-500" />
+              Planilha de Formação de Custos
+            </h3>
+            <span className="text-xs font-extrabold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">
+              Base: {formatarMoeda(custos.custoProdutoServico)}
+            </span>
           </div>
 
-          {/* Custos Operacionais % */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Custos Indiretos / Logística / Frete (%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="0.1"
-              value={custos.custoOperacionalPercentual}
-              onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Aquisição / Fabricação / Desenvolvimento de Software (R$)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={detalheCustos.aquisicaoOuSoftware}
+                onChange={(e) => atualizarDetalhe('aquisicaoOuSoftware', parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Manutenção / Cloud / Suporte (R$)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={detalheCustos.manutencaoSuporte}
+                onChange={(e) => atualizarDetalhe('manutencaoSuporte', parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Funcionários + Encargos (R$)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={detalheCustos.funcionariosEncargos}
+                onChange={(e) => atualizarDetalhe('funcionariosEncargos', parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Pró-labore dos Sócios (R$)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={detalheCustos.proLabore}
+                onChange={(e) => atualizarDetalhe('proLabore', parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Viagem, Estadias e Frete (R$)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={detalheCustos.viagemEstadiaFrete}
+                onChange={(e) => atualizarDetalhe('viagemEstadiaFrete', parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
           </div>
 
-          {/* Impostos % */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Alíquota Efetiva de Impostos (%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              step="0.1"
-              value={custos.impostosPercentual}
-              onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Regime Tributário (preenche alíquota base)
+              </label>
+              <select
+                value={String(custos.impostosPercentual)}
+                onChange={(e) => setCustos({ ...custos, impostosPercentual: parseFloat(e.target.value) || 0 })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 mb-2"
+              >
+                <option value="6">Simples Nacional — Comércio/Serviços Anexo III (6%)</option>
+                <option value="8.5">Simples Nacional — Intermediário (8,5%)</option>
+                <option value="11.5">Simples Nacional — Serviços/TI Anexo V (11,5%)</option>
+                <option value="13.33">Lucro Presumido — Padrão (13,33%)</option>
+                <option value="18">Lucro Real / ISS + PIS/COFINS + IRPJ/CSLL (18%)</option>
+              </select>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Alíquota Efetiva de Impostos (%)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={custos.impostosPercentual}
+                onChange={(e) => setCustos({ ...custos, impostosPercentual: parseFloat(e.target.value) || 0 })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Reserva da Empresa (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={custos.custoOperacionalPercentual}
+                  onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Margem Líquida Alvo (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={custos.margemDesejadaPercentual}
+                  onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Margem Desejada % */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Margem de Lucro Alvo (%)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              step="0.1"
-              value={custos.margemDesejadaPercentual}
-              onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-
-          {/* Valor Máximo Estimado pelo Órgão */}
           <div className="pt-3 border-t border-slate-100">
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Valor Máximo / Referência do Edital (R$)
             </label>
             <input
               type="number"
-              min={0}
-              step="0.01"
               value={valorMaximoEdital}
-              onChange={(e) => setValorMaximoEdital(e.target.value === '' ? 0 : Number(e.target.value))}
+              onChange={(e) => setValorMaximoEdital(parseFloat(e.target.value) || 0)}
               className="w-full bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -448,8 +530,24 @@ export const PrecificacaoPage: React.FC = () => {
                 <span className="font-bold">-{calculoValido ? formatarMoeda(calculo.impostoProjetado) : '—'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
-                <span>(-) Custo Direto (Aquisição)</span>
-                <span className="font-bold">-{formatarMoeda(custos.custoProdutoServico)}</span>
+                <span>(-) Aquisição / Fabricação / Software</span>
+                <span className="font-bold">-{formatarMoeda(detalheCustos.aquisicaoOuSoftware)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
+                <span>(-) Manutenção / Cloud / Suporte</span>
+                <span className="font-bold">-{formatarMoeda(detalheCustos.manutencaoSuporte)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
+                <span>(-) Funcionários + Encargos</span>
+                <span className="font-bold">-{formatarMoeda(detalheCustos.funcionariosEncargos)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
+                <span>(-) Pró-labore dos Sócios</span>
+                <span className="font-bold">-{formatarMoeda(detalheCustos.proLabore)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
+                <span>(-) Viagem, Estadias e Frete</span>
+                <span className="font-bold">-{formatarMoeda(detalheCustos.viagemEstadiaFrete)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
                 <span>(-) Frete e Logística ({custos.custoOperacionalPercentual}%)</span>
