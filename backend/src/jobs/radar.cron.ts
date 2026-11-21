@@ -24,7 +24,7 @@ const DEFAULT_CRON_SCHEDULE = '*/30 * * * *'; // 2h e 14h todos os dias
 const DEFAULT_DEADLINE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const DEFAULT_CERTIFICATE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const TIMEZONE = 'America/Sao_Paulo';
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
 const PERSIST_CONCURRENCY = 10;
 
 const MODALIDADES_PNCP = [
@@ -175,9 +175,10 @@ export async function syncPncpLast24Hours(): Promise<{
   let upsertados = 0;
   let erros = 0;
 
-  const maxPages = Number(process.env.PNCP_MAX_PAGES_PER_RUN) || 50; // Até 2.500 editais por modalidade
+  const maxPages = Number(process.env.PNCP_MAX_PAGES_PER_RUN) || 100; // Até 2.500 editais por modalidade
   const throttleDelayMs = Number(process.env.PNCP_PAGE_DELAY_MS) || 400; // Intervalo para cortesia de tráfego
 
+  for (const endpointTipo of ['publicacao', 'proposta'] as const) {
   for (const modalidade of MODALIDADES_PNCP) {
     let pagina = 1;
     let totalPaginas = 1;
@@ -196,7 +197,7 @@ export async function syncPncpLast24Hours(): Promise<{
             codigoModalidadeContratacao: modalidade.codigo,
             pagina,
             tamanhoPagina: PAGE_SIZE,
-            endpoint: 'publicacao',
+            endpoint: endpointTipo,
           }),
           {
             context: `${modalidade.nome} (pág ${pagina})`,
@@ -327,6 +328,7 @@ export async function syncPncpLast24Hours(): Promise<{
       );
     }
   }
+  }
 
   console.info(JSON.stringify({
     event: 'PNCP_CRON_JOB_COMPLETED',
@@ -372,6 +374,10 @@ export function setupPncpDailyCron(): cron.ScheduledTask | null {
     }
   );
 
+  setTimeout(() => {
+    void syncPncpLast24Hours().then((res) => { if (res.upsertados > 0) emitEditaisAtualizados({ fonte: 'pncp_boot', quantidade: res.upsertados }); }).catch((e) => console.warn('[PNCP Boot Sync] Aviso:', e?.message || e));
+  }, 10000);
+
   return task;
 }
 
@@ -403,6 +409,10 @@ export function setupDeadlineAlertsCron(): cron.ScheduledTask | null {
       timezone: TIMEZONE,
     }
   );
+
+  setTimeout(() => {
+    void syncPncpLast24Hours().then((res) => { if (res.upsertados > 0) emitEditaisAtualizados({ fonte: 'pncp_boot', quantidade: res.upsertados }); }).catch((e) => console.warn('[PNCP Boot Sync] Aviso:', e?.message || e));
+  }, 10000);
 
   return task;
 }
