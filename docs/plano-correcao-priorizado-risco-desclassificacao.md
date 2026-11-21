@@ -40,28 +40,40 @@ Ponto de restauração: `%TEMP%\opencode\expertise-backup-20261121-142757`.
 | P2.2 | Planilha de custos completa com pró-labore, dinheiro da empresa, funcionários, viagem/estadias, fabricação e manutenção de software | Hoje a planilha cobre produto/serviço, impostos, operacional e margem. Os demais rubricas precisam de modelo contábil/fiscal definido com o cliente para não virar número inventado. |
 | P2.3 | Corrigir as 6 suítes em falha da linha de base | Falhas prévias em `licitacoes.service`, `notices-summary.service`, `pncp.service`, `source-registry`, `ai.service` e `lex-integration`. Não são regressões desta rodada e exigem trabalho específico. |
 | P2.4 | Interpretar os 4 anexos de imagem enviados pelo cliente | Este ambiente não consegue ler/imagem nem concluiu OCR nativo. É necessário que o cliente transcreva os pontos ou forneça PDF/texto. |
-| P2.5 | Publicar/enviar/excluir/deploy | Nenhuma ação com efeito real foi executada. Requer confirmação explícita. |
+| P2.5 | Publicar/enviar/excluir/deploy | Push para o GitHub e deploy automático da Vercel executados em 2026-11-21. O Render ainda está com build antigo e exige Deploy Hook ou reconexão do serviço. Nenhuma exclusão foi executada. |
 
 ## Ambiente de produção (Vercel + Render + Neon + Cloudflare)
 
-Auditoria somente leitura em 2026-11-21:
+Auditoria e publicação em 2026-11-21:
 
+- Domínio oficial: **`https://www.expertiselicitatoria.com.br`** (apex redireciona para `www`, HTTPS válido).
 - `https://espertise-licitacao.onrender.com/api/v1/health` → **200**.
-- `https://espertise-licitacao.onrender.com/api/v1/health/readiness` → **200** (`database: ok`), confirmando conexão Render → Neon.
-- `https://espertise-licitacao-53xf.vercel.app/api/v1/health/readiness` → **200**, confirmando rewrite/proxy da Vercel.
-- `https://expertiselicitatoria.com.br` → **200**.
+- `https://espertise-licitacao.onrender.com/api/v1/health/readiness` → **200** (`status: ready`), confirmando conexão Render → Neon.
+- Proxy da Vercel em `/api/v1/*` → **200**.
 - CORS validado para `expertiselicitatoria.com.br`, `www` e `*.vercel.app` → **204** com origem correta.
-- **Versão publicada está atrás do código local:** o `/health` de produção não retorna `service: "expertise-api"` e o bundle da Vercel é anterior ao build local. Nenhuma correção desta rodada está publicada.
-- Corrigido fallback de produção do frontend: `.../api` → `.../api/v1` em `frontend/src/services/api.ts`; WebSocket da mesa de disputa agora usa a mesma origem resolvida; admin frontend ganhou fallback de produção.
+- Repositório GitHub: **`kaciaraynara/ESPERTISE-LICITACAO`**, branch `main`.
+- Commit publicado: **`7392766`** — `fix: exequibilidade, compliance, propostas e URLs de producao`.
+- **Vercel: deploy automático confirmado.** O bundle mudou para `index-q4Yn7XpL.js` e o fallback de produção agora é `.../api/v1`.
+- **Render: build antigo.** O `/health` publicado ainda responde `{"status":"ok","uptime":...}` (sem `service: "expertise-api"`), embora o commit enviado contenha esse campo. O serviço reiniciou, mas não aplicou o `main` deste repositório.
+- Scripts criados: `scripts/publicar-github.ps1`, `scripts/atualizar-render.ps1` e `scripts/verificar-producao.ps1`.
 
-### Pontos de atenção antes do deploy
+### Ação necessária no Render
+
+O deploy automático do Render só funciona se o serviço estiver conectado a este repositório e com Auto-Deploy ligado. Duas opções:
+
+1. **Reconectar o serviço** em Render → serviço `espertise-licitacao` → Settings → Build & Deploy → Repository `kaciaraynara/ESPERTISE-LICITACAO`, branch `main`, Auto-Deploy **On**.
+2. **Informar o Deploy Hook** (Render → serviço → Settings → Deploy Hook) e executar:
+   `powershell -ExecutionPolicy Bypass -File scripts/atualizar-render.ps1 -DeployHookUrl "<URL_DO_HOOK>"`
+   O script dispara o deploy e espera o `/health` passar a retornar `service: "expertise-api"`.
+
+### Pontos de atenção antes de novas migrations
 
 1. Confirmar no Render: `DATABASE_URL` (pooler Neon), `DIRECT_URL` (conexão direta para migrations), `JWT_SECRET`, `CORS_ORIGIN`, `FRONTEND_URL`.
-2. Confirmar na Vercel: `VITE_API_URL=https://espertise-licitacao.onrender.com/api/v1` (hoje está gravada no bundle, mas deve permanecer explícita).
+2. Confirmar na Vercel: `VITE_API_URL=https://espertise-licitacao.onrender.com/api/v1` (o build atual já contém esse valor).
 3. Confirmar na Cloudflare: DNS/proxy do domínio e credenciais R2 (`S3_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`).
 4. Fazer snapshot/backup do Neon antes de qualquer migration.
 5. `render.yaml` hoje só define `NODE_ENV`; avaliar `healthCheckPath: /api/v1/health/readiness` e `preDeployCommand: npm run migrate` — **não alterado sem confirmação**.
-6. O repositório local não é um repositório Git; publicar exige o fluxo de upload/push usado pela Vercel/Render ou CLI autenticada.
+6. Rodar `scripts/verificar-producao.ps1` após cada deploy; ele falha se o backend estiver desatualizado, se o bundle voltar ao fallback sem `/v1` ou se o domínio/CORS quebrar.
 
 ## Validação executada
 
@@ -70,4 +82,6 @@ Auditoria somente leitura em 2026-11-21:
 - `admin-frontend`: `npm run build` (TS + Vite) ✅.
 - `backend`: suíte completa → **6 suítes / 12 testes falhando**, idêntico à linha de base; **5 testes novos passando** (`proposal-pricing.test.ts`).
 - `e2e-endpoints`: passou isolado e na repetição da suíte completa; a falha pontual na primeira rodada foi instabilidade, não regressão confirmada.
-- Nenhum deploy, publicação, envio ou exclusão foi realizado.
+- Push para `kaciaraynara/ESPERTISE-LICITACAO` concluído; Vercel fez deploy automático e o bundle novo foi validado em produção.
+- Render ainda não aplicou o commit; verificação de produção acusa essa divergência.
+- Nenhuma exclusão, migration ou alteração de banco foi executada.
