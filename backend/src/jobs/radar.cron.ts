@@ -20,17 +20,18 @@ import { NotificationsWorker } from '../workers/notifications.worker';
 import { enviarAlertaEditaisCnae } from '../services/resend.service';
 
 
-const DEFAULT_CRON_SCHEDULE = '0 */2 * * *'; // 2h e 14h todos os dias
+const DEFAULT_CRON_SCHEDULE = '*/30 * * * *'; // 2h e 14h todos os dias
 const DEFAULT_DEADLINE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const DEFAULT_CERTIFICATE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const TIMEZONE = 'America/Sao_Paulo';
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 const PERSIST_CONCURRENCY = 10;
 
 const MODALIDADES_PNCP = [
   { codigo: 4, nome: 'Concorrência Eletrônica' },
   { codigo: 6, nome: 'Pregão Eletrônico' },
   { codigo: 8, nome: 'Dispensa de Licitação' },
+  { codigo: 9, nome: 'Inexigibilidade' },
   { codigo: 12, nome: 'Credenciamento' },
 ];
 

@@ -733,6 +733,22 @@ export async function listarLicitacoes(
   if (filtros.srp === true || filtros.srp === 'true') {
     and.push({ srp: true });
   }
+  if (filtros.baixaProcura === true || filtros.baixaProcura === 'true') {
+    and.push({
+      OR: [
+        { modality: { contains: 'Dispensa', mode: 'insensitive' } },
+        { modality: { contains: 'Credenciamento', mode: 'insensitive' } },
+        { estimatedValue: { lte: 80000, gt: 0 } },
+      ],
+    });
+    and.push({
+      AND: [
+        { object: { not: { contains: 'obra de engenharia', mode: 'insensitive' } } },
+        { object: { not: { contains: 'concessão', mode: 'insensitive' } } },
+        { object: { not: { contains: 'parceria público-privada', mode: 'insensitive' } } },
+      ],
+    });
+  }
 
   const rawMod = filtros.modalidade ?? filtros.codigoModalidadeContratacao;
   if (rawMod && String(rawMod).trim().toLowerCase() !== 'todos') {
@@ -870,7 +886,7 @@ export async function listarLicitacoes(
     }
   }
 
-  if (rows.length === 0 && page === 1) {
+  if (rows.length === 0 && page === 1 && filtros.tempoReal !== false) {
     return consultarRadarPncpTempoReal(filtros);
   }
 

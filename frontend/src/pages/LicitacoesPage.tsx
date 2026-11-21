@@ -94,6 +94,7 @@ const MODALIDADES_RAPIDAS = [
   { id: 'DISPENSA', label: 'Dispensa', icon: Zap },
   { id: 'CREDENCIAMENTO', label: 'Credenciamento', icon: Award },
   { id: 'SRP', label: 'Registro de Preços', icon: Bookmark },
+  { id: 'BAIXA_PROCURA', label: 'Baixa Procura (Iniciantes)', icon: Zap },
 ];
 
 const UFS = [
@@ -380,10 +381,11 @@ export default function LicitacoesPage({
           if (termo.trim()) p.q = termo.trim();
           if (ufSelecionada) p.uf = ufSelecionada;
           if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
-          if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP') {
+          if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP' && modalidadeAtiva !== 'BAIXA_PROCURA') {
             p.modalidade = modalidadeAtiva;
           }
           if (modalidadeAtiva === 'SRP') p.srp = true;
+          if (modalidadeAtiva === 'BAIXA_PROCURA') p.baixaProcura = true;
           if (dataPublicacao) p.dataPublicacao = dataPublicacao;
           return p;
         };

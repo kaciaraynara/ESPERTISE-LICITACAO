@@ -61,6 +61,7 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.size)
       ?? '100',
     srp: rawSrp === true || rawSrp === 'true',
+    baixaProcura: source.baixaProcura === true || source.baixaProcura === 'true',
     endpoint: source.endpoint === 'publicacao' ? 'publicacao' : 'proposta',
     tempoReal: !isLocalOnly,
   };

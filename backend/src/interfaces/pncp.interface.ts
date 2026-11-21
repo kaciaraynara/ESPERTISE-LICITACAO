@@ -20,6 +20,7 @@ export interface FiltrosBusca {
   valorMin?: number;
   valorMax?: number;
   srp?: boolean | string;
+  baixaProcura?: boolean | string;
   endpoint?: 'publicacao' | 'proposta';
   tempoReal?: boolean | string;
 }
