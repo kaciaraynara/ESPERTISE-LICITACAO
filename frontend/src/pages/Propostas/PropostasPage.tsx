@@ -101,8 +101,8 @@ export function PropostasPage() {
     setModalidade(notice.modalidadeNome || notice.modalidade || 'Pregão Eletrônico');
     setNumeroProcesso(notice.numeroCompra ? `${notice.numeroCompra}/${notice.anoCompra || ''}` : '');
     setDataAbertura(
-      notice.dataEncerramentoProposta
-        ? new Date(notice.dataEncerramentoProposta).toLocaleDateString('pt-BR')
+      (notice.openingAt || notice.dataAberturaProposta || notice.dataEncerramentoProposta)
+        ? new Date((notice.openingAt || notice.dataAberturaProposta || notice.dataEncerramentoProposta)).toLocaleDateString('pt-BR')
         : ''
     );
     const noticeId = notice.id || op.noticeId || op.licitacaoId;
@@ -127,7 +127,7 @@ export function PropostasPage() {
         // Mantem tabela editavel caso edital nao tenha itens estruturados no PNCP
       }
     }
-    setObjeto(notice.objetoCompra || notice.objeto || op.notes || '');
+    setObjeto(notice.object || notice.objeto || notice.objetoCompra || op.object || op.notes || op.title || '');
   };
 
   const adicionarItem = () => {
@@ -346,8 +346,7 @@ export function PropostasPage() {
                       <option value="">-- Selecione um edital salvo (opcional) --</option>
                       {oportunidades.map((op) => (
                         <option key={op.id} value={op.id}>
-                          {op.notice?.orgaoEntidade?.razaoSocial || 'Órgão'} —{' '}
-                          {(op.notice?.objetoCompra || op.notes || 'Edital').slice(0, 70)}
+                          {op.notice?.buyerName || op.buyerName || op.notice?.orgaoEntidade?.razaoSocial || op.title || 'Edital Salvo'} — {(op.notice?.noticeNumber || op.notice?.object || op.notice?.objetoCompra || op.notes || '').slice(0, 65)}
                         </option>
                       ))}
                     </select>

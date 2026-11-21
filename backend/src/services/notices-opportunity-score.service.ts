@@ -77,7 +77,8 @@ export class NoticesOpportunityScoreService {
       prazo -
       riscoEdital;
 
-    const score = clamp(Math.round(rawScore), 0, 100);
+    const scoreBruto = clamp(Math.round(rawScore), 0, 100);
+    const score = compatibilidadeNicho <= 0 ? Math.min(35, scoreBruto) : scoreBruto;
     const nivel = score >= 75 ? 'alta' : score >= 50 ? 'media' : 'baixa';
 
     if (!empresa) {

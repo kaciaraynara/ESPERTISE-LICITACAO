@@ -28,7 +28,7 @@ export default function ContenciosoHubPage() {
   // Estados do Formulário de Upload
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [pregaoNumero, setPregaoNumero] = useState('Pregão Eletrônico nº 142/2026');
+  const [pregaoNumero, setPregaoNumero] = useState('');
   const [nomeEmpresa, setNomeEmpresa] = useState(
     selectedCompany?.razaoSocial || user?.nome || 'Nossa Empresa Licitante'
   );
@@ -357,7 +357,7 @@ export default function ContenciosoHubPage() {
                     3
                   </div>
                   <p>
-                    <strong className="text-slate-800">Redacao Juridica Luli:</strong> Elabora a minuta oficial de Contrarrazões pronta para protocolo perante o Agente de Contratação.
+                    <strong className="text-slate-800">Redação Jurídica Luli:</strong> Elabora a minuta oficial de Contrarrazões pronta para protocolo perante o Agente de Contratação.
                   </p>
                 </div>
               </div>

@@ -7,8 +7,6 @@ import {
   Spinner,
   WhatsappLogo,
   EnvelopeSimple,
-  Buildings,
-  Receipt,
   Sparkle,
   X,
   ArrowRight,
@@ -17,7 +15,6 @@ import {
   Scales,
   QrCode,
   CreditCard,
-  LockKey,
 } from '@phosphor-icons/react';
 import { pagamentosApi } from '@services/api';
 import toast from 'react-hot-toast';
@@ -506,83 +503,6 @@ export default function PlanosPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Passo 1 • Forma de pagamento
-                </p>
-                <h2 className="text-base font-bold text-slate-900">
-                  Selecione como deseja pagar antes de escolher o plano
-                </h2>
-              </div>
-              <div className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                <LockKey className="w-3.5 h-3.5 text-emerald-600" weight="fill" />
-                <span>Pagamento seguro via Asaas • Sem boleto ou débito</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-4">
-              <button
-                type="button"
-                onClick={() => setFormaPagamento('PIX')}
-                className={`flex items-start gap-3.5 rounded-xl p-4 text-left transition-all cursor-pointer ${
-                  formaPagamento === 'PIX'
-                    ? 'border-2 border-emerald-600 bg-emerald-50/40 ring-4 ring-emerald-500/10'
-                    : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
-                }`}
-              >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  formaPagamento === 'PIX' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  <QrCode className="w-5 h-5" weight="bold" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-bold text-slate-900 block">Pix ou Pix Recorrente</span>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Liberação imediata via QR Code ou Copia e Cola.
-                  </p>
-                </div>
-                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                  formaPagamento === 'PIX'
-                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                    : 'border-slate-300 bg-white'
-                }`}>
-                  {formaPagamento === 'PIX' && <Check className="w-3 h-3" weight="bold" />}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormaPagamento('CREDIT_CARD')}
-                className={`flex items-start gap-3.5 rounded-xl p-4 text-left transition-all cursor-pointer ${
-                  formaPagamento === 'CREDIT_CARD'
-                    ? 'border-2 border-[#081C3A] bg-slate-50 ring-4 ring-[#081C3A]/10'
-                    : 'border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
-                }`}
-              >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  formaPagamento === 'CREDIT_CARD' ? 'bg-[#081C3A] text-white' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  <CreditCard className="w-5 h-5" weight="bold" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-bold text-slate-900 block">Cartão de Crédito</span>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Renovação automática mensal ou anual no cartão.
-                  </p>
-                </div>
-                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                  formaPagamento === 'CREDIT_CARD'
-                    ? 'border-[#081C3A] bg-[#081C3A] text-white'
-                    : 'border-slate-300 bg-white'
-                }`}>
-                  {formaPagamento === 'CREDIT_CARD' && <Check className="w-3 h-3" weight="bold" />}
-                </span>
-              </button>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
             {plans.map((plan) => {
               const isCurrentPlan = activePlanId === plan.id;
@@ -638,6 +558,60 @@ export default function PlanosPage() {
                   <p className={`text-[11px] mt-1 font-medium ${plan.destaque ? 'text-slate-400' : 'text-slate-500'}`}>
                     {billingPeriod === 'anual' ? 'Faturamento anual com 20% de economia' : 'Faturamento mensal recorrente'}
                   </p>
+                </div>
+
+                <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100/90 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormaPagamento('PIX')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                      formaPagamento === 'PIX'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <QrCode className="w-3.5 h-3.5" weight="bold" />
+                    <span>Pix</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormaPagamento('CREDIT_CARD')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                      formaPagamento === 'CREDIT_CARD'
+                        ? 'bg-[#081C3A] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" weight="bold" />
+                    <span>Cartão</span>
+                  </button>
+                </div>
+
+                <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100/90 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormaPagamento('PIX')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                      formaPagamento === 'PIX'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <QrCode className="w-3.5 h-3.5" weight="bold" />
+                    <span>Pix</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormaPagamento('CREDIT_CARD')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                      formaPagamento === 'CREDIT_CARD'
+                        ? 'bg-[#081C3A] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" weight="bold" />
+                    <span>Cartão</span>
+                  </button>
                 </div>
 
                 <button
@@ -778,105 +752,42 @@ export default function PlanosPage() {
               Sem fidelidade • Adicione ao seu plano a qualquer momento
             </span>
 
-            <a
-              href={`https://wa.me/${COMMERCIAL_WHATSAPP}?text=${encodeURIComponent(`Olá, desejo contratar o Add-on Expertise Fiscal (+R$ 99,99/mês) na Expertise Licitatória.${user?.email ? ` Minha conta: ${user.email}.` : ''}${user?.company?.razaoSocial ? ` Empresa: ${user.company.razaoSocial}.` : ''}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+            <div className="w-full grid grid-cols-2 gap-1.5 rounded-xl bg-white/10 p-1 mb-3">
+              <button
+                type="button"
+                onClick={() => setFormaPagamento('PIX')}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                  formaPagamento === 'PIX' ? 'bg-emerald-500 text-white' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" weight="bold" />
+                <span>Pix</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormaPagamento('CREDIT_CARD')}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
+                  formaPagamento === 'CREDIT_CARD' ? 'bg-white text-[#081C3A]' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" weight="bold" />
+                <span>Cartão</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={checkoutLoading === 'expertise_fiscal'}
+              onClick={() => handlePlanAction({ id: 'expertise_fiscal', nome: 'Expertise Fiscal' } as any)}
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 transition-all cursor-pointer disabled:opacity-50"
             >
-              <WhatsappLogo className="w-4 h-4" weight="fill" />
-              <span>Ativar Add-on Expertise Fiscal</span>
-              <ArrowSquareOut className="w-4 h-4" weight="bold" />
-            </a>
+              {checkoutLoading === 'expertise_fiscal' ? <Spinner className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" weight="bold" />}
+              <span>Ativar Add-on no Asaas</span>
+            </button>
           </div>
         </div>
       </section>
 
-      <section className="mt-16 rounded-3xl border border-slate-200 bg-white p-8 sm:p-10 shadow-sm">
-        <div className="text-center max-w-2xl mx-auto mb-8">
-          <h2 className="text-xl sm:text-2xl font-black text-brand-dark tracking-tight">
-            Garantia de Excelência e Conformidade Corporativa
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-            Estrutura desenhada para atender desde departamentos de licitação enxutos até grandes grupos empresariais.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-brand-blue border border-brand-blue/30">
-              <Receipt className="w-5 h-5" weight="duotone" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                Faturamento Flexível
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                Opção de faturamento por boleto para PJ, PIX ou cartão corporativo.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
-              <Buildings className="w-5 h-5" weight="duotone" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                Nota Fiscal Automática
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                Emissão de NF-e mensal vinculada diretamente ao CNPJ contratante.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-brand-orange border border-orange-200">
-              <ShieldCheck className="w-5 h-5" weight="duotone" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                Lei 14.133/21 & LGPD
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                Segurança jurídica e proteção integral de dados estratégicos.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-200">
-              <Crown className="w-5 h-5" weight="duotone" />
-            </div>
-            <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                Sem Comissão de Êxito
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                100% do valor do contrato conquistado pertence exclusivamente à sua empresa.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-medium text-slate-600">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Precisa de contrato sob medida com múltiplos CNPJs ou Acordo de Nível de Serviço (SLA)?</span>
-          </div>
-
-          <a
-            href={buildCommercialWhatsAppUrl('Personalizado / Enterprise', user?.email, user?.company?.razaoSocial)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 font-bold text-brand-orange hover:text-orange-700 underline cursor-pointer"
-          >
-            <WhatsappLogo className="w-4 h-4" weight="fill" />
-            <span>Falar com a Diretoria Comercial →</span>
-          </a>
-        </div>
-      </section>
+      
 
       <ConsultantModal
         isOpen={isConsultantModalOpen}

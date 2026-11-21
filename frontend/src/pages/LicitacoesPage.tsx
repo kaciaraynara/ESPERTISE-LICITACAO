@@ -436,13 +436,8 @@ export default function LicitacoesPage({
 
   useEffect(() => {
     carregarSalvos();
-    const termoInicial = extrairPalavraChaveRamo(selectedCompany);
-    if (termoInicial && !palavraChave) {
-      setPalavraChave(termoInicial);
-      buscarEditais(termoInicial, true);
-    } else {
-      buscarEditais();
-    }
+    void extrairPalavraChaveRamo;
+    buscarEditais('', true);
   }, [carregarSalvos, selectedCompany]);
 
   const handleSincronizarPncp = async () => {
