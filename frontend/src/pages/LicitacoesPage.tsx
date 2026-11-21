@@ -377,7 +377,7 @@ export default function LicitacoesPage({
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
         const buildParams = (termo: string, localOnly: boolean) => {
-          const p: Record<string, any> = { limit: 200, local: localOnly };
+          const p: Record<string, any> = { limit: 1000, local: localOnly };
           if (termo.trim()) p.q = termo.trim();
           if (ufSelecionada) p.uf = ufSelecionada;
           if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
@@ -449,7 +449,7 @@ export default function LicitacoesPage({
           uf: ufSelecionada || undefined,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT_PNCP')), 15000)
+          setTimeout(() => reject(new Error('TIMEOUT_PNCP')), 45000)
         ),
       ]);
       await buscarEditais();

@@ -1058,19 +1058,24 @@ export async function sincronizarLicitacoesPNCP(
     }
   }
 
-  const resultados = await Promise.all(modalidades.map((modalidade) =>
-    buscarContratacoesPNCP({
-      codigoModalidadeContratacao: modalidade,
-      dataInicial: filtros.dataInicial,
-      dataFinal: filtros.dataFinal,
-      uf: filtros.uf,
-      ...(buyerCnpjForPncp ? { cnpj: buyerCnpjForPncp } : {}),
-      palavraChave,
-      pagina: filtros.pagina ?? 1,
-      tamanhoPagina: filtros.tamanhoPagina ?? 50,
-      endpoint: filtros.endpoint || 'publicacao',
-    }),
-  ));
+  const paginasSync = filtros.pagina ? [filtros.pagina] : [1, 2, 3];
+  const resultados = await Promise.all(
+    modalidades.flatMap((modalidade) =>
+      paginasSync.map((pag) =>
+        buscarContratacoesPNCP({
+          codigoModalidadeContratacao: modalidade,
+          dataInicial: filtros.dataInicial,
+          dataFinal: filtros.dataFinal,
+          uf: filtros.uf,
+          ...(buyerCnpjForPncp ? { cnpj: buyerCnpjForPncp } : {}),
+          palavraChave,
+          pagina: pag,
+          tamanhoPagina: filtros.tamanhoPagina ?? 50,
+          endpoint: filtros.endpoint || 'proposta',
+        }).catch(() => ({ data: [], totalRegistros: 0, pagina: pag, tamanhoPagina: 50 }))
+      )
+    )
+  );
 
   const rawItems = resultados.flatMap((resultado) => resultado.data || []);
   const sincronizados: LicitacaoRadarPNCP[] = [];
