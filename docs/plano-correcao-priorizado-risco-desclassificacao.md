@@ -40,7 +40,7 @@ Ponto de restauração: `%TEMP%\opencode\expertise-backup-20261121-142757`.
 | P2.2 | Planilha de custos completa com pró-labore, dinheiro da empresa, funcionários, viagem/estadias, fabricação e manutenção de software | Hoje a planilha cobre produto/serviço, impostos, operacional e margem. Os demais rubricas precisam de modelo contábil/fiscal definido com o cliente para não virar número inventado. |
 | P2.3 | Corrigir as 6 suítes em falha da linha de base | Falhas prévias em `licitacoes.service`, `notices-summary.service`, `pncp.service`, `source-registry`, `ai.service` e `lex-integration`. Não são regressões desta rodada e exigem trabalho específico. |
 | P2.4 | Interpretar os 4 anexos de imagem enviados pelo cliente | Este ambiente não consegue ler/imagem nem concluiu OCR nativo. É necessário que o cliente transcreva os pontos ou forneça PDF/texto. |
-| P2.5 | Publicar/enviar/excluir/deploy | Push para o GitHub e deploy automático da Vercel executados em 2026-11-21. O Render ainda está com build antigo e exige Deploy Hook ou reconexão do serviço. Nenhuma exclusão foi executada. |
+| P2.5 | Publicar/enviar/excluir/deploy | Push para o GitHub e deploys automáticos da Vercel e do Render confirmados em 2026-11-21. Nenhuma exclusão foi executada. |
 
 ## Ambiente de produção (Vercel + Render + Neon + Cloudflare)
 
@@ -52,19 +52,15 @@ Auditoria e publicação em 2026-11-21:
 - Proxy da Vercel em `/api/v1/*` → **200**.
 - CORS validado para `expertiselicitatoria.com.br`, `www` e `*.vercel.app` → **204** com origem correta.
 - Repositório GitHub: **`kaciaraynara/ESPERTISE-LICITACAO`**, branch `main`.
-- Commit publicado: **`7392766`** — `fix: exequibilidade, compliance, propostas e URLs de producao`.
+- Commits publicados: **`7392766`** (correções), **`d2b292c`** (scripts/docs) e **`5e79c9e`** (health check com versão).
 - **Vercel: deploy automático confirmado.** O bundle mudou para `index-q4Yn7XpL.js` e o fallback de produção agora é `.../api/v1`.
-- **Render: build antigo.** O `/health` publicado ainda responde `{"status":"ok","uptime":...}` (sem `service: "expertise-api"`), embora o commit enviado contenha esse campo. O serviço reiniciou, mas não aplicou o `main` deste repositório.
+- **Render: deploy automático confirmado.** O painel mostra o serviço `ESPERTISE-LICITACAO` conectado a `kaciaraynara/ESPERTISE-LICITACAO`, branch `main`, commit `d2b292c` como **Live**.
+- **Falso alarme corrigido:** o `/api/v1/health` respondia sem `service` porque `backend/src/server.ts` registrava uma rota duplicada **antes** do router, sombreando o handler de `routes/index.ts`. Não era build antigo. No commit `5e79c9e` a duplicata foi removida e o health check passou a expor `service` + `version` (commit publicado pelo Render).
 - Scripts criados: `scripts/publicar-github.ps1`, `scripts/atualizar-render.ps1` e `scripts/verificar-producao.ps1`.
 
-### Ação necessária no Render
+### Deploy automático do Render
 
-O deploy automático do Render só funciona se o serviço estiver conectado a este repositório e com Auto-Deploy ligado. Duas opções:
-
-1. **Reconectar o serviço** em Render → serviço `espertise-licitacao` → Settings → Build & Deploy → Repository `kaciaraynara/ESPERTISE-LICITACAO`, branch `main`, Auto-Deploy **On**.
-2. **Informar o Deploy Hook** (Render → serviço → Settings → Deploy Hook) e executar:
-   `powershell -ExecutionPolicy Bypass -File scripts/atualizar-render.ps1 -DeployHookUrl "<URL_DO_HOOK>"`
-   O script dispara o deploy e espera o `/health` passar a retornar `service: "expertise-api"`.
+Nenhuma ação manual é necessária. O serviço já está conectado ao repositório e com Auto-Deploy ligado; cada push em `main` dispara o build. O script `scripts/atualizar-render.ps1` fica disponível apenas como contingência (Deploy Hook) se o Auto-Deploy for desligado.
 
 ### Pontos de atenção antes de novas migrations
 
@@ -82,6 +78,6 @@ O deploy automático do Render só funciona se o serviço estiver conectado a es
 - `admin-frontend`: `npm run build` (TS + Vite) ✅.
 - `backend`: suíte completa → **6 suítes / 12 testes falhando**, idêntico à linha de base; **5 testes novos passando** (`proposal-pricing.test.ts`).
 - `e2e-endpoints`: passou isolado e na repetição da suíte completa; a falha pontual na primeira rodada foi instabilidade, não regressão confirmada.
-- Push para `kaciaraynara/ESPERTISE-LICITACAO` concluído; Vercel fez deploy automático e o bundle novo foi validado em produção.
-- Render ainda não aplicou o commit; verificação de produção acusa essa divergência.
+- Push para `kaciaraynara/ESPERTISE-LICITACAO` concluído; Vercel e Render fizeram deploy automático.
+- Health check versionado (`5e79c9e`): `/api/v1/health` passa a retornar `service: "expertise-api"` e `version` com o commit publicado.
 - Nenhuma exclusão, migration ou alteração de banco foi executada.
