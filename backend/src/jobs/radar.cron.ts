@@ -192,8 +192,7 @@ export async function syncPncpLast24Hours(): Promise<{
 
         const resultado = await fetchWithBackoff(
           () => buscarContratacoesPNCP({
-            dataInicial,
-            dataFinal,
+            ...(endpointTipo === 'publicacao' ? { dataInicial, dataFinal } : {}),
             codigoModalidadeContratacao: modalidade.codigo,
             pagina,
             tamanhoPagina: PAGE_SIZE,
