@@ -16,7 +16,7 @@ async function saveDocumentChunks(
   const chunkSize = 1800;
   const chunkOverlap = 200;
   const chunks: string[] = [];
-  for (let i = 0; i < text.length && chunks.length < 15; i += (chunkSize - chunkOverlap)) {
+  for (let i = 0; i < text.length && chunks.length < 45; i += (chunkSize - chunkOverlap)) {
     const part = text.slice(i, i + chunkSize).trim();
     if (part) chunks.push(part);
   }
@@ -203,7 +203,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
         sourceId: { in: lookupIds },
       },
       orderBy: { chunkIndex: 'asc' },
-      take: 15,
+      take: 45,
       select: { content: true },
     });
 
@@ -336,56 +336,91 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       return await buildAndPersistFallback();
     }
 
-    // 5. Prioriza o download do arquivo cujo tipoDocumentoNome ou titulo contenha "Edital" ou "Termo de Referência" (ou primeiro ativo)
-    const editalArquivo =
-      arquivos.find((a: any) => {
-        const tipo = String(a.tipoDocumentoNome || a.tipo_documento_nome || '').toLowerCase();
-        const titulo = String(a.titulo || a.nome || '').toLowerCase();
-        return (
-          tipo.includes('edital') ||
-          titulo.includes('edital') ||
-          tipo.includes('termo de refer') ||
-          titulo.includes('termo de refer')
-        );
-      }) ||
-      arquivos.find((a: any) => a.statusAtivo !== false) ||
-      arquivos[0];
+    // 5. Seleciona ate 3 anexos prioritarios (Edital, Termo de Referencia, Minuta) e extrai PDF, DOCX e ZIP
+    const scoreArquivo = (a: any) => {
+      const txt = `${a.tipoDocumentoNome || a.tipo_documento_nome || ''} ${a.titulo || a.nome || ''}`.toLowerCase();
+      if (txt.includes('edital')) return 3;
+      if (txt.includes('termo de refer') || txt.includes('projeto b')) return 2;
+      if (txt.includes('minuta') || txt.includes('anexo')) return 1;
+      return 0;
+    };
 
-    const seqArquivo = editalArquivo.sequencialArquivo || editalArquivo.sequencial || 1;
+    const candidatos = [...arquivos]
+      .filter((a: any) => a.statusAtivo !== false)
+      .sort((a: any, b: any) => scoreArquivo(b) - scoreArquivo(a))
+      .slice(0, 3);
+    if (candidatos.length === 0 && arquivos[0]) candidatos.push(arquivos[0]);
+
+    const parsePdfBuffer = async (buf: Buffer): Promise<string> => {
+      try {
+        let pdfParseModule: any;
+        try { pdfParseModule = (await import('pdf-parse')).default; } catch { pdfParseModule = require('pdf-parse'); }
+        const pdfFn = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule?.default || pdfParseModule;
+        const pdfData = await pdfFn(buf);
+        return String(pdfData?.text || '').trim();
+      } catch {
+        return '';
+      }
+    };
+
+    const extrairBuffer = async (buf: Buffer, nome: string, depth = 0): Promise<string> => {
+      const lower = nome.toLowerCase();
+      const isPdf = buf.slice(0, 4).toString() === '%PDF' || lower.endsWith('.pdf');
+      if (isPdf) {
+        const txt = await parsePdfBuffer(buf);
+        if (txt.length >= 30) return txt;
+      }
+      const isZipLike = buf.slice(0, 2).toString() === 'PK' || lower.endsWith('.docx') || lower.endsWith('.zip');
+      if (isZipLike && depth < 2) {
+        try {
+          const PizZip = require('pizzip');
+          const zip = new PizZip(buf);
+          if (zip.files['word/document.xml']) {
+            const xml = zip.files['word/document.xml'].asText();
+            return xml.replace(/<w:p[^>]*>/g, '\n').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          }
+          const parts: string[] = [];
+          for (const entryName of Object.keys(zip.files)) {
+            const entry = zip.files[entryName];
+            if (entry.dir) continue;
+            if (/\.(pdf|docx)$/i.test(entryName)) {
+              const innerBuf = entry.asNodeBuffer();
+              const innerTxt = await extrairBuffer(innerBuf, entryName, depth + 1);
+              if (innerTxt.length >= 30) parts.push(`[${entryName}]\n${innerTxt}`);
+              if (parts.join('\n').length > 100000) break;
+            }
+          }
+          return parts.join('\n\n');
+        } catch {
+          return '';
+        }
+      }
+      return '';
+    };
+
+    const editalArquivo = candidatos[0];
+    const seqArquivo = editalArquivo?.sequencialArquivo || editalArquivo?.sequencial || 1;
     const urlArquivoPDF = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seqArquivo}`;
 
-    // 6. Faz o download dos bytes do arquivo
-    let docBuffer: Buffer | null = null;
-    try {
-      const docRes = await axios.get(urlArquivoPDF, {
-        responseType: 'arraybuffer',
-        timeout: 25000,
-      });
-      docBuffer = Buffer.from(docRes.data);
-    } catch (downErr: any) {
-      console.warn('[PNCP Parser] Falha ao baixar bytes do arquivo no PNCP:', downErr.message);
-      return await buildAndPersistFallback();
-    }
-
-    // 7. Extrai texto real com pdf-parse
-    let extractedText = '';
-    try {
-      let pdfParseModule: any;
+    const textosAnexos: string[] = [];
+    for (const arq of candidatos) {
+      const seq = arq.sequencialArquivo || arq.sequencial || 1;
+      const urlArq = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seq}`;
       try {
-        pdfParseModule = (await import('pdf-parse')).default;
-      } catch {
-        pdfParseModule = require('pdf-parse');
+        const docRes = await axios.get(urlArq, { responseType: 'arraybuffer', timeout: 25000 });
+        const nomeArq = String(arq.titulo || arq.nome || 'anexo.pdf');
+        const txt = await extrairBuffer(Buffer.from(docRes.data), nomeArq);
+        if (txt && txt.length >= 50) {
+          textosAnexos.push(`=== ANEXO: ${nomeArq} ===\n${txt}`);
+        }
+      } catch (downErr: any) {
+        console.warn('[PNCP Parser] Falha ao baixar anexo:', downErr.message);
       }
-      const pdfFn = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule?.default || pdfParseModule;
-      const pdfData = await pdfFn(docBuffer);
-      extractedText = (pdfData?.text || '').trim();
-    } catch (pdfErr: any) {
-      console.warn('[PNCP Parser] Arquivo sem texto pesquisável ou formato inválido:', pdfErr.message);
     }
 
-    // 8. Caso o órgão não tenha enviado PDF para o PNCP ou o arquivo seja um ZIP/imagem sem texto extraível:
+    const extractedText = textosAnexos.join('\n\n').slice(0, 120000);
     if (!extractedText || extractedText.length < 50) {
-      console.warn('[PNCP Parser] Arquivo sem texto extraível (ZIP/imagem). Aplicando aviso de escopo real estruturado.');
+      console.warn('[PNCP Parser] Anexos sem texto extraível (PDF imagem/vazio). Aplicando escopo estruturado.');
       return await buildAndPersistFallback();
     }
 
@@ -416,12 +451,12 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
           fileName: editalArquivo.titulo || 'Edital.pdf',
           fileUrl: urlArquivoPDF,
           mimeType: 'application/pdf',
-          extractedText: extractedText.slice(0, 50000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
+          extractedText: extractedText.slice(0, 120000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 120000)).digest('hex'),
         },
         update: {
-          extractedText: extractedText.slice(0, 50000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 50000)).digest('hex'),
+          extractedText: extractedText.slice(0, 120000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 120000)).digest('hex'),
         },
       });
     }
