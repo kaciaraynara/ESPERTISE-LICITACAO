@@ -89,23 +89,23 @@ function avaliarViabilidade(edital: any, empresa: any): {
   if (pontos >= 4) {
     return {
       faixa: 'ALTA',
-      rotulo: 'Alta Viabilidade · Recomendado participar',
-      resumo: 'Excelente aderencia ao perfil e atuacao da empresa.',
+      rotulo: 'Alta Aderência · Avaliar participação',
+      resumo: 'Alta aderência ao perfil cadastrado. Ainda é necessário conferir edital, custos e prazos.',
       motivos,
     };
   }
   if (pontos >= 2) {
     return {
       faixa: 'MODERADA',
-      rotulo: 'Viabilidade Moderada · Avaliar exigencias',
-      resumo: 'Compativel parcialmente; vale revisar o edital completo com a Luli.',
+      rotulo: 'Aderência Moderada · Verificar exigências',
+      resumo: 'Aderência parcial; revise o edital completo e os requisitos de habilitação.',
       motivos: motivos.length ? motivos : ['Requer leitura do edital para confirmar especificacoes'],
     };
   }
   return {
     faixa: 'BAIXA',
-    rotulo: 'Baixa Viabilidade · Fora do perfil principal',
-    resumo: 'Baixa aderencia ao CNAE ou estado da empresa.',
+    rotulo: 'Baixa Aderência · Fora do perfil',
+    resumo: 'Baixa aderência ao CNAE ou estado cadastrado. Não indica baixa concorrência.',
     motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
   };
 }
@@ -178,9 +178,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
             <TrendingUp className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-[#081C3A]">Analise de Viabilidade</h1>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">Análise de Aderência de Oportunidades</h1>
             <p className="text-xs text-slate-500">
-              Veja com clareza em quais licitacoes vale mais a pena participar de acordo com sua empresa
+              Ordena editais pela aderência ao perfil cadastrado (CNAE, UF, valor e prazo).
             </p>
           </div>
         </div>
@@ -205,6 +205,16 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
       </div>
 
+      <div role="note" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+        <p className="text-xs leading-relaxed">
+          <strong>Este score mede aderência ao seu perfil, não concorrência.</strong> Ele não usa dados de
+          lances, participantes ou quantidade de propostas. Portanto, &ldquo;baixa aderência&rdquo;{' '}
+          <strong>não</strong> significa &ldquo;licitação com baixa procura&rdquo;. Antes de participar,
+          confirme o edital, os requisitos e a viabilidade financeira.
+        </p>
+      </div>
+
       {/* KPIs simples sem numeracao tecnica */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -213,7 +223,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-            <CheckCircle2 className="h-4 w-4" /> Recomendados para Participar
+            <CheckCircle2 className="h-4 w-4" /> Alta Aderência
           </div>
           <div className="mt-2 text-2xl font-extrabold text-emerald-700">{altas}</div>
         </div>
@@ -294,7 +304,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
       {carregando ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-12 text-sm font-semibold text-[#081C3A]">
           <Loader2 className="h-5 w-5 animate-spin text-[#F97316]" />
-          Analisando todos os editais do PNCP para sua empresa...
+          Carregando editais disponíveis para sua empresa...
         </div>
       ) : (
         <div className="space-y-4">

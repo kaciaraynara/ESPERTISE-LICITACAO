@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 import { useAuthStore } from '../store/auth.store';
-import api, { noticesApi } from '../services/api';
+import api, { BASE_URL, noticesApi } from '../services/api';
 import { taxService } from '../services/tax.service';
 import { EditalSelector, EditalOption } from './EditalSelector';
 import { BidRecord, SocketBidError } from '../types/war-room.types';
@@ -373,11 +373,9 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
   useEffect(() => {
     if (!editalAtivo?.id) return;
 
-    const socketUrl =
-      import.meta.env.VITE_API_URL?.replace('/api/v1', '') ||
-      (import.meta.env.PROD && typeof window !== 'undefined'
-        ? window.location.origin
-        : 'http://localhost:3001');
+    // Usa a mesma origem resolvida pelo cliente HTTP. Em produção, o fallback
+    // precisa apontar para o Render; a Vercel não faz proxy de WebSocket.
+    const socketUrl = BASE_URL.replace(/\/api\/v1\/?$/, '');
 
     const socket = io(socketUrl, {
       auth: { token: accessToken || 'anon-dev' },

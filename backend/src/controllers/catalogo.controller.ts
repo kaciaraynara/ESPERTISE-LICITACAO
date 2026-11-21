@@ -3,6 +3,15 @@ import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/aut
 import { prisma } from '../database/prisma';
 import { ApiError } from '../shared/errors/ApiError';
 
+function parseMoney(value: unknown, campo: string): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const numero = Number(value);
+  if (!Number.isFinite(numero) || numero < 0) {
+    throw new ApiError(`${campo} deve ser um valor monetário maior ou igual a zero`, 400);
+  }
+  return numero;
+}
+
 export class CatalogoController {
   public async listar(req: AuthRequest, res: Response) {
     const userId = req.user?.id;
@@ -69,7 +78,8 @@ export class CatalogoController {
         : item.custoBase !== null
           ? Number(item.custoBase)
           : 0,
-      custoBase: item.custoBase !== null ? Number(item.custoBase) : null,
+      // Custo interno nunca é exposto no mercado: concorrentes veriam a estrutura de custo alheia.
+      custoBase: null,
       precoMinimoLicitacao: item.precoMinimoLicitacao !== null ? Number(item.precoMinimoLicitacao) : null,
       unidadeMedida: item.unidadeMedida || 'UN',
       razaoSocial: item.company?.razaoSocial || 'Fornecedor Homologado',
@@ -89,7 +99,7 @@ export class CatalogoController {
       descricao: sup.ramoAtividade || 'Fornecimento de insumos para licitações públicas',
       categoria: 'FORNECEDOR_HOMOLOGADO',
       precoAtacado: sup.custoReferencia !== null ? Number(sup.custoReferencia) : 0,
-      custoBase: sup.custoReferencia !== null ? Number(sup.custoReferencia) : null,
+      custoBase: null,
       precoMinimoLicitacao: sup.custoReferencia !== null ? Number(sup.custoReferencia) : null,
       unidadeMedida: sup.unidadeCusto || 'UN',
       razaoSocial: sup.razaoSocial,
@@ -129,8 +139,8 @@ export class CatalogoController {
         codigoCatmat,
         nome,
         categoria: categoria || 'MATERIAL',
-        custoBase: custoBase ? Number(custoBase) : null,
-        precoMinimoLicitacao: precoMinimoLicitacao ? Number(precoMinimoLicitacao) : null,
+        custoBase: parseMoney(custoBase, 'Custo base'),
+        precoMinimoLicitacao: parseMoney(precoMinimoLicitacao, 'Preço mínimo de licitação'),
         unidadeMedida: unidadeMedida || 'UN',
         status: effectiveStatus,
       },
@@ -181,8 +191,10 @@ export class CatalogoController {
         codigoCatmat,
         nome,
         categoria,
-        custoBase: custoBase !== undefined ? Number(custoBase) : undefined,
-        precoMinimoLicitacao: precoMinimoLicitacao !== undefined ? Number(precoMinimoLicitacao) : undefined,
+        custoBase: custoBase !== undefined ? parseMoney(custoBase, 'Custo base') : undefined,
+        precoMinimoLicitacao: precoMinimoLicitacao !== undefined
+          ? parseMoney(precoMinimoLicitacao, 'Preço mínimo de licitação')
+          : undefined,
         unidadeMedida,
         status: effectiveStatus,
       },

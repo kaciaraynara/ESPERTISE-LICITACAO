@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { lexApi } from '@services/api';
@@ -8,10 +8,7 @@ import {
   ShieldAlert, 
   BarChart3, 
   MessageSquare,
-  Zap as Sparkles,
-  CheckCircle2,
   AlertTriangle,
-  Send
 } from '@components/icons/phosphor-compat';
 
 type Tab = 'resumo' | 'riscos' | 'viabilidade' | 'chat';
@@ -25,13 +22,27 @@ interface LexViabilidadeModalProps {
 
 export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, objeto }: LexViabilidadeModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('resumo');
-  const [chatMessage, setChatMessage] = useState('');
-  
-  // Mutações simuladas (para plugar na API real depois)
+
   const resumoMutation = useMutation({
     mutationFn: () => lexApi.resumo({ edital_id: licitacaoId })
   });
 
+  const resumoBruto: any = (resumoMutation.data as any)?.data ?? resumoMutation.data ?? null;
+  const textoResumo = typeof resumoBruto === 'string'
+    ? resumoBruto
+    : resumoBruto?.resumo || resumoBruto?.analise || resumoBruto?.texto || null;
+  const objetoResumo = resumoBruto?.objeto || objeto;
+  const modeloResumo = resumoBruto?.modeloContratacao || resumoBruto?.modelo_contratacao || null;
+  const exigenciasResumo = resumoBruto?.exigenciasQualificacao || resumoBruto?.exigencias_qualificacao || null;
+
+  useEffect(() => {
+    if (isOpen && licitacaoId && !resumoMutation.data) {
+      resumoMutation.mutate();
+    }
+    // A mutation é estável enquanto o modal está montado; disparar somente na abertura
+    // evita requisições repetidas a cada renderização.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, licitacaoId]);
 
 
   return (
@@ -121,27 +132,45 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xl font-bold text-brand-blue">Resumo do Edital</h3>
-                      <button onClick={() => resumoMutation.mutate()} className="text-sm font-semibold text-brand-orange hover:underline">
-                        Gerar Novamente
+                      <button
+                        onClick={() => resumoMutation.mutate()}
+                        disabled={resumoMutation.isPending}
+                        className="text-sm font-semibold text-brand-orange hover:underline disabled:opacity-50"
+                      >
+                        {resumoMutation.isPending ? 'Analisando...' : 'Gerar Novamente'}
                       </button>
                     </div>
+
+                    {resumoMutation.isError && (
+                      <div className="p-4 bg-orange-50 border border-brand-orange/20 rounded-xl flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-brand-orange shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Não foi possível gerar o resumo automático.</p>
+                          <p className="text-sm text-slate-600 mt-1">
+                            Nenhum dado foi inferido. Confira o edital original antes de prosseguir.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Objeto Principal</p>
-                        <p className="font-medium text-slate-800 line-clamp-3" title={objeto}>{objeto}</p>
+                        <p className="font-medium text-slate-800 line-clamp-3" title={objetoResumo}>{objetoResumo}</p>
                       </div>
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Modelo de Contratação</p>
-                        <p className="font-medium text-slate-800">Sistema de Registro de Preços (SRP) - Vigência 12 meses.</p>
+                        <p className="font-medium text-slate-800">{modeloResumo || 'Não informado no resumo automático'}</p>
                       </div>
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Exigência de Qualificação</p>
-                        <p className="font-medium text-slate-800">Balanço Patrimonial (Liquidez &gt; 1,0), Atestado de Capacidade Técnica.</p>
+                        <p className="font-medium text-slate-800">{exigenciasResumo || 'Não informado no resumo automático'}</p>
                       </div>
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Dica LEX</p>
-                        <p className="font-medium text-brand-blue">Leia atentamente o Anexo I - Termo de Referência.</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Análise da LEX</p>
+                        <p className="font-medium text-brand-blue">
+                            {textoResumo || (resumoMutation.isPending ? 'Analisando o edital...' : 'Gere o resumo para ver os pontos extraídos.')}
+                          </p>
                       </div>
                     </div>
                   </div>
@@ -152,32 +181,20 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xl font-bold text-brand-blue">Auditoria Jurídica & Habilitação</h3>
-                      <span className="bg-orange-100 text-brand-orange px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-4 h-4" /> 1 Alerta Crítico
+                      <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-4 h-4" /> Sem análise estruturada
                       </span>
                     </div>
 
                     <div className="space-y-4">
-                      <div className="p-5 bg-orange-50/50 border border-brand-orange/20 rounded-xl flex gap-4 items-start">
+                      <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl flex gap-4 items-start">
                         <AlertTriangle className="w-6 h-6 text-brand-orange shrink-0 mt-0.5" />
                         <div>
-                          <h4 className="font-bold text-slate-800 mb-1">Atestado de Capacidade Técnica Restritivo</h4>
+                          <h4 className="font-bold text-slate-800 mb-1">Análise de risco indisponível</h4>
                           <p className="text-sm text-slate-600 leading-relaxed">
-                            O edital exige atestado que comprove fornecimento prévio limitando somatório (Exemplo Base). 
-                            <strong className="block mt-2 text-brand-orange">Sugestão LEX:</strong> É altamente recomendável pedir impugnação para permitir o somatório de atestados caso haja restrição.
-                          </p>
-                          <button className="mt-3 text-xs font-bold bg-white text-brand-blue border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50">
-                            Gerar Impugnação com IA
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-5 bg-green-50/50 border border-green-200 rounded-xl flex gap-4 items-start">
-                        <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-bold text-slate-800 mb-1">Balanço Patrimonial</h4>
-                          <p className="text-sm text-slate-600">
-                            Os índices exigidos estão dentro dos padrões normais de mercado.
+                            A LEX não possui evidências extraídas deste edital para afirmar restrições ou
+                            regularidade de índices. Não exibimos alertas automáticos sem fonte verificável.
+                            Confira pessoalmente os requisitos de habilitação no edital original.
                           </p>
                         </div>
                       </div>
@@ -189,46 +206,17 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
                 {activeTab === 'viabilidade' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                     <h3 className="text-xl font-bold text-brand-blue mb-4">Inteligência Competitiva</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Deságio Histórico Estimado</h4>
-                        <div className="flex items-end gap-2 mb-2">
-                          <span className="text-4xl font-black text-brand-blue">~18%</span>
-                          <span className="text-sm font-medium text-slate-500 mb-1">média geral</span>
-                        </div>
-                        <p className="text-sm text-slate-600">Este é um cálculo probabilístico feito pela IA com base em objetos semelhantes de fornecimento.</p>
-                      </div>
 
-                      <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 flex flex-col">
-                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Ficha do Órgão (Crédito)</h4>
-                        <div className="flex flex-col gap-3">
-                          <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                            <span className="text-sm text-slate-600 font-medium">Atraso Médio de Pagamento</span>
-                            <span className="text-sm font-black text-green-600 bg-green-50 px-2 py-0.5 rounded">12 dias</span>
-                          </div>
-                          <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                            <span className="text-sm text-slate-600 font-medium">Empenhos Pagos (2025)</span>
-                            <span className="text-sm font-black text-brand-blue">R$ 4.2M</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-slate-600 font-medium">Risco de Inadimplência</span>
-                            <span className="text-sm font-black text-green-600 flex items-center gap-1">
-                               Baixo
-                            </span>
-                          </div>
-                        </div>
+                    <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl flex gap-4 items-start">
+                      <AlertTriangle className="w-6 h-6 text-brand-orange shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-bold text-slate-800 mb-1">Dados de mercado não disponíveis nesta análise</h4>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                          A LEX não possui histórico de deságio, quantidade de lances ou dados de pagamento
+                          deste órgão. Não exibimos números estimados como se fossem reais. Consulte o PNCP
+                          e o edital original antes de formar preço ou decidir pela participação.
+                        </p>
                       </div>
-                    </div>
-
-                    <div className="mt-4 p-4 bg-blue-50 border border-brand-blue/20 rounded-xl flex items-start gap-3">
-                       <Sparkles className="w-6 h-6 text-brand-orange shrink-0 mt-0.5" />
-                       <div>
-                         <p className="text-sm font-medium text-brand-blue mb-1">
-                            <strong>Veredito LEX:</strong>
-                         </p>
-                         <p className="text-sm text-brand-blue/80">Excelente oportunidade dependendo do preço de custo. Avalie participar se sua margem bruta for superior ao deságio esperado.</p>
-                       </div>
                     </div>
                   </div>
                 )}
@@ -240,29 +228,16 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
                       <MessageSquare className="w-5 h-5 text-brand-blue" />
                       <h3 className="text-xl font-bold text-brand-blue">Converse com o Edital</h3>
                     </div>
-                    
-                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 overflow-y-auto space-y-4">
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shrink-0">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none shadow-sm text-sm text-slate-700 max-w-[85%]">
-                          Olá! Eu sou o LEX. Posso te ajudar a navegar por este edital. O que você gostaria de saber? Posso confirmar especificações técnicas, multas ou datas.
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={chatMessage}
-                        onChange={(e) => setChatMessage(e.target.value)}
-                        placeholder="Ex: Quais são as penalidades por atraso na entrega?"
-                        className="w-full bg-white border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
-                      />
-                      <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-brand-blue hover:bg-blue-900 text-white rounded-lg transition-colors">
-                        <Send className="w-4 h-4" />
-                      </button>
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-6 flex items-center justify-center">
+                      <div className="max-w-md text-center">
+                        <AlertTriangle className="w-8 h-8 text-brand-orange mx-auto mb-3" />
+                        <p className="text-sm font-bold text-slate-800">Funcionalidade indisponível nesta versão</p>
+                        <p className="text-sm text-slate-600 mt-2">
+                          O chat com o edital ainda não está conectado a uma fonte verificável. Não exibimos
+                          respostas simuladas que possam ser confundidas com análise do edital.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

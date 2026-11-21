@@ -543,6 +543,7 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
         proposalId,
         companyId,
         autoCreate,
+        formacaoPreco,
       } = (req.body || {}) as {
         noticeId?: string;
         licitacaoId?: string;
@@ -551,6 +552,14 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
         proposalId?: string;
         companyId?: string;
         autoCreate?: boolean;
+        formacaoPreco?: {
+          precoSugerido?: number;
+          custoProdutoServico?: number;
+          impostosPercentual?: number;
+          custoOperacionalPercentual?: number;
+          margemDesejadaPercentual?: number;
+          statusViabilidade?: string;
+        };
       };
 
       const noticeId = rawNoticeId || licitacaoId || edital_id || editalId || resolveNoticeId(req);
@@ -865,6 +874,20 @@ ${chunksText}
       const createdItems = [];
       const itens = extracted.itens;
 
+      // Planilha de custos calculada na tela de precificação: aplica o total sugerido
+      // aos itens reais do edital, em vez de gerar a proposta "as cegas".
+      const precoAlvoTotal = Number(formacaoPreco?.precoSugerido ?? 0);
+      const aplicarFormacaoPreco =
+        Number.isFinite(precoAlvoTotal) &&
+        precoAlvoTotal > 0 &&
+        formacaoPreco?.statusViabilidade !== 'INVIAVEL';
+      const pesos = itens.map((it: any) => {
+        const qtdPeso = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+        const valorEstimado = Number(it.valorEstimadoUnitario) > 0 ? Number(it.valorEstimadoUnitario) : 0;
+        return Math.max(qtdPeso, valorEstimado * qtdPeso, 1);
+      });
+      const somaPesos = pesos.reduce((acc: number, peso: number) => acc + peso, 0) || 1;
+
       for (let i = 0; i < itens.length; i++) {
         const it = itens[i];
         const itDesc = String(it.descricao || '').toLowerCase();
@@ -908,7 +931,13 @@ ${chunksText}
         let precoUnitarioCalculado: number | null = null;
         let bdiCalculado: ReturnType<typeof calcularSimulacaoBdi> | null = null;
 
-        if (custoDireto && custoDireto > 0) {
+        if (aplicarFormacaoPreco) {
+          const precoUnitarioFormado = Number(
+            ((precoAlvoTotal * (pesos[i] / somaPesos)) / qtd).toFixed(2),
+          );
+          // Nunca aplica um preço formado abaixo do custo direto conhecido.
+          precoUnitarioCalculado = Math.max(precoUnitarioFormado, custoDireto ?? 0);
+        } else if (custoDireto && custoDireto > 0) {
           bdiCalculado = calcularSimulacaoBdi({
             custoInsumos: custoDireto,
             margemLucroDesejada: 15,
@@ -942,12 +971,18 @@ ${chunksText}
             catalogoPrecoReferencia: precoCatalogo ?? valEst,
             bdiPercentual: bdiCalculado ? bdiCalculado.aliquotas.ivaDualTotalPercentual : 11.4,
             margemLucroPercentual: bdiCalculado ? bdiCalculado.margemLiquidaPercentual : (custoDireto && precoUnitarioCalculado && precoUnitarioCalculado > custoDireto ? Math.round(((precoUnitarioCalculado - custoDireto) / precoUnitarioCalculado) * 100 * 10) / 10 : 15),
-            inexequivel: false,
-            observacoes: precoCatalogo
-              ? 'Preço inicial do catálogo da empresa (BDI e margem calculados).'
-              : valEst
-                ? 'Preço estimado do PNCP usado como referência inicial.'
-                : null,
+            inexequivel:
+              custoDireto !== null &&
+              custoDireto > 0 &&
+              precoUnitarioCalculado !== null &&
+              precoUnitarioCalculado <= custoDireto,
+            observacoes: aplicarFormacaoPreco
+              ? `Preço formado pela planilha de custos (total R$ ${precoAlvoTotal.toFixed(2)}), distribuído proporcionalmente aos itens.`
+              : precoCatalogo
+                ? 'Preço inicial do catálogo da empresa (BDI e margem calculados).'
+                : valEst
+                  ? 'Preço estimado do PNCP usado como referência inicial.'
+                  : null,
           },
         });
         createdItems.push(createdItem);

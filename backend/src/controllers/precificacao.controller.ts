@@ -66,6 +66,27 @@ export class PrecificacaoController {
       const custoOperacionalPercentual = Number(body.custoOperacionalPercentual ?? 0);
       const margemDesejadaPercentual = Number(body.margemDesejadaPercentual ?? 0);
 
+      const valoresInformados = [
+        custoProdutoServico,
+        impostosPercentual,
+        custoOperacionalPercentual,
+        margemDesejadaPercentual,
+      ];
+      if (valoresInformados.some((valor) => !Number.isFinite(valor) || valor < 0)) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PRECIFICACAO_INPUT',
+          message: 'Informe valores numéricos não negativos para custo, impostos, operação e margem.',
+        });
+      }
+      if (impostosPercentual >= 100 || custoOperacionalPercentual > 100 || margemDesejadaPercentual >= 100) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PRECIFICACAO_PERCENTUAL',
+          message: 'Alíquotas e margens devem ser menores que 100%.',
+        });
+      }
+
       const custoOperacionalVal = custoProdutoServico * (custoOperacionalPercentual / 100);
       const custoBase = custoProdutoServico + custoOperacionalVal;
 
@@ -88,7 +109,7 @@ export class PrecificacaoController {
           margemLucroRealValor: lucroProjetado,
           margemLucroRealPercentual: margemDesejadaPercentual,
           lucroLiquidoReais: lucroProjetado,
-          margemSaudavel: margemDesejadaPercentual >= 10 && fatorDivisor > 0,
+          margemSaudavel: margemDesejadaPercentual >= 12 && fatorDivisor > 0,
           statusViabilidade:
             fatorDivisor <= 0
               ? 'INVIAVEL'

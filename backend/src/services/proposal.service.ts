@@ -293,6 +293,12 @@ export class ProposalService {
     if (!proposal.declaracaoInidoneidade) {
       errors.push('A Declaração de Inexistência de Impedimento ou Inidoneidade (Art. 14 da Lei 14.133/21) é obrigatória.');
     }
+    if (!proposal.declaracaoAcessibilidade) {
+      errors.push('A Declaração sobre Reserva de Cargos para Pessoas com Deficiência (Art. 63, I c/c Art. 93 da Lei 14.133/21) é obrigatória.');
+    }
+    if (!proposal.declaracaoMeEpp) {
+      warnings.push('Confirme o enquadramento ME/EPP: a ausência do benefício da LC 123/2006 pode alterar o empate ficto e o resultado do certame.');
+    }
 
     if (!proposal.procurementNotice) {
       errors.push('Vincule um edital à proposta para preencher corretamente o órgão, o objeto e os dados do certame.');
@@ -381,7 +387,9 @@ export class ProposalService {
       throw new ProposalServiceError(
         'proposal_price_below_cost',
         422,
-        `Não é possível gerar o documento: ${itensInexequiveis.length} item(ns) possuem preço unitário abaixo ou igual ao custo informado.`,
+        `Não é possível gerar o documento: ${itensInexequiveis.length} item(ns) possuem preço unitário abaixo ou igual ao custo informado. ` +
+        'Ajuste o preço ou, se mantiver o lance, documente a estrutura de custos para exercer o direito à diligência ' +
+        '(Art. 59, §§ 2º e 4º da Lei 14.133/2021 e Súmula 262/TCU). A emissão automática permanece bloqueada para evitar desclassificação.',
       );
     }
 
@@ -774,34 +782,47 @@ export class ProposalService {
     valorReferenciaEdital?: number;
     precoOfertado?: number;
   }) {
-    const custoDireto = Math.max(0, Number(rawInput?.custoDireto ?? 0) || 0);
-    const tributosPercentual = Math.max(0, Number(rawInput?.tributosPercentual ?? 0) || 0);
-    const valorReferenciaEdital = Math.max(0, Number(rawInput?.valorReferenciaEdital ?? 0) || 0);
+    const numeroOuZero = (valor: unknown): number => {
+      const numero = Number(valor ?? 0);
+      return Number.isFinite(numero) ? numero : 0;
+    };
+    const limitar = (valor: number, minimo: number, maximo: number) =>
+      Math.min(maximo, Math.max(minimo, valor));
+
+    const custoDireto = Math.max(0, numeroOuZero(rawInput?.custoDireto));
+    const tributosPercentual = limitar(numeroOuZero(rawInput?.tributosPercentual), 0, 100);
+    const valorReferenciaEdital = Math.max(0, numeroOuZero(rawInput?.valorReferenciaEdital));
 
     const custoBase = Number((custoDireto * (1 + tributosPercentual / 100)).toFixed(2));
     const precoMinimo = Number((custoBase * 1.10).toFixed(2));
     const precoCompetitivo = Number((custoBase * 1.25).toFixed(2));
     const precoTeto = Number(valorReferenciaEdital.toFixed(2));
 
-    const precoOfertado =
+    // Não substitui o preço ofertado pelo valor do edital: isso mascarava lance inexequível como "sinal verde".
+    const precoFoiInformado =
       rawInput?.precoOfertado !== undefined &&
       rawInput?.precoOfertado !== null &&
-      !Number.isNaN(Number(rawInput.precoOfertado))
-        ? Number(rawInput.precoOfertado)
-        : valorReferenciaEdital > 0
-          ? valorReferenciaEdital
-          : precoMinimo;
+      String(rawInput.precoOfertado).trim() !== '' &&
+      Number.isFinite(Number(rawInput.precoOfertado));
+    const precoOfertado = precoFoiInformado ? Number(rawInput.precoOfertado) : null;
 
-    const statusExequibilidade =
-      precoOfertado >= custoBase
-        ? 'Exequível (Sinal Verde)'
-        : 'Risco de Inexequibilidade (Sinal Vermelho)';
+    let statusExequibilidade: string;
+    if (!precoFoiInformado || precoOfertado === null) {
+      statusExequibilidade = 'Preço não informado (Sinal Amarelo)';
+    } else if (precoOfertado <= custoBase) {
+      statusExequibilidade = 'Risco de Inexequibilidade (Sinal Vermelho)';
+    } else if (precoOfertado < precoMinimo) {
+      statusExequibilidade = 'Margem abaixo do mínimo recomendado (Sinal Amarelo)';
+    } else {
+      statusExequibilidade = 'Exequível (Sinal Verde)';
+    }
 
     return {
       custoBase,
       precoMinimo,
       precoCompetitivo,
       precoTeto,
+      precoOfertado,
       statusExequibilidade,
     };
   }

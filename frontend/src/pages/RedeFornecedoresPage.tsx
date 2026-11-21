@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
 import { marketplaceApi } from '../services/api';
+import toast from 'react-hot-toast';
 
 interface NotaFiscalAnexo {
   id: string;
@@ -429,48 +430,45 @@ export default function RedeFornecedoresPage() {
     setModalAberto(true);
   };
 
-  const handleSalvarForm = (e: React.FormEvent) => {
+  const handleSalvarForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim()) return;
 
-    const cnpjLimpo = form.cnpj.replace(/\D/g, '') || '00000000000000';
+    const digitosCnpj = form.cnpj.replace(/\D/g, '');
     const partesCidade = form.cidadeUf.split('-').map((s) => s.trim());
     const municipio = partesCidade[0] || undefined;
     const uf = (partesCidade[1]?.slice(0, 2) || '').toUpperCase() || undefined;
 
+    // A API é a fonte da verdade. Só persiste no navegador depois que o servidor confirma,
+    // evitando divergência silenciosa entre localStorage e banco.
     if (editandoId) {
-      const atualizada = fornecedores.map((f) =>
-        f.id === editandoId ? { ...f, ...form, categorias: [form.especialidade] } : f
-      );
-      salvarLista(atualizada);
-      setSelecionadoId(editandoId);
-
-      // Atualiza no banco de dados se for id do servidor
-      marketplaceApi
-        .atualizarFornecedor(editandoId, {
+      try {
+        await marketplaceApi.atualizarFornecedor(editandoId, {
           razaoSocial: form.nome,
           nomeFantasia: form.nomeFantasia || null,
           ramoAtividade: form.especialidade,
           regiaoAtendimento: [form.regiao],
           municipio: municipio || null,
           uf: uf && uf.length === 2 ? uf : null,
-        })
-        .catch(() => {});
+        });
+        const atualizada = fornecedores.map((f) =>
+          f.id === editandoId ? { ...f, ...form, categorias: [form.especialidade] } : f
+        );
+        salvarLista(atualizada);
+        setSelecionadoId(editandoId);
+        toast.success('Fornecedor atualizado no catálogo.');
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Não foi possível atualizar o fornecedor. Nenhuma alteração foi salva.');
+        return;
+      }
     } else {
-      const novo: Fornecedor = {
-        id: String(Date.now()),
-        ...form,
-        categorias: [form.especialidade],
-        notasFiscais: [],
-      };
-      const atualizada = [novo, ...fornecedores];
-      salvarLista(atualizada);
-      setSelecionadoId(novo.id);
-
-      // Salva no banco de dados do backend
-      marketplaceApi
-        .criarFornecedor({
-          cnpj: cnpjLimpo.length >= 11 ? cnpjLimpo : '00000000000191',
+      if (digitosCnpj.length !== 11 && digitosCnpj.length !== 14) {
+        toast.error('Informe um CNPJ válido com 11 ou 14 dígitos antes de cadastrar.');
+        return;
+      }
+      try {
+        const resp = await marketplaceApi.criarFornecedor({
+          cnpj: digitosCnpj,
           razaoSocial: form.nome,
           nomeFantasia: form.nomeFantasia || null,
           cnaePrincipal: '0000000',
@@ -483,16 +481,21 @@ export default function RedeFornecedoresPage() {
           custoReferencia: null,
           unidadeCusto: null,
           ativo: true,
-        })
-        .then((resp) => {
-          const criado = (resp.data as any)?.data || (resp.data as any);
-          if (criado?.id) {
-            setFornecedores((prev) =>
-              prev.map((f) => (f.id === novo.id ? { ...f, id: criado.id } : f))
-            );
-          }
-        })
-        .catch(() => {});
+        });
+        const criado = (resp.data as any)?.data || (resp.data as any);
+        const novo: Fornecedor = {
+          id: criado?.id || String(Date.now()),
+          ...form,
+          categorias: [form.especialidade],
+          notasFiscais: [],
+        };
+        salvarLista([novo, ...fornecedores]);
+        setSelecionadoId(novo.id);
+        toast.success('Fornecedor cadastrado no catálogo.');
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || 'Não foi possível cadastrar o fornecedor. Verifique os dados e tente novamente.');
+        return;
+      }
     }
     setModalAberto(false);
   };

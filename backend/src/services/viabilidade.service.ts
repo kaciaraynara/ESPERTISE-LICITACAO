@@ -101,7 +101,10 @@ export interface CalculoViabilidadeAutenticaResultado {
 export async function calcularViabilidadeAutentica(
   params: CalculoViabilidadeAutenticaInput
 ): Promise<CalculoViabilidadeAutenticaResultado> {
-  const estimativaEdital = roundMoney(params.estimativaEdital);
+  const estimativaEdital = roundMoney(Number(params.estimativaEdital ?? 0));
+  if (!Number.isFinite(estimativaEdital) || estimativaEdital < 0) {
+    throw new Error('INVALID_ESTIMATIVA_EDITAL');
+  }
 
   // 1. Identifica a empresa e seu Regime Tributário (com proteção contra IDOR)
   let targetCompanyId = params.companyId;
@@ -131,8 +134,8 @@ export async function calcularViabilidadeAutentica(
   let origemTributacao: CalculoViabilidadeAutenticaResultado['origemTributacao'];
   let regimeTributarioUtilizado: string;
 
-  if (params.percentualImpostosInformado != null && !isNaN(Number(params.percentualImpostosInformado))) {
-    percentualImpostos = Number(params.percentualImpostosInformado);
+  if (params.percentualImpostosInformado != null && Number.isFinite(Number(params.percentualImpostosInformado))) {
+    percentualImpostos = Math.min(100, Math.max(0, Number(params.percentualImpostosInformado)));
     origemTributacao = 'INFORMADO_PELO_USUARIO';
     regimeTributarioUtilizado = params.regimeTributario || 'PERSONALIZADO';
   } else if (params.regimeTributario) {
@@ -228,13 +231,18 @@ export async function calcularViabilidadeAutentica(
     ? roundMoney(Number(params.taxasAdministrativas))
     : roundMoney(estimativaEdital * 0.03);
 
-  const margemDesejadaPercentual = params.margemDesejadaPercentual != null && !isNaN(Number(params.margemDesejadaPercentual))
-    ? Number(params.margemDesejadaPercentual)
+  const margemInformada = params.margemDesejadaPercentual != null ? Number(params.margemDesejadaPercentual) : NaN;
+  const margemDesejadaPercentual = Number.isFinite(margemInformada)
+    ? Math.min(100, Math.max(0, margemInformada))
     : 15;
 
   // 4. Cálculo do Preço Mínimo Sustentável
   const custosDiretos = custoProdutoTotal + custoLogistico + taxasAdministrativas;
-  const divisor = Math.max(0.05, 1 - (percentualImpostos + margemDesejadaPercentual) / 100);
+  const somaPercentual = percentualImpostos + margemDesejadaPercentual;
+  if (somaPercentual >= 100) {
+    throw new Error('INVALID_COMBINACAO_IMPOSTOS_MARGEM');
+  }
+  const divisor = 1 - somaPercentual / 100;
   const precoMinimoSustentavel = roundMoney(custosDiretos / divisor);
 
   // 5. Preço do lance / Preço sugerido
@@ -317,7 +325,8 @@ export function calcularViabilidade(input: CalculoViabilidadeInput): CalculoViab
     taxasAdministrativas: roundMoney(input.taxasAdministrativas),
     margemLucroRealValor,
     margemLucroRealPercentual,
-    margemSaudavel: margemLucroRealPercentual >= 10,
+    // Alinhado ao limite de "VIÁVEL (ALTA VIABILIDADE)" usado na classificação (12%).
+    margemSaudavel: margemLucroRealPercentual >= 12,
     etapas: [
       {
         ordem: 1,

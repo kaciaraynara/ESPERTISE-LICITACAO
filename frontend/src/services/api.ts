@@ -31,7 +31,9 @@ export function resolveBaseUrl(): string {
     return configured;
   }
 
-  return 'https://espertise-licitacao.onrender.com/api';
+  // Fallback de produção com o prefixo versionado correto. Sem `/v1`, todas as
+  // chamadas caem em 404 quando a variável VITE_API_URL não está configurada.
+  return 'https://espertise-licitacao.onrender.com/api/v1';
 }
 
 export const BASE_URL = resolveBaseUrl();
@@ -942,11 +944,22 @@ export const propostasApi = {
     api.get<{ success: boolean; data: ProposalComplianceDto }>(`/propostas/${encodeURIComponent(id)}/compliance`),
   gerarDocumento: (id: string) =>
     api.post<{ success: boolean; data: { proposalId: string; document: string; compliance: ProposalComplianceDto; valorTotal: number } }>(`/propostas/${encodeURIComponent(id)}/documento`),
-  obterDocumento: (id: string) =>
-    api.get<{ success: boolean; data: { proposalId: string; document: string; compliance: ProposalComplianceDto; valorTotal: number } }>(`/propostas/${encodeURIComponent(id)}/documento`),
   extrairEditalLex: (body: { noticeId: string; companyId?: string; autoCreate?: boolean }) =>
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/extrair-proposta', body),
-  preencherPropostaViaLex: (body: { proposalId?: string; noticeId: string; companyId?: string; autoCreate?: boolean }) =>
+  preencherPropostaViaLex: (body: {
+    proposalId?: string;
+    noticeId: string;
+    companyId?: string;
+    autoCreate?: boolean;
+    formacaoPreco?: {
+      custoProdutoServico: number;
+      impostosPercentual: number;
+      custoOperacionalPercentual: number;
+      margemDesejadaPercentual: number;
+      precoSugerido: number;
+      statusViabilidade?: string;
+    };
+  }) =>
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/preencher-proposta', body),
   calcularPrecificacao: (body: {
     custoDireto: number;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  AlertCircle,
   Package,
   Plus,
   Search,
@@ -42,7 +43,7 @@ export const CatalogoPage: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: resp, isLoading } = useQuery({
+  const { data: resp, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['catalogo_items'],
     queryFn: async () => {
       const res = await catalogoApi.listar();
@@ -194,7 +195,23 @@ export const CatalogoPage: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-[300px]">
-        {isLoading ? (
+        {isError ? (
+          <div role="alert" className="flex flex-col items-center justify-center p-12 text-center">
+            <div className="p-4 rounded-2xl bg-rose-50 text-rose-600 mb-3">
+              <AlertCircle size={36} />
+            </div>
+            <h3 className="text-base font-black text-slate-900">Não foi possível carregar o catálogo</h3>
+            <p className="text-xs text-slate-500 max-w-md mt-1 mb-5">
+              {(error as any)?.response?.data?.message || 'O serviço pode estar indisponível. Nenhum item foi carregado; evite cadastrar duplicatas.'}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="px-5 py-2.5 bg-[#EA580C] hover:bg-orange-600 text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-2 transition-all cursor-pointer"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col items-center justify-center h-[320px] gap-3">
             <Loader2 className="animate-spin text-[#EA580C] w-8 h-8" />
             <p className="text-xs font-bold text-slate-500">Carregando itens do catálogo...</p>

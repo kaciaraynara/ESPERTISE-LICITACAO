@@ -35,6 +35,12 @@ Thumbs.db
 
 # Test coverage
 coverage/
+playwright-report/
+test-results/
+
+# Backups locais
+*.backup
+*.bak
 
 # Python
 __pycache__/

@@ -138,11 +138,6 @@ router.post(
   handle(asaas.webhook.bind(asaas) as RequestHandler),
 );
 
-router.post(
-  '/propostas/calcular-precificacao',
-  handle(propostas.calcularPrecificacao.bind(propostas) as RequestHandler),
-);
-
 // ==========================================
 // HEALTH CHECKS PÚBLICOS
 // ==========================================
@@ -310,17 +305,26 @@ router.use('/tax', taxRoutes);
 router.use('/guarantees', guaranteesRoutes);
 router.use('/proposals', proposalsRoutes);
 
-router.post(
-  '/propostas/generate',
-  fornecedor,
-  handle(proposalAutomationController.generate as unknown as RequestHandler),
-);
-
 router.use('/cofre', requirePlanFeature('cofre_documentos'), cofreRoutes);
 
 router.use('/monitored-notices', requirePlanFeature('radar_editais'), monitoredNoticesRoutes);
 
 router.use('/propostas', requirePlanFeature('fabrica_propostas'));
+
+// Rotas de cálculo e geração também respeitam auth, role e limite de plano.
+// Antes estavam registradas antes do authMiddleware, permitindo bypass.
+router.post(
+  '/propostas/calcular-precificacao',
+  fornecedor,
+  handle(propostas.calcularPrecificacao.bind(propostas) as RequestHandler),
+);
+
+router.post(
+  '/propostas/generate',
+  fornecedor,
+  requirePlanLimit('proposals'),
+  handle(proposalAutomationController.generate as unknown as RequestHandler),
+);
 
 router.get(
   '/propostas',
@@ -413,15 +417,8 @@ router.post(
   ),
 );
 
-router.get(
-  '/propostas/:id/documento',
-  fornecedor,
-  handle(
-    propostas.gerarDocumentoOficial.bind(
-      propostas,
-    ) as RequestHandler,
-  ),
-);
+// GET /propostas/:id/documento foi removido: gerar documento oficial é efeito colateral
+// e só deve acontecer via POST, com validação de compliance.
 
 router.post(
   '/propostas/:id/exportar-docx',

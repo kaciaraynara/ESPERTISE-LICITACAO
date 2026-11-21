@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Calculator, Zap, Percent, Loader2, FileText } from 'lucide-react';
+import { AlertCircle, Calculator, Zap, Percent, Loader2, FileText } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { precificacaoApi, licitacoesApi, propostasApi } from '@services/api';
@@ -20,38 +20,6 @@ export const PrecificacaoPage: React.FC = () => {
   const { selectedCompany } = useCompany();
   const [gerandoProposta, setGerandoProposta] = useState(false);
   const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
-
-  const handleGerarProposta = async () => {
-    if (!noticeId) {
-      toast.error('Nenhum edital vinculado para gerar proposta comercial.');
-      return;
-    }
-    setGerandoProposta(true);
-    try {
-      const targetCompanyId =
-        selectedCompany?.id && selectedCompany.id !== 'default'
-          ? selectedCompany.id
-          : undefined;
-      const res = await propostasApi.preencherPropostaViaLex({
-        noticeId,
-        companyId: targetCompanyId,
-        autoCreate: true,
-      });
-
-      const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
-      toast.success('Proposta comercial gerada com sucesso com base nos itens reais e formação de preço segura!');
-      if (proposalId) {
-        navigate(`/fornecedor/propostas/${proposalId}`);
-      } else {
-        navigate('/fornecedor/propostas');
-      }
-    } catch (err: any) {
-      console.error('[PrecificacaoPage] Erro ao gerar proposta comercial:', err);
-      toast.error(err?.response?.data?.message || 'Falha ao gerar proposta comercial a partir dos itens.');
-    } finally {
-      setGerandoProposta(false);
-    }
-  };
 
   const { data: editalData } = useQuery({
     queryKey: ['precificacao-edital', noticeId],
@@ -108,7 +76,7 @@ export const PrecificacaoPage: React.FC = () => {
     }
   }, [editalData]);
 
-  const { data: resp, isLoading } = useQuery({
+  const { data: resp, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['precificacao', custos],
     queryFn: async () => {
       if (custos.custoProdutoServico <= 0) {
@@ -134,7 +102,85 @@ export const PrecificacaoPage: React.FC = () => {
   };
 
   const custoOperacionalVal = custos.custoProdutoServico * (custos.custoOperacionalPercentual / 100);
-  const descontoFrenteEdital = valorMaximoEdital > 0 ? ((valorMaximoEdital - calculo.precoSugerido) / valorMaximoEdital) * 100 : 0;
+
+  // Nunca apresenta zeros como se fossem resultado de cálculo.
+  const calculoValido = Boolean(
+    resp?.data &&
+    !isError &&
+    Number.isFinite(calculo.precoSugerido) &&
+    calculo.precoSugerido > 0 &&
+    calculo.statusViabilidade !== 'INVIAVEL',
+  );
+
+  const descontoFrenteEdital = valorMaximoEdital > 0 && calculoValido
+    ? ((valorMaximoEdital - calculo.precoSugerido) / valorMaximoEdital) * 100
+    : 0;
+
+  const validarEntradas = (): boolean => {
+    const valores = [
+      custos.custoProdutoServico,
+      custos.impostosPercentual,
+      custos.custoOperacionalPercentual,
+      custos.margemDesejadaPercentual,
+      valorMaximoEdital,
+    ];
+    if (valores.some((valor) => !Number.isFinite(valor) || valor < 0)) {
+      toast.error('Revise a planilha: informe valores numéricos não negativos.');
+      return false;
+    }
+    if (custos.impostosPercentual >= 100 || custos.margemDesejadaPercentual >= 100) {
+      toast.error('Impostos e margem devem ser menores que 100%.');
+      return false;
+    }
+    if (custos.impostosPercentual + custos.margemDesejadaPercentual >= 100) {
+      toast.error('Impostos + margem não podem somar 100% ou mais.');
+      return false;
+    }
+    if (!calculoValido) {
+      toast.error('Não é possível gerar a proposta sem um cálculo válido. Verifique o erro informado acima.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleGerarProposta = async () => {
+    if (!noticeId) {
+      toast.error('Nenhum edital vinculado para gerar proposta comercial.');
+      return;
+    }
+    if (!validarEntradas()) return;
+
+    setGerandoProposta(true);
+    try {
+      const targetCompanyId =
+        selectedCompany?.id && selectedCompany.id !== 'default'
+          ? selectedCompany.id
+          : undefined;
+      const res = await propostasApi.preencherPropostaViaLex({
+        noticeId,
+        companyId: targetCompanyId,
+        autoCreate: true,
+        formacaoPreco: {
+          ...custos,
+          precoSugerido: calculo.precoSugerido,
+          statusViabilidade: calculo.statusViabilidade,
+        },
+      });
+
+      const proposalId = res.data?.data?.proposalId || res.data?.data?.proposal?.id;
+      toast.success('Proposta criada com os itens reais do edital e a planilha de custos. Revise custos, margens e declarações antes de emitir.');
+      if (proposalId) {
+        navigate(`/fornecedor/propostas/${proposalId}`);
+      } else {
+        navigate('/fornecedor/propostas');
+      }
+    } catch (err: any) {
+      console.error('[PrecificacaoPage] Erro ao gerar proposta comercial:', err);
+      toast.error(err?.response?.data?.message || 'Falha ao gerar proposta comercial a partir dos itens.');
+    } finally {
+      setGerandoProposta(false);
+    }
+  };
 
   const formatarMoeda = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -163,7 +209,7 @@ export const PrecificacaoPage: React.FC = () => {
           <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm text-right">
             <span className="text-[10px] font-bold text-slate-400 block uppercase">Preço Mínimo sem Prejuízo</span>
             <span className="text-sm font-black text-rose-600">
-              {isLoading ? <Loader2 size={16} className="animate-spin inline text-rose-600" /> : formatarMoeda(calculo.precoBreakeven)}
+              {isLoading ? <Loader2 size={16} className="animate-spin inline text-rose-600" /> : calculoValido ? formatarMoeda(calculo.precoBreakeven) : '—'}
             </span>
           </div>
 
@@ -172,7 +218,8 @@ export const PrecificacaoPage: React.FC = () => {
               type="button"
               id="btn-gerar-proposta-precificacao"
               onClick={handleGerarProposta}
-              disabled={gerandoProposta}
+              disabled={gerandoProposta || !calculoValido}
+              title={calculoValido ? undefined : 'Calcule a planilha com sucesso antes de gerar a proposta'}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer"
             >
               {gerandoProposta ? (
@@ -183,13 +230,32 @@ export const PrecificacaoPage: React.FC = () => {
               ) : (
                 <>
                   <FileText size={14} />
-                  Gerar Proposta Comercial com Estes Preços
+                  Gerar Proposta com a Planilha Calculada
                 </>
               )}
             </button>
           )}
         </div>
       </header>
+
+      {isError && (
+        <div role="alert" className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-900">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <div className="flex-1 text-xs">
+            <p className="font-bold">Não foi possível calcular a planilha de custos.</p>
+            <p className="mt-1 text-rose-700">
+              {(error as any)?.response?.data?.message || 'Verifique os valores informados e tente novamente.'} Nenhum preço foi calculado; não gere a proposta enquanto este aviso estiver visível.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-lg border border-rose-400 px-3 py-1.5 font-bold hover:bg-rose-100"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
 
       {/* BANNER DO EDITAL VINCULADO (QUANDO ABERTO VIA RADAR OU DETALHE) */}
       {editalData && (
@@ -260,8 +326,10 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <input
               type="number"
+              min={0}
+              step="0.01"
               value={custos.custoProdutoServico}
-              onChange={(e) => setCustos({ ...custos, custoProdutoServico: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setCustos({ ...custos, custoProdutoServico: e.target.value === '' ? 0 : Number(e.target.value) })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
@@ -273,8 +341,11 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <input
               type="number"
+              min={0}
+              max={100}
+              step="0.1"
               value={custos.custoOperacionalPercentual}
-              onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
@@ -286,8 +357,11 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <input
               type="number"
+              min={0}
+              max={99}
+              step="0.1"
               value={custos.impostosPercentual}
-              onChange={(e) => setCustos({ ...custos, impostosPercentual: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
@@ -299,8 +373,11 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <input
               type="number"
+              min={0}
+              max={99}
+              step="0.1"
               value={custos.margemDesejadaPercentual}
-              onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
@@ -312,8 +389,10 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <input
               type="number"
+              min={0}
+              step="0.01"
               value={valorMaximoEdital}
-              onChange={(e) => setValorMaximoEdital(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setValorMaximoEdital(e.target.value === '' ? 0 : Number(e.target.value))}
               className="w-full bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -335,7 +414,7 @@ export const PrecificacaoPage: React.FC = () => {
                 Preço Ideal da Proposta Inicial
               </span>
               <h2 className="text-3xl font-black mt-1 text-white">
-                {formatarMoeda(calculo.precoSugerido)}
+                {calculoValido ? formatarMoeda(calculo.precoSugerido) : '—'}
               </h2>
               <p className="text-xs text-slate-400 mt-2">
                 Garante <strong className="text-emerald-400">{custos.margemDesejadaPercentual}%</strong> de lucro líquido após todos os tributos e fretes.
@@ -362,11 +441,11 @@ export const PrecificacaoPage: React.FC = () => {
             <div className="space-y-2 text-xs relative z-20">
               <div className="flex justify-between py-1 border-b border-slate-50">
                 <span className="text-slate-600 font-medium">Receita Bruta (Preço da Proposta)</span>
-                <span className="font-bold text-slate-900">{formatarMoeda(calculo.precoSugerido)}</span>
+                <span className="font-bold text-slate-900">{calculoValido ? formatarMoeda(calculo.precoSugerido) : '—'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-rose-600">
                 <span>(-) Impostos ({custos.impostosPercentual}%)</span>
-                <span className="font-bold">-{formatarMoeda(calculo.impostoProjetado)}</span>
+                <span className="font-bold">-{calculoValido ? formatarMoeda(calculo.impostoProjetado) : '—'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-50 text-slate-600">
                 <span>(-) Custo Direto (Aquisição)</span>
@@ -378,7 +457,7 @@ export const PrecificacaoPage: React.FC = () => {
               </div>
               <div className="flex justify-between py-2 pt-3 font-extrabold text-sm text-emerald-600 bg-emerald-50/50 px-2 rounded-lg">
                 <span>(=) Lucro Líquido Projetado</span>
-                <span>{formatarMoeda(calculo.lucroProjetado)}</span>
+                <span>{calculoValido ? formatarMoeda(calculo.lucroProjetado) : '—'}</span>
               </div>
             </div>
           </div>
@@ -389,7 +468,7 @@ export const PrecificacaoPage: React.FC = () => {
             <div className="text-xs">
               <h4 className="font-bold text-amber-900">Parâmetro de Disputa (Sala de Disputa (Planilha de Lances))</h4>
               <p className="text-amber-700 mt-1">
-                Ao exportar esta estratégia para o **Envio Automático de Lances**, o preço teto de parada será configurado em **{formatarMoeda(calculo.precoBreakeven)}**. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
+                Ao exportar esta estratégia para o Envio Automático de Lances, o preço teto de parada será configurado em <strong>{formatarMoeda(calculo.precoBreakeven)}</strong>. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
               </p>
             </div>
           </div>
@@ -402,13 +481,14 @@ export const PrecificacaoPage: React.FC = () => {
                   Transformar Precificação em Proposta Oficial
                 </h4>
                 <p className="text-xs text-emerald-800 mt-1">
-                  Transfere todos os itens reais do PNCP precificados com a margem segura direto para a Fábrica de Propostas.
+                  Transfere os itens reais do edital com o preço total formado na planilha. Revise custos, margens e declarações antes de emitir o documento oficial.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleGerarProposta}
-                disabled={gerandoProposta}
+                disabled={gerandoProposta || !calculoValido}
+                title={calculoValido ? undefined : 'Calcule a planilha com sucesso antes de gerar a proposta'}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer whitespace-nowrap"
               >
                 {gerandoProposta ? (
@@ -419,7 +499,7 @@ export const PrecificacaoPage: React.FC = () => {
                 ) : (
                   <>
                     <FileText size={16} />
-                    Gerar Proposta Comercial com Estes Preços
+                    Gerar Proposta com a Planilha Calculada
                   </>
                 )}
               </button>

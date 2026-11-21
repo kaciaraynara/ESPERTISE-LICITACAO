@@ -170,6 +170,36 @@ export const createProposalItemSchema = z.object({
   observacoes: optionalText(2000, 'Observacoes devem ter no maximo 2000 caracteres'),
 });
 
+/**
+ * Schema aplicado na edição de itens da planilha de custos.
+ * Aceita os aliases em inglês usados pelo frontend, mas rejeita valores
+ * NaN, negativos e percentuais fora da faixa antes de persistir no banco.
+ */
+export const updateProposalItemSchema = z.object({
+  posicao: z.number().int().positive().optional(),
+  numero: z.string().trim().max(50).optional(),
+  description: z.string().trim().min(3).max(2000).optional(),
+  descricao: z.string().trim().min(3).max(2000).optional(),
+  quantity: z.number().positive().max(1000000).optional(),
+  quantidade: z.number().positive().max(1000000).optional(),
+  unit: z.string().trim().max(20).nullable().optional(),
+  unidade: z.string().trim().max(20).nullable().optional(),
+  unitCost: z.number().min(0).nullable().optional(),
+  custoUnitario: z.number().min(0).nullable().optional(),
+  custoDireto: z.number().min(0).nullable().optional(),
+  encargosPercentual: z.number().min(0).max(200).nullable().optional(),
+  bdiPercentual: z.number().min(0).max(100).nullable().optional(),
+  marginPercent: z.number().min(0).max(100).nullable().optional(),
+  margemLucroPercentual: z.number().min(0).max(100).nullable().optional(),
+  proposedPrice: z.number().min(0).nullable().optional(),
+  precoUnitarioProposto: z.number().min(0).nullable().optional(),
+  marca: z.string().trim().max(100).nullable().optional(),
+  modelo: z.string().trim().max(100).nullable().optional(),
+  prazoGarantiaMeses: z.number().int().min(0).nullable().optional(),
+}).passthrough().refine((value) => Object.keys(value).length > 0, {
+  message: 'Informe ao menos um campo para atualizar.',
+});
+
 export const listProposalDraftsQuerySchema = z.object({
   companyId: z
     .string()

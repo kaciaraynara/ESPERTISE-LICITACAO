@@ -3,8 +3,16 @@ import { BrowserRouter, Routes, Route, Link, Outlet } from 'react-router-dom';
 import { LayoutDashboard, Users, Activity, Mail, LogOut } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '')
-  || 'http://localhost:3001/api/v1';
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '');
+const isLocalHost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const API_BASE_URL = isLocalHost
+  ? configuredApiUrl || 'http://localhost:3001/api/v1'
+  : configuredApiUrl && !configuredApiUrl.includes('localhost')
+    ? configuredApiUrl
+    : 'https://espertise-licitacao.onrender.com/api/v1';
 const ADMIN_TOKEN_KEY = 'expertise_admin_access_token';
 
 const api = axios.create({

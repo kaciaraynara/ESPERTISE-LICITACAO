@@ -8,6 +8,7 @@ import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import {
   createProposalDraftSchema,
   createProposalItemSchema,
+  updateProposalItemSchema,
   updateProposalSchema,
 } from '../shared/validations/proposal.validation';
 import { incrementPlanUsage } from '../shared/middlewares/plan-limits.middleware';
@@ -158,7 +159,8 @@ export class PropostasController {
     try {
       const proposalId = req.params.id;
       const itemId = req.params.itemId;
-      const item = await proposalService.updateItem(userId, proposalId, itemId, req.body ?? {});
+      const input = updateProposalItemSchema.parse(req.body ?? {});
+      const item = await proposalService.updateItem(userId, proposalId, itemId, input);
 
       return res.json({
         success: true,
