@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { prisma } from '../database/prisma';
 import { emitEditaisAtualizados } from './realtime-editais.service';
 
-const QD_BASE_URL = process.env.QUERIDO_DIARIO_BASE_URL || 'https://api.queridodiario.ok.org.br';
+const QD_BASE_URL = process.env.QUERIDO_DIARIO_BASE_URL || 'https://queridodiario.ok.org.br/api';
 
 interface GazetteItem {
   territory_id: string;
@@ -18,8 +18,8 @@ interface GazetteItem {
 }
 
 export async function syncQueridoDiarioEditais(options: { daysBack?: number; size?: number } = {}) {
-  const daysBack = options.daysBack ?? 2;
-  const size = options.size ?? 30;
+  const daysBack = options.daysBack ?? 7;
+  const size = options.size ?? 60;
   const end = new Date();
   const start = new Date(end.getTime() - daysBack * 24 * 60 * 60 * 1000);
   const since = start.toISOString().slice(0, 10);
@@ -32,7 +32,7 @@ export async function syncQueridoDiarioEditais(options: { daysBack?: number; siz
       httpsAgent,
       headers: { 'User-Agent': 'Expertise-Licitatoria/1.0', Accept: 'application/json' },
       params: {
-        querystring: '"pregão eletrônico" OR "edital de licitação" OR "concorrência pública"',
+        querystring: '"pregão eletrônico" OR "edital de licitação" OR "concorrência pública" OR "dispensa de licitação"',
         published_since: since,
         published_until: until,
         excerpt_size: 400,

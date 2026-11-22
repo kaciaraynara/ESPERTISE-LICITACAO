@@ -315,7 +315,8 @@ export const prazosApi = {
 
 // ─── Licitações ───────────────────────────────────────────────────────────────
 export const licitacoesApi = {
-  listarPca: (params?: { q?: string; uf?: string; ano?: number; pagina?: number }) => api.get('/licitacoes/pca', { params }),
+  listarPca: (params?: { q?: string; uf?: string; ano?: number; cnae?: string; pagina?: number; tamanhoPagina?: number; refresh?: boolean }) =>
+    api.get('/licitacoes/pca', { params }),
   listar: (params?: RadarLicitacoesFiltros) => api.get('/licitacoes', { params }),
   sincronizar: (body?: Record<string, unknown>) => api.post('/licitacoes/sincronizar', body || {}),
   buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),

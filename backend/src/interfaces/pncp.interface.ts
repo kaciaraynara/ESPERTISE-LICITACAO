@@ -21,8 +21,15 @@ export interface FiltrosBusca {
   valorMax?: number;
   srp?: boolean | string;
   baixaProcura?: boolean | string;
-  endpoint?: 'publicacao' | 'proposta';
+  endpoint?: 'publicacao' | 'proposta' | 'atualizacao';
   tempoReal?: boolean | string;
+  orgao?: string;
+  dataPublicacao?: string;
+  fonte?: string;
+  apenasAbertos?: boolean | string;
+  local?: boolean | string;
+  ordemOriginal?: boolean;
+  incluirEncerrados?: boolean;
 }
 
 export interface LicitacaoPNCP {
@@ -111,7 +118,7 @@ export interface LicitacaoRadarPNCP {
   urlOficialPncp?: string;
   numeroEdital?: string | null;
   srp?: boolean;
-  fonte: 'PNCP';
+  fonte: string;
 }
 
 export interface ResultadoConsultaPNCP {

@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { Request, Response } from 'express';
 import { consultarCnpjOficial, normalizarCnpj } from '../services/cnpj.service';
-import { PncpService, PncpServiceError } from '../services/pncp.service';
-import { DataPlatformIngestionService } from '../services/data-platform/ingestion.service';
+import { PncpServiceError } from '../services/pncp.service';
+import { syncPncpPropostasAbertas, syncPncpAtualizacoes } from '../jobs/radar.cron';
+import { syncComprasGovRecentes } from '../services/comprasgov.service';
+import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
 
 export class IntegracoesController {
   async consultarCnpj(req: Request, res: Response) {
@@ -54,25 +56,36 @@ export class IntegracoesController {
   }
 
   async sincronizarPncp(_req: Request, res: Response) {
-    const hoje = new Date().toISOString().slice(0, 10);
-
     try {
-      const ingestion = new DataPlatformIngestionService();
-      const resultado = await ingestion.ingestPncp({
-        since: hoje,
-      });
+      const [propRes, atuRes, cgRes, qdRes] = await Promise.allSettled([
+        syncPncpPropostasAbertas(2),
+        syncPncpAtualizacoes(2),
+        syncComprasGovRecentes({ daysBack: 3, maxPages: 1 }),
+        syncQueridoDiarioEditais({ daysBack: 7, size: 30 }),
+      ]);
 
-      const inseridos = resultado.persisted.procurementNotices;
-      const falhas = resultado.result.counters.failed;
+      const prop = propRes.status === 'fulfilled' ? propRes.value : { totalEncontrados: 0, upsertados: 0 };
+      const atu = atuRes.status === 'fulfilled' ? atuRes.value : { totalEncontrados: 0, upsertados: 0 };
+      const cg = cgRes.status === 'fulfilled' ? cgRes.value : { fonte: 'ComprasGov', persisted: 0 };
+      const qd = qdRes.status === 'fulfilled' ? qdRes.value : { fonte: 'querido_diario', persisted: 0 };
+
+      const persistidos = prop.upsertados + atu.upsertados + cg.persisted + qd.persisted;
+      const falhas = [propRes, atuRes, cgRes, qdRes].filter((r) => r.status === 'rejected').length;
+
       return res.json({
-        success: falhas === 0,
-        data: resultado,
-        inseridos,
-        persistidos: resultado.persisted.procurementNotices,
-        duplicados: resultado.result.counters.duplicated,
+        success: falhas < 4,
+        data: {
+          pncpPropostas: prop,
+          pncpAtualizacoes: atu,
+          comprasGov: cg,
+          queridoDiario: qd,
+        },
+        inseridos: persistidos,
+        persistidos,
+        duplicados: 0,
         falhas,
         meta: {
-          fonte: 'PNCP',
+          fonte: 'MULTIFONTE',
           consultadoEm: new Date().toISOString(),
         },
       });
@@ -114,6 +127,15 @@ export class IntegracoesController {
         integradoNoApp: true,
       },
       {
+        id: 'querido_diario',
+        nome: 'Querido Diário (OKBR)',
+        orgao: 'Open Knowledge Brasil — Diários Oficiais Municipais',
+        tipo: 'API REST Pública',
+        descricao: 'Coleta diária de extratos e avisos de licitação publicados em Diários Oficiais municipais.',
+        documentacaoUrl: 'https://queridodiario.ok.org.br/api/docs',
+        integradoNoApp: true,
+      },
+      {
         id: 'transparencia',
         nome: 'Portal da Transparência — CEIS / CNEP / CEPIM',
         orgao: 'Controladoria-Geral da União (CGU)',
@@ -140,9 +162,16 @@ export class IntegracoesController {
   }
 
   async health(_req: Request, res: Response) {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const ontem = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
     const checks = await Promise.all([
-      this.probeUrl('PNCP', 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250101&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=1'),
-      this.probeUrl('COMPRAS.GOV', 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=1&codigoItemCatalogo=150515'),
+      this.probeUrl('PNCP', 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250101&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10'),
+      this.probeUrl(
+        'COMPRAS.GOV',
+        `https://dadosabertos.compras.gov.br/modulo-contratacoes/1_consultarContratacoes_PNCP_14133?pagina=1&tamanhoPagina=10&codigoModalidade=5&dataPublicacaoPncpInicial=${ontem}&dataPublicacaoPncpFinal=${hoje}`,
+      ),
+      this.probeUrl('QUERIDO DIÁRIO', 'https://queridodiario.ok.org.br/api/gazettes?size=1'),
       this.probeUrl('RECEITA / CNPJ', 'https://brasilapi.com.br/api/cnpj/v1/00000000000191'),
       this.probeTransparencia(),
     ]);
@@ -180,7 +209,20 @@ export class IntegracoesController {
 
   private async probeTransparencia(): Promise<{ id: string; ok: boolean; ms: number; mensagem: string }> {
     const start = Date.now();
-    const token = process.env.PORTAL_TRANSPARENCIA_TOKEN || process.env.TRANSPARENCIA_API_KEY;
+    const rawToken =
+      process.env.PORTAL_TRANSPARENCIA_TOKEN
+      || process.env.PORTAL_TRANSPARENCIA_KEY
+      || process.env.TRANSPARENCIA_API_KEY
+      || process.env.TRANSPARENCIA_TOKEN
+      || process.env.CGU_API_KEY
+      || process.env.TRANSPARENCIA_API_TOKEN
+      || '';
+    const trimmed = rawToken.trim();
+    const matchJson = trimmed.startsWith('[') || trimmed.startsWith('{')
+      ? trimmed.match(/"value"\s*:\s*"([^"]+)"/i)
+      : null;
+    const token = matchJson?.[1]?.trim() || trimmed;
+
     if (!token) {
       return {
         id: 'TRANSPARÊNCIA (CGU)',

@@ -1,10 +1,36 @@
 import axios from 'axios';
 import { getNumberEnv, getStringEnv } from '../config/env';
 
-const BASE_URL = getStringEnv(
-  'PORTAL_TRANSPARENCIA_BASE_URL',
-  'https://api.portaldatransparencia.gov.br/api-de-dados',
-).replace(/\/+$/, '');
+function resolveTransparenciaBaseUrl(raw?: string): string {
+  const clean = String(raw || '').trim().replace(/\/+$/, '');
+  if (!clean) {
+    return 'https://api.portaldatransparencia.gov.br/api-de-dados';
+  }
+  if (clean.includes('api.portaldatransparencia.gov.br')) {
+    return clean.endsWith('/api-de-dados') ? clean : `${clean}/api-de-dados`;
+  }
+  if (clean.includes('portaldatransparencia.gov.br')) {
+    return 'https://api.portaldatransparencia.gov.br/api-de-dados';
+  }
+  return clean;
+}
+
+function extractTransparenciaToken(raw?: string): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    const match = trimmed.match(/"value"\s*:\s*"([^"]+)"/i);
+    if (match?.[1]) return match[1].trim();
+  }
+  return trimmed;
+}
+
+const BASE_URL = resolveTransparenciaBaseUrl(
+  getStringEnv(
+    'PORTAL_TRANSPARENCIA_BASE_URL',
+    'https://api.portaldatransparencia.gov.br/api-de-dados',
+  ),
+);
 const REQUEST_TIMEOUT_MS = Math.max(1000, getNumberEnv('PORTAL_TRANSPARENCIA_TIMEOUT', 10000));
 
 export interface AnaliseSancoes {
@@ -29,11 +55,14 @@ export async function checarSancoesCnpj(cnpj: string): Promise<AnaliseSancoes> {
     };
   }
 
-  const apiKey = (
-    process.env.PORTAL_TRANSPARENCIA_TOKEN ||
-    process.env.TRANSPARENCIA_API_KEY ||
-    ''
-  ).trim();
+  const apiKey = extractTransparenciaToken(
+    process.env.PORTAL_TRANSPARENCIA_TOKEN
+    || process.env.TRANSPARENCIA_API_KEY
+    || process.env.PORTAL_TRANSPARENCIA_KEY
+    || process.env.TRANSPARENCIA_TOKEN
+    || process.env.CGU_API_KEY
+    || process.env.TRANSPARENCIA_API_TOKEN,
+  );
 
   if (!apiKey) {
     console.warn('[TransparenciaService] PORTAL_TRANSPARENCIA_TOKEN / TRANSPARENCIA_API_KEY não configurada.');

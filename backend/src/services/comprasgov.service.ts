@@ -72,8 +72,11 @@ export interface LicitacaoComprasGov {
   orgao: string;
   uasg: string | null;
   uf: string | null;
+  municipio?: string | null;
+  cnpj_orgao?: string | null;
   valor_estimado?: number;
   valor_homologado?: number;
+  data_publicacao?: string;
   data_abertura?: string;
   data_encerramento?: string;
   modalidade?: string;
@@ -96,6 +99,7 @@ interface BuscaComprasGovInput {
   dataInicio?: string;
   dataFim?: string;
   pagina?: number;
+  tamanhoPagina?: number;
 }
 
 function normalizeText(value?: string | null) {
@@ -239,6 +243,14 @@ function normalizePregao(item: any): LicitacaoComprasGov {
       || item.uf_uasg
       || item.uf
       || null,
+    municipio:
+      item.unidadeOrgaoMunicipioNome
+      || item.no_municipio
+      || item.municipio
+      || null,
+    cnpj_orgao: item.orgaoEntidadeCnpj
+      ? String(item.orgaoEntidadeCnpj).replace(/\D/g, '')
+      : null,
     valor_estimado:
       Number(
         item.valorTotalEstimado
@@ -257,6 +269,11 @@ function normalizePregao(item: any): LicitacaoComprasGov {
         ?? item.valor_homologado
         ?? 0,
       ) || undefined,
+    data_publicacao:
+      item.dataPublicacaoPncp
+      || item.dataInclusaoPncp
+      || item.dt_publicacao
+      || undefined,
     data_abertura:
       item.dataAberturaPropostaPncp
       || item.dt_inicio_proposta
@@ -311,16 +328,66 @@ function formatApiDate(value: unknown, fallback: Date) {
   return fallback.toISOString().slice(0, 10);
 }
 
-function resolvePageSize() {
+function parseComprasGovDate(raw?: string | null): Date | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  let normalized = trimmed;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    normalized = `${trimmed}T12:00:00-03:00`;
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(trimmed)) {
+    normalized = `${trimmed}-03:00`;
+  }
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * Converte nomes ou códigos PNCP para o codigoModalidade real do SIASG no Compras.gov.br:
+ * SIASG 3 = Concorrência (PNCP 4) | SIASG 5 = Pregão (PNCP 6)
+ * SIASG 6 = Dispensa (PNCP 8)     | SIASG 7 = Inexigibilidade (PNCP 9)
+ */
+export function resolveComprasGovSiasgModality(modalidade?: string | number): number {
+  if (modalidade === undefined || modalidade === null || String(modalidade).trim() === '') {
+    const envRaw = Number(process.env.COMPRASGOV_MODALIDADE_PADRAO);
+    if (envRaw === 3 || envRaw === 5 || envRaw === 7) return envRaw;
+    return 5;
+  }
+
+  if (typeof modalidade === 'number' || /^\d+$/.test(String(modalidade).trim())) {
+    const num = Number(modalidade);
+    if (num === 3 || num === 5 || num === 6 || num === 7) return num;
+    if (num === 4) return 3;
+    if (num === 8) return 6;
+    if (num === 9) return 7;
+    return 5;
+  }
+
+  const norm = String(modalidade)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  if (norm.includes('pregao')) return 5;
+  if (norm.includes('dispensa')) return 6;
+  if (norm.includes('concorrencia')) return 3;
+  if (norm.includes('inexigibilidade')) return 7;
+  return 5;
+}
+
+function resolvePageSize(overrideSize?: number) {
   const configured = Number(
-    process.env.COMPRASGOV_TAMANHO_PAGINA ?? 20,
+    overrideSize ?? process.env.COMPRASGOV_TAMANHO_PAGINA ?? 50,
   );
 
   if (!Number.isFinite(configured)) {
-    return 20;
+    return 50;
   }
 
-  return Math.min(100, Math.max(10, configured));
+  return Math.min(500, Math.max(10, configured));
 }
 
 function buildContratacoesParams(params: BuscaComprasGovInput) {
@@ -328,7 +395,7 @@ function buildContratacoesParams(params: BuscaComprasGovInput) {
 
   return {
     pagina: Math.max(1, Number(params.pagina ?? 1)),
-    tamanhoPagina: resolvePageSize(),
+    tamanhoPagina: resolvePageSize(params.tamanhoPagina),
     dataPublicacaoPncpInicial: formatApiDate(
       params.dataInicio,
       addDays(hoje, -30),
@@ -337,10 +404,7 @@ function buildContratacoesParams(params: BuscaComprasGovInput) {
       params.dataFim,
       hoje,
     ),
-    codigoModalidade:
-      Number(params.modalidade)
-      || Number(process.env.COMPRASGOV_MODALIDADE_PADRAO)
-      || 6,
+    codigoModalidade: resolveComprasGovSiasgModality(params.modalidade),
     unidadeOrgaoUfSigla: params.uf?.toUpperCase(),
     contratacaoExcluida: false,
   };
@@ -458,43 +522,175 @@ export async function buscarHistoricoPregoes(params: {
   }
 }
 
-async function persistComprasGovNotices(items: LicitacaoComprasGov[]) {
+async function persistComprasGovNotices(items: LicitacaoComprasGov[]): Promise<number> {
+  let persisted = 0;
+  const now = new Date();
+
   for (const item of items) {
     if (!item.id) continue;
-    const dedupeKey = `COMPRASGOV:${item.id}`;
-    const hash = crypto.createHash('md5').update(JSON.stringify(item)).digest('hex');
+    try {
+      const ctrl = item.id.trim();
+      const isPncpControl = /^\d{14}-\d+-\d+\/\d{4}$/.test(ctrl);
+      const dedupeKey = isPncpControl ? `pncp-${ctrl}` : `COMPRASGOV:${ctrl}`;
+      const hash = crypto.createHash('md5').update(JSON.stringify(item)).digest('hex');
 
-    await prisma.procurementNotice.upsert({
-      where: { dedupeKey },
-      create: {
-        source: 'ComprasGov',
-        externalId: item.id,
-        dedupeKey,
-        contentHash: hash,
-        noticeNumber: item.numero,
-        modality: item.modalidade || 'Não informada',
-        buyerName: item.orgao,
-        buyerDocument: null,
-        object: item.objeto || 'Não informado',
-        uf: item.uf,
-        municipality: null,
-        estimatedValue: item.valor_estimado,
-        status: item.situacao,
-        url: item.link,
-        publishedAt: item.data_abertura ? new Date(item.data_abertura) : null,
-        openingAt: item.data_abertura ? new Date(item.data_abertura) : null,
-        closingAt: item.data_encerramento ? new Date(item.data_encerramento) : null,
-        rawPayload: item as any,
-      },
-      update: {
-        contentHash: hash,
-        status: item.situacao,
-        estimatedValue: item.valor_estimado,
-        closingAt: item.data_encerramento ? new Date(item.data_encerramento) : null,
-        rawPayload: item as any,
+      const parsedPublished = parseComprasGovDate(item.data_publicacao);
+      const parsedOpening = parseComprasGovDate(item.data_abertura);
+      const parsedClosing = parseComprasGovDate(item.data_encerramento);
+
+      // Nunca persistir publishedAt no futuro (o radar ordena por publishedAt DESC)
+      let validPublishedAt: Date = now;
+      if (parsedPublished && parsedPublished <= now) {
+        validPublishedAt = parsedPublished;
+      } else if (parsedOpening && parsedOpening <= now) {
+        validPublishedAt = parsedOpening;
       }
-    });
+
+      const validOpeningAt = parsedOpening && !isNaN(parsedOpening.getTime()) ? parsedOpening : null;
+      const validClosingAt = parsedClosing && !isNaN(parsedClosing.getTime()) ? parsedClosing : null;
+
+      const updateFields = {
+        contentHash: hash,
+        modality: item.modalidade || undefined,
+        status: item.situacao,
+        estimatedValue: item.valor_estimado,
+        buyerDocument: item.cnpj_orgao || undefined,
+        municipality: item.municipio || undefined,
+        srp: Boolean(item.srp),
+        publishedAt: validPublishedAt,
+        openingAt: validOpeningAt,
+        closingAt: validClosingAt,
+        rawPayload: item as any,
+      };
+
+      try {
+        await prisma.procurementNotice.upsert({
+          where: { dedupeKey },
+          create: {
+            source: 'ComprasGov',
+            externalId: ctrl,
+            ...(isPncpControl ? { numeroControlePncp: ctrl } : {}),
+            dedupeKey,
+            contentHash: hash,
+            noticeNumber: item.numero || ctrl,
+            processoAdministrativo: item.processo || null,
+            modality: item.modalidade || 'Não informada',
+            modoDisputa: item.modo_disputa || null,
+            srp: Boolean(item.srp),
+            buyerName: item.orgao,
+            buyerDocument: item.cnpj_orgao || null,
+            object: item.objeto || 'Não informado',
+            uf: item.uf,
+            municipality: item.municipio || null,
+            estimatedValue: item.valor_estimado,
+            status: item.situacao,
+            url: item.link || (isPncpControl ? undefined : null),
+            publishedAt: validPublishedAt,
+            openingAt: validOpeningAt,
+            closingAt: validClosingAt,
+            rawPayload: item as any,
+          },
+          update: updateFields,
+        });
+        persisted += 1;
+      } catch (upsertErr: any) {
+        if (upsertErr?.code === 'P2002') {
+          const existing = await prisma.procurementNotice.findFirst({
+            where: {
+              OR: [
+                ...(isPncpControl ? [{ numeroControlePncp: ctrl }] : []),
+                { externalId: ctrl },
+              ],
+            },
+            select: { id: true },
+          });
+          if (existing?.id) {
+            await prisma.procurementNotice.update({
+              where: { id: existing.id },
+              data: updateFields,
+            });
+            persisted += 1;
+          }
+        } else {
+          throw upsertErr;
+        }
+      }
+    } catch (err: any) {
+      if (err?.code !== 'P2002') {
+        console.warn(`[ComprasGov] Aviso ao persistir ${item.id}:`, err?.message || err);
+      }
+    }
   }
+  return persisted;
+}
+
+export async function syncComprasGovRecentes(options: { daysBack?: number; maxPages?: number } = {}): Promise<{
+  fonte: 'ComprasGov';
+  persisted: number;
+  byModality: Record<number, number>;
+}> {
+  const daysBack = options.daysBack ?? 7;
+  const maxPages = Math.max(1, options.maxPages ?? 3);
+  const hoje = new Date();
+  const inicio = addDays(hoje, -daysBack);
+  // SIASG codigoModalidade reais na API Compras.gov.br:
+  // 5 = Pregão Eletrônico | 6 = Dispensa | 3 = Concorrência | 7 = Inexigibilidade
+  const modalidades = [5, 6, 3, 7];
+  const pageSize = 500;
+  let persisted = 0;
+  const byModality: Record<number, number> = {};
+
+  for (const modalidade of modalidades) {
+    let modPersisted = 0;
+    try {
+      const baseParams = {
+        tamanhoPagina: pageSize,
+        dataPublicacaoPncpInicial: formatApiDate(undefined, inicio),
+        dataPublicacaoPncpFinal: formatApiDate(undefined, hoje),
+        codigoModalidade: modalidade,
+        contratacaoExcluida: false,
+      };
+
+      const firstRes = await client.get('/modulo-contratacoes/1_consultarContratacoes_PNCP_14133', {
+        params: { ...baseParams, pagina: 1 },
+      });
+      const firstRaw = firstRes.data;
+      const totalPaginas = Math.max(1, Number(firstRaw?.totalPaginas || 1));
+      const firstItems = extractCollection(firstRaw).map(normalizePregao);
+
+      if (firstItems.length === 0) {
+        byModality[modalidade] = 0;
+        continue;
+      }
+
+      if (totalPaginas === 1) {
+        modPersisted += await persistComprasGovNotices(firstItems);
+      } else {
+        // Compras.gov.br ordena em ordem cronológica crescente; varre das últimas páginas para capturar D0/D-1 primeiro.
+        const stopPage = Math.max(1, totalPaginas - maxPages + 1);
+        for (let pagina = totalPaginas; pagina >= stopPage; pagina--) {
+          if (pagina === 1) {
+            modPersisted += await persistComprasGovNotices(firstItems);
+          } else {
+            const pageRes = await client.get('/modulo-contratacoes/1_consultarContratacoes_PNCP_14133', {
+              params: { ...baseParams, pagina },
+            });
+            const pageItems = extractCollection(pageRes.data).map(normalizePregao);
+            if (pageItems.length > 0) {
+              modPersisted += await persistComprasGovNotices(pageItems);
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[ComprasGov Sync] Modalidade SIASG ${modalidade}:`, resolveAxiosErrorSummary(err));
+    }
+    byModality[modalidade] = modPersisted;
+    persisted += modPersisted;
+  }
+
+  console.info(`[ComprasGov Sync] Sincronizados ${persisted} editais recentes (últimos ${daysBack} dias).`, byModality);
+  return { fonte: 'ComprasGov', persisted, byModality };
 }
 
 export class ComprasGovService {

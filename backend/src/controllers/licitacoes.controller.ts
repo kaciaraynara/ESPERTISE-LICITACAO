@@ -20,6 +20,8 @@ import {
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { proposalAutomationService } from '../services/proposal-automation.service';
 import { ensureFreshPncpSync } from '../jobs/radar.cron';
+import { syncComprasGovRecentes } from '../services/comprasgov.service';
+import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
 
 function stringParam(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -31,7 +33,9 @@ function stringParam(value: unknown): string | undefined {
 
 function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
   const rawSrp = source.srp;
-  const isLocalOnly = source.local === true || source.local === 'true' || source.tempoReal === false || source.tempoReal === 'false';
+  const isExplicitTempoReal = source.tempoReal === true || source.tempoReal === 'true';
+  const isLocalOnly = source.local === true || source.local === 'true';
+  const rawApenasAbertos = source.apenasAbertos;
   return {
     palavraChave:
       stringParam(source.palavraChave)
@@ -44,13 +48,16 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       stringParam(source.cnpj)
       ?? stringParam(source.cnpjOrgao)
       ?? stringParam(source.cnpj_orgao),
+    cnae: stringParam(source.cnae),
     uf: stringParam(source.uf),
+    orgao: stringParam(source.orgao),
     dataInicial:
       stringParam(source.dataInicial)
       ?? stringParam(source.dataInicio),
     dataFinal:
       stringParam(source.dataFinal)
       ?? stringParam(source.dataFim),
+    dataPublicacao: stringParam(source.dataPublicacao),
     codigoModalidadeContratacao:
       stringParam(source.codigoModalidadeContratacao)
       ?? stringParam(source.modalidade),
@@ -63,8 +70,16 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? '100',
     srp: rawSrp === true || rawSrp === 'true',
     baixaProcura: source.baixaProcura === true || source.baixaProcura === 'true',
+    fonte: stringParam(source.fonte),
+    apenasAbertos:
+      rawApenasAbertos === true || rawApenasAbertos === 'true'
+        ? true
+        : rawApenasAbertos === false || rawApenasAbertos === 'false'
+          ? false
+          : undefined,
+    local: isLocalOnly,
     endpoint: source.endpoint === 'publicacao' ? 'publicacao' : 'proposta',
-    tempoReal: !isLocalOnly,
+    tempoReal: isExplicitTempoReal,
   };
 }
 
@@ -140,17 +155,43 @@ export class LicitacoesController {
   ): Promise<Response> => {
     try {
       const filtros = buildFiltros((req.body as Record<string, unknown>) || {});
-      const resultado = await sincronizarLicitacoesPNCP(filtros);
+      const [pncpPropRes, pncpPubRes, comprasRes, queridoRes] = await Promise.allSettled([
+        sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'proposta' }),
+        sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'publicacao' }),
+        syncComprasGovRecentes({ daysBack: 3, maxPages: 1 }),
+        syncQueridoDiarioEditais({ daysBack: 7, size: 40 }),
+      ]);
+
+      if (pncpPropRes.status === 'rejected' && pncpPubRes.status === 'rejected') {
+        throw pncpPropRes.reason;
+      }
+
+      const itemsMap = new Map<string, any>();
+      let pncpTotal = 0;
+      for (const resItem of [pncpPropRes, pncpPubRes]) {
+        if (resItem.status === 'fulfilled') {
+          pncpTotal += resItem.value.totalSincronizados;
+          for (const it of resItem.value.items) {
+            if (!itemsMap.has(it.numeroControlePNCP)) {
+              itemsMap.set(it.numeroControlePNCP, it);
+            }
+          }
+        }
+      }
+
+      const extrasCompras = comprasRes.status === 'fulfilled' ? comprasRes.value.persisted : 0;
+      const extrasQuerido = queridoRes.status === 'fulfilled' ? queridoRes.value.persisted : 0;
+      const totalSincronizados = pncpTotal + extrasCompras + extrasQuerido;
 
       return res.json({
         success: true,
-        message: `${resultado.totalSincronizados} editais sincronizados com sucesso do PNCP.`,
+        message: `${totalSincronizados} editais sincronizados com sucesso (PNCP + Compras.gov.br + Diários Oficiais).`,
         data: {
-          totalSincronizados: resultado.totalSincronizados,
-          items: resultado.items,
+          totalSincronizados,
+          items: Array.from(itemsMap.values()),
         },
         meta: {
-          fonte: 'PNCP',
+          fonte: 'MULTIFONTE',
           atualizadoEm: new Date().toISOString(),
         },
       });
@@ -557,9 +598,10 @@ export class LicitacoesController {
       const ano = req.query.ano ? Number(req.query.ano) : undefined;
       const pagina = req.query.pagina ? Number(req.query.pagina) : 1;
       const tamanhoPagina = req.query.tamanhoPagina ? Number(req.query.tamanhoPagina) : 20;
-      const q = stringParam(req.query.q);
+      const q = stringParam(req.query.q) ?? stringParam(req.query.termo);
       const uf = stringParam(req.query.uf);
-      const esfera = stringParam(req.query.esfera);
+      const cnae = stringParam(req.query.cnae);
+      const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
 
       const resultado = await buscarPcasPNCP({
         anoPca: ano,
@@ -567,10 +609,13 @@ export class LicitacoesController {
         tamanhoPagina,
         palavraChave: q,
         uf,
+        cnae,
+        forceRefresh,
       });
 
       return res.json({
         success: true,
+        data: resultado.items,
         ...resultado,
       });
     } catch (error) {

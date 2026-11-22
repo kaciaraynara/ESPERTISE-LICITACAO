@@ -63,15 +63,23 @@ class TokenManagerService {
   // ─── Inicialização ─────────────────────────────────────────────────────────
 
   private initialize(): void {
-    this.token = getStringEnv(
-      'PORTAL_TRANSPARENCIA_TOKEN',
-      '',
-    );
+    this.token =
+      getStringEnv('PORTAL_TRANSPARENCIA_TOKEN', '')
+      || getStringEnv('PORTAL_TRANSPARENCIA_KEY', '')
+      || getStringEnv('TRANSPARENCIA_API_KEY', '')
+      || getStringEnv('TRANSPARENCIA_TOKEN', '')
+      || getStringEnv('CGU_API_KEY', '')
+      || getStringEnv('TRANSPARENCIA_API_TOKEN', '');
 
-    this.baseUrl = getStringEnv(
+    const rawBaseUrl = getStringEnv(
       'PORTAL_TRANSPARENCIA_BASE_URL',
       'https://api.portaldatransparencia.gov.br/api-de-dados',
-    );
+    ).replace(/\/+$/, '');
+    this.baseUrl = rawBaseUrl.includes('api.portaldatransparencia.gov.br')
+      ? (rawBaseUrl.endsWith('/api-de-dados') ? rawBaseUrl : `${rawBaseUrl}/api-de-dados`)
+      : rawBaseUrl.includes('portaldatransparencia.gov.br')
+        ? 'https://api.portaldatransparencia.gov.br/api-de-dados'
+        : rawBaseUrl;
 
     this.timeout = getNumberEnv(
       'PORTAL_TRANSPARENCIA_TIMEOUT',

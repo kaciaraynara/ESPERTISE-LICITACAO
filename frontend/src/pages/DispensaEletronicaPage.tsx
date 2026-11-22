@@ -69,7 +69,8 @@ export const DispensaEletronicaPage: React.FC = () => {
         termo: busca.trim() || undefined,
         modalidade: 'Dispensa Eletrônica',
         uf: ufSelecionada !== 'TODOS' ? ufSelecionada : undefined,
-      });
+        apenasAbertos: true,
+      } as any);
 
       const lista = res.data?.data || res.data || [];
       setDispensas(Array.isArray(lista)

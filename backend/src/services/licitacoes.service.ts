@@ -90,6 +90,60 @@ export class NoticePersistenceError extends Error {
   }
 }
 
+const PT_ACCENT_VARIANTS: Record<string, string[]> = {
+  vestuario: ['vestuario', 'vestuário'],
+  pregao: ['pregao', 'pregão'],
+  calcado: ['calcado', 'calçado'],
+  calcados: ['calcados', 'calçados'],
+  confeccao: ['confeccao', 'confecção'],
+  confeccoes: ['confeccoes', 'confecções'],
+  informatica: ['informatica', 'informática'],
+  servico: ['servico', 'serviço'],
+  servicos: ['servicos', 'serviços'],
+  medico: ['medico', 'médico'],
+  medicos: ['medicos', 'médicos'],
+  alimentacao: ['alimentacao', 'alimentação'],
+  alimenticio: ['alimenticio', 'alimentício'],
+  alimenticios: ['alimenticios', 'alimentícios'],
+  construcao: ['construcao', 'construção'],
+  edificios: ['edificios', 'edifícios'],
+  saude: ['saude', 'saúde'],
+  educacao: ['educacao', 'educação'],
+  veiculo: ['veiculo', 'veículo'],
+  veiculos: ['veiculos', 'veículos'],
+  mobiliario: ['mobiliario', 'mobiliário'],
+  escritorio: ['escritorio', 'escritório'],
+  manutencao: ['manutencao', 'manutenção'],
+  peca: ['peca', 'peça'],
+  pecas: ['pecas', 'peças'],
+  eletronico: ['eletronico', 'eletrônico'],
+  eletrica: ['eletrica', 'elétrica'],
+  hidraulica: ['hidraulica', 'hidráulica'],
+  mecanica: ['mecanica', 'mecânica'],
+  quimico: ['quimico', 'químico'],
+  logistica: ['logistica', 'logística'],
+  farmacia: ['farmacia', 'farmácia'],
+  lixeira: ['lixeira'],
+};
+
+function expandAccentVariants(term: string): string[] {
+  const clean = term.trim();
+  if (!clean) return [];
+  const norm = clean
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const variants = new Set<string>([clean]);
+  if (norm && norm !== clean.toLowerCase()) {
+    variants.add(norm);
+  }
+  const dictHits = PT_ACCENT_VARIANTS[norm];
+  if (dictHits) {
+    for (const v of dictHits) variants.add(v);
+  }
+  return Array.from(variants);
+}
+
 function getAutomaticSearchTerms(
   filters: FiltrosBusca,
   _profile: TenantRadarProfile | null,
@@ -108,10 +162,11 @@ function getAutomaticSearchTerms(
   const cnaeTerms = hasExplicitCnae ? expandCnaeFilterTerms(filters.cnae).slice(0, 5) : [];
 
   if (requested || cnaeTerms.length > 0) {
-    return Array.from(new Set([
+    const base = Array.from(new Set([
       ...(requested ? [requested] : []),
       ...cnaeTerms,
     ]));
+    return Array.from(new Set(base.flatMap(expandAccentVariants)));
   }
 
   // Quando usuário NÃO digitar palavra-chave e NÃO ativar explicitamente filtro de CNAE,
@@ -413,16 +468,18 @@ export async function consultarRadarPncpTempoReal(
     // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
     const [pncpRes, comprasRes] = await Promise.allSettled([
       buscarContratacoesPNCP({
-        endpoint: 'proposta',
+        endpoint: filtros.endpoint === 'publicacao' ? 'publicacao' : 'proposta',
         pagina: page,
-        tamanhoPagina: size,
+        tamanhoPagina: Math.min(100, size),
         ...(uf ? { uf } : {}),
+        ...(palavraChave ? { palavraChave } : {}),
         ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
         ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
       }),
       buscarLicitacoesComprasGov({
         pagina: page,
         ...(uf ? { uf } : {}),
+        ...(palavraChave ? { descricao: palavraChave } : {}),
         ...(!isAllModalities && rawMod ? { modalidade: rawMod } : {}),
       }),
     ]);
@@ -443,14 +500,23 @@ export async function consultarRadarPncpTempoReal(
           numeroControlePNCP: ctrlId,
           objeto: String(c.objeto || 'Objeto não informado'),
           modalidadeNome: String(c.modalidade || 'Pregão Eletrônico'),
-          orgaoEntidade: { razaoSocial: String(c.orgao || c.orgaoNome || 'Órgão Público'), cnpj: String(c.cnpjOrgao || '') },
-          unidadeOrgao: { ufSigla: String(c.uf || ''), municipioNome: String(c.municipio || '') },
-          valorTotalEstimado: c.valorEstimado != null ? Number(c.valorEstimado) : undefined,
-          dataPublicacaoPncp: String(c.dataPublicacao || new Date().toISOString()),
-          dataAberturaProposta: String(c.dataAbertura || c.dataPublicacao || new Date().toISOString()),
-          dataEncerramentoProposta: c.dataEncerramento || c.dataAbertura || undefined,
+          orgaoEntidade: {
+            razaoSocial: String(c.orgao || c.orgaoNome || 'Órgão Público'),
+            cnpj: String(c.cnpj_orgao || c.cnpjOrgao || ''),
+          },
+          unidadeOrgao: {
+            ufSigla: String(c.uf || ''),
+            municipioNome: String(c.municipio || ''),
+          },
+          valorTotalEstimado:
+            (c.valor_estimado ?? c.valorEstimado) != null
+              ? Number(c.valor_estimado ?? c.valorEstimado)
+              : undefined,
+          dataPublicacaoPncp: String(c.data_publicacao || c.dataPublicacao || c.data_abertura || new Date().toISOString()),
+          dataAberturaProposta: String(c.data_abertura || c.dataAbertura || c.data_publicacao || c.dataPublicacao || new Date().toISOString()),
+          dataEncerramentoProposta: c.data_encerramento || c.dataEncerramento || c.data_abertura || c.dataAbertura || undefined,
           situacaoCompraNome: String(c.situacao || 'Divulgada no Compras.gov.br'),
-          linkEditalPNCP: c.linkEdital || c.url || undefined,
+          linkEditalPNCP: c.link || c.linkEdital || c.url || undefined,
           srp: Boolean(c.srp),
         }));
       resultadoPncp.data = [...(resultadoPncp.data || []), ...extras];
@@ -560,19 +626,26 @@ export async function consultarRadarPncpTempoReal(
     throw apiError;
   }
 
-  const rawItems = (resultadoPncp.data || []).filter((item: LicitacaoPNCP) =>
-    item.numeroControlePNCP
-    && (!isSrpFilter || item.srp === true),
-  );
+  const rawItems = (resultadoPncp.data || []).filter((item: LicitacaoPNCP) => {
+    if (!item.numeroControlePNCP) return false;
+    if (isSrpFilter && item.srp !== true) return false;
+    if (filtros.orgao?.trim()) {
+      const targetOrgao = String(filtros.orgao).trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const itemOrgao = String(item.orgaoEntidade?.razaoSocial || item.nomeOrgao || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (!itemOrgao.includes(targetOrgao)) return false;
+    }
+    return true;
+  });
 
   const normalizedItems = rawItems.map(normalizarLicitacaoPNCP);
 
   // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
-  // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
   const now = new Date();
   const validItems = normalizedItems.filter((item: LicitacaoRadarPNCP) => {
     const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
-    if (!encStr) return false;
+    if (!encStr) return filtros.endpoint === 'publicacao';
     const encDate = new Date(encStr);
     return !isNaN(encDate.getTime()) && encDate > now;
   });
@@ -661,8 +734,6 @@ export async function listarLicitacoes(
   if (
     filtros.tempoReal === true
     || filtros.tempoReal === 'true'
-    || ((filtros as any).local !== true && (filtros as any).local !== 'true')
-    
   ) {
     return consultarRadarPncpTempoReal(filtros);
   }
@@ -729,6 +800,44 @@ export async function listarLicitacoes(
         { uf: { contains: ufVal, mode: 'insensitive' } },
       ],
     });
+  }
+
+  if (filtros.orgao && filtros.orgao.trim()) {
+    and.push({
+      buyerName: { contains: filtros.orgao.trim(), mode: 'insensitive' },
+    });
+  }
+
+  if (filtros.fonte && filtros.fonte.trim().toUpperCase() !== 'TODAS') {
+    const fNorm = filtros.fonte.trim().toLowerCase();
+    if (fNorm === 'pncp') {
+      and.push({ source: { in: ['PNCP', 'pncp'] } });
+    } else if (fNorm === 'comprasgov' || fNorm === 'compras_gov') {
+      and.push({ source: { in: ['ComprasGov', 'compras_gov', 'comprasgov'] } });
+    } else {
+      and.push({ source: { equals: filtros.fonte.trim(), mode: 'insensitive' } });
+    }
+  }
+
+  if (filtros.apenasAbertos === true || filtros.apenasAbertos === 'true') {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+    and.push({
+      OR: [
+        { closingAt: { gt: new Date() } },
+        { AND: [{ closingAt: null }, { publishedAt: { gte: thirtyDaysAgo } }] },
+      ],
+    });
+  }
+
+  if (filtros.dataPublicacao && filtros.dataPublicacao.trim()) {
+    const rawPub = filtros.dataPublicacao.trim();
+    const iso = /^\d{8}$/.test(rawPub)
+      ? `${rawPub.slice(0, 4)}-${rawPub.slice(4, 6)}-${rawPub.slice(6, 8)}`
+      : rawPub;
+    const dt = new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
+    if (!isNaN(dt.getTime())) {
+      and.push({ publishedAt: { gte: dt } });
+    }
   }
 
   if (filtros.srp === true || filtros.srp === 'true') {
@@ -868,7 +977,7 @@ export async function listarLicitacoes(
   }
 
   if (count === 0 && !filtros.q && !filtros.termo && searchTerms.length > 0) {
-    const andSemCnae = and.filter((item) => !(item?.OR && Array.isArray(item.OR) && item.OR[0]?.object));
+    const andSemCnae = and.filter((item) => !(item?.OR && Array.isArray(item.OR) && item.OR.some((x: any) => x?.object !== undefined)));
     const whereSemCnae: any = andSemCnae.length > 0 ? { AND: andSemCnae, publishedAt: { not: null } } : { publishedAt: { not: null } };
     const [fbCount, fbRows] = await Promise.all([
       prisma.procurementNotice.count({ where: whereSemCnae }),
@@ -885,10 +994,6 @@ export async function listarLicitacoes(
       rows = fbRows;
       avisoRadar = 'Nenhum edital encontrado exatamente para o seu CNAE neste filtro; exibindo os editais disponíveis na base.';
     }
-  }
-
-  if (rows.length === 0 && page === 1 && filtros.tempoReal !== false) {
-    return consultarRadarPncpTempoReal(filtros);
   }
 
   const companyProfile = tenantRadarProfile
@@ -1059,7 +1164,7 @@ export async function sincronizarLicitacoesPNCP(
     }
   }
 
-  const paginasSync = filtros.pagina ? [filtros.pagina] : [1, 2, 3];
+  const paginasSync = filtros.pagina ? [filtros.pagina] : [1];
   const resultados = await Promise.all(
     modalidades.flatMap((modalidade) =>
       paginasSync.map((pag) =>
@@ -1071,9 +1176,9 @@ export async function sincronizarLicitacoesPNCP(
           ...(buyerCnpjForPncp ? { cnpj: buyerCnpjForPncp } : {}),
           palavraChave,
           pagina: pag,
-          tamanhoPagina: filtros.tamanhoPagina ?? 50,
+          tamanhoPagina: filtros.tamanhoPagina ?? 100,
           endpoint: filtros.endpoint || 'proposta',
-        }).catch(() => ({ data: [], totalRegistros: 0, pagina: pag, tamanhoPagina: 50 }))
+        }).catch(() => ({ data: [], totalRegistros: 0, pagina: pag, tamanhoPagina: 100 }))
       )
     )
   );
@@ -1091,43 +1196,69 @@ export async function sincronizarLicitacoesPNCP(
     const batch = itensElegiveis.slice(offset, offset + persistConcurrency);
     const persistedBatch = await Promise.all(batch.map(async (item) => {
       const normalizado = normalizarLicitacaoPNCP(item);
+      const ctrl = normalizado.numeroControlePNCP.trim();
+      const isPncpControl = /^\d{14}-\d+-\d+\/\d{4}$/.test(ctrl);
+      const updatePayload = {
+        buyerName: normalizado.orgao || 'Órgão Público',
+        buyerDocument: normalizado.cnpjOrgao,
+        object: normalizado.objeto || 'Objeto não especificado',
+        estimatedValue: normalizado.valorEstimado,
+        status: normalizado.situacao || 'Publicada',
+        url: normalizado.urlOficialPncp || normalizado.link,
+        srp: Boolean(normalizado.srp),
+        publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : undefined,
+        openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
+        closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
+      };
 
       try {
-        const upserted = await prisma.procurementNotice.upsert({
-          where: { dedupeKey: `pncp-${normalizado.numeroControlePNCP}` },
-          create: {
-            source: 'PNCP',
-            externalId: normalizado.numeroControlePNCP,
-            dedupeKey: `pncp-${normalizado.numeroControlePNCP}`,
-            contentHash: normalizado.numeroControlePNCP,
-            noticeNumber: normalizado.processo || normalizado.numeroCompra || normalizado.numeroControlePNCP,
-            modality: normalizado.modalidade || 'Pregão Eletrônico',
-            buyerName: normalizado.orgao || 'Órgão Público',
-            buyerDocument: normalizado.cnpjOrgao,
-            object: normalizado.objeto || 'Objeto não especificado',
-            uf: normalizado.uf || '',
-            municipality: normalizado.municipio || '',
-            estimatedValue: normalizado.valorEstimado,
-            status: normalizado.situacao || 'Publicada',
-            url: normalizado.link,
-            srp: Boolean(normalizado.srp),
-            publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : new Date(),
-            openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
-            closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
-          },
-          update: {
-            buyerName: normalizado.orgao || 'Órgão Público',
-            buyerDocument: normalizado.cnpjOrgao,
-            object: normalizado.objeto || 'Objeto não especificado',
-            estimatedValue: normalizado.valorEstimado,
-            status: normalizado.situacao || 'Publicada',
-            url: normalizado.urlOficialPncp || normalizado.link,
-            srp: Boolean(normalizado.srp),
-            publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : undefined,
-            openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
-            closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
-          },
-        });
+        let upserted: any;
+        try {
+          upserted = await prisma.procurementNotice.upsert({
+            where: { dedupeKey: `pncp-${ctrl}` },
+            create: {
+              source: 'PNCP',
+              externalId: ctrl,
+              ...(isPncpControl ? { numeroControlePncp: ctrl } : {}),
+              dedupeKey: `pncp-${ctrl}`,
+              contentHash: ctrl,
+              noticeNumber: normalizado.processo || normalizado.numeroCompra || ctrl,
+              modality: normalizado.modalidade || 'Pregão Eletrônico',
+              buyerName: normalizado.orgao || 'Órgão Público',
+              buyerDocument: normalizado.cnpjOrgao,
+              object: normalizado.objeto || 'Objeto não especificado',
+              uf: normalizado.uf || '',
+              municipality: normalizado.municipio || '',
+              estimatedValue: normalizado.valorEstimado,
+              status: normalizado.situacao || 'Publicada',
+              url: normalizado.link,
+              srp: Boolean(normalizado.srp),
+              publishedAt: normalizado.dataPublicacao ? new Date(normalizado.dataPublicacao) : new Date(),
+              openingAt: normalizado.dataAbertura ? new Date(normalizado.dataAbertura) : null,
+              closingAt: normalizado.dataEncerramento ? new Date(normalizado.dataEncerramento) : null,
+            },
+            update: updatePayload,
+          });
+        } catch (upsertConflictErr: any) {
+          if (upsertConflictErr?.code === 'P2002' && typeof prisma.procurementNotice.findFirst === 'function') {
+            const existing = await prisma.procurementNotice.findFirst({
+              where: {
+                OR: [
+                  ...(isPncpControl ? [{ numeroControlePncp: ctrl }] : []),
+                  { externalId: ctrl },
+                ],
+              },
+              select: { id: true },
+            });
+            if (!existing?.id) throw upsertConflictErr;
+            upserted = await prisma.procurementNotice.update({
+              where: { id: existing.id },
+              data: updatePayload,
+            });
+          } else {
+            throw upsertConflictErr;
+          }
+        }
 
         normalizado.id = upserted.id;
         normalizado.databaseId = upserted.id;

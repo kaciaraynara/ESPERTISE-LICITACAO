@@ -7,11 +7,11 @@ type PncpFetch = typeof buscarContratacoesPNCP;
 export class PncpDataConnector implements DataConnector {
   descriptor = DATA_SOURCE_REGISTRY.pncp;
 
-  constructor(private readonly fetchPncp: PncpFetch = buscarContratacoesPNCP) {}
+  constructor(private readonly fetchPncp: PncpFetch = buscarContratacoesPNCP) { }
 
   async fetch(input: DataFetchInput): Promise<RawDataRecord[]> {
     const filters = buildPncpFilters(input);
-    const maxPages = Number(process.env.PNCP_INGEST_MAX_PAGES ?? 20);
+    const maxPages = Number(process.env.PNCP_INGEST_MAX_PAGES ?? 5);
     if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 1000) {
       throw new Error('PNCP_INGEST_MAX_PAGES deve ser um inteiro entre 1 e 1000.');
     }
@@ -47,8 +47,8 @@ export class PncpDataConnector implements DataConnector {
       }
 
       if (result.data.length === 0) return records;
-      if (pageOffset < maxPages - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+      if (pageOffset < maxPages - 1 && process.env.NODE_ENV !== 'test') {
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
 
@@ -56,8 +56,8 @@ export class PncpDataConnector implements DataConnector {
       (totalPages !== null && firstPage + maxPages - 1 < totalPages)
       || (totalPages === null && lastPageSize === responsePageSize)
     ) {
-      throw new Error(
-        `PNCP excedeu o limite de ${maxPages} páginas; configure PNCP_INGEST_MAX_PAGES para concluir a sincronização.`,
+      console.warn(
+        `[PncpDataConnector] Limite de ${maxPages} páginas atingido (${records.length} registros coletados de ${totalPages ?? '?'} páginas). Retornando lote parcial.`,
       );
     }
 
@@ -80,6 +80,7 @@ export function buildPncpFilters(input: DataFetchInput): FiltrosBusca {
     tamanhoPagina: input.limit ?? numberValue(filters.tamanhoPagina) ?? 50,
     valorMin: numberValue(filters.valorMin),
     valorMax: numberValue(filters.valorMax),
+    incluirEncerrados: true,
   };
 }
 

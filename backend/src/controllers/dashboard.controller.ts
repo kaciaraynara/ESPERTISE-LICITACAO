@@ -41,8 +41,12 @@ async function getGlobalRadarSummary(): Promise<Omit<GlobalRadarCache, 'expiresA
       prisma.procurementNotice.aggregate({ _sum: { estimatedValue: true } }),
       prisma.procurementNotice.groupBy({ by: ['buyerName'] }),
       prisma.procurementNotice.findMany({
+        where: {
+          publishedAt: { lte: new Date() },
+          OR: [{ closingAt: { gt: new Date() } }, { closingAt: null }],
+        },
         take: 4,
-        orderBy: { publishedAt: 'desc' },
+        orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }],
         select: {
           id: true,
           buyerName: true,

@@ -10,11 +10,11 @@ import cron from 'node-cron';
 import { createHash } from 'crypto';
 import { prisma } from '../database/prisma';
 import { buscarContratacoesPNCP, LicitacaoPNCP, PncpServiceError } from '../services/pncp.service';
-import { buscarLicitacoesComprasGov } from '../services/comprasgov.service';
+import { buscarLicitacoesComprasGov, syncComprasGovRecentes } from '../services/comprasgov.service';
 import { setupCndRenewalCron } from './cnd-renewal.cron';
 import { setupPrivacyJob } from './privacy.job';
 import { setupPlanResetCron } from './plan-reset.cron';
-import { setupDataPlatformWorkers } from '../services/data-platform';
+import { DataPlatformWorkerService } from '../services/data-platform';
 import { CertificatesWorker } from '../workers/certificates.worker';
 import { NotificationsWorker } from '../workers/notifications.worker';
 import { enviarAlertaEditaisCnae } from '../services/resend.service';
@@ -28,11 +28,11 @@ const PAGE_SIZE = 50;
 const PERSIST_CONCURRENCY = 10;
 
 const MODALIDADES_PNCP = [
-  { codigo: 4, nome: 'Concorrência Eletrônica' },
   { codigo: 6, nome: 'Pregão Eletrônico' },
   { codigo: 8, nome: 'Dispensa de Licitação' },
-  { codigo: 9, nome: 'Inexigibilidade' },
+  { codigo: 4, nome: 'Concorrência Eletrônica' },
   { codigo: 12, nome: 'Credenciamento' },
+  { codigo: 9, nome: 'Inexigibilidade' },
 ];
 
 function isCronEnabled(value?: string | null): boolean {
@@ -53,16 +53,20 @@ function dateInBrazil(date: Date): string {
   return `${values.year}${values.month}${values.day}`;
 }
 
-function previousCalendarDay(value: string): string {
+function subtractCalendarDays(value: string, days: number): string {
   const year = Number(value.slice(0, 4));
   const month = Number(value.slice(4, 6));
   const day = Number(value.slice(6, 8));
-  const previous = new Date(Date.UTC(year, month - 1, day - 1));
+  const previous = new Date(Date.UTC(year, month - 1, day - days));
   return [
     previous.getUTCFullYear(),
     String(previous.getUTCMonth() + 1).padStart(2, '0'),
     String(previous.getUTCDate()).padStart(2, '0'),
   ].join('');
+}
+
+function previousCalendarDay(value: string): string {
+  return subtractCalendarDays(value, 1);
 }
 
 export interface BackoffOptions {
@@ -152,10 +156,108 @@ export async function fetchWithBackoff<T>(
   }
 }
 
+async function upsertPncpNoticeItem(item: LicitacaoPNCP, defaultModalityName: string): Promise<boolean> {
+  if (!item.numeroControlePNCP) return false;
+  const ctrl = item.numeroControlePNCP.trim();
+  const isPncpControl = /^\d{14}-\d+-\d+\/\d{4}$/.test(ctrl);
+  const dedupeKey = `pncp-${ctrl}`;
+  const contentHash = createHash('sha256')
+    .update(`${item.numeroControlePNCP}|${item.objeto || ''}|${item.valorTotalEstimado || ''}`)
+    .digest('hex');
+
+  const buyerName = item.orgaoEntidade?.razaoSocial || item.unidadeOrgao?.nomeUnidade || 'Órgão Licitante';
+  const buyerDocument = item.orgaoEntidade?.cnpj?.replace(/\D/g, '') || null;
+  const noticeNumber = item.numeroCompra || item.processo || item.numeroControlePNCP;
+  const objectText = item.objeto || 'Objeto não detalhado pelo órgão convocador no PNCP';
+  const estimatedValue = item.valorTotalEstimado != null && !isNaN(Number(item.valorTotalEstimado))
+    ? Number(item.valorTotalEstimado)
+    : null;
+
+  const now = new Date();
+  const rawPub = item.dataPublicacaoPncp ? new Date(item.dataPublicacaoPncp) : null;
+  const publishedAt = rawPub && !isNaN(rawPub.getTime()) ? (rawPub > now ? now : rawPub) : null;
+  const openingAt = item.dataAberturaProposta ? new Date(item.dataAberturaProposta) : null;
+  const closingAt = item.dataEncerramentoProposta ? new Date(item.dataEncerramentoProposta) : null;
+
+  const updateFields = {
+    source: 'PNCP',
+    noticeNumber,
+    processoAdministrativo: item.processo || null,
+    modality: item.modalidadeNome || defaultModalityName,
+    buyerName,
+    buyerDocument,
+    object: objectText,
+    uf: item.unidadeOrgao?.ufSigla || null,
+    municipality: item.unidadeOrgao?.municipioNome || null,
+    estimatedValue,
+    status: item.situacaoCompraNome || 'Ativo',
+    url: item.linkEditalPNCP || item.linkSistemaOrigem || null,
+    publishedAt,
+    openingAt,
+    closingAt,
+    srp: Boolean(item.srp),
+    modoDisputa: item.modoDisputaNome || 'Aberto e Fechado',
+    rawPayload: item as any,
+    updatedAt: new Date(),
+  };
+
+  try {
+    await prisma.procurementNotice.upsert({
+      where: { dedupeKey },
+      create: {
+        source: 'PNCP',
+        externalId: ctrl,
+        ...(isPncpControl ? { numeroControlePncp: ctrl } : {}),
+        dedupeKey,
+        contentHash,
+        noticeNumber,
+        processoAdministrativo: item.processo || null,
+        modality: item.modalidadeNome || defaultModalityName,
+        buyerName,
+        buyerDocument,
+        object: objectText,
+        uf: item.unidadeOrgao?.ufSigla || null,
+        municipality: item.unidadeOrgao?.municipioNome || null,
+        estimatedValue,
+        status: item.situacaoCompraNome || 'Ativo',
+        url: item.linkEditalPNCP || item.linkSistemaOrigem || null,
+        publishedAt,
+        openingAt,
+        closingAt,
+        srp: Boolean(item.srp),
+        modoDisputa: item.modoDisputaNome || 'Aberto e Fechado',
+        amparoLegal: 'Lei 14.133/2021',
+        rawPayload: item as any,
+      },
+      update: updateFields,
+    });
+  } catch (err: any) {
+    if (err?.code === 'P2002' && typeof prisma.procurementNotice.findFirst === 'function') {
+      const existing = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [
+            ...(isPncpControl ? [{ numeroControlePncp: ctrl }] : []),
+            { externalId: ctrl },
+          ],
+        },
+        select: { id: true },
+      });
+      if (existing?.id && typeof prisma.procurementNotice.update === 'function') {
+        await prisma.procurementNotice.update({
+          where: { id: existing.id },
+          data: updateFields,
+        });
+        return true;
+      }
+    }
+    throw err;
+  }
+  return true;
+}
+
 /**
- * Sincroniza editais das últimas 24 horas via API oficial do PNCP utilizando
- * paginação completa e backoff exponencial contra Erro 429.
- * Realiza upsert idempotente no PostgreSQL (procurement_notices).
+ * Sincroniza editais das últimas 72 horas (/contratacoes/publicacao) via API oficial do PNCP
+ * sondando a página 1 e percorrendo das últimas páginas para a 2 (captura D0/D-1 primeiro).
  */
 export async function syncPncpLast24Hours(): Promise<{
   totalEncontrados: number;
@@ -165,168 +267,143 @@ export async function syncPncpLast24Hours(): Promise<{
   console.info(JSON.stringify({
     event: 'PNCP_CRON_JOB_STARTED',
     timestamp: new Date().toISOString(),
-    message: 'Iniciando sincronização com paginação completa e backoff exponencial...',
+    message: 'Iniciando sincronização de publicações PNCP (ordem reversa D0 primeiro) com backoff exponencial...',
   }));
 
   const dataFinal = dateInBrazil(new Date());
-  const dataInicial = previousCalendarDay(dataFinal);
+  const dataInicial = subtractCalendarDays(dataFinal, 3);
 
   let totalEncontrados = 0;
   let upsertados = 0;
   let erros = 0;
 
-  const maxPages = Number(process.env.PNCP_MAX_PAGES_PER_RUN) || 100; // Até 2.500 editais por modalidade
-  const throttleDelayMs = Number(process.env.PNCP_PAGE_DELAY_MS) || 400; // Intervalo para cortesia de tráfego
+  const maxPages = Math.max(1, Number(process.env.PNCP_MAX_PAGES_PER_RUN) || 100);
+  const throttleDelayMs = Number(process.env.PNCP_PAGE_DELAY_MS) || 400;
 
-  for (const endpointTipo of ['publicacao', 'proposta'] as const) {
+  const persistPageItems = async (items: LicitacaoPNCP[], modalityName: string) => {
+    for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
+      const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
+      const results = await Promise.all(batch.map(async (item) => {
+        try {
+          return await upsertPncpNoticeItem(item, modalityName);
+        } catch (itemErr) {
+          erros++;
+          console.warn(`[PNCP Cron] Erro ao persistir edital ${item.numeroControlePNCP}:`, itemErr);
+          return false;
+        }
+      }));
+      upsertados += results.filter(Boolean).length;
+    }
+  };
+
   for (const modalidade of MODALIDADES_PNCP) {
-    let pagina = 1;
-    let totalPaginas = 1;
-    let hasMore = true;
-
     console.info(`[PNCP Cron] Iniciando varredura paginada para ${modalidade.nome} (código ${modalidade.codigo})...`);
 
-    while (hasMore && pagina <= maxPages) {
-      try {
-        console.info(`[PNCP Cron] Consultando ${modalidade.nome} - Pág. ${pagina}/${totalPaginas > 1 ? totalPaginas : '?'} (período: ${dataInicial} a ${dataFinal})...`);
-
-        const resultado = await fetchWithBackoff(
-          () => buscarContratacoesPNCP({
-            ...(endpointTipo === 'publicacao' ? { dataInicial, dataFinal } : {}),
-            codigoModalidadeContratacao: modalidade.codigo,
-            pagina,
-            tamanhoPagina: PAGE_SIZE,
-            endpoint: endpointTipo,
-          }),
-          {
-            context: `${modalidade.nome} (pág ${pagina})`,
-            maxRetries: 4,
-            initialDelayMs: 1500,
-          }
-        );
-
-        const items: LicitacaoPNCP[] = resultado.data || [];
-        totalEncontrados += items.length;
-
-        if (resultado.totalRegistros !== null) {
-          totalPaginas = Math.ceil(resultado.totalRegistros / PAGE_SIZE);
-        }
-
-        if (items.length === 0) {
-          console.info(`[PNCP Cron] Fim dos registros para ${modalidade.nome} na página ${pagina}.`);
-          hasMore = false;
-          break;
-        }
-
-        console.info(`[PNCP Cron] ${items.length} editais recebidos (pág ${pagina}). Persistindo no banco...`);
-
-        for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
-          const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
-          const results = await Promise.all(batch.map(async (item) => {
-            if (!item.numeroControlePNCP) return false;
-
-            try {
-              const dedupeKey = `pncp-${item.numeroControlePNCP.trim()}`;
-              const contentHash = createHash('sha256')
-                .update(`${item.numeroControlePNCP}|${item.objeto || ''}|${item.valorTotalEstimado || ''}`)
-                .digest('hex');
-
-              const buyerName = item.orgaoEntidade?.razaoSocial || item.unidadeOrgao?.nomeUnidade || 'Órgão Licitante';
-              const buyerDocument = item.orgaoEntidade?.cnpj?.replace(/\D/g, '') || null;
-              const noticeNumber = item.numeroCompra || item.processo || item.numeroControlePNCP;
-              const objectText = item.objeto || 'Objeto não detalhado pelo órgão convocador no PNCP';
-              const estimatedValue = item.valorTotalEstimado != null && !isNaN(Number(item.valorTotalEstimado))
-                ? Number(item.valorTotalEstimado)
-                : null;
-
-              const publishedAt = item.dataPublicacaoPncp ? new Date(item.dataPublicacaoPncp) : null;
-              const openingAt = item.dataAberturaProposta ? new Date(item.dataAberturaProposta) : null;
-              const closingAt = item.dataEncerramentoProposta ? new Date(item.dataEncerramentoProposta) : null;
-
-              await prisma.procurementNotice.upsert({
-                where: { dedupeKey },
-                create: {
-                  source: 'pncp',
-                  externalId: item.numeroControlePNCP,
-                  dedupeKey,
-                  contentHash,
-                  noticeNumber,
-                  processoAdministrativo: item.processo || null,
-                  modality: item.modalidadeNome || modalidade.nome,
-                  buyerName,
-                  buyerDocument,
-                  object: objectText,
-                  uf: item.unidadeOrgao?.ufSigla || null,
-                  municipality: item.unidadeOrgao?.municipioNome || null,
-                  estimatedValue,
-                  status: item.situacaoCompraNome || 'Ativo',
-                  url: item.linkEditalPNCP || item.linkSistemaOrigem || null,
-                  publishedAt,
-                  openingAt,
-                  closingAt,
-                  srp: Boolean(item.srp),
-                  modoDisputa: item.modoDisputaNome || 'Aberto e Fechado',
-                  amparoLegal: 'Lei 14.133/2021',
-                  rawPayload: item as any,
-                },
-                update: {
-                  noticeNumber,
-                  processoAdministrativo: item.processo || null,
-                  modality: item.modalidadeNome || modalidade.nome,
-                  buyerName,
-                  buyerDocument,
-                  object: objectText,
-                  uf: item.unidadeOrgao?.ufSigla || null,
-                  municipality: item.unidadeOrgao?.municipioNome || null,
-                  estimatedValue,
-                  status: item.situacaoCompraNome || 'Ativo',
-                  url: item.linkEditalPNCP || item.linkSistemaOrigem || null,
-                  publishedAt,
-                  openingAt,
-                  closingAt,
-                  srp: Boolean(item.srp),
-                  modoDisputa: item.modoDisputaNome || 'Aberto e Fechado',
-                  rawPayload: item as any,
-                  updatedAt: new Date(),
-                },
-              });
-              return true;
-            } catch (itemErr) {
-              erros++;
-              console.warn(`[PNCP Cron] Erro ao persistir edital ${item.numeroControlePNCP}:`, itemErr);
-              return false;
-            }
-          }));
-          upsertados += results.filter(Boolean).length;
-        }
-
-        // Condições de término da paginação
-        const hasMorePages = resultado.totalRegistros !== null
-          ? pagina < totalPaginas
-          : items.length === PAGE_SIZE;
-        if (!hasMorePages) {
-          hasMore = false;
-        } else {
-          pagina++;
-          // Intervalo de cortesia entre requisições de página para não sobrecarregar o firewall
-          await sleep(throttleDelayMs);
-        }
-      } catch (pageErr: any) {
-        erros++;
-        console.error(`[PNCP Cron] Erro ao processar pág ${pagina} de ${modalidade.nome}:`, pageErr?.message || pageErr);
-        // Interrompe a paginação desta modalidade em falha grave para não gerar loops
-        hasMore = false;
-        break;
-      }
-    }
-
-    if (hasMore && pagina > maxPages) {
-      erros++;
-      console.warn(
-        `[PNCP Cron] Limite de ${maxPages} páginas atingido para ${modalidade.nome}; há mais registros publicados no período.`,
+    try {
+      const firstResult = await fetchWithBackoff(
+        () => buscarContratacoesPNCP({
+          dataInicial,
+          dataFinal,
+          codigoModalidadeContratacao: modalidade.codigo,
+          pagina: 1,
+          tamanhoPagina: PAGE_SIZE,
+          endpoint: 'publicacao',
+          incluirEncerrados: true,
+        }),
+        {
+          context: `${modalidade.nome} (pág 1)`,
+          maxRetries: 4,
+          initialDelayMs: 1500,
+        },
       );
+
+      const firstItems: LicitacaoPNCP[] = firstResult.data || [];
+      totalEncontrados += firstItems.length;
+
+      if (firstItems.length === 0) {
+        console.info(`[PNCP Cron] Sem registros para ${modalidade.nome} no período ${dataInicial}..${dataFinal}.`);
+        continue;
+      }
+
+      await persistPageItems(firstItems, modalidade.nome);
+
+      if (firstResult.totalRegistros !== null) {
+        const totalPaginas = Math.ceil(firstResult.totalRegistros / PAGE_SIZE);
+        if (totalPaginas > maxPages) {
+          erros++;
+          console.warn(
+            `[PNCP Cron] Limite de ${maxPages} páginas atingido para ${modalidade.nome}; capturando as ${maxPages - 1} páginas finais (mais recentes) de ${totalPaginas}.`,
+          );
+        }
+
+        const minTargetPage = Math.max(2, totalPaginas - (maxPages - 2));
+        for (let pagina = totalPaginas; pagina >= minTargetPage; pagina--) {
+          try {
+            await sleep(throttleDelayMs);
+            console.info(`[PNCP Cron] Consultando ${modalidade.nome} - Pág. ${pagina}/${totalPaginas} (${dataInicial} a ${dataFinal})...`);
+            const resultado = await fetchWithBackoff(
+              () => buscarContratacoesPNCP({
+                dataInicial,
+                dataFinal,
+                codigoModalidadeContratacao: modalidade.codigo,
+                pagina,
+                tamanhoPagina: PAGE_SIZE,
+                endpoint: 'publicacao',
+                incluirEncerrados: true,
+              }),
+              {
+                context: `${modalidade.nome} (pág ${pagina})`,
+                maxRetries: 4,
+                initialDelayMs: 1500,
+              },
+            );
+            const items: LicitacaoPNCP[] = resultado.data || [];
+            totalEncontrados += items.length;
+            if (items.length > 0) {
+              await persistPageItems(items, modalidade.nome);
+            }
+          } catch (pageErr: any) {
+            erros++;
+            console.error(`[PNCP Cron] Erro ao processar pág ${pagina} de ${modalidade.nome}:`, pageErr?.message || pageErr);
+            break;
+          }
+        }
+      } else if (firstItems.length === PAGE_SIZE) {
+        for (let pagina = 2; pagina <= maxPages; pagina++) {
+          try {
+            await sleep(throttleDelayMs);
+            const resultado = await fetchWithBackoff(
+              () => buscarContratacoesPNCP({
+                dataInicial,
+                dataFinal,
+                codigoModalidadeContratacao: modalidade.codigo,
+                pagina,
+                tamanhoPagina: PAGE_SIZE,
+                endpoint: 'publicacao',
+                incluirEncerrados: true,
+              }),
+              {
+                context: `${modalidade.nome} (pág ${pagina})`,
+                maxRetries: 4,
+                initialDelayMs: 1500,
+              },
+            );
+            const items: LicitacaoPNCP[] = resultado.data || [];
+            totalEncontrados += items.length;
+            if (items.length === 0) break;
+            await persistPageItems(items, modalidade.nome);
+            if (items.length < PAGE_SIZE) break;
+          } catch (pageErr: any) {
+            erros++;
+            console.error(`[PNCP Cron] Erro ao processar pág ${pagina} de ${modalidade.nome}:`, pageErr?.message || pageErr);
+            break;
+          }
+        }
+      }
+    } catch (firstErr: any) {
+      erros++;
+      console.error(`[PNCP Cron] Erro ao processar pág 1 de ${modalidade.nome}:`, firstErr?.message || firstErr);
     }
-  }
   }
 
   console.info(JSON.stringify({
@@ -338,6 +415,170 @@ export async function syncPncpLast24Hours(): Promise<{
   }));
 
   return { totalEncontrados, upsertados, erros };
+}
+
+/**
+ * Sincroniza editais com recebimento de propostas em aberto (/contratacoes/proposta)
+ * usando paginação reversa para capturar primeiro as publicações mais recentes de 2026.
+ */
+export async function syncPncpPropostasAbertas(maxPagesPerModality = 5): Promise<{
+  totalEncontrados: number;
+  upsertados: number;
+}> {
+  let totalEncontrados = 0;
+  let upsertados = 0;
+  const modalidades = [
+    { codigo: 6, nome: 'Pregão Eletrônico' },
+    { codigo: 8, nome: 'Dispensa de Licitação' },
+    { codigo: 4, nome: 'Concorrência Eletrônica' },
+    { codigo: 12, nome: 'Credenciamento' },
+  ];
+
+  for (const mod of modalidades) {
+    for (let pagina = 1; pagina <= maxPagesPerModality; pagina++) {
+      try {
+        const res = await fetchWithBackoff(
+          () => buscarContratacoesPNCP({
+            endpoint: 'proposta',
+            codigoModalidadeContratacao: mod.codigo,
+            pagina,
+            tamanhoPagina: PAGE_SIZE,
+          }),
+          { context: `Propostas ${mod.nome} pág ${pagina}`, maxRetries: 2, initialDelayMs: 1000 },
+        );
+        const items = res.data || [];
+        totalEncontrados += items.length;
+        if (items.length === 0) break;
+
+        for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
+          const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
+          const done = await Promise.all(
+            batch.map((item) => upsertPncpNoticeItem(item, mod.nome).catch(() => false)),
+          );
+          upsertados += done.filter(Boolean).length;
+        }
+        await sleep(300);
+      } catch (err: any) {
+        console.warn(`[PNCP Propostas] Falha em ${mod.nome} pág ${pagina}:`, err?.message || err);
+        break;
+      }
+    }
+  }
+
+  console.info(`[PNCP Propostas] Sincronizados ${upsertados}/${totalEncontrados} editais com proposta aberta.`);
+  return { totalEncontrados, upsertados };
+}
+
+/**
+ * Sincroniza retificações e alterações recentes (/contratacoes/atualizacao) das últimas 48h.
+ */
+export async function syncPncpAtualizacoes(maxPagesPerModality = 4): Promise<{
+  totalEncontrados: number;
+  upsertados: number;
+}> {
+  const dataFinal = dateInBrazil(new Date());
+  const dataInicial = subtractCalendarDays(dataFinal, 2);
+  let totalEncontrados = 0;
+  let upsertados = 0;
+
+  const persistBatch = async (items: LicitacaoPNCP[], modalityName: string) => {
+    for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
+      const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
+      const done = await Promise.all(
+        batch.map((item) => upsertPncpNoticeItem(item, modalityName).catch(() => false)),
+      );
+      upsertados += done.filter(Boolean).length;
+    }
+  };
+
+  for (const mod of MODALIDADES_PNCP) {
+    try {
+      const firstRes = await fetchWithBackoff(
+        () => buscarContratacoesPNCP({
+          endpoint: 'atualizacao',
+          dataInicial,
+          dataFinal,
+          codigoModalidadeContratacao: mod.codigo,
+          pagina: 1,
+          tamanhoPagina: PAGE_SIZE,
+          incluirEncerrados: true,
+        }),
+        { context: `Atualização ${mod.nome} pág 1`, maxRetries: 2, initialDelayMs: 1000 },
+      );
+      const firstItems = firstRes.data || [];
+      totalEncontrados += firstItems.length;
+      if (firstItems.length === 0) continue;
+
+      await persistBatch(firstItems, mod.nome);
+
+      const totalPaginas = firstRes.totalRegistros !== null
+        ? Math.max(1, Math.ceil(firstRes.totalRegistros / PAGE_SIZE))
+        : (firstItems.length === PAGE_SIZE ? maxPagesPerModality : 1);
+
+      if (totalPaginas > 1 && maxPagesPerModality > 1) {
+        const minPage = Math.max(2, totalPaginas - maxPagesPerModality + 2);
+        for (let pagina = totalPaginas; pagina >= minPage; pagina--) {
+          await sleep(300);
+          const res = await fetchWithBackoff(
+            () => buscarContratacoesPNCP({
+              endpoint: 'atualizacao',
+              dataInicial,
+              dataFinal,
+              codigoModalidadeContratacao: mod.codigo,
+              pagina,
+              tamanhoPagina: PAGE_SIZE,
+              incluirEncerrados: true,
+            }),
+            { context: `Atualização ${mod.nome} pág ${pagina}`, maxRetries: 2, initialDelayMs: 1000 },
+          );
+          const items = res.data || [];
+          totalEncontrados += items.length;
+          if (items.length > 0) {
+            await persistBatch(items, mod.nome);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[PNCP Atualizacoes] Falha em ${mod.nome}:`, err?.message || err);
+    }
+  }
+
+  console.info(`[PNCP Atualizacoes] Atualizados ${upsertados}/${totalEncontrados} editais modificados recentemente.`);
+  return { totalEncontrados, upsertados };
+}
+
+let multiPortalSyncInFlight = false;
+
+export async function runMultiPortalSync(): Promise<{ totalUpsertados: number }> {
+  if (multiPortalSyncInFlight) {
+    return { totalUpsertados: 0 };
+  }
+  multiPortalSyncInFlight = true;
+  let totalUpsertados = 0;
+
+  try {
+    const [pub, atu, prop, cg, qd, pt] = await Promise.allSettled([
+      syncPncpLast24Hours(),
+      syncPncpAtualizacoes(4),
+      syncPncpPropostasAbertas(5),
+      syncComprasGovRecentes({ daysBack: 7, maxPages: 3 }),
+      syncQueridoDiarioEditais({ daysBack: 7, size: 60 }),
+      syncPortalTransparenciaEditais({ daysBack: 28 }),
+    ]);
+
+    if (pub.status === 'fulfilled') totalUpsertados += pub.value.upsertados;
+    if (atu.status === 'fulfilled') totalUpsertados += atu.value.upsertados;
+    if (prop.status === 'fulfilled') totalUpsertados += prop.value.upsertados;
+    if (cg.status === 'fulfilled') totalUpsertados += cg.value.persisted;
+    if (qd.status === 'fulfilled') totalUpsertados += qd.value.persisted;
+    if (pt.status === 'fulfilled') totalUpsertados += pt.value.persisted;
+
+    emitEditaisAtualizados({ fonte: 'multifonte', quantidade: totalUpsertados });
+    console.info(`[MultiPortal Sync] Ciclo concluído. Total upsertados/atualizados: ${totalUpsertados}.`);
+    return { totalUpsertados };
+  } finally {
+    multiPortalSyncInFlight = false;
+  }
 }
 
 /**
@@ -358,12 +599,7 @@ export function setupPncpDailyCron(): cron.ScheduledTask | null {
     validSchedule,
     async () => {
       try {
-        await syncPncpLast24Hours();
-        await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 6 }).catch(() => null);
-        await buscarLicitacoesComprasGov({ pagina: 1, modalidade: 4 }).catch(() => null);
-        await syncQueridoDiarioEditais().catch(() => null);
-        await syncPortalTransparenciaEditais().catch(() => null);
-        emitEditaisAtualizados({ fonte: 'cron_multifonte', quantidade: 1 });
+        await runMultiPortalSync();
       } catch (err: any) {
         console.error('[PNCP Cron] Erro não capturado no ciclo do cron:', err);
       }
@@ -374,7 +610,7 @@ export function setupPncpDailyCron(): cron.ScheduledTask | null {
   );
 
   setTimeout(() => {
-    void syncPncpLast24Hours().then((res) => { if (res.upsertados > 0) emitEditaisAtualizados({ fonte: 'pncp_boot', quantidade: res.upsertados }); }).catch((e) => console.warn('[PNCP Boot Sync] Aviso:', e?.message || e));
+    void runMultiPortalSync().catch((e) => console.warn('[MultiPortal Boot Sync] Aviso:', e?.message || e));
   }, 10000);
 
   return task;
@@ -408,10 +644,6 @@ export function setupDeadlineAlertsCron(): cron.ScheduledTask | null {
       timezone: TIMEZONE,
     }
   );
-
-  setTimeout(() => {
-    void syncPncpLast24Hours().then((res) => { if (res.upsertados > 0) emitEditaisAtualizados({ fonte: 'pncp_boot', quantidade: res.upsertados }); }).catch((e) => console.warn('[PNCP Boot Sync] Aviso:', e?.message || e));
-  }, 10000);
 
   return task;
 }
@@ -475,13 +707,13 @@ export function setupCronJobs(): void {
   setupCndRenewalCron();
   setupPrivacyJob();
   setupPlanResetCron();
-  setupDataPlatformWorkers();
+  new DataPlatformWorkerService(undefined, undefined, undefined, undefined, undefined, {
+    ...process.env,
+    DATA_PLATFORM_PNCP_WORKER_ENABLED: 'false',
+    DATA_PLATFORM_COMPRASGOV_WORKER_ENABLED: 'false',
+  }).start();
   setupCnaeAlertCron();
   setupDailyOpportunityAlertsCron();
-  setTimeout(() => {
-    ensureFreshPncpSync().catch(() => null);
-    buscarLicitacoesComprasGov({ pagina: 1, modalidade: 6 }).catch(() => null);
-  }, 15_000);
 }
 /**
  * Cron de Alerta Diário de Editais por CNAE (Resend + Agente Semântico de IA)
@@ -756,7 +988,7 @@ export async function ensureFreshPncpSync(): Promise<void> {
   lastPncpBackgroundCheckAt = now;
   try {
     const latest = await prisma.procurementNotice.findFirst({
-      where: { source: 'pncp' },
+      where: { source: { in: ['PNCP', 'pncp'] } },
       orderBy: { updatedAt: 'desc' },
       select: { updatedAt: true },
     });

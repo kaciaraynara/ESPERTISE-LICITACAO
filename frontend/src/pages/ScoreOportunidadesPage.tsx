@@ -123,7 +123,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
     else setCarregando(true);
 
     try {
-      const resp = await licitacoesApi.listar({ local: !tempoReal } as any);
+      const resp = await licitacoesApi.listar({ local: !tempoReal, apenasAbertos: true } as any);
       const lista = resp.data?.items || resp.data?.data || [];
       setEditais(Array.isArray(lista) ? lista : []);
     } catch {

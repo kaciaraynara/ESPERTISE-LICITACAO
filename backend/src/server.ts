@@ -14,8 +14,6 @@ import { errorHandler } from './shared/middlewares/error-handler.middleware';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
 import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
-import { iniciarRadarDiarioCron } from './jobs/radar.cron';
-import { setupCndRenewalCron } from './jobs/cnd-renewal.cron';
 import { securityHeadersMiddleware } from './middlewares/security';
 
 const app = express();
@@ -127,17 +125,14 @@ if (bidRobotEnabled) {
 }
 
 server.listen(port, () => {
-  
   try { setupCronJobs(); } catch (e) { console.warn('[Cron] Aviso:', e); }
   void ensureDatabaseIndexes();
-console.info(JSON.stringify({
+  console.info(JSON.stringify({
     event: 'EXPERTISE_API_STARTED',
     port,
     environment: process.env.NODE_ENV || 'development',
     bidRobotEnabled,
   }));
-  iniciarRadarDiarioCron();
-  setupCndRenewalCron();
 });
 
 server.on('error', (error: NodeJS.ErrnoException) => {

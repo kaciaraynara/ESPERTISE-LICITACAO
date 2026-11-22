@@ -89,7 +89,7 @@ describe('NoticesSearchService', () => {
     expect(args).toMatchObject({
       take: 11,
       skip: 0,
-      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     });
     expect(args.where.AND).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -116,7 +116,7 @@ describe('NoticesSearchService', () => {
     await service.search({ source: 'pncp' }, context);
 
     expect(client.procurementNotice.findMany.mock.calls[0][0].where.AND).toEqual(expect.arrayContaining([
-      { source: 'pncp' },
+      { source: { in: ['PNCP', 'pncp'] } },
     ]));
   });
 

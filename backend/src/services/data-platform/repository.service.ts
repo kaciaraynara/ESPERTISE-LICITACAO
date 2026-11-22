@@ -98,9 +98,16 @@ export class DataPlatformRepository {
   }
 
   async listKnownProcurementDedupeKeys(source: DataSourceCode, tenantId?: string | null) {
+    const sourceFilter =
+      source === 'pncp'
+        ? { in: ['PNCP', 'pncp'] }
+        : source === 'compras_gov'
+          ? { in: ['ComprasGov', 'compras_gov'] }
+          : source;
+
     const rows = await this.client.procurementNotice.findMany({
       where: {
-        source,
+        source: sourceFilter,
         tenantId: tenantId ?? null,
       },
       select: { dedupeKey: true },
@@ -201,20 +208,59 @@ export class DataPlatformRepository {
 
   private async upsertProcurementNotice(record: NormalizedDataRecord) {
     const data = mapProcurementNoticeData(record);
-    const { dedupeKey: _dedupeKey, ...updateData } = data;
-    return this.client.procurementNotice.upsert({
-      where: { dedupeKey: record.dedupeKey },
-      create: data,
-      update: updateData,
-    });
+    const { dedupeKey: _dedupeKey, numeroControlePncp: _ncp, ...updateData } = data;
+    try {
+      return await this.client.procurementNotice.upsert({
+        where: { dedupeKey: record.dedupeKey },
+        create: data,
+        update: updateData,
+      });
+    } catch (err: any) {
+      if (
+        err?.code === 'P2002'
+        && record.externalId
+        && typeof this.client.procurementNotice.findFirst === 'function'
+      ) {
+        const existing = await this.client.procurementNotice.findFirst({
+          where: {
+            OR: [
+              { numeroControlePncp: record.externalId },
+              { externalId: record.externalId },
+            ],
+          },
+          select: { id: true },
+        });
+        if (existing?.id && typeof this.client.procurementNotice.update === 'function') {
+          const { source: _source, ...conflictUpdateData } = updateData;
+          return this.client.procurementNotice.update({
+            where: { id: existing.id },
+            data: conflictUpdateData,
+          });
+        }
+      }
+      throw err;
+    }
   }
 }
 
 function mapProcurementNoticeData(record: NormalizedDataRecord) {
+  const ext = record.externalId?.trim() || null;
+  const isPncpCtrl = Boolean(ext && /^\d{14}-\d+-\d+\/\d{4}$/.test(ext));
+  const rawPub = dateField(record.fields.publishedAt ?? record.fields.sourceDate);
+  const now = new Date();
+  const safePublishedAt = rawPub && rawPub > now ? now : rawPub;
+  const canonicalSource =
+    record.source === 'pncp'
+      ? 'PNCP'
+      : record.source === 'compras_gov'
+        ? 'ComprasGov'
+        : record.source;
+
   return {
     tenantId: record.tenantId,
-    source: record.source,
+    source: canonicalSource,
     externalId: record.externalId,
+    ...(isPncpCtrl ? { numeroControlePncp: ext } : {}),
     dedupeKey: record.dedupeKey,
     contentHash: record.contentHash,
     noticeNumber: stringField(record.fields.noticeNumber) ?? record.externalId,
@@ -227,12 +273,12 @@ function mapProcurementNoticeData(record: NormalizedDataRecord) {
     estimatedValue: numberField(record.fields.estimatedValue),
     status: stringField(record.fields.status),
     url: stringField(record.fields.url),
-    publishedAt: dateField(record.fields.publishedAt ?? record.fields.sourceDate),
+    publishedAt: safePublishedAt,
     openingAt: dateField(record.fields.openingAt),
     closingAt: dateField(record.fields.closingAt),
     processoAdministrativo: stringField(record.fields.processoAdministrativo),
     modoDisputa: stringField(record.fields.modoDisputa),
-    srp: typeof record.fields.srp === 'boolean' ? record.fields.srp : null,
+    srp: typeof record.fields.srp === 'boolean' ? record.fields.srp : false,
     amparoLegal: stringField(record.fields.amparoLegal) ?? 'Lei 14.133/2021',
     inversaoFases: typeof record.fields.inversaoFases === 'boolean' ? record.fields.inversaoFases : true,
     prazoMinimoDiasUteis: numberField(record.fields.prazoMinimoDiasUteis),

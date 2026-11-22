@@ -54,14 +54,18 @@ export function mapComprasGovPayload(item: LicitacaoComprasGov, externalId = res
     numero: item.numero,
     objeto: item.objeto,
     orgao: item.orgao,
+    cnpjOrgao: item.cnpj_orgao ?? null,
     uasg: item.uasg,
     uf: item.uf,
+    municipio: item.municipio ?? null,
     valorEstimado: item.valor_estimado ?? null,
     valorHomologado: item.valor_homologado ?? null,
+    dataPublicacao: item.data_publicacao ?? null,
     dataAbertura: item.data_abertura ?? null,
     dataEncerramento: item.data_encerramento ?? null,
     modalidade: item.modalidade ?? null,
     situacao: item.situacao ?? null,
+    srp: Boolean(item.srp),
     link: item.link ?? null,
   };
 }

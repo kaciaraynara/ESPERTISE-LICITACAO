@@ -267,7 +267,8 @@ class DatabaseEngine:
             NOW(),
             %(exclusive_me_epp)s
         )
-        ON CONFLICT (numero_controle_pncp) DO UPDATE SET
+        ON CONFLICT (dedupe_key) DO UPDATE SET
+            numero_controle_pncp = COALESCE(procurement_notices.numero_controle_pncp, EXCLUDED.numero_controle_pncp),
             notice_number = EXCLUDED.notice_number,
             processo_administrativo = EXCLUDED.processo_administrativo,
             modality = EXCLUDED.modality,
@@ -324,7 +325,7 @@ class PncpIngestionService:
 
     # Modalidades padrão da Lei 14.133/2021:
     # 6 = Pregão Eletrônico | 8 = Dispensa de Licitação | 4 = Concorrência Eletrônica | 12 = Credenciamento
-    DEFAULT_MODALIDADES = [6, 8, 4, 12]
+    DEFAULT_MODALIDADES = [6, 8, 4, 12, 9]
 
     def __init__(self, session: requests.Session, db_engine: DatabaseEngine):
         self.session = session
@@ -408,10 +409,24 @@ class PncpIngestionService:
 
         # 5. Identificadores e Links
         notice_num = raw.get("numeroCompra") or raw.get("processo") or num_pncp
+        cnpj_url = orgao.get("cnpj") or (num_pncp.split("-")[0] if "-" in num_pncp else None)
+        ano_url = raw.get("anoCompra") or (num_pncp.split("/")[-1] if "/" in num_pncp else None)
+        seq_url = raw.get("sequencialCompra")
+        if seq_url is None and "-" in num_pncp and "/" in num_pncp:
+            seq_part = num_pncp.split("/")[-2].split("-")[-1]
+            if seq_part.isdigit():
+                seq_url = int(seq_part)
+
+        official_pncp_url = (
+            f"https://pncp.gov.br/app/editais/{clean_cnpj(str(cnpj_url))}/{int(ano_url)}/{int(seq_url)}"
+            if cnpj_url and ano_url and seq_url
+            else None
+        )
         url_link = (
             raw.get("linkEditalPNCP")
             or raw.get("linkSistemaOrigem")
-            or f"https://pncp.gov.br/app/editais/{num_pncp}"
+            or official_pncp_url
+            or "https://pncp.gov.br/app/editais"
         )
 
         # 6. Hash de Integridade
@@ -420,7 +435,7 @@ class PncpIngestionService:
         ).hexdigest()
 
         return {
-            "source": "pncp",
+            "source": "PNCP",
             "external_id": num_pncp,
             "numero_controle_pncp": num_pncp,
             "dedupe_key": f"pncp-{num_pncp}",
@@ -478,61 +493,78 @@ class PncpIngestionService:
 
         for mod in mods:
             logger.info(f"--- Processando Modalidade PNCP ID: {mod} ---")
-            pagina = 1
 
-            while pagina <= max_paginas_por_modalidade:
-                try:
-                    payload = self.fetch_page(
-                        data_inicial=data_inicial,
-                        data_final=data_final,
-                        modalidade=mod,
-                        pagina=pagina,
-                        tamanho_pagina=tamanho_pagina,
-                        uf=uf,
-                    )
-                    items_raw = payload.get("data") or []
-                    total_paginas = payload.get("totalPaginas") or 1
-                    total_registros = payload.get("totalRegistros") or 0
+            try:
+                first_payload = self.fetch_page(
+                    data_inicial=data_inicial,
+                    data_final=data_final,
+                    modalidade=mod,
+                    pagina=1,
+                    tamanho_pagina=tamanho_pagina,
+                    uf=uf,
+                )
+                first_raw = first_payload.get("data") or []
+                total_paginas = first_payload.get("totalPaginas") or 1
+                total_registros = first_payload.get("totalRegistros") or 0
 
-                    if not items_raw:
-                        logger.info(f"Modalidade {mod}: Sem mais registros na página {pagina}.")
-                        break
+                if not first_raw:
+                    logger.info(f"Modalidade {mod}: Sem registros na página 1.")
+                    continue
 
-                    transformed: List[Dict[str, Any]] = []
-                    for raw in items_raw:
-                        t = self.transform_item(raw)
-                        if t:
-                            transformed.append(t)
+                transformed = [t for t in (self.transform_item(raw) for raw in first_raw) if t]
+                inserted, updated = self.db.upsert_batch(transformed)
+                stats["total_coletados"] += len(transformed)
+                stats["total_inseridos"] += inserted
+                stats["total_atualizados"] += updated
+                stats["paginas_processadas"] += 1
 
-                    # Persiste no Neon PostgreSQL
-                    inserted, updated = self.db.upsert_batch(transformed)
+                logger.info(
+                    f"[Mod {mod}] Pág 1/{total_paginas} (Total {total_registros}): "
+                    f"{len(transformed)} processados (+{inserted} novos, ~{updated} atualizados)"
+                )
 
-                    stats["total_coletados"] += len(transformed)
-                    stats["total_inseridos"] += inserted
-                    stats["total_atualizados"] += updated
-                    stats["paginas_processadas"] += 1
+                if total_paginas >= 2 and max_paginas_por_modalidade > 1:
+                    min_target = max(2, total_paginas - (max_paginas_por_modalidade - 2))
+                    for pagina in range(total_paginas, min_target - 1, -1):
+                        try:
+                            time.sleep(0.35)
+                            payload = self.fetch_page(
+                                data_inicial=data_inicial,
+                                data_final=data_final,
+                                modalidade=mod,
+                                pagina=pagina,
+                                tamanho_pagina=tamanho_pagina,
+                                uf=uf,
+                            )
+                            items_raw = payload.get("data") or []
+                            if not items_raw:
+                                continue
 
-                    logger.info(
-                        f"[Mod {mod}] Pág {pagina}/{total_paginas} (Total {total_registros}): "
-                        f"{len(transformed)} processados (+{inserted} novos, ~{updated} atualizados)"
-                    )
+                            batch_items = [t for t in (self.transform_item(raw) for raw in items_raw) if t]
+                            ins_p, upd_p = self.db.upsert_batch(batch_items)
+                            stats["total_coletados"] += len(batch_items)
+                            stats["total_inseridos"] += ins_p
+                            stats["total_atualizados"] += upd_p
+                            stats["paginas_processadas"] += 1
 
-                    if pagina >= total_paginas:
-                        break
-
-                    pagina += 1
-                    # Pequeno intervalo de cortesia para a API pública do governo
-                    time.sleep(0.3)
-
-                except requests.RequestException as req_err:
-                    stats["erros"] += 1
-                    logger.warning(f"Instabilidade transitória na API do PNCP (Pág {pagina}): {req_err}")
-                    time.sleep(3.0)
-                    pagina += 1
-                except Exception as ex:
-                    stats["erros"] += 1
-                    logger.error(f"Erro inesperado no processamento da página {pagina}: {ex}", exc_info=True)
-                    pagina += 1
+                            logger.info(
+                                f"[Mod {mod}] Pág {pagina}/{total_paginas} (Total {total_registros}): "
+                                f"{len(batch_items)} processados (+{ins_p} novos, ~{upd_p} atualizados)"
+                            )
+                        except requests.RequestException as req_err:
+                            stats["erros"] += 1
+                            logger.warning(f"Instabilidade transitória na API do PNCP (Pág {pagina}): {req_err}")
+                            time.sleep(3.0)
+                        except Exception as ex:
+                            stats["erros"] += 1
+                            logger.error(f"Erro inesperado no processamento da página {pagina}: {ex}", exc_info=True)
+            except requests.RequestException as req_err:
+                stats["erros"] += 1
+                logger.warning(f"Instabilidade transitória na API do PNCP (Mod {mod} Pág 1): {req_err}")
+                time.sleep(3.0)
+            except Exception as ex:
+                stats["erros"] += 1
+                logger.error(f"Erro inesperado no processamento da modalidade {mod}: {ex}", exc_info=True)
 
         return stats
 
@@ -552,20 +584,20 @@ def main():
     parser.add_argument(
         "--modalidades",
         type=str,
-        default=os.getenv("SYNC_MODALIDADES", "8,14,6"),
-        help="IDs das modalidades separados por vírgula (padrão: 8,14,6)",
+        default=os.getenv("SYNC_MODALIDADES", "6,8,4,12,9"),
+        help="IDs das modalidades separados por vírgula (padrão: 6,8,4,12,9)",
     )
     parser.add_argument(
         "--max-paginas",
         type=int,
-        default=int(os.getenv("SYNC_MAX_PAGES", "20")),
-        help="Número máximo de páginas por modalidade (padrão: 20)",
+        default=int(os.getenv("SYNC_MAX_PAGES", "100")),
+        help="Número máximo de páginas por modalidade (padrão: 100)",
     )
     parser.add_argument(
         "--tamanho-pagina",
         type=int,
-        default=int(os.getenv("SYNC_PAGE_SIZE", "20")),
-        help="Tamanho de cada página na API PNCP (mínimo 10, padrão: 20)",
+        default=int(os.getenv("SYNC_PAGE_SIZE", "50")),
+        help="Tamanho de cada página na API PNCP (mínimo 10, padrão: 50)",
     )
     parser.add_argument(
         "--uf",

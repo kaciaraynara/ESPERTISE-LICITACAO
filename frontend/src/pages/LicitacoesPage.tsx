@@ -76,6 +76,8 @@ export interface EditalItem {
   urlOficialPncp?: string;
   link?: string;
   srp?: boolean;
+  fonte?: string;
+  source?: string;
   viabilidade?: number;
   scoreViabilidade?: number;
   matchScore?: number;
@@ -271,12 +273,16 @@ export default function LicitacoesPage({
 
   const [editais, setEditais] = useState<EditalItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
   const [carregando, setCarregando] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
 
   const [palavraChave, setPalavraChave] = useState('');
   const [ufSelecionada, setUfSelecionada] = useState('');
   const [orgaoFiltro, setOrgaoFiltro] = useState('');
+  const [fonteAtiva, setFonteAtiva] = useState<'TODAS' | 'PNCP' | 'ComprasGov' | 'querido_diario' | 'portal_transparencia'>('TODAS');
+  const [apenasAbertos, setApenasAbertos] = useState(true);
   const [modalidadeAtiva, setModalidadeAtiva] = useState(() => {
     const m = (modalidadeInicial || '').toLowerCase();
     if (m.includes('pregão') || m.includes('pregao')) return 'PREGAO';
@@ -372,15 +378,24 @@ export default function LicitacoesPage({
   }, []);
 
   const buscarEditais = useCallback(
-    async (termoOverride?: string, usarSinonimosRamo = false) => {
+    async (termoOverride?: string, usarSinonimosRamo = false, paginaAlvo = 1) => {
       setCarregando(true);
+      setPagina(paginaAlvo);
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
-        const buildParams = (termo: string, localOnly: boolean) => {
-          const p: Record<string, any> = { limit: 1000, tamanhoPagina: 50, ...(localOnly ? { local: true } : { tempoReal: true }) };
+        const buildParams = (termo: string, isTempoReal: boolean) => {
+          const p: Record<string, any> = {
+            limit: 50,
+            tamanhoPagina: 50,
+            pagina: paginaAlvo,
+            page: paginaAlvo,
+            apenasAbertos,
+            ...(isTempoReal ? { tempoReal: true } : { local: true }),
+          };
           if (termo.trim()) p.q = termo.trim();
           if (ufSelecionada) p.uf = ufSelecionada;
           if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
+          if (fonteAtiva !== 'TODAS') p.fonte = fonteAtiva;
           if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP' && modalidadeAtiva !== 'BAIXA_PROCURA') {
             p.modalidade = modalidadeAtiva;
           }
@@ -392,53 +407,78 @@ export default function LicitacoesPage({
 
         let lista: EditalItem[] = [];
         let totalResp = 0;
+        let totalPgsResp = 1;
+        let avisoBackend = '';
 
         if (usarSinonimosRamo) {
           const termos = expandirSinonimosRamo(q, selectedCompany);
-          const respostas = await Promise.all(
-            termos.map((t) => licitacoesApi.listar(buildParams(t, true)).catch(() => null))
-          );
-          const mapa = new Map<string, EditalItem>();
-          for (const resp of respostas) {
-            const items = resp?.data?.items || resp?.data?.data || (Array.isArray(resp?.data) ? resp.data : []);
-            for (const item of items) {
-              const key = String(item.numeroControlePNCP || item.id);
-              if (!mapa.has(key)) mapa.set(key, item);
+          if (termos.length > 0) {
+            const respostas = await Promise.all(
+              termos.map((t) => licitacoesApi.listar(buildParams(t, false)).catch(() => null))
+            );
+            const mapa = new Map<string, EditalItem>();
+            for (const resp of respostas) {
+              const items = resp?.data?.items || resp?.data?.data || (Array.isArray(resp?.data) ? resp.data : []);
+              for (const item of items) {
+                const key = String(item.numeroControlePNCP || item.id);
+                if (!mapa.has(key)) mapa.set(key, item);
+              }
             }
+            lista = Array.from(mapa.values());
+            totalResp = lista.length;
+            totalPgsResp = 1;
           }
-          lista = Array.from(mapa.values());
-          totalResp = lista.length;
-        } else {
-          const resposta = await licitacoesApi.listar(buildParams(q, false));
-          lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
-          totalResp = resposta?.data?.meta?.totalRegistros || resposta?.data?.total || lista.length;
-
-          if (lista.length === 0 && q.trim()) {
+          if (lista.length === 0 && q.trim() && fonteAtiva === 'TODAS') {
             const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
             const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
             if (listaLive.length > 0) {
               lista = listaLive;
-              totalResp = respLive?.data?.meta?.totalRegistros || respLive?.data?.total || listaLive.length;
+              totalResp = Number(respLive?.data?.meta?.totalRegistros ?? respLive?.data?.total ?? listaLive.length);
+              totalPgsResp = Number(respLive?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
+            }
+          }
+        } else {
+          const resposta = await licitacoesApi.listar(buildParams(q, false));
+          lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
+          totalResp = Number(resposta?.data?.meta?.totalRegistros ?? resposta?.data?.total ?? lista.length);
+          totalPgsResp = Number(resposta?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
+          avisoBackend = resposta?.data?.meta?.aviso || '';
+
+          const temFiltro = Boolean(q.trim() || ufSelecionada || orgaoFiltro.trim() || modalidadeAtiva !== 'TODAS');
+          if (lista.length === 0 && paginaAlvo === 1 && temFiltro && fonteAtiva === 'TODAS') {
+            const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
+            const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
+            if (listaLive.length > 0) {
+              lista = listaLive;
+              totalResp = Number(respLive?.data?.meta?.totalRegistros ?? respLive?.data?.total ?? listaLive.length);
+              totalPgsResp = Number(respLive?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
             }
           }
         }
 
+        if (avisoBackend) {
+          exibirAviso('info', avisoBackend);
+        }
         setEditais(lista);
         setTotal(totalResp);
+        setTotalPaginas(Math.max(1, totalPgsResp));
       } catch {
         exibirAviso('info', 'Base local sem conexão momentânea. Clique em Atualizar editais para tentar novamente.');
       } finally {
         setCarregando(false);
       }
     },
-    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao, selectedCompany]
+    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao, fonteAtiva, apenasAbertos, selectedCompany]
   );
 
   useEffect(() => {
     carregarSalvos();
+  }, [carregarSalvos]);
+
+  useEffect(() => {
     void extrairPalavraChaveRamo;
-    buscarEditais('', true);
-  }, [carregarSalvos, selectedCompany]);
+    void buscarEditais(undefined, false, 1);
+  }, [ufSelecionada, modalidadeAtiva, fonteAtiva, apenasAbertos, dataPublicacao, selectedCompany]);
 
   const handleSincronizarPncp = async () => {
     setSincronizando(true);
@@ -467,9 +507,11 @@ export default function LicitacoesPage({
     setPalavraChave('');
     setUfSelecionada('');
     setOrgaoFiltro('');
+    setFonteAtiva('TODAS');
+    setApenasAbertos(true);
     setModalidadeAtiva('TODAS');
     setDataPublicacao('');
-    buscarEditais('');
+    buscarEditais('', false, 1);
   };
 
   const handleAlternarSalvar = async (edital: EditalItem, e?: React.MouseEvent) => {
@@ -503,7 +545,7 @@ export default function LicitacoesPage({
           edital.orgaoEntidade?.cnpj ||
           edital.orgaoCnpj;
 
-        await licitacoesApi.salvar({
+        const respSalvar = await licitacoesApi.salvar({
           id: idEdital,
           numeroControlePNCP: edital.numeroControlePNCP || edital.numeroEdital || idEdital,
           orgao: orgaoNome,
@@ -515,21 +557,19 @@ export default function LicitacoesPage({
           urlOficialPncp,
           uf: edital.unidadeOrgao?.ufSigla || edital.uf,
           municipio: edital.unidadeOrgao?.municipioNome || edital.municipio,
-        }).catch(() => {
-          return crmApi.createOportunidade({
+        }).catch(() =>
+          crmApi.createOportunidade({
             noticeId: idEdital,
             stage: 'ANALISE',
             notes: edital.objetoCompra || edital.objeto || '',
-          });
-        });
+          })
+        );
 
-        const resp = await crmApi.createOportunidade({
-          noticeId: idEdital,
-          stage: 'ANALISE',
-          notes: edital.objetoCompra || edital.objeto || '',
-        }).catch(() => ({ data: { id: idEdital } }));
-
-        const novoId = (resp as any)?.data?.id || (resp as any)?.data?.data?.id || idEdital;
+        const novoId =
+          (respSalvar as any)?.data?.data?.pipelineId ||
+          (respSalvar as any)?.data?.id ||
+          (respSalvar as any)?.data?.data?.id ||
+          idEdital;
         setSalvosMap((prev) => ({
           ...prev,
           [idEdital]: String(novoId),
@@ -615,9 +655,9 @@ export default function LicitacoesPage({
           <div className="rounded-2xl border border-slate-200/90 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Editais no Radar</p>
-              <p className="mt-1 text-2xl font-extrabold text-[#081C3A]">{editaisOrdenados.length}</p>
+              <p className="mt-1 text-2xl font-extrabold text-[#081C3A]">{total.toLocaleString('pt-BR')}</p>
             </div>
-            <span className="rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#0070C0]">Base PNCP</span>
+            <span className="rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#0070C0]">Multi-Portal</span>
           </div>
           <div className="rounded-2xl border border-emerald-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
@@ -727,7 +767,30 @@ export default function LicitacoesPage({
               Data de publicação
             </button>
 
-            {(palavraChave || ufSelecionada || orgaoFiltro || modalidadeAtiva !== 'TODAS' || dataPublicacao) && (
+            <select
+              aria-label="Portal de origem"
+              value={fonteAtiva}
+              onChange={(e) => setFonteAtiva(e.target.value as any)}
+              className="appearance-none rounded-full border border-slate-200 bg-white py-2 px-4 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0] cursor-pointer"
+            >
+              <option value="TODAS">Todos os Portais</option>
+              <option value="PNCP">PNCP Oficial</option>
+              <option value="ComprasGov">Compras.gov.br</option>
+              <option value="querido_diario">Diários Oficiais (Municípios)</option>
+              <option value="portal_transparencia">Portal da Transparência</option>
+            </select>
+
+            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 cursor-pointer hover:border-[#0070C0]">
+              <input
+                type="checkbox"
+                checked={apenasAbertos}
+                onChange={(e) => setApenasAbertos(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[#0070C0]"
+              />
+              Somente abertos
+            </label>
+
+            {(palavraChave || ufSelecionada || orgaoFiltro || fonteAtiva !== 'TODAS' || !apenasAbertos || modalidadeAtiva !== 'TODAS' || dataPublicacao) && (
               <button
                 type="button"
                 onClick={handleLimparFiltros}
@@ -961,6 +1024,16 @@ export default function LicitacoesPage({
                         {modalidade}
                       </span>
 
+                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 border border-indigo-100">
+                        {String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('querido')
+                          ? 'Diário Oficial'
+                          : String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('compras')
+                            ? 'Compras.gov.br'
+                            : String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('transparencia')
+                              ? 'Transparência'
+                              : 'PNCP'}
+                      </span>
+
                       {edital.srp && (
                         <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#0070C0]">
                           Registro de Preços
@@ -1076,6 +1149,32 @@ export default function LicitacoesPage({
                 </div>
               );
             })}
+
+            {totalPaginas > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm">
+                <span className="text-xs font-semibold text-slate-600">
+                  Página <strong className="text-[#081C3A]">{pagina}</strong> de <strong className="text-[#081C3A]">{totalPaginas}</strong> • {total.toLocaleString('pt-BR')} editais disponíveis
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pagina <= 1 || carregando}
+                    onClick={() => buscarEditais(undefined, false, pagina - 1)}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-bold text-[#081C3A] hover:border-[#0070C0] disabled:opacity-40 cursor-pointer"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pagina >= totalPaginas || carregando}
+                    onClick={() => buscarEditais(undefined, false, pagina + 1)}
+                    className="rounded-full bg-[#081C3A] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0f2b56] disabled:opacity-40 cursor-pointer"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

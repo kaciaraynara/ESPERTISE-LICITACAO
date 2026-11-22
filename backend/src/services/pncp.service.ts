@@ -588,6 +588,29 @@ function mapAxiosError(error: unknown): PncpServiceError {
   );
 }
 
+const propostaTotalPagesCache = new Map<string, { total: number; expiresAt: number }>();
+
+function getCachedPropostaTotal(key: string): number | null {
+  if (process.env.NODE_ENV === 'test') return null;
+  const hit = propostaTotalPagesCache.get(key);
+  if (!hit || hit.expiresAt <= Date.now()) {
+    if (hit) propostaTotalPagesCache.delete(key);
+    return null;
+  }
+  return hit.total;
+}
+
+function setCachedPropostaTotal(key: string, total: number): void {
+  if (process.env.NODE_ENV === 'test' || !Number.isFinite(total) || total <= 0) return;
+  if (propostaTotalPagesCache.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of propostaTotalPagesCache.entries()) {
+      if (v.expiresAt <= now) propostaTotalPagesCache.delete(k);
+    }
+  }
+  propostaTotalPagesCache.set(key, { total, expiresAt: Date.now() + 3 * 60 * 1000 });
+}
+
 /**
  * Executa exatamente uma consulta manual ao endpoint oficial. Este caminho não
  * acessa Prisma, cache, arquivos locais, workers ou rotinas de persistência.
@@ -608,23 +631,21 @@ export async function buscarContratacoesPNCP(
     MAX_PAGE_SIZE,
   );
   const uf = normalizeUf(filtros.uf);
-  const isUfEmpty = !uf;
-  // Quando uf for vazia ("Todas as UFs"), NUNCA faz busca em paralelo (Promise.all). Faz apenas 1 requisição rápida de 50 registros para evitar timeout.
-  const deveBuscarEmParalelo = (pagina === 1 && filtros.endpoint === 'proposta' && !filtros.cnpj) ? true : (isUfEmpty ? false : rawTamanho > 50);
-  const tamanhoPorChamada = isUfEmpty ? 50 : (deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho)));
-
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
-  // Se uf vazio ("Todas"), consulte APENAS modalidade 6 (Pregão) ou a modalidade escolhida pelo usuário
+  const isAtualizacaoEndpoint = filtros.endpoint === 'atualizacao';
+  const deveBuscarEmParalelo = rawTamanho > 50;
+  const tamanhoPorChamada = deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho));
+
   const userModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
   const userModChoice = resolveOptionalModalityCode(userModInput);
-  const modalidade = isUfEmpty
-    ? (userModChoice ?? 6)
-    : (isPropostaEndpoint ? (userModChoice ?? 6) : positiveInteger(
+  const modalidade = isPropostaEndpoint
+    ? userModChoice
+    : positiveInteger(
         userModChoice ?? userModInput,
         'codigoModalidadeContratacao',
         DEFAULT_MODALIDADE,
         100,
-      ));
+      );
 
   const hojeStr = formatDate(new Date());
   const dataInicialPadrao = addDays(hojeStr, -15);
@@ -643,8 +664,7 @@ export async function buscarContratacoesPNCP(
     'dataFinal',
   ) ?? (isPropostaEndpoint ? dataFinalPropostaPadrao : hojeStr);
 
-  // Para /contratacoes/publicacao, garante que dataFinal não seja no futuro.
-  // Para /contratacoes/proposta, dataFinal deve ser 60 dias à frente no formato YYYYMMDD.
+  // Para /contratacoes/publicacao e /contratacoes/atualizacao, garante que dataFinal não seja no futuro.
   if (!isPropostaEndpoint && rawDataFinal > hojeStr) {
     rawDataFinal = hojeStr;
   }
@@ -669,7 +689,9 @@ export async function buscarContratacoesPNCP(
 
   const endpoint = isPropostaEndpoint
     ? '/contratacoes/proposta'
-    : '/contratacoes/publicacao';
+    : isAtualizacaoEndpoint
+      ? '/contratacoes/atualizacao'
+      : '/contratacoes/publicacao';
 
   // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
   const baseRequestParams: Record<string, string | number> = {
@@ -716,51 +738,62 @@ export async function buscarContratacoesPNCP(
     let rawCombinedItems: unknown[] = [];
     let totalOficial: number | null = null;
 
-    if (pagina === 1 && isPropostaEndpoint && !cnpj) {
-      const probe = await executarRequisicao(1, tamanhoPorChamada);
-      totalOficial = probe.total;
-      const totalPages = totalOficial ? Math.ceil(totalOficial / tamanhoPorChamada) : 1;
-      if (totalPages > 2) {
-        const [resLast, resPrev] = await Promise.all([
-          executarRequisicao(totalPages, tamanhoPorChamada),
-          executarRequisicao(totalPages - 1, tamanhoPorChamada),
-        ]);
-        rawCombinedItems = [...resLast.items, ...resPrev.items];
-      } else if (totalPages === 2) {
-        const res2 = await executarRequisicao(2, tamanhoPorChamada);
-        rawCombinedItems = [...probe.items, ...res2.items];
-      } else {
-        rawCombinedItems = probe.items;
-      }
-    } else if (deveBuscarEmParalelo) {
-      if (false) {
-        const probe = await executarRequisicao(1, 50);
+    if (isPropostaEndpoint && !cnpj && !filtros.ordemOriginal) {
+      const cacheKey = `${modalidade ?? 'all'}|${uf ?? 'all'}|${dataFinal}|${tamanhoPorChamada}`;
+      const cachedTotal = getCachedPropostaTotal(cacheKey);
+      let probe: { items: unknown[]; total: number | null } | null = null;
+
+      if (cachedTotal === null) {
+        probe = await executarRequisicao(1, tamanhoPorChamada);
         totalOficial = probe.total;
-        const totalPages = totalOficial ? Math.ceil(Number(totalOficial) / 50) : 1;
-        if (totalPages > 2) {
-          const [resLast, resPrev] = await Promise.all([
-            executarRequisicao(totalPages, 50),
-            executarRequisicao(totalPages - 1, 50),
-          ]);
-          rawCombinedItems = [...resLast.items, ...resPrev.items];
-        } else if (totalPages === 2) {
-          const res2 = await executarRequisicao(2, 50);
-          rawCombinedItems = [...probe.items, ...res2.items];
-        } else {
-          rawCombinedItems = probe.items;
+        if (totalOficial !== null && totalOficial > 0) {
+          setCachedPropostaTotal(cacheKey, totalOficial);
         }
       } else {
-        const subPage1 = (pagina - 1) * 2 + 1;
-        const subPage2 = (pagina - 1) * 2 + 2;
-
-        const [res1, res2] = await Promise.all([
-          executarRequisicao(subPage1, 50),
-          executarRequisicao(subPage2, 50),
-        ]);
-
-        rawCombinedItems = [...res1.items, ...res2.items];
-        totalOficial = res1.total ?? res2.total;
+        totalOficial = cachedTotal;
       }
+
+      const totalPages = totalOficial ? Math.max(1, Math.ceil(totalOficial / tamanhoPorChamada)) : 1;
+
+      if (totalPages <= 1 && probe) {
+        rawCombinedItems = probe.items;
+      } else if (deveBuscarEmParalelo) {
+        const revPage1 = totalPages - (pagina - 1) * 2;
+        const revPage2 = revPage1 - 1;
+        if (revPage1 >= 1) {
+          const getPg = (pg: number) =>
+            pg === 1 && probe ? Promise.resolve(probe) : executarRequisicao(pg, tamanhoPorChamada);
+          if (revPage2 >= 1) {
+            const [res1, res2] = await Promise.all([getPg(revPage1), getPg(revPage2)]);
+            rawCombinedItems = [...res1.items, ...res2.items];
+            totalOficial = totalOficial ?? res1.total ?? res2.total;
+          } else {
+            const res1 = await getPg(revPage1);
+            rawCombinedItems = res1.items;
+            totalOficial = totalOficial ?? res1.total;
+          }
+        }
+      } else {
+        const revPage = totalPages - (pagina - 1);
+        if (revPage >= 1) {
+          const res = revPage === 1 && probe
+            ? probe
+            : await executarRequisicao(revPage, tamanhoPorChamada);
+          rawCombinedItems = res.items;
+          totalOficial = totalOficial ?? res.total;
+        }
+      }
+    } else if (deveBuscarEmParalelo) {
+      const subPage1 = (pagina - 1) * 2 + 1;
+      const subPage2 = (pagina - 1) * 2 + 2;
+
+      const [res1, res2] = await Promise.all([
+        executarRequisicao(subPage1, 50),
+        executarRequisicao(subPage2, 50),
+      ]);
+
+      rawCombinedItems = [...res1.items, ...res2.items];
+      totalOficial = res1.total ?? res2.total;
     } else {
       const res = await executarRequisicao(pagina, tamanhoPorChamada);
       rawCombinedItems = res.items;
@@ -791,12 +824,16 @@ export async function buscarContratacoesPNCP(
     const now = new Date();
     // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
     // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
-    const openItems = deduplicated.filter((item) => {
-      if (!item.dataEncerramentoProposta) return !isPropostaEndpoint;
-      const closing = new Date(item.dataEncerramentoProposta);
-      if (isNaN(closing.getTime())) return !isPropostaEndpoint;
-      return closing > now;
-    });
+    // Em varreduras de sincronização (/publicacao e /atualizacao com incluirEncerrados=true),
+    // preserva toda a página para não interromper a paginação prematuramente.
+    const openItems = filtros.incluirEncerrados
+      ? deduplicated
+      : deduplicated.filter((item) => {
+          if (!item.dataEncerramentoProposta) return !isPropostaEndpoint;
+          const closing = new Date(item.dataEncerramentoProposta);
+          if (isNaN(closing.getTime())) return !isPropostaEndpoint;
+          return closing > now;
+        });
 
     // 2. ORDENAÇÃO RIGOROSA: data de publicação/abertura mais recente garantindo 2026 no topo
     openItems.sort((a, b) => {
@@ -1019,95 +1056,352 @@ export interface PcaOportunidade {
   diasAtePrevisao: number | null;
   janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO';
   categoria: string;
+  classificacaoSuperiorNome?: string | null;
+  unidadeRequisitante?: string | null;
   descricaoItem: string;
   valorTotalEstimado: number;
   linkPcaPncp: string;
   insightEstrategico: string;
 }
 
-export async function buscarPcasPNCP(filtros: {
-  anoPca?: number;
-  uf?: string;
-  palavraChave?: string;
-  pagina?: number;
-  tamanhoPagina?: number;
-} = {}): Promise<{ items: PcaOportunidade[]; total: number }> {
+const UF_STATE_PATTERNS: Array<{ pattern: RegExp; uf: string }> = [
+  { pattern: /\bmato grosso do sul\b/, uf: 'MS' },
+  { pattern: /\bmato grosso\b/, uf: 'MT' },
+  { pattern: /\brio grande do norte\b/, uf: 'RN' },
+  { pattern: /\brio grande do sul\b/, uf: 'RS' },
+  { pattern: /\brio de janeiro\b|\bniteroi\b/, uf: 'RJ' },
+  { pattern: /\bsao paulo\b|\bcampinas\b|\bguarulhos\b|\bpiracicaba\b|\bsorocaba\b|\bribeirao preto\b/, uf: 'SP' },
+  { pattern: /\bminas gerais\b|\bbelo horizonte\b|\buberlandia\b|\bjuiz de fora\b|\bdores do indaia\b/, uf: 'MG' },
+  { pattern: /\bdistrito federal\b|\bbrasilia\b/, uf: 'DF' },
+  { pattern: /\bespirito santo\b|\bvitoria\b|\bvila velha\b/, uf: 'ES' },
+  { pattern: /\bsanta catarina\b|\bflorianopolis\b|\bjoinville\b|\bblumenau\b|\bchapeco\b/, uf: 'SC' },
+  { pattern: /\bparana\b|\bcuritiba\b|\blondrina\b|\bmaringa\b/, uf: 'PR' },
+  { pattern: /\bparaiba\b|\bjoao pessoa\b|\bcampina grande\b/, uf: 'PB' },
+  { pattern: /\bpernambuco\b|\brecife\b|\bcaruaru\b|\bpetrolina\b/, uf: 'PE' },
+  { pattern: /\bceara\b|\bfortaleza\b|\bsobral\b|\bjuazeiro do norte\b/, uf: 'CE' },
+  { pattern: /\bbahia\b|\bsalvador\b|\bfeira de santana\b|\bvitoria da conquista\b/, uf: 'BA' },
+  { pattern: /\bgoias\b|\bgoiania\b|\banapolis\b/, uf: 'GO' },
+  { pattern: /\bmaranhao\b|\bsao luis\b|\bimperatriz\b/, uf: 'MA' },
+  { pattern: /\bpiaui\b|\bteresina\b/, uf: 'PI' },
+  { pattern: /\balagoas\b|\bmaceio\b/, uf: 'AL' },
+  { pattern: /\bsergipe\b|\baracaju\b/, uf: 'SE' },
+  { pattern: /\bamazonas\b|\bmanaus\b/, uf: 'AM' },
+  { pattern: /\bpara\b|\bbelem\b|\bsantarem\b/, uf: 'PA' },
+  { pattern: /\brondonia\b|\bporto velho\b/, uf: 'RO' },
+  { pattern: /\broraima\b|\bboa vista\b/, uf: 'RR' },
+  { pattern: /\bamapa\b|\bmacapa\b/, uf: 'AP' },
+  { pattern: /\bacre\b|\brio branco\b/, uf: 'AC' },
+  { pattern: /\btocantins\b|\bpalmas\b/, uf: 'TO' },
+];
+
+const VALID_UFS_SET = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+]);
+
+function inferirUfPca(rawText: string): string {
+  const sigMatch = rawText.match(/(?:^|[\s\-\/,])([A-Z]{2})(?:$|[\s\-\/,)])/);
+  if (sigMatch && VALID_UFS_SET.has(sigMatch[1])) {
+    return sigMatch[1];
+  }
+  const normalized = normalizeSearchText(rawText);
+  for (const entry of UF_STATE_PATTERNS) {
+    if (entry.pattern.test(normalized)) {
+      return entry.uf;
+    }
+  }
+  return '';
+}
+
+function resolvePcaTokens(palavraChave?: string, cnae?: string): { tokens: string[]; matchAny: boolean } {
+  const rawCnae = String(cnae || '').trim();
+  const rawQuery = String(palavraChave || '').trim();
+  const looksLikeNumericCnae = /^[\d./-]+$/.test(rawQuery) && rawQuery.replace(/\D/g, '').length >= 4;
+
+  if (rawCnae || looksLikeNumericCnae) {
+    try {
+      const { keywordsForCnae } = require('./cnae-to-keywords.service');
+      const expanded: string[] = keywordsForCnae(rawCnae || rawQuery) || [];
+      const textTokens = rawQuery && !looksLikeNumericCnae
+        ? normalizeSearchText(rawQuery).split(/\s+/).filter((t) => t.length >= 3)
+        : [];
+      const merged = Array.from(new Set([
+        ...textTokens,
+        ...expanded.map((k: string) => normalizeSearchText(k)).filter((t: string) => t.length >= 3),
+      ]));
+      if (merged.length > 0) {
+        return { tokens: merged.slice(0, 12), matchAny: !textTokens.length };
+      }
+    } catch {
+      // Fallback para tokenização padrão abaixo
+    }
+  }
+
+  if (!rawQuery) {
+    return { tokens: [], matchAny: false };
+  }
+
+  return {
+    tokens: normalizeSearchText(rawQuery).split(/\s+/).filter((t) => t.length >= 2),
+    matchAny: false,
+  };
+}
+
+let pcaPoolCache: {
+  items: PcaOportunidade[];
+  fonteTotalPncp: number;
+  expiresAt: number;
+} | null = null;
+let pcaPoolInFlight: Promise<{ items: PcaOportunidade[]; fonteTotalPncp: number }> | null = null;
+
+async function fetchPcaPoolFromPncp(baseUrl: string): Promise<{ items: PcaOportunidade[]; fonteTotalPncp: number }> {
   const hoje = new Date();
-  const dataFinal = formatDate(hoje);
-  const dataInicial = addDays(dataFinal, -30);
-  const pagina = Math.max(1, Number(filtros.pagina || 1));
-  const tamanhoPagina = Math.min(50, Math.max(10, Number(filtros.tamanhoPagina || 50)));
-  const rawBaseUrl = (process.env.PNCP_CONSULTA_BASE_URL || process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL).replace(/\/+$/, '');
-  const baseUrl = rawBaseUrl.includes('/api/pncp/v1') ? rawBaseUrl.replace('/api/pncp/v1', '/api/consulta/v1') : rawBaseUrl;
+  const dataFim = formatDate(hoje);
+  const dataInicio1D = addDays(dataFim, -1);
+  const dataInicio2D = addDays(dataFim, -2);
+  const pageSize = 50;
 
-  const { data } = await axios.get(`${baseUrl}/pca/atualizacao`, {
-    params: { dataInicial, dataFinal, pagina, tamanhoPagina },
-    timeout: timeoutMs(),
-    headers: { Accept: 'application/json' },
-  });
+  const fetchAtualizacaoPage = async (inicio: string, pg: number, tMs = 15_000) => {
+    const { data } = await axios.get(`${baseUrl}/pca/atualizacao`, {
+      params: { dataInicio: inicio, dataFim, pagina: pg, tamanhoPagina: pageSize },
+      timeout: Math.min(timeoutMs(), tMs),
+      headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
+    });
+    return {
+      registros: Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []),
+      totalRegistros: Number(data?.totalRegistros || 0),
+    };
+  };
 
-  const registros = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+  // Busca rápida de 1 dia (páginas 1..5 = até 250 itens em ~2s) e complementa com página 1 de -2 dias
+  const [pgs1D, extra2D] = await Promise.all([
+    Promise.allSettled([1, 2, 3, 4, 5].map((pg) => fetchAtualizacaoPage(dataInicio1D, pg, 12_000))),
+    fetchAtualizacaoPage(dataInicio2D, 1, 12_000).catch(() => ({ registros: [], totalRegistros: 0 })),
+  ]);
+
+  const rawRegs: any[] = [];
+  let fonteTotalPncp = Number(extra2D.totalRegistros || 0);
+
+  for (const res of pgs1D) {
+    if (res.status === 'fulfilled') {
+      rawRegs.push(...res.value.registros);
+      if (!fonteTotalPncp && res.value.totalRegistros > 0) {
+        fonteTotalPncp = res.value.totalRegistros;
+      }
+    }
+  }
+  if (extra2D.registros.length > 0) {
+    rawRegs.push(...extra2D.registros);
+  }
+
+  // Enriquecimento de UF/Município em lote a partir da base local por CNPJ do órgão
+  const cnpjsUnicos = Array.from(
+    new Set(
+      rawRegs
+        .map((r) => String(r?.orgaoEntidadeCnpj || r?.orgaoEntidade?.cnpj || r?.cnpjOrgao || '').replace(/\D/g, ''))
+        .filter((c) => c.length === 14),
+    ),
+  );
+
+  const localGeoMap = new Map<string, { uf: string; municipality: string }>();
+  if (cnpjsUnicos.length > 0 && process.env.DATABASE_URL) {
+    try {
+      const { prisma } = require('../database/prisma');
+      const matches = await prisma.procurementNotice.findMany({
+        where: { buyerDocument: { in: cnpjsUnicos }, uf: { not: null } },
+        select: { buyerDocument: true, uf: true, municipality: true },
+        distinct: ['buyerDocument'],
+      });
+      for (const m of matches) {
+        if (m.buyerDocument && m.uf) {
+          localGeoMap.set(String(m.buyerDocument), {
+            uf: String(m.uf).toUpperCase(),
+            municipality: String(m.municipality || '').trim(),
+          });
+        }
+      }
+    } catch {
+      // Segue com inferência pelo nome do órgão caso banco não esteja acessível
+    }
+  }
+
+  const seenItemKeys = new Set<string>();
   const lista: PcaOportunidade[] = [];
 
-  for (const reg of registros) {
+  for (const reg of rawRegs) {
     const orgao = reg?.orgaoEntidade || {};
     const unidade = reg?.unidadeOrgao || {};
-    const orgaoNome = String(orgao.razaoSocial || reg.nomeOrgao || 'Órgão Público').trim();
-    const cnpjOrgao = String(orgao.cnpj || reg.cnpjOrgao || '').replace(/\D/g, '');
-    const uf = String(unidade.ufSigla || reg.uf || '').toUpperCase();
-    const municipio = String(unidade.municipioNome || '').trim();
-    const anoPca = Number(reg.anoPca || hoje.getFullYear());
-    const idPca = String(reg.idPcaPncp || reg.numeroControlePncp || `${cnpjOrgao}-${anoPca}`);
-    const itens = Array.isArray(reg.itens) && reg.itens.length > 0 ? reg.itens : [reg];
+    const orgaoNome = String(
+      reg?.orgaoEntidadeRazaoSocial
+      || orgao.razaoSocial
+      || reg?.nomeUnidade
+      || reg?.nomeOrgao
+      || 'Órgão Público',
+    ).trim();
+    const cnpjOrgao = String(reg?.orgaoEntidadeCnpj || orgao.cnpj || reg?.cnpjOrgao || '').replace(/\D/g, '');
+    const anoPca = Number(reg?.anoPca || hoje.getFullYear());
+    const idPca = String(reg?.idPcaPncp || reg?.numeroControlePncp || `${cnpjOrgao}-${anoPca}`);
+    const parsedPcaControl = idPca.match(/^(\d{14})-\d+-(\d+)\/(\d{4})$/);
+    const linkPcaPncp = parsedPcaControl
+      ? `https://pncp.gov.br/app/pca/${parsedPcaControl[1]}/${parsedPcaControl[3]}/${Number(parsedPcaControl[2])}`
+      : 'https://pncp.gov.br/app/pca';
 
-    for (const it of itens.slice(0, 5)) {
-      const descricao = String(it.descricaoItem || it.descricao || reg.tituloPca || reg.categoriaItemPcaNome || 'Contratação prevista no PCA').trim();
-      const categoria = String(it.categoriaItemPcaNome || reg.categoriaItemPcaNome || 'Geral').trim();
-      const valor = Number(it.valorTotal || it.valorTotalEstimado || reg.valorTotalEstimado || 0);
-      const dataDesRaw = it.dataDesejada || reg.dataDesejada || null;
+    const geoLocal = cnpjOrgao ? localGeoMap.get(cnpjOrgao) : undefined;
+    const rawUf = String(unidade.ufSigla || reg?.uf || geoLocal?.uf || '').toUpperCase();
+    const ufInferida = rawUf || inferirUfPca(`${orgaoNome} ${reg?.nomeUnidade || ''}`);
+    const municipio = String(unidade.municipioNome || reg?.nomeUnidade || geoLocal?.municipality || '').trim();
+
+    const itens = Array.isArray(reg?.itens) && reg.itens.length > 0 ? reg.itens : [reg];
+    for (const it of itens) {
+      const numeroItem = it?.numeroItem ?? '';
+      const dedupeItemKey = `${idPca}:${numeroItem}:${String(it?.descricaoItem || it?.pdmDescricao || '').slice(0, 60)}`;
+      if (seenItemKeys.has(dedupeItemKey)) continue;
+      seenItemKeys.add(dedupeItemKey);
+
+      const rawDescricao = String(
+        it?.descricaoItem
+        || it?.pdmDescricao
+        || it?.classificacaoSuperiorNome
+        || it?.descricao
+        || reg?.tituloPca
+        || reg?.nomeUnidade
+        || 'Contratação prevista no PCA',
+      )
+        .replace(/^DESCRI[CÇ][AÃ]O:\s*/i, '')
+        .trim();
+
+      const categoria = String(
+        it?.categoriaItemPcaNome
+        || it?.nomeClassificacaoCatalogo
+        || reg?.categoriaItemPcaNome
+        || 'Geral',
+      ).trim();
+
+      const valor = Number(
+        it?.valorTotal
+        ?? it?.valorTotalEstimado
+        ?? it?.valorOrcamentoExercicio
+        ?? reg?.valorTotalEstimado
+        ?? 0,
+      );
+
+      const dataDesRaw = it?.dataDesejada || reg?.dataDesejada || null;
       const dataDesejada = dataDesRaw ? normalizePncpIsoDate(dataDesRaw) : null;
-      const diasAtePrevisao = dataDesejada ? Math.ceil((new Date(dataDesejada).getTime() - Date.now()) / 86400000) : null;
+      const diasAtePrevisao = dataDesejada
+        ? Math.ceil((new Date(dataDesejada).getTime() - Date.now()) / 86400000)
+        : null;
       const janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO' =
-        diasAtePrevisao !== null && diasAtePrevisao <= 30 ? 'IMEDIATA' : diasAtePrevisao !== null && diasAtePrevisao <= 90 ? 'ESTRATEGICA' : 'PLANEJAMENTO';
+        diasAtePrevisao !== null && diasAtePrevisao <= 30
+          ? 'IMEDIATA'
+          : diasAtePrevisao !== null && diasAtePrevisao <= 90
+            ? 'ESTRATEGICA'
+            : 'PLANEJAMENTO';
 
       const insightEstrategico =
         janelaTatica === 'IMEDIATA'
           ? 'Janela crítica (<=30 dias): o edital pode sair a qualquer momento. Feche cotações com fornecedores e valide certidões no Cofre agora.'
           : janelaTatica === 'ESTRATEGICA'
-          ? 'Janela ideal de preparação (31 a 90 dias): antecipe atestados técnicos, estude contratações anteriores do órgão e monte sua planilha base.'
-          : 'Planejamento antecipado (>90 dias): monitore o órgão no Radar para ser avisado assim que o Termo de Referência for publicado.';
+            ? 'Janela ideal de preparação (31 a 90 dias): antecipe atestados técnicos, estude contratações anteriores do órgão e monte sua planilha base.'
+            : 'Planejamento antecipado (>90 dias): monitore o órgão no Radar para ser avisado assim que o Termo de Referência for publicado.';
+
+      const ufItem = ufInferida || inferirUfPca(String(it?.unidadeRequisitante || ''));
 
       lista.push({
         idPcaPncp: idPca,
         anoPca,
         orgaoNome,
         cnpjOrgao,
-        uf,
+        uf: ufItem,
         municipio,
-        dataPublicacao: normalizePncpIsoDate(reg.dataPublicacaoPncp || reg.dataPublicacao) || null,
-        dataAtualizacao: normalizePncpIsoDate(reg.dataAtualizacaoGlobal || reg.dataAtualizacao) || null,
+        dataPublicacao: normalizePncpIsoDate(reg?.dataPublicacaoPNCP || reg?.dataPublicacaoPncp || reg?.dataPublicacao) || null,
+        dataAtualizacao: normalizePncpIsoDate(reg?.dataAtualizacaoGlobalPCA || reg?.dataAtualizacaoGlobal || reg?.dataAtualizacao) || null,
         dataDesejada: dataDesejada ?? null,
         diasAtePrevisao,
         janelaTatica,
         categoria,
-        descricaoItem: descricao,
+        classificacaoSuperiorNome: it?.classificacaoSuperiorNome || null,
+        unidadeRequisitante: it?.unidadeRequisitante || reg?.nomeUnidade || null,
+        descricaoItem: rawDescricao,
         valorTotalEstimado: Number.isFinite(valor) ? valor : 0,
-        linkPcaPncp: 'https://pncp.gov.br/app/pca',
+        linkPcaPncp,
         insightEstrategico,
       });
     }
   }
 
-  const filtrados = lista.filter((item) => {
+  return {
+    items: lista,
+    fonteTotalPncp: fonteTotalPncp || lista.length,
+  };
+}
+
+export async function buscarPcasPNCP(filtros: {
+  anoPca?: number;
+  uf?: string;
+  palavraChave?: string;
+  cnae?: string;
+  pagina?: number;
+  tamanhoPagina?: number;
+  forceRefresh?: boolean;
+} = {}): Promise<{
+  items: PcaOportunidade[];
+  total: number;
+  totalPaginas: number;
+  pagina: number;
+  tamanhoPagina: number;
+  fonteTotalPncp: number;
+}> {
+  const pagina = Math.max(1, Number(filtros.pagina || 1));
+  const tamanhoPagina = Math.min(50, Math.max(10, Number(filtros.tamanhoPagina || 20)));
+  const rawBaseUrl = (process.env.PNCP_CONSULTA_BASE_URL || process.env.PNCP_BASE_URL || DEFAULT_PNCP_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = rawBaseUrl.includes('/api/pncp/v1') ? rawBaseUrl.replace('/api/pncp/v1', '/api/consulta/v1') : rawBaseUrl;
+
+  const shouldUseCache = process.env.NODE_ENV !== 'test' && !filtros.forceRefresh;
+  let pool: { items: PcaOportunidade[]; fonteTotalPncp: number };
+
+  if (shouldUseCache && pcaPoolCache && pcaPoolCache.expiresAt > Date.now() && pcaPoolCache.items.length > 0) {
+    pool = { items: pcaPoolCache.items, fonteTotalPncp: pcaPoolCache.fonteTotalPncp };
+  } else {
+    if (!pcaPoolInFlight) {
+      pcaPoolInFlight = fetchPcaPoolFromPncp(baseUrl).finally(() => {
+        pcaPoolInFlight = null;
+      });
+    }
+    pool = await pcaPoolInFlight;
+    if (process.env.NODE_ENV !== 'test' && pool.items.length > 0) {
+      pcaPoolCache = { ...pool, expiresAt: Date.now() + 15 * 60 * 1000 };
+    }
+  }
+
+  const { tokens, matchAny } = resolvePcaTokens(filtros.palavraChave, filtros.cnae);
+  const ufFiltro = filtros.uf ? filtros.uf.trim().toUpperCase() : '';
+
+  const filtrados = pool.items.filter((item) => {
     if (filtros.anoPca && item.anoPca !== Number(filtros.anoPca)) return false;
-    if (filtros.uf && item.uf !== filtros.uf.toUpperCase()) return false;
-    if (filtros.palavraChave) {
-      const q = normalizeSearchText(filtros.palavraChave);
-      const alvo = normalizeSearchText(`${item.descricaoItem} ${item.categoria} ${item.orgaoNome}`);
-      if (!alvo.includes(q)) return false;
+    if (ufFiltro && ufFiltro !== 'TODOS' && ufFiltro !== 'TODAS' && item.uf !== ufFiltro) return false;
+    if (tokens.length > 0) {
+      const alvo = normalizeSearchText(
+        `${item.descricaoItem} ${item.categoria} ${item.classificacaoSuperiorNome || ''} ${item.orgaoNome} ${item.unidadeRequisitante || ''}`,
+      );
+      const matched = matchAny
+        ? tokens.some((tk) => alvo.includes(tk))
+        : tokens.every((tk) => alvo.includes(tk));
+      if (!matched) return false;
     }
     return true;
   });
 
-  return { items: filtrados, total: Number(data?.totalRegistros || filtrados.length) };
+  const total = filtrados.length;
+  const totalPaginas = Math.max(1, Math.ceil(total / tamanhoPagina));
+  const offset = (pagina - 1) * tamanhoPagina;
+  const pagedItems = filtrados.slice(offset, offset + tamanhoPagina);
+
+  return {
+    items: pagedItems,
+    total,
+    totalPaginas,
+    pagina,
+    tamanhoPagina,
+    fonteTotalPncp: pool.fonteTotalPncp,
+  };
 }

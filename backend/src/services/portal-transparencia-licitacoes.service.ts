@@ -13,10 +13,17 @@ function extractToken(raw?: string): string {
   return t;
 }
 
-const ORGAOS_SIAFI_PADRAO = ['26000', '36000', '25000', '30000', '52000'];
+const ORGAOS_SIAFI_PADRAO = ['26000', '36000', '25000', '30000', '52000', '22000', '39000', '53000', '20000', '44000'];
 
 export async function syncPortalTransparenciaEditais(options: { daysBack?: number; pagina?: number; orgaos?: string[] } = {}) {
-  const token = extractToken(process.env.PORTAL_TRANSPARENCIA_TOKEN || process.env.TRANSPARENCIA_API_TOKEN);
+  const token = extractToken(
+    process.env.PORTAL_TRANSPARENCIA_TOKEN
+    || process.env.PORTAL_TRANSPARENCIA_KEY
+    || process.env.TRANSPARENCIA_API_KEY
+    || process.env.TRANSPARENCIA_TOKEN
+    || process.env.CGU_API_KEY
+    || process.env.TRANSPARENCIA_API_TOKEN,
+  );
   if (!token) {
     return { fonte: 'portal_transparencia', persisted: 0, skipped: true };
   }

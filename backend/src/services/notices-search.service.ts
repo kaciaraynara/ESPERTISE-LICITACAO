@@ -705,7 +705,16 @@ function buildNoticeWhere(input: NoticeSearchQuery, tenantId?: string | null) {
     lte: numberValue(input.maxValue),
   });
 
-  if (source) and.push({ source });
+  if (source) {
+    const sNorm = source.trim().toLowerCase();
+    if (sNorm === 'pncp') {
+      and.push({ source: { in: ['PNCP', 'pncp'] } });
+    } else if (sNorm === 'comprasgov' || sNorm === 'compras_gov') {
+      and.push({ source: { in: ['ComprasGov', 'compras_gov', 'comprasgov'] } });
+    } else {
+      and.push({ source: { equals: source.trim(), mode: 'insensitive' } });
+    }
+  }
   if (uf) and.push({ uf });
   if (municipality) and.push({ municipality: { contains: municipality, mode: 'insensitive' } });
   if (agency) and.push({ buyerName: { contains: agency, mode: 'insensitive' } });
@@ -735,7 +744,7 @@ function buildNoticeOrderBy(sort: NoticeSearchQuery['sort']) {
       return [{ createdAt: 'desc' }];
     case 'published_desc':
     default:
-      return [{ publishedAt: 'desc' }, { createdAt: 'desc' }];
+      return [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }];
   }
 }
 
