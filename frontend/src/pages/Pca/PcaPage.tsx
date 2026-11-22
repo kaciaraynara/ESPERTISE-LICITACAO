@@ -78,7 +78,7 @@ export const PcaPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-extrabold text-[#081C3A]">
-                PCA — Planos de Contratações Anuais (Radar de Futuras Compras)
+                Planos de Contratações Anuais (PCA)
               </h1>
               <p className="mt-1 text-xs text-slate-600 max-w-3xl">
                 Previsto no <strong>Art. 12, VII da Lei 14.133/2021</strong>, o PCA revela o que os órgãos públicos planejam licitar nos próximos meses <strong>antes mesmo de o edital ser publicado</strong> — permitindo cotar fornecedores e preparar atestados antes da concorrência.

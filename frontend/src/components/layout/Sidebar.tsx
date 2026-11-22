@@ -243,7 +243,7 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Licitações', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: '/fornecedor/pca', label: 'Radar de PCAs (Futuras)', icon: Crosshair, requiredFeature: 'radar_editais' },
+      { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Crosshair, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
       { path: FORNECEDOR_ROUTES.investigacao_concorrencial, label: 'Inteligência Competitiva', icon: ChartLineUp, requiredFeature: 'inteligencia_concorrentes' },

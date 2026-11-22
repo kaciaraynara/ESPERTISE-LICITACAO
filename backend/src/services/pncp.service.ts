@@ -635,7 +635,7 @@ export async function buscarContratacoesPNCP(
     'dataInicial',
   );
   const dataInicial = isPropostaEndpoint
-    ? explicitDataInicial
+    ? undefined
     : (explicitDataInicial ?? dataInicialPadrao);
 
   let rawDataFinal = normalizeDate(

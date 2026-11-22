@@ -661,6 +661,7 @@ export async function listarLicitacoes(
   if (
     filtros.tempoReal === true
     || filtros.tempoReal === 'true'
+    || ((filtros as any).local !== true && (filtros as any).local !== 'true')
     
   ) {
     return consultarRadarPncpTempoReal(filtros);

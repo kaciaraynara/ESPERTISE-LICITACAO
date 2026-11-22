@@ -377,7 +377,7 @@ export default function LicitacoesPage({
       try {
         const q = termoOverride !== undefined ? termoOverride : palavraChave;
         const buildParams = (termo: string, localOnly: boolean) => {
-          const p: Record<string, any> = { limit: 1000, local: localOnly };
+          const p: Record<string, any> = { limit: 1000, tamanhoPagina: 50, ...(localOnly ? { local: true } : { tempoReal: true }) };
           if (termo.trim()) p.q = termo.trim();
           if (ufSelecionada) p.uf = ufSelecionada;
           if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
@@ -409,16 +409,16 @@ export default function LicitacoesPage({
           lista = Array.from(mapa.values());
           totalResp = lista.length;
         } else {
-          const resposta = await licitacoesApi.listar(buildParams(q, true));
+          const resposta = await licitacoesApi.listar(buildParams(q, false));
           lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
-          totalResp = resposta?.data?.total || lista.length;
+          totalResp = resposta?.data?.meta?.totalRegistros || resposta?.data?.total || lista.length;
 
           if (lista.length === 0 && q.trim()) {
-            const respLive = await licitacoesApi.listar(buildParams(q, false)).catch(() => null);
+            const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
             const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
             if (listaLive.length > 0) {
               lista = listaLive;
-              totalResp = respLive?.data?.total || listaLive.length;
+              totalResp = respLive?.data?.meta?.totalRegistros || respLive?.data?.total || listaLive.length;
             }
           }
         }
