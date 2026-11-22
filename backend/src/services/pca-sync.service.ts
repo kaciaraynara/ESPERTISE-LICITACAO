@@ -29,7 +29,7 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
   persisted: number;
 }> {
   const daysBack = Math.max(1, Math.min(10, options.daysBack ?? 3));
-  const maxPages = Math.max(1, Math.min(20, options.maxPagesPerDay ?? 6));
+  const maxPages = Math.max(1, Math.min(20, options.maxPagesPerDay ?? 4));
   let fetched = 0;
   let persisted = 0;
 
@@ -50,6 +50,83 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
     // Segue sem enriquecimento prévio
   }
 
+  const persistRegistros = async (registros: any[]) => {
+    for (const reg of registros) {
+      const pncpId = String(reg.idPcaPncp || reg.numeroControlePcaPncp || '').trim();
+      if (!pncpId) continue;
+
+      const ano = Number(reg.anoPca || new Date().getFullYear());
+      const cnpj = String(reg.orgaoEntidadeCnpj || reg.orgaoEntidade?.cnpj || '').replace(/\D/g, '');
+      const buyerName = String(reg.orgaoEntidadeRazaoSocial || reg.orgaoEntidade?.razaoSocial || 'Órgão Público').trim();
+      const geo = cnpj ? knownBuyers.get(cnpj) : undefined;
+      const uf = (reg.unidadeOrgao?.ufSigla || reg.ufSigla || geo?.uf || inferirUfNome(buyerName) || null) as string | null;
+      const municipality = (reg.unidadeOrgao?.municipioNome || reg.municipioNome || geo?.municipality || null) as string | null;
+      const linkPcaPncp = montarLinkPca(pncpId, cnpj, ano);
+
+      const itens = Array.isArray(reg.itens) && reg.itens.length > 0 ? reg.itens : [reg];
+
+      const plan = await prisma.annualProcurementPlan.upsert({
+        where: { pncpId },
+        create: {
+          pncpId,
+          year: ano,
+          buyerName,
+          buyerDocument: cnpj || '00000000000000',
+          uf,
+          municipality,
+          totalItems: itens.length,
+          totalValue: reg.valorTotalEstimado != null ? Number(reg.valorTotalEstimado) : null,
+        },
+        update: {
+          buyerName,
+          uf: uf ?? undefined,
+          municipality: municipality ?? undefined,
+          totalItems: itens.length,
+        },
+      });
+
+      for (let idx = 0; idx < itens.length; idx++) {
+        const it = itens[idx];
+        const itemNumber = Number(it.numeroItem || idx + 1);
+        const description = limparDescricao(it.descricao || it.objeto || it.classeNome || reg.objeto || '');
+        const category = it.categoriaItemPcaNome || it.categoriaItemPca || it.grupoNome || null;
+        const rawDes = it.dataDesejada || reg.dataDesejada || null;
+        const desiredDate = rawDes && !isNaN(new Date(rawDes).getTime()) ? new Date(rawDes) : null;
+        const estimatedValue = it.valorTotal != null ? Number(it.valorTotal) : (reg.valorTotalEstimado != null ? Number(reg.valorTotalEstimado) : null);
+
+        await (prisma as any).annualProcurementPlanItem.upsert({
+          where: { pncpId_itemNumber: { pncpId, itemNumber } },
+          create: {
+            planId: plan.id,
+            pncpId,
+            itemNumber,
+            year: ano,
+            buyerName,
+            buyerDocument: cnpj || '00000000000000',
+            uf,
+            municipality,
+            category: category ? String(category) : null,
+            description,
+            desiredDate,
+            estimatedValue: estimatedValue != null && !isNaN(estimatedValue) ? estimatedValue : null,
+            linkPcaPncp,
+          },
+          update: {
+            buyerName,
+            uf: uf ?? undefined,
+            municipality: municipality ?? undefined,
+            category: category ? String(category) : undefined,
+            description,
+            desiredDate,
+            estimatedValue: estimatedValue != null && !isNaN(estimatedValue) ? estimatedValue : undefined,
+          },
+        });
+        persisted++;
+      }
+    }
+  };
+
+  // 1. Tenta dias recentes a partir de hoje
   for (let offset = 0; offset < daysBack; offset++) {
     const target = new Date();
     target.setUTCDate(target.getUTCDate() - offset);
@@ -62,92 +139,50 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
           timeout: 30000,
           validateStatus: (s) => s === 200 || s === 204,
         });
-
-        if (resp.status === 204 || !Array.isArray(resp.data?.data) || resp.data.data.length === 0) {
-          break;
-        }
-
-        const registros = resp.data.data as any[];
-        fetched += registros.length;
-
-        for (const reg of registros) {
-          const pncpId = String(reg.idPcaPncp || reg.numeroControlePcaPncp || '').trim();
-          if (!pncpId) continue;
-
-          const ano = Number(reg.anoPca || new Date().getFullYear());
-          const cnpj = String(reg.orgaoEntidadeCnpj || reg.orgaoEntidade?.cnpj || '').replace(/\D/g, '');
-          const buyerName = String(reg.orgaoEntidadeRazaoSocial || reg.orgaoEntidade?.razaoSocial || 'Órgão Público').trim();
-          const geo = cnpj ? knownBuyers.get(cnpj) : undefined;
-          const uf = (reg.unidadeOrgao?.ufSigla || geo?.uf || inferirUfNome(buyerName) || null) as string | null;
-          const municipality = (reg.unidadeOrgao?.municipioNome || geo?.municipality || null) as string | null;
-          const linkPcaPncp = montarLinkPca(pncpId, cnpj, ano);
-
-          const itens = Array.isArray(reg.itens) && reg.itens.length > 0 ? reg.itens : [reg];
-
-          const plan = await prisma.annualProcurementPlan.upsert({
-            where: { pncpId },
-            create: {
-              pncpId,
-              year: ano,
-              buyerName,
-              buyerDocument: cnpj || '00000000000000',
-              uf,
-              municipality,
-              totalItems: itens.length,
-              totalValue: reg.valorTotalEstimado != null ? Number(reg.valorTotalEstimado) : null,
-            },
-            update: {
-              buyerName,
-              uf: uf ?? undefined,
-              municipality: municipality ?? undefined,
-              totalItems: itens.length,
-            },
-          });
-
-          for (let idx = 0; idx < itens.length; idx++) {
-            const it = itens[idx];
-            const itemNumber = Number(it.numeroItem || idx + 1);
-            const description = limparDescricao(it.descricao || it.objeto || reg.objeto || '');
-            const category = it.categoriaItemPcaNome || it.categoriaItemPca || null;
-            const rawDes = it.dataDesejada || reg.dataDesejada || null;
-            const desiredDate = rawDes && !isNaN(new Date(rawDes).getTime()) ? new Date(rawDes) : null;
-            const estimatedValue = it.valorTotal != null ? Number(it.valorTotal) : (reg.valorTotalEstimado != null ? Number(reg.valorTotalEstimado) : null);
-
-            await (prisma as any).annualProcurementPlanItem.upsert({
-              where: { pncpId_itemNumber: { pncpId, itemNumber } },
-              create: {
-                planId: plan.id,
-                pncpId,
-                itemNumber,
-                year: ano,
-                buyerName,
-                buyerDocument: cnpj || '00000000000000',
-                uf,
-                municipality,
-                category: category ? String(category) : null,
-                description,
-                desiredDate,
-                estimatedValue: estimatedValue != null && !isNaN(estimatedValue) ? estimatedValue : null,
-                linkPcaPncp,
-              },
-              update: {
-                buyerName,
-                uf: uf ?? undefined,
-                municipality: municipality ?? undefined,
-                category: category ? String(category) : undefined,
-                description,
-                desiredDate,
-                estimatedValue: estimatedValue != null && !isNaN(estimatedValue) ? estimatedValue : undefined,
-              },
-            });
-            persisted++;
-          }
-        }
-
-        if (registros.length < 500) break;
+        if (resp.status === 204 || !Array.isArray(resp.data?.data) || resp.data.data.length === 0) break;
+        fetched += resp.data.data.length;
+        await persistRegistros(resp.data.data);
+        if (resp.data.data.length < 500) break;
       } catch {
         break;
       }
+    }
+  }
+
+  // 2. Se ainda estiver vazio/baixo, faz carga real em janelas ativas de 2026 do PNCP
+  const currentTotal = await (prisma as any).annualProcurementPlanItem.count().catch(() => 0);
+  if (fetched === 0 || currentTotal < 500) {
+    const datasAncora2026 = ['20260401', '20260302', '20260202', '20260504', '20260601', '20260115'];
+    for (const ymd of datasAncora2026) {
+      try {
+        const resp = await axios.get(`${PNCP_BASE}/pca/atualizacao`, {
+          params: { dataInicio: ymd, dataFim: ymd, pagina: 1, tamanhoPagina: 50 },
+          timeout: 25000,
+          validateStatus: (s) => s === 200 || s === 204,
+        });
+        if (resp.status === 200 && Array.isArray(resp.data?.data) && resp.data.data.length > 0) {
+          fetched += resp.data.data.length;
+          await persistRegistros(resp.data.data);
+        }
+      } catch {
+        // Continua próxima janela
+      }
+      if (persisted >= 300) break;
+    }
+
+    // Também consulta catálogo de PCA 2026 por classificação (cat=2 tem 31.482+ registros)
+    try {
+      const respCat = await axios.get(`${PNCP_BASE}/pca/`, {
+        params: { anoPca: 2026, codigoClassificacaoSuperior: 2, pagina: 1, tamanhoPagina: 50 },
+        timeout: 25000,
+        validateStatus: (s) => s === 200 || s === 204,
+      });
+      if (respCat.status === 200 && Array.isArray(respCat.data?.data) && respCat.data.data.length > 0) {
+        fetched += respCat.data.data.length;
+        await persistRegistros(respCat.data.data);
+      }
+    } catch {
+      // Ignora se timeout do PNCP
     }
   }
 
@@ -167,7 +202,7 @@ export async function queryPcaFromDb(filtros: {
   const totalInDb = await repo.count();
 
   if (totalInDb === 0 || filtros.forceRefresh) {
-    await syncPcaRecentDays({ daysBack: filtros.forceRefresh ? 3 : 2, maxPagesPerDay: 4 });
+    await syncPcaRecentDays({ daysBack: filtros.forceRefresh ? 3 : 2, maxPagesPerDay: 2 });
   }
 
   const page = Math.max(1, Number(filtros.pagina || 1));
