@@ -66,6 +66,30 @@ export class PrecificacaoController {
       const custoOperacionalPercentual = Number(body.custoOperacionalPercentual ?? 0);
       const margemDesejadaPercentual = Number(body.margemDesejadaPercentual ?? 0);
 
+      const CAMPOS_CUSTOS_DETALHADOS = [
+        'prolabore',
+        'dinheiroEmpresa',
+        'funcionarios',
+        'viagemEstadias',
+        'fabricacao',
+        'manutencaoSoftware',
+        'despesasAdministrativas',
+      ] as const;
+
+      const detalhadosRaw = body.custosIndiretosDetalhados ?? {};
+      const custosIndiretosDetalhados: Record<string, number> = {};
+      for (const campo of CAMPOS_CUSTOS_DETALHADOS) {
+        const valor = Number(detalhadosRaw?.[campo] ?? 0);
+        if (!Number.isFinite(valor) || valor < 0) {
+          return res.status(400).json({
+            success: false,
+            code: 'INVALID_CUSTO_DETALHADO',
+            message: `O custo "${campo}" deve ser um valor numérico não negativo.`,
+          });
+        }
+        custosIndiretosDetalhados[campo] = Number(valor.toFixed(2));
+      }
+
       const valoresInformados = [
         custoProdutoServico,
         impostosPercentual,
@@ -86,9 +110,24 @@ export class PrecificacaoController {
           message: 'Alíquotas e margens devem ser menores que 100%.',
         });
       }
+      if (impostosPercentual + margemDesejadaPercentual >= 100) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_COMBINACAO_IMPOSTOS_MARGEM',
+          message: 'Impostos + margem não podem somar 100% ou mais.',
+        });
+      }
 
-      const custoOperacionalVal = custoProdutoServico * (custoOperacionalPercentual / 100);
-      const custoBase = custoProdutoServico + custoOperacionalVal;
+      const custoOperacionalVal = Number(
+        (custoProdutoServico * (custoOperacionalPercentual / 100)).toFixed(2),
+      );
+      const custosIndiretosFixos = Number(
+        Object.values(custosIndiretosDetalhados)
+          .reduce((acc, valor) => acc + valor, 0)
+          .toFixed(2),
+      );
+      const custosIndiretosValor = Number((custoOperacionalVal + custosIndiretosFixos).toFixed(2));
+      const custoBase = Number((custoProdutoServico + custosIndiretosValor).toFixed(2));
 
       const fatorDivisor = 1 - (impostosPercentual + margemDesejadaPercentual) / 100;
       const precoSugerido = fatorDivisor > 0 ? Number((custoBase / fatorDivisor).toFixed(2)) : 0;
@@ -106,6 +145,12 @@ export class PrecificacaoController {
           precoBreakeven,
           lucroProjetado,
           impostoProjetado,
+          custoProdutoServico: Number(custoProdutoServico.toFixed(2)),
+          custoOperacionalVal,
+          custosIndiretosFixos,
+          custosIndiretosValor,
+          custosIndiretosDetalhados,
+          custoBase,
           margemLucroRealValor: lucroProjetado,
           margemLucroRealPercentual: margemDesejadaPercentual,
           lucroLiquidoReais: lucroProjetado,

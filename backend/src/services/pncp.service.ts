@@ -633,7 +633,7 @@ export async function buscarContratacoesPNCP(
   const uf = normalizeUf(filtros.uf);
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
   const isAtualizacaoEndpoint = filtros.endpoint === 'atualizacao';
-  const deveBuscarEmParalelo = rawTamanho > 50;
+  const deveBuscarEmParalelo = filtros.fast ? false : rawTamanho > 50;
   const tamanhoPorChamada = deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho));
 
   const userModInput = filtros.codigoModalidadeContratacao ?? filtros.modalidade;
@@ -738,7 +738,7 @@ export async function buscarContratacoesPNCP(
     let rawCombinedItems: unknown[] = [];
     let totalOficial: number | null = null;
 
-    if (isPropostaEndpoint && !cnpj && !filtros.ordemOriginal) {
+    if (isPropostaEndpoint && !cnpj && !filtros.ordemOriginal && !filtros.fast) {
       const cacheKey = `${modalidade ?? 'all'}|${uf ?? 'all'}|${dataFinal}|${tamanhoPorChamada}`;
       const cachedTotal = getCachedPropostaTotal(cacheKey);
       let probe: { items: unknown[]; total: number | null } | null = null;

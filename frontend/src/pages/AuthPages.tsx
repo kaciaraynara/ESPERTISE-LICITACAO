@@ -263,7 +263,7 @@ export function RegisterPage() {
   const [telefone, setTelefone] = useState('');
   const [setor, setSetor] = useState('');
   const [cnaesLista, setCnaesLista] = useState<string[]>([]);
-  const [aceite, setAceite] = useState(true);
+  const [aceite, setAceite] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');

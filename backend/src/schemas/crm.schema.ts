@@ -6,6 +6,7 @@ export const CRM_STAGES = [
   'ANALISE',
   'PROPOSTA',
   'DISPUTA',
+  'HABILITACAO',
   'RECURSO',
   'ADJUDICADO',
   'GANHO',

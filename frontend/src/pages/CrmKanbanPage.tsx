@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   FileSearch,
   FileText,
@@ -11,6 +12,8 @@ import {
   Trash2,
   TrendingUp,
   Gavel,
+  Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import { crmApi } from '../services/api';
 import { FORNECEDOR_ROUTES } from '../routes';
@@ -25,10 +28,16 @@ interface Oportunidade {
     id?: string;
     objetoCompra?: string;
     objeto?: string;
+    object?: string;
     orgaoEntidade?: { razaoSocial?: string };
     orgaoNome?: string;
+    buyerName?: string;
     valorTotalEstimado?: number;
+    estimatedValue?: number | string;
     dataEncerramentoProposta?: string;
+    uf?: string;
+    source?: string;
+    noticeNumber?: string;
   };
 }
 
@@ -39,6 +48,7 @@ const COLUNAS = [
     subtitulo: 'Oportunidades em avaliação',
     acaoLabel: 'Ver oportunidades',
     rota: FORNECEDOR_ROUTES.radar,
+    stageAvancar: 'PROPOSTA',
     icon: FileSearch,
     corIcone: 'text-[#FF6600]',
   },
@@ -48,6 +58,7 @@ const COLUNAS = [
     subtitulo: 'Elaboração e envio',
     acaoLabel: 'Criar proposta',
     rota: FORNECEDOR_ROUTES.propostas,
+    stageAvancar: 'DISPUTA',
     icon: FileText,
     corIcone: 'text-[#081C3A]',
   },
@@ -57,8 +68,19 @@ const COLUNAS = [
     subtitulo: 'Acompanhamento em tempo real',
     acaoLabel: 'Acessar sessão',
     rota: FORNECEDOR_ROUTES.disputa_ao_vivo,
+    stageAvancar: 'HABILITACAO',
     icon: Users,
     corIcone: 'text-[#0070C0]',
+  },
+  {
+    id: 'HABILITACAO',
+    titulo: 'Habilitação',
+    subtitulo: 'Documentos e regularidade',
+    acaoLabel: 'Ver habilitação',
+    rota: FORNECEDOR_ROUTES.habilitacao,
+    stageAvancar: 'RECURSO',
+    icon: ShieldCheck,
+    corIcone: 'text-emerald-600',
   },
   {
     id: 'FASE_RECURSAL',
@@ -66,6 +88,7 @@ const COLUNAS = [
     subtitulo: 'Recursos e manifestações',
     acaoLabel: 'Ver processos',
     rota: FORNECEDOR_ROUTES.recursos,
+    stageAvancar: 'ADJUDICADO',
     icon: Scale,
     corIcone: 'text-[#081C3A]',
   },
@@ -75,18 +98,21 @@ const COLUNAS = [
     subtitulo: 'Resultado e homologação',
     acaoLabel: 'Acompanhar',
     rota: FORNECEDOR_ROUTES.gestao_pos_vitoria,
+    stageAvancar: null,
     icon: Trophy,
     corIcone: 'text-[#FF6600]',
   },
-];
+] as const;
 
+// Etapas do backend (CRM_STAGES em backend/src/schemas/crm.schema.ts)
 function normalizarEstagio(stage?: string): string {
   const s = (stage || 'ANALISE').toUpperCase();
-  if (['ANALISE', 'TRIAGEM', 'NOVO', 'CAPTACAO'].includes(s)) return 'ANALISE';
-  if (['PROPOSTA', 'ELABORACAO', 'HABILITACAO'].includes(s)) return 'PROPOSTA';
+  if (['ANALISE', 'TRIAGEM', 'NOVO', 'CAPTACAO', 'OPORTUNIDADE', 'MAPEADAS', 'DOCUMENTACAO'].includes(s)) return 'ANALISE';
+  if (['PROPOSTA', 'ELABORACAO'].includes(s)) return 'PROPOSTA';
   if (['SESSAO_PUBLICA', 'DISPUTA', 'LANCES', 'EM_DISPUTA'].includes(s)) return 'SESSAO_PUBLICA';
+  if (s === 'HABILITACAO') return 'HABILITACAO';
   if (['FASE_RECURSAL', 'RECURSO', 'RECURSOS'].includes(s)) return 'FASE_RECURSAL';
-  if (['ADJUDICACAO', 'GANHO', 'HOMOLOGADO', 'VENCIDO'].includes(s)) return 'ADJUDICACAO';
+  if (['ADJUDICACAO', 'ADJUDICADO', 'GANHO', 'HOMOLOGADO', 'VENCIDO', 'PERDIDO', 'DESCLASSIFICADO', 'ARQUIVADO'].includes(s)) return 'ADJUDICACAO';
   return 'ANALISE';
 }
 
@@ -102,8 +128,12 @@ export default function CrmKanbanPage() {
       const resp = await crmApi.getOportunidades();
       const lista = resp?.data?.items || resp?.data?.data || resp?.data || [];
       setOportunidades(Array.isArray(lista) ? lista : []);
-    } catch {
+    } catch (error: any) {
       setOportunidades([]);
+      toast.error(
+        error?.response?.data?.message ||
+          'Não foi possível carregar a Gestão de Disputas. Tente novamente.',
+      );
     } finally {
       setCarregando(false);
     }
@@ -115,15 +145,20 @@ export default function CrmKanbanPage() {
 
   const handleAvancarEtapa = async (op: Oportunidade) => {
     const atual = normalizarEstagio(op.stage);
-    const idx = COLUNAS.findIndex((c) => c.id === atual);
-    if (idx < 0 || idx >= COLUNAS.length - 1) return;
+    const coluna = COLUNAS.find((c) => c.id === atual);
+    const proximo = coluna?.stageAvancar;
+    if (!proximo) return;
 
-    const proximo = COLUNAS[idx + 1].id;
     setMovendoId(op.id);
     try {
       await crmApi.moveOportunidade(op.id, { stage: proximo });
       setOportunidades((prev) =>
         prev.map((item) => (item.id === op.id ? { ...item, stage: proximo } : item))
+      );
+      toast.success('Etapa atualizada.');
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || 'Não foi possível avançar a etapa. Tente novamente.',
       );
     } finally {
       setMovendoId(null);
@@ -135,6 +170,11 @@ export default function CrmKanbanPage() {
     try {
       await crmApi.removeOportunidade(id);
       setOportunidades((prev) => prev.filter((item) => item.id !== id));
+      toast.success('Oportunidade removida da Gestão de Disputas.');
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || 'Não foi possível remover a oportunidade.',
+      );
     } finally {
       setMovendoId(null);
     }
@@ -167,9 +207,9 @@ export default function CrmKanbanPage() {
           </button>
         </div>
 
-        {/* Grade das 5 etapas */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {COLUNAS.map((col, colIndex) => {
+        {/* Grade das 6 etapas */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+          {COLUNAS.map((col) => {
             const Icon = col.icon;
             const itens = oportunidades.filter((op) => normalizarEstagio(op.stage) === col.id);
 
@@ -207,12 +247,18 @@ export default function CrmKanbanPage() {
                         const titulo =
                           op.notice?.objetoCompra ||
                           op.notice?.objeto ||
+                          op.notice?.object ||
                           op.notes ||
                           'Licitação salva no Radar';
                         const orgao =
                           op.notice?.orgaoEntidade?.razaoSocial ||
                           op.notice?.orgaoNome ||
+                          op.notice?.buyerName ||
                           'Órgão público';
+                        const valorBruto = op.notice?.valorTotalEstimado ?? op.notice?.estimatedValue;
+                        const valor = valorBruto != null && !Number.isNaN(Number(valorBruto))
+                          ? Number(valorBruto)
+                          : null;
 
                         return (
                           <div
@@ -223,6 +269,14 @@ export default function CrmKanbanPage() {
                               {titulo}
                             </p>
                             <p className="mt-1 truncate text-[11px] text-slate-500">{orgao}</p>
+                            {(valor != null || op.notice?.uf) && (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                                {valor != null
+                                  ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+                                  : 'Valor não informado'}
+                                {op.notice?.uf ? ` • ${op.notice.uf}` : ''}
+                              </p>
+                            )}
 
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-2.5">
                               <div className="flex items-center gap-1.5">
@@ -247,15 +301,19 @@ export default function CrmKanbanPage() {
                               </div>
 
                               <div className="flex items-center gap-1.5">
-                                {colIndex < COLUNAS.length - 1 && (
+                                {col.stageAvancar && (
                                   <button
                                     type="button"
                                     onClick={() => handleAvancarEtapa(op)}
                                     disabled={movendoId === op.id}
-                                    className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#081C3A] shadow-xs border border-slate-200 transition hover:border-[#0070C0] hover:text-[#0070C0]"
+                                    className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#081C3A] shadow-xs border border-slate-200 transition hover:border-[#0070C0] hover:text-[#0070C0] disabled:opacity-60"
                                   >
+                                    {movendoId === op.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <ChevronRight className="h-3 w-3" />
+                                    )}
                                     Avançar
-                                    <ChevronRight className="h-3 w-3" />
                                   </button>
                                 )}
 

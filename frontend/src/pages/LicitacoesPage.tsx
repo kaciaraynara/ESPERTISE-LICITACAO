@@ -96,7 +96,7 @@ const MODALIDADES_RAPIDAS = [
   { id: 'DISPENSA', label: 'Dispensa', icon: Zap },
   { id: 'CREDENCIAMENTO', label: 'Credenciamento', icon: Award },
   { id: 'SRP', label: 'Registro de Preços', icon: Bookmark },
-  { id: 'BAIXA_PROCURA', label: 'Baixa Procura (Iniciantes)', icon: Zap },
+  { id: 'BAIXA_PROCURA', label: 'Menor Porte (até R$ 80 mil)', icon: Zap },
 ];
 
 const UFS = [
@@ -585,10 +585,24 @@ export default function LicitacoesPage({
   };
 
   const editaisOrdenados = useMemo(() => {
-    const comScore = editais.map((item) => ({
-      ...item,
-      _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
-    }));
+    const comScore = editais
+      .filter((item) => {
+        if (!dataPublicacao) return true;
+        const raw =
+          item.dataPublicacao ||
+          item.data_publicacao ||
+          item.dataPublicacaoPncp ||
+          item.publishedAt ||
+          item.createdAt;
+        if (!raw) return false;
+        const data = new Date(raw);
+        if (Number.isNaN(data.getTime())) return false;
+        return data >= new Date(`${dataPublicacao}T00:00:00`);
+      })
+      .map((item) => ({
+        ...item,
+        _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
+      }));
 
     if (ordenacao === 'relevancia') {
       return comScore.sort((a, b) => b._scoreCalculado - a._scoreCalculado);
@@ -619,7 +633,7 @@ export default function LicitacoesPage({
       ).getTime();
       return db - da;
     });
-  }, [editais, selectedCompany, ordenacao]);
+  }, [editais, selectedCompany, ordenacao, dataPublicacao]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
@@ -882,7 +896,14 @@ export default function LicitacoesPage({
         {/* Quantidade e Ordenação */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-semibold text-slate-600">
-            <span className="text-[#081C3A]">{total}</span> editais encontrados
+            <span className="text-[#081C3A]">{total.toLocaleString('pt-BR')}</span>{' '}
+            {total === 1 ? 'edital encontrado' : 'editais encontrados'}
+            {editaisOrdenados.length > 0 && editaisOrdenados.length < total && (
+              <span className="font-normal text-slate-500"> (exibindo {editaisOrdenados.length} nesta página)</span>
+            )}
+            {palavraChave.trim() && (
+              <span className="font-normal text-slate-400"> para “{palavraChave.trim()}”</span>
+            )}
           </p>
 
           <div className="flex items-center gap-2">
@@ -910,10 +931,12 @@ export default function LicitacoesPage({
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <FileText className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 text-base font-bold text-[#081C3A]">
-              Nenhum edital encontrado para esses filtros
+              {palavraChave.trim()
+                ? `Nenhum edital encontrado para “${palavraChave.trim()}”`
+                : 'Nenhum edital encontrado para esses filtros'}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Tente limpar os filtros ou buscar novos editais diretamente no Portal Nacional.
+              A consulta ao vivo não retornou contratações abertas para esses filtros. Clique em “Buscar no PNCP agora” para tentar novamente ou limpe os filtros.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <button

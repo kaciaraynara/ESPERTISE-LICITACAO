@@ -961,6 +961,10 @@ export const propostasApi = {
       margemDesejadaPercentual: number;
       precoSugerido: number;
       statusViabilidade?: string;
+      custosIndiretosDetalhados?: Record<string, number>;
+      custosIndiretosFixos?: number;
+      custosIndiretosValor?: number;
+      custoBase?: number;
     };
   }) =>
     api.post<{ success: boolean; data: { proposalId: string; proposal: ProposalDto; items: any[]; extracted: any } }>('/lex/preencher-proposta', body),

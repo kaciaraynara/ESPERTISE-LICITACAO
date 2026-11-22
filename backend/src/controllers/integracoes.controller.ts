@@ -162,15 +162,16 @@ export class IntegracoesController {
   }
 
   async health(_req: Request, res: Response) {
-    const hoje = new Date().toISOString().slice(0, 10);
-    const ontem = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    // As APIs públicas exigem tamanhoPagina >= 10 e janelas de data válidas.
+    const hoje = new Date();
+    const em30Dias = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const ontem = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const comprasGovBase = (process.env.COMPRASGOV_BASE_URL || 'https://dadosabertos.compras.gov.br').replace(/\/+$/, '');
 
     const checks = await Promise.all([
-      this.probeUrl('PNCP', 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250101&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10'),
-      this.probeUrl(
-        'COMPRAS.GOV',
-        `https://dadosabertos.compras.gov.br/modulo-contratacoes/1_consultarContratacoes_PNCP_14133?pagina=1&tamanhoPagina=10&codigoModalidade=5&dataPublicacaoPncpInicial=${ontem}&dataPublicacaoPncpFinal=${hoje}`,
-      ),
+      this.probeUrl('PNCP', `https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=${iso(em30Dias).replace(/-/g, '')}&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10`),
+      this.probeUrl('COMPRAS.GOV', `${comprasGovBase}/modulo-contratacoes/1_consultarContratacoes_PNCP_14133?pagina=1&tamanhoPagina=10&dataPublicacaoPncpInicial=${iso(ontem)}&dataPublicacaoPncpFinal=${iso(hoje)}&codigoModalidade=5&contratacaoExcluida=false`),
       this.probeUrl('QUERIDO DIÁRIO', 'https://queridodiario.ok.org.br/api/gazettes?size=1'),
       this.probeUrl('RECEITA / CNPJ', 'https://brasilapi.com.br/api/cnpj/v1/00000000000191'),
       this.probeTransparencia(),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileCheck,
   CheckCircle2,
@@ -7,11 +7,68 @@ import {
   ShieldCheck,
   ArrowRight,
   Info,
+  XCircle,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { useCompany } from '@/contexts/CompanyContext';
 import { certidoesApi, documentosApi } from '@/services/api';
+
+type StatusEvidencia = 'REGULAR' | 'ENVIADO' | 'CADASTRADO' | 'ATENCAO' | 'PENDENTE';
+
+interface DocumentoEvidencia {
+  tipo?: string | null;
+  nome?: string | null;
+  status?: string | null;
+  validade?: string | null;
+}
+
+interface CertidaoEvidencia {
+  id: string;
+  status: string;
+  validade?: string | null;
+  temArquivo?: boolean;
+}
+
+interface ItemHabilitacao {
+  nome: string;
+  status: StatusEvidencia;
+  obs: string;
+  rota: string;
+}
+
+interface BlocoHabilitacao {
+  pilar: string;
+  itens: ItemHabilitacao[];
+}
+
+function normalizarTexto(valor: unknown): string {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function statusCertidao(certidao?: CertidaoEvidencia): StatusEvidencia {
+  if (!certidao) return 'PENDENTE';
+  if (certidao.status === 'VALIDA') return 'REGULAR';
+  if (certidao.status === 'VENCENDO') return 'ATENCAO';
+  return 'PENDENTE';
+}
+
+function observacaoCertidao(certidao?: CertidaoEvidencia): string {
+  if (!certidao) return 'Certidão não localizada no monitoramento.';
+  if (certidao.status === 'VALIDA') {
+    return certidao.validade
+      ? `Certidão válida até ${new Date(certidao.validade).toLocaleDateString('pt-BR')}.`
+      : 'Certidão marcada como válida no monitoramento.';
+  }
+  if (certidao.status === 'VENCENDO') return 'Certidão próxima do vencimento. Renove antes de enviar a proposta.';
+  if (certidao.status === 'VENCIDA') return 'Certidão vencida. Renove antes de participar.';
+  return 'Sem validade registrada. Envie a certidão no Cofre ou atualize o monitoramento.';
+}
 
 export const HabilitacaoPage: React.FC = () => {
   const { selectedCompany } = useCompany();
@@ -19,46 +76,6 @@ export const HabilitacaoPage: React.FC = () => {
   const storageKey = `balancete_indices_${companyId}`;
 
   const [abaAtiva, setAbaAtiva] = useState<'CHECKLIST' | 'INDICES_FINANCEIROS' | 'ATESTADOS'>('CHECKLIST');
-  const [certidoesReais, setCertidoesReais] = useState<any[]>([]);
-  const [docsReais, setDocsReais] = useState<any[]>([]);
-
-  useEffect(() => {
-    const empParam = companyId && companyId !== 'default' ? { empresa_id: companyId } : undefined;
-    Promise.all([
-      certidoesApi.listar(empParam).catch(() => null),
-      documentosApi.listar(empParam).catch(() => null),
-    ]).then(([resC, resD]) => {
-      const cList = resC?.data?.data || resC?.data?.items || resC?.data || [];
-      const dList = resD?.data?.data || resD?.data?.items || resD?.data || [];
-      setCertidoesReais(Array.isArray(cList) ? cList : []);
-      setDocsReais(Array.isArray(dList) ? dList : []);
-    });
-  }, [companyId]);
-
-  const checkDocStatus = (termos: string[]): { status: 'CONFORME' | 'ATENCAO'; obs: string } => {
-    const match = docsReais.find((d: any) => {
-      const txt = `${d.nome || ''} ${d.titulo || ''} ${d.tipo || ''} ${d.categoria || ''}`.toLowerCase();
-      return termos.some((t) => txt.includes(t));
-    });
-    if (match) return { status: 'CONFORME', obs: `Documento localizado no Cofre (${match.nome || match.titulo || 'arquivo anexado'}).` };
-    return { status: 'ATENCAO', obs: 'Documento ainda não anexado no Cofre de Documentos.' };
-  };
-
-  const checkCertStatus = (termos: string[], label: string): { status: 'CONFORME' | 'ATENCAO'; obs: string } => {
-    const match = certidoesReais.find((c: any) => {
-      const txt = `${c.tipo || ''} ${c.nome || ''} ${c.orgaoEmissor || ''}`.toLowerCase();
-      return termos.some((t) => txt.includes(t));
-    });
-    if (!match) return { status: 'ATENCAO', obs: `${label} ainda não sincronizada em Certidões.` };
-    const st = String(match.status || '').toUpperCase();
-    const venc = match.dataValidade || match.validade || match.expiresAt;
-    const vencida = st.includes('VENCID') || st.includes('IRREG') || (venc && new Date(venc).getTime() < Date.now());
-    if (vencida) return { status: 'ATENCAO', obs: `${label} vencida ou irregular — renove antes da disputa.` };
-    if (st.includes('VALID') || st.includes('EM_DIA') || st.includes('REGULAR')) {
-      return { status: 'CONFORME', obs: `${label} regular e válida no sistema.` };
-    }
-    return { status: 'ATENCAO', obs: `${label} aguardando validação de validade.` };
-  };
 
   // Calculadora de Índices Econômico-Financeiros (Art. 69 da Lei 14.133/21)
   // Iniciam estritamente como strings vazias ("") para novas empresas
@@ -67,6 +84,41 @@ export const HabilitacaoPage: React.FC = () => {
   const [passivoCirculante, setPassivoCirculante] = useState<string>('');
   const [passivoNaoCirculante, setPassivoNaoCirculante] = useState<string>('');
   const [ativoTotal, setAtivoTotal] = useState<string>('');
+  const [documentos, setDocumentos] = useState<DocumentoEvidencia[]>([]);
+  const [certidoes, setCertidoes] = useState<CertidaoEvidencia[]>([]);
+  const [carregandoEvidencias, setCarregandoEvidencias] = useState(true);
+  const [erroEvidencias, setErroEvidencias] = useState<string | null>(null);
+  const [recarregar, setRecarregar] = useState(0);
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      setCarregandoEvidencias(true);
+      setErroEvidencias(null);
+      const empresaId = selectedCompany?.id && selectedCompany.id !== 'default' ? selectedCompany.id : undefined;
+      try {
+        const [docsResp, certsResp] = await Promise.all([
+          documentosApi.listar(empresaId ? { empresa_id: empresaId } : undefined),
+          certidoesApi.listar(empresaId ? { empresa_id: empresaId } : undefined),
+        ]);
+        if (!ativo) return;
+        const docs = docsResp?.data?.data;
+        const certs = certsResp?.data?.data;
+        setDocumentos(Array.isArray(docs) ? docs : []);
+        setCertidoes(Array.isArray(certs) ? certs : []);
+      } catch {
+        if (!ativo) return;
+        setDocumentos([]);
+        setCertidoes([]);
+        setErroEvidencias('Não foi possível consultar o Cofre e as Certidões agora. Os itens aparecem como pendentes.');
+      } finally {
+        if (ativo) setCarregandoEvidencias(false);
+      }
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [selectedCompany?.id, recarregar]);
 
   // Busca do armazenamento os valores preenchidos anteriormente pela empresa logada
   useEffect(() => {
@@ -131,68 +183,230 @@ export const HabilitacaoPage: React.FC = () => {
   const liquidezCorrente = numPC > 0 ? numAC / numPC : 0;
   const solvenciaGeral = totalPassivo > 0 ? numAT / totalPassivo : 0;
 
-  // Itens da Matriz de Habilitação (Arts. 62 a 70)
-  const itensHabilitacao = [
-    {
-      pilar: 'Habilitação Jurídica (Art. 66)',
-      itens: [
-        { nome: 'Contrato Social Consolidado / Estatuto Social', ...checkDocStatus(['contrato social', 'estatuto', 'alteracao']) },
-        { nome: 'Procuração dos Representantes Legais / E-CNPJ', ...checkDocStatus(['procuracao', 'procuração', 'representante', 'e-cnpj']) },
-        { nome: 'Inscrição no Cadastro Nacional da Pessoa Jurídica (CNPJ)', status: selectedCompany?.cnpj ? 'CONFORME' : 'ATENCAO', obs: selectedCompany?.cnpj ? `CNPJ ativo cadastrado: ${selectedCompany.cnpj}` : 'Cadastre o CNPJ em Minha Empresa.' },
-      ],
-    },
-    {
-      pilar: 'Qualificação Técnica (Art. 67)',
-      itens: [
-        { nome: 'Atestados de Capacidade Técnica (Mínimo 50% do objeto)', ...checkDocStatus(['atestado', 'capacidade', 'acervo']) },
-        { nome: 'Registro ou Inscrição no Conselho Profissional (CREA/CRA/CRC)', ...checkDocStatus(['crea', 'cra', 'crc', 'conselho']) },
-        { nome: 'Declaração de Indicação de Equipe Técnica Especializada', ...checkDocStatus(['equipe', 'responsavel tecnico', 'responsável técnico']) },
-      ],
-    },
-    {
-      pilar: 'Regularidade Fiscal, Social e Trabalhista (Art. 68)',
-      itens: [
-        { nome: 'Certidão Negativa de Débitos Federais (Receita / PGFN)', ...checkCertStatus(['federal', 'pgfn', 'receita'], 'CND Federal/PGFN') },
-        { nome: 'Certificado de Regularidade do FGTS (CRF)', ...checkCertStatus(['fgts', 'crf', 'caixa'], 'CRF/FGTS') },
-        { nome: 'Certidão Negativa de Débitos Trabalhistas (CNDT - TST)', ...checkCertStatus(['trabalhista', 'cndt', 'tst'], 'CNDT') },
-        { nome: 'Certidões Negativas Estadual e Municipal (ICMS / ISS)', ...checkCertStatus(['estadual', 'municipal', 'sefaz', 'iss'], 'CND Estadual/Municipal') },
-      ],
-    },
-    {
-      pilar: 'Qualificação Econômico-Financeira (Art. 69)',
-      itens: [
-        {
-          nome: 'Balanço Patrimonial e DRE do Último Exercício Social',
-          status: hasValues ? 'CONFORME' : 'ATENCAO',
-          obs: hasValues
-            ? 'Dados contábeis informados e validados no demonstrativo.'
-            : 'Aguardando preenchimento do balanço patrimonial da empresa.',
-        },
-        {
-          nome: 'Índices de Liquidez (LG, LC, SG) Superiores a 1,0',
-          status: hasValues
-            ? (liquidezGeral >= 1.0 && liquidezCorrente >= 1.0 && solvenciaGeral >= 1.0 ? 'CONFORME' : 'ATENCAO')
-            : 'ATENCAO',
-          obs: hasValues
-            ? `LG: ${liquidezGeral.toFixed(2)} | LC: ${liquidezCorrente.toFixed(2)} | SG: ${solvenciaGeral.toFixed(2)}`
-            : 'Aguardando preenchimento dos dados do balanço patrimonial para cálculo dos índices.',
-        },
-        { nome: 'Certidão Negativa de Falência e Recuperação Judicial', ...checkDocStatus(['falencia', 'falência', 'recuperacao', 'distribuidor']) },
-      ],
-    },
-  ];
+  // Evidências reais: Cofre de Documentos + monitoramento de Certidões.
+  // Nenhum item é marcado como "conforme" sem documento/validade correspondente.
+  const encontrarDocumento = (termos: string[]) =>
+    documentos.find((doc) => {
+      const texto = normalizarTexto(`${doc.tipo || ''} ${doc.nome || ''}`);
+      return termos.some((termo) => texto.includes(normalizarTexto(termo)));
+    });
 
-  const getStatusBadge = (st: string) => {
-    if (st === 'CONFORME') {
+  const statusDocumento = (doc?: DocumentoEvidencia): StatusEvidencia => {
+    if (!doc) return 'PENDENTE';
+    return doc.status === 'vencido' ? 'ATENCAO' : 'ENVIADO';
+  };
+
+  const observacaoDocumento = (doc: DocumentoEvidencia | undefined, instrucao: string): string => {
+    if (!doc) return instrucao;
+    if (doc.status === 'vencido') return 'Documento localizado no Cofre, mas consta como vencido.';
+    return 'Documento localizado no Cofre. A plataforma verifica a presença, não o conteúdo jurídico.';
+  };
+
+  const certidaoPorId = (id: string) => certidoes.find((c) => c.id === id);
+
+  const cndFederal = certidaoPorId('cnd-federal');
+  const crfFgts = certidaoPorId('crf-fgts');
+  const cndt = certidaoPorId('cndt-tst');
+  const cndEstadual = certidaoPorId('cnd-estadual');
+  const cndMunicipal = certidaoPorId('cnd-municipal');
+  const cndFalencia = certidaoPorId('cnd-falencia');
+
+  const statusFiscalEstadualMunicipal: StatusEvidencia = (() => {
+    const statuses = [statusCertidao(cndEstadual), statusCertidao(cndMunicipal)];
+    if (statuses.every((s) => s === 'REGULAR')) return 'REGULAR';
+    if (statuses.some((s) => s === 'ATENCAO' || s === 'REGULAR')) return 'ATENCAO';
+    return 'PENDENTE';
+  })();
+
+  const documentoContrato = encontrarDocumento(['contrato social', 'estatuto social', 'alteracao contratual']);
+  const documentoProcuracao = encontrarDocumento(['procuracao', 'e-cnpj', 'certificado digital']);
+  const documentoAtestado = encontrarDocumento(['atestado de capacidade', 'atestado tecnico']);
+  const documentoConselho = encontrarDocumento(['conselho', 'crea', 'cra', 'crc', 'registro profissional']);
+  const documentoEquipe = encontrarDocumento(['equipe tecnica', 'responsavel tecnico', 'anuencia']);
+  const documentoBalanco = encontrarDocumento(['balanco patrimonial', 'dre', 'demonstracoes contabeis']);
+
+  // Itens da Matriz de Habilitação (Arts. 62 a 70)
+  const itensHabilitacao = useMemo<BlocoHabilitacao[]>(
+    () => [
+      {
+        pilar: 'Habilitação Jurídica (Art. 66)',
+        itens: [
+          {
+            nome: 'Contrato Social Consolidado / Estatuto Social',
+            status: statusDocumento(documentoContrato),
+            obs: observacaoDocumento(documentoContrato, 'Envie o contrato social no Cofre de Documentos.'),
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+          {
+            nome: 'Procuração dos Representantes Legais / E-CNPJ',
+            status: statusDocumento(documentoProcuracao),
+            obs: observacaoDocumento(documentoProcuracao, 'Envie a procuração ou o certificado digital no Cofre.'),
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+          {
+            nome: 'Inscrição no Cadastro Nacional da Pessoa Jurídica (CNPJ)',
+            status: selectedCompany?.cnpj ? 'CADASTRADO' : 'PENDENTE',
+            obs: selectedCompany?.cnpj
+              ? 'CNPJ cadastrado na plataforma. A situação cadastral não é validada nesta tela.'
+              : 'Cadastre o CNPJ da empresa em Minha Empresa.',
+            rota: FORNECEDOR_ROUTES.empresa,
+          },
+        ],
+      },
+      {
+        pilar: 'Qualificação Técnica (Art. 67)',
+        itens: [
+          {
+            nome: 'Atestados de Capacidade Técnica (Mínimo 50% do objeto)',
+            status: statusDocumento(documentoAtestado),
+            obs: observacaoDocumento(
+              documentoAtestado,
+              'Envie os atestados no Cofre. A plataforma não calcula o percentual exigido pelo edital.',
+            ),
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+          {
+            nome: 'Registro ou Inscrição no Conselho Profissional (CREA/CRA/CRC)',
+            status: statusDocumento(documentoConselho),
+            obs: observacaoDocumento(documentoConselho, 'Envie o registro profissional no Cofre.'),
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+          {
+            nome: 'Declaração de Indicação de Equipe Técnica Especializada',
+            status: statusDocumento(documentoEquipe),
+            obs: observacaoDocumento(documentoEquipe, 'Envie a declaração e as anuências dos responsáveis técnicos.'),
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+        ],
+      },
+      {
+        pilar: 'Regularidade Fiscal, Social e Trabalhista (Art. 68)',
+        itens: [
+          {
+            nome: 'Certidão Negativa de Débitos Federais (Receita / PGFN)',
+            status: statusCertidao(cndFederal),
+            obs: observacaoCertidao(cndFederal),
+            rota: FORNECEDOR_ROUTES.certidoes,
+          },
+          {
+            nome: 'Certificado de Regularidade do FGTS (CRF)',
+            status: statusCertidao(crfFgts),
+            obs: observacaoCertidao(crfFgts),
+            rota: FORNECEDOR_ROUTES.certidoes,
+          },
+          {
+            nome: 'Certidão Negativa de Débitos Trabalhistas (CNDT - TST)',
+            status: statusCertidao(cndt),
+            obs: observacaoCertidao(cndt),
+            rota: FORNECEDOR_ROUTES.certidoes,
+          },
+          {
+            nome: 'Certidões Negativas Estadual e Municipal (ICMS / ISS)',
+            status: statusFiscalEstadualMunicipal,
+            obs: `Estadual: ${observacaoCertidao(cndEstadual)} Municipal: ${observacaoCertidao(cndMunicipal)}`,
+            rota: FORNECEDOR_ROUTES.certidoes,
+          },
+        ],
+      },
+      {
+        pilar: 'Qualificação Econômico-Financeira (Art. 69)',
+        itens: [
+          {
+            nome: 'Balanço Patrimonial e DRE do Último Exercício Social',
+            status: documentoBalanco ? 'ENVIADO' : hasValues ? 'ATENCAO' : 'PENDENTE',
+            obs: documentoBalanco
+              ? observacaoDocumento(documentoBalanco, '')
+              : hasValues
+              ? 'Índices informados manualmente. Envie o balanço assinado para gerar evidência documental.'
+              : 'Aguardando envio do balanço ou preenchimento dos dados contábeis.',
+            rota: FORNECEDOR_ROUTES.cofre,
+          },
+          {
+            nome: 'Índices de Liquidez (LG, LC, SG) Superiores a 1,0',
+            status: hasValues
+              ? liquidezGeral >= 1.0 && liquidezCorrente >= 1.0 && solvenciaGeral >= 1.0
+                ? 'CADASTRADO'
+                : 'ATENCAO'
+              : 'PENDENTE',
+            obs: hasValues
+              ? `Calculado com dados informados pelo usuário: LG ${liquidezGeral.toFixed(2)} | LC ${liquidezCorrente.toFixed(2)} | SG ${solvenciaGeral.toFixed(2)}.`
+              : 'Preencha o balanço na aba de índices para calcular.',
+            rota: FORNECEDOR_ROUTES.habilitacao,
+          },
+          {
+            nome: 'Certidão Negativa de Falência e Recuperação Judicial',
+            status: statusCertidao(cndFalencia),
+            obs: observacaoCertidao(cndFalencia),
+            rota: FORNECEDOR_ROUTES.certidoes,
+          },
+        ],
+      },
+    ],
+    [
+      documentoContrato,
+      documentoProcuracao,
+      documentoAtestado,
+      documentoConselho,
+      documentoEquipe,
+      documentoBalanco,
+      selectedCompany?.cnpj,
+      cndFederal,
+      crfFgts,
+      cndt,
+      cndEstadual,
+      cndMunicipal,
+      cndFalencia,
+      statusFiscalEstadualMunicipal,
+      hasValues,
+      liquidezGeral,
+      liquidezCorrente,
+      solvenciaGeral,
+    ],
+  );
+
+  const totalItens = itensHabilitacao.reduce((acc, bloco) => acc + bloco.itens.length, 0);
+  const itensComEvidencia = itensHabilitacao.reduce(
+    (acc, bloco) =>
+      acc +
+      bloco.itens.filter((item) =>
+        ['REGULAR', 'ENVIADO', 'CADASTRADO'].includes(item.status),
+      ).length,
+    0,
+  );
+  const percentualEvidencias = totalItens > 0 ? Math.round((itensComEvidencia / totalItens) * 100) : 0;
+
+  const getStatusBadge = (st: StatusEvidencia) => {
+    if (st === 'REGULAR') {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-          <CheckCircle2 size={12} /> Conforme
+          <CheckCircle2 size={12} /> Regular
+        </span>
+      );
+    }
+    if (st === 'ENVIADO') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+          <FileCheck size={12} /> Enviado
+        </span>
+      );
+    }
+    if (st === 'CADASTRADO') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+          <Info size={12} /> Cadastrado
+        </span>
+      );
+    }
+    if (st === 'ATENCAO') {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+          <AlertTriangle size={12} /> Atenção
         </span>
       );
     }
     return (
-      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-        <AlertTriangle size={12} /> Atenção
+      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-red-50 text-red-700 border border-red-200 flex items-center gap-1">
+        <XCircle size={12} /> Pendente
       </span>
     );
   };
@@ -219,6 +433,15 @@ export const HabilitacaoPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setRecarregar((v) => v + 1)}
+              disabled={carregandoEvidencias}
+              className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-bold text-xs flex items-center gap-2 shadow-sm transition-all disabled:opacity-60"
+            >
+              <RefreshCw size={14} className={carregandoEvidencias ? 'animate-spin' : ''} />
+              Atualizar evidências
+            </button>
             <Link
               to={FORNECEDOR_ROUTES.cofre}
               className="px-4 py-2.5 rounded-xl bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all"
@@ -256,28 +479,63 @@ export const HabilitacaoPage: React.FC = () => {
         {/* CONTEÚDO DAS ABAS */}
         {abaAtiva === 'CHECKLIST' && (
           <div className="space-y-6">
-            {itensHabilitacao.map((bloco, idx) => (
-              <div key={idx} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-base font-black text-slate-900">{bloco.pilar}</h3>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                    Aderência 100%
-                  </span>
-                </div>
-
-                <div className="divide-y divide-slate-100">
-                  {bloco.itens.map((it, itemIdx) => (
-                    <div key={itemIdx} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{it.nome}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{it.obs}</p>
-                      </div>
-                      <div className="shrink-0">{getStatusBadge(it.status)}</div>
-                    </div>
-                  ))}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Info size={18} className="text-[#0070C0] mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-black text-[#081C3A]">
+                    {carregandoEvidencias
+                      ? 'Consultando Cofre e Certidões...'
+                      : `${itensComEvidencia} de ${totalItens} itens com evidência (${percentualEvidencias}%)`}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    A plataforma verifica presença de documentos e validade das certidões. Ela não valida o conteúdo jurídico nem garante conformidade com o edital. Confira sempre o instrumento convocatório.
+                  </p>
+                  {erroEvidencias && (
+                    <p className="text-xs font-semibold text-amber-700 mt-1">{erroEvidencias}</p>
+                  )}
                 </div>
               </div>
-            ))}
+              {carregandoEvidencias && <Loader2 size={18} className="animate-spin text-[#0070C0]" />}
+            </div>
+
+            {itensHabilitacao.map((bloco, idx) => {
+              const comEvidencia = bloco.itens.filter((item) =>
+                ['REGULAR', 'ENVIADO', 'CADASTRADO'].includes(item.status),
+              ).length;
+              return (
+                <div key={idx} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 className="text-base font-black text-slate-900">{bloco.pilar}</h3>
+                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                      Evidências {comEvidencia}/{bloco.itens.length}
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    {bloco.itens.map((it, itemIdx) => (
+                      <div key={itemIdx} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{it.nome}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{it.obs}</p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          {getStatusBadge(it.status)}
+                          {it.status !== 'REGULAR' && it.status !== 'ENVIADO' && (
+                            <Link
+                              to={it.rota}
+                              className="text-[11px] font-bold text-[#0070C0] hover:underline"
+                            >
+                              Resolver
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
