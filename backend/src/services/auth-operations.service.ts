@@ -248,7 +248,17 @@ export class AuthOperationsService {
 
     if (cleanCnpj.length === 14) {
       try {
-        const oficial = await consultarCnpjOficial(cleanCnpj);
+        const jaTemEmpresa = Boolean((validatedData.razao_social || validatedData.razaoSocial) && (validatedData.cnae_principal || validatedData.cnaePrincipal) && validatedData.uf);
+        const oficial: any = jaTemEmpresa
+          ? {
+              status: 'ATIVA',
+              razao_social: String(validatedData.razao_social || validatedData.razaoSocial || '').trim(),
+              nome_fantasia: validatedData.nome_fantasia || validatedData.nomeFantasia || null,
+              municipio: validatedData.municipio || null,
+              uf: validatedData.uf,
+              cnae_principal: validatedData.cnae_principal || validatedData.cnaePrincipal,
+            }
+          : await consultarCnpjOficial(cleanCnpj);
         const oficialInapto = /INAPTA|BAIXADA|NULA|SUSPENSA/i.test(String(oficial.status || ''));
 
         if (oficialInapto) {
