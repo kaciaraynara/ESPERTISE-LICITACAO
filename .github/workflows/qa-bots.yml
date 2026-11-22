@@ -1,0 +1,32 @@
+name: QA Bots Multi-CNAE
+
+on:
+  workflow_dispatch:
+    inputs:
+      total_bots:
+        description: 'Quantidade de empresas persona'
+        required: false
+        default: '10'
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  run-bots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Executar Bots Persona Multi-CNAE
+        env:
+          TOTAL_BOTS: ${{ github.event.inputs.total_bots || '10' }}
+          CONCURRENCY: '5'
+          API_URL: 'https://www.expertiselicitatoria.com.br/api/v1'
+        run: node ./scripts/bots-persona-qa.mjs
+      - name: Publicar Relatorio QA
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relatorio-bots-qa
+          path: relatorio-bots-qa.md

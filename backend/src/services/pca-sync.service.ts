@@ -24,10 +24,14 @@ function montarLinkPca(pncpId: string, cnpj: string, ano: number): string {
   return `https://pncp.gov.br/app/pca?orgao=${cnpj}&ano=${ano}`;
 }
 
+let pcaSyncInFlight: Promise<{ fetched: number; persisted: number }> | null = null;
+
 export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPerDay?: number } = {}): Promise<{
   fetched: number;
   persisted: number;
 }> {
+  if (pcaSyncInFlight) return pcaSyncInFlight;
+  pcaSyncInFlight = (async () => {
   const daysBack = Math.max(1, Math.min(10, options.daysBack ?? 3));
   const maxPages = Math.max(1, Math.min(20, options.maxPagesPerDay ?? 4));
   let fetched = 0;
@@ -190,6 +194,8 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
   }
 
   return { fetched, persisted };
+  })().finally(() => { pcaSyncInFlight = null; });
+  return pcaSyncInFlight;
 }
 
 export async function queryPcaFromDb(filtros: {
