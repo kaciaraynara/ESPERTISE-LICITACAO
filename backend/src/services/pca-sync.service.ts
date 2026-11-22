@@ -135,8 +135,9 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
     for (let pagina = 1; pagina <= maxPages; pagina++) {
       try {
         const resp = await axios.get(`${PNCP_BASE}/pca/atualizacao`, {
-          params: { dataInicio: ymd, dataFim: ymd, pagina, tamanhoPagina: 500 },
+          params: { dataInicio: ymd, dataFim: ymd, pagina, tamanhoPagina: 20 },
           timeout: 30000,
+          headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
           validateStatus: (s) => s === 200 || s === 204,
         });
         if (resp.status === 204 || !Array.isArray(resp.data?.data) || resp.data.data.length === 0) break;
@@ -156,8 +157,9 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
     for (const ymd of datasAncora2026) {
       try {
         const resp = await axios.get(`${PNCP_BASE}/pca/atualizacao`, {
-          params: { dataInicio: ymd, dataFim: ymd, pagina: 1, tamanhoPagina: 50 },
+          params: { dataInicio: ymd, dataFim: ymd, pagina: 1, tamanhoPagina: 20 },
           timeout: 25000,
+          headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
           validateStatus: (s) => s === 200 || s === 204,
         });
         if (resp.status === 200 && Array.isArray(resp.data?.data) && resp.data.data.length > 0) {
@@ -173,8 +175,9 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
     // Também consulta catálogo de PCA 2026 por classificação (cat=2 tem 31.482+ registros)
     try {
       const respCat = await axios.get(`${PNCP_BASE}/pca/`, {
-        params: { anoPca: 2026, codigoClassificacaoSuperior: 2, pagina: 1, tamanhoPagina: 50 },
+        params: { anoPca: 2026, codigoClassificacaoSuperior: 2, pagina: 1, tamanhoPagina: 20 },
         timeout: 25000,
+          headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
         validateStatus: (s) => s === 200 || s === 204,
       });
       if (respCat.status === 200 && Array.isArray(respCat.data?.data) && respCat.data.data.length > 0) {
