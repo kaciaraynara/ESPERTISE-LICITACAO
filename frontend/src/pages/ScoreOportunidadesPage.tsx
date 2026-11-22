@@ -46,7 +46,7 @@ function avaliarViabilidade(edital: any, empresa: any): {
   const motivos: string[] = [];
   const objeto = String(edital.objeto || edital.objetoCompra || '').toLowerCase();
   const ufEmpresa = String(empresa?.uf || '').toUpperCase();
-  const ufEdital = String(edital.uf || edital.unidadeOrgao?.ufSigla || '').toUpperCase();
+  const ufEdital = String(edital.uf || edital.unidadeÓrgão?.ufSigla || '').toUpperCase();
 
   if (ufEmpresa && ufEdital && ufEmpresa === ufEdital) {
     pontos += 2;
@@ -80,7 +80,7 @@ function avaliarViabilidade(edital: any, empresa: any): {
     const dias = (new Date(dataAbertura).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
     if (dias >= 3) {
       pontos += 1;
-      motivos.push('Prazo habil para analise e envio de proposta');
+      motivos.push('Prazo habil para análise e envio de proposta');
     } else if (dias >= 0) {
       motivos.push('Prazo curto: priorize conferencia imediata dos documentos');
     }
@@ -90,14 +90,14 @@ function avaliarViabilidade(edital: any, empresa: any): {
     return {
       faixa: 'ALTA',
       rotulo: 'Alta Viabilidade · Recomendado participar',
-      resumo: 'Excelente aderencia ao perfil e atuacao da empresa.',
+      resumo: 'Excelente aderência ao perfil e atuação da empresa.',
       motivos,
     };
   }
   if (pontos >= 2) {
     return {
       faixa: 'MODERADA',
-      rotulo: 'Viabilidade Moderada · Avaliar exigencias',
+      rotulo: 'Viabilidade Moderada · Avaliar exigências',
       resumo: 'Compativel parcialmente; vale revisar o edital completo com a Luli.',
       motivos: motivos.length ? motivos : ['Requer leitura do edital para confirmar especificacoes'],
     };
@@ -105,7 +105,7 @@ function avaliarViabilidade(edital: any, empresa: any): {
   return {
     faixa: 'BAIXA',
     rotulo: 'Baixa Viabilidade · Fora do perfil principal',
-    resumo: 'Baixa aderencia ao CNAE ou estado da empresa.',
+    resumo: 'Baixa aderência ao CNAE ou estado da empresa.',
     motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
   };
 }
@@ -140,19 +140,19 @@ export const ScoreOportunidadesPage: React.FC = () => {
 
   const analisados = useMemo(() => {
     return editais
-      .map((ed) => ({ ...ed, _analise: avaliarViabilidade(ed, selectedCompany) }))
+      .map((ed) => ({ ...ed, _análise: avaliarViabilidade(ed, selectedCompany) }))
       .sort((a, b) => {
         const peso: Record<string, number> = { ALTA: 3, MODERADA: 2, BAIXA: 1 };
-        return peso[b._analise.faixa] - peso[a._analise.faixa];
+        return peso[b._análise.faixa] - peso[a._análise.faixa];
       });
   }, [editais, selectedCompany]);
 
-  const altas = analisados.filter((e) => e._analise.faixa === 'ALTA').length;
-  const moderadas = analisados.filter((e) => e._analise.faixa === 'MODERADA').length;
-  const baixas = analisados.filter((e) => e._analise.faixa === 'BAIXA').length;
+  const altas = analisados.filter((e) => e._análise.faixa === 'ALTA').length;
+  const moderadas = analisados.filter((e) => e._análise.faixa === 'MODERADA').length;
+  const baixas = analisados.filter((e) => e._análise.faixa === 'BAIXA').length;
 
   const filtrados =
-    filtro === 'TODOS' ? analisados : analisados.filter((e) => e._analise.faixa === filtro);
+    filtro === 'TODOS' ? analisados : analisados.filter((e) => e._análise.faixa === filtro);
 
   const dadosGrafico = [
     { nome: 'Recomendados', qtd: altas, cor: '#16A34A' },
@@ -162,7 +162,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
 
   const mapaUf: Record<string, number> = {};
   analisados.forEach((e) => {
-    const u = String(e.uf || e.unidadeOrgao?.ufSigla || 'BR').toUpperCase();
+    const u = String(e.uf || e.unidadeÓrgão?.ufSigla || 'BR').toUpperCase();
     mapaUf[u] = (mapaUf[u] || 0) + 1;
   });
   const dadosUf = Object.entries(mapaUf)
@@ -186,9 +186,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
             <TrendingUp className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-[#081C3A]">Analise de Viabilidade</h1>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">Análise de Viabilidade</h1>
             <p className="text-xs text-slate-500">
-              Veja com clareza em quais licitacoes vale mais a pena participar de acordo com sua empresa
+              Veja com clareza em quais licitações vale mais a pena participar de acordo com sua empresa
             </p>
           </div>
         </div>
@@ -249,7 +249,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-            <AlertTriangle className="h-4 w-4" /> Avaliar Exigencias
+            <AlertTriangle className="h-4 w-4" /> Avaliar Exigências
           </div>
           <div className="mt-2 text-2xl font-extrabold text-amber-700">{moderadas}</div>
         </div>
@@ -329,7 +329,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {filtrados.slice(0, 40).map((ed, idx) => {
-            const { faixa, rotulo, resumo, motivos } = ed._analise;
+            const { faixa, rotulo, resumo, motivos } = ed._análise;
             const badge =
               faixa === 'ALTA'
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -347,11 +347,11 @@ export const ScoreOportunidadesPage: React.FC = () => {
                         {rotulo}
                       </span>
                       <span className="rounded-full bg-slate-100 px-3 py-0.5 text-xs font-semibold text-slate-700">
-                        {ed.modalidadeNome || ed.modalidade || 'Pregao'}
+                        {ed.modalidadeNome || ed.modalidade || 'Pregão'}
                       </span>
                     </div>
                     <h3 className="text-sm font-extrabold text-[#081C3A]">
-                      {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Orgao Publico'}
+                      {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Órgão Publico'}
                     </h3>
                     <p className="text-xs font-medium text-slate-600">{resumo}</p>
                     <p className="text-xs leading-relaxed text-slate-700">

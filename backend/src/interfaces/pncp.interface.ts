@@ -1,6 +1,7 @@
 export interface FiltrosBusca {
   palavraChave?: string;
   palavrasChave?: string;
+  palavras?: string[] | string;
   busca?: string;
   search?: string;
   q?: string;
@@ -8,6 +9,7 @@ export interface FiltrosBusca {
   cnpj?: string;
   cnae?: string;
   uf?: string;
+  ufs?: string[];
   orgao?: string;
   municipio?: string;
   dataInicial?: string;
@@ -22,6 +24,9 @@ export interface FiltrosBusca {
   valorMax?: number;
   srp?: boolean | string;
   baixaProcura?: boolean | string;
+  tipoObjeto?: string;
+  incluirSemClassificacao?: boolean | string;
+  ordenarPor?: 'recentes' | 'encerramento' | 'maior_valor' | 'menor_valor' | 'relevancia';
   endpoint?: 'publicacao' | 'proposta' | 'atualizacao';
   tempoReal?: boolean | string;
   dataPublicacao?: string;
@@ -32,6 +37,17 @@ export interface FiltrosBusca {
   incluirEncerrados?: boolean;
   /** Uso interno: consulta rápida de 1 página para o Radar ao vivo. */
   fast?: boolean;
+}
+
+export interface RadarFacets {
+  todas: number;
+  bens: number;
+  servicos: number;
+  obras: number;
+  semClassificacao: number;
+  novas24h: number;
+  encerrando48h: number;
+  encerrando5Dias: number;
 }
 
 export interface LicitacaoPNCP {
@@ -121,6 +137,7 @@ export interface LicitacaoRadarPNCP {
   numeroEdital?: string | null;
   srp?: boolean;
   fonte: string;
+  tipoObjeto?: string | null;
 }
 
 export interface ResultadoConsultaPNCP {

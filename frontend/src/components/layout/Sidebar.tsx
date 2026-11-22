@@ -39,7 +39,7 @@ import { getUserDisplayName } from '@/utils';
 
 export type CommercialPlanTier = 'BASICO' | 'AVANCADO' | 'MASTER';
 
-export const TRIAL_DURATION_DAYS = 15;
+export const TRIAL_DURATION_DAYS = 10;
 export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
@@ -114,7 +114,7 @@ export function getTrialDaysLeft(user?: User | null): number {
   if (!targetUser) return 0;
 
   if (typeof targetUser.daysLeftTrial === 'number' && targetUser.daysLeftTrial > 0) {
-    return targetUser.daysLeftTrial;
+    return Math.min(TRIAL_DURATION_DAYS, targetUser.daysLeftTrial);
   }
 
   const now = Date.now();
@@ -122,7 +122,7 @@ export function getTrialDaysLeft(user?: User | null): number {
   if (targetUser.trialEndsAt) {
     const trialEndsMs = new Date(targetUser.trialEndsAt).getTime();
     if (!Number.isNaN(trialEndsMs) && trialEndsMs > now) {
-      return Math.max(1, Math.ceil((trialEndsMs - now) / (1000 * 60 * 60 * 24)));
+      return Math.min(TRIAL_DURATION_DAYS, Math.max(1, Math.ceil((trialEndsMs - now) / (1000 * 60 * 60 * 24))));
     }
   }
 
@@ -135,7 +135,7 @@ export function getTrialDaysLeft(user?: User | null): number {
     if (!Number.isNaN(createdAtMs)) {
       const expiresAtMs = createdAtMs + TRIAL_DURATION_MS;
       if (expiresAtMs > now) {
-        return Math.max(1, Math.ceil((expiresAtMs - now) / (1000 * 60 * 60 * 24)));
+        return Math.min(TRIAL_DURATION_DAYS, Math.max(1, Math.ceil((expiresAtMs - now) / (1000 * 60 * 60 * 24))));
       }
       return 0;
     }

@@ -26,6 +26,16 @@ export class EmpresasService {
   }
 
   public mapCompany(company: any, qsa?: any[]) {
+    const enderecoParts = [
+      company.logradouro,
+      company.bairro,
+      company.municipio,
+      company.uf,
+      company.cep,
+    ]
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter(Boolean);
+
     return {
       id: company.id,
       user_id: company.userId,
@@ -37,12 +47,25 @@ export class EmpresasService {
       nomeFantasia: company.nomeFantasia,
       cnae_principal: company.cnaePrincipal,
       cnaePrincipal: company.cnaePrincipal,
+      cnaes_secundarios: company.nicho || [],
+      cnaesSecundarios: company.nicho || [],
+      cep: company.cep ?? null,
+      logradouro: company.logradouro ?? null,
+      bairro: company.bairro ?? null,
+      endereco: enderecoParts.length > 0 ? enderecoParts.join(', ') : null,
+      telefone: company.telefone ?? null,
+      email: company.email ?? null,
+      porte: company.porte ?? null,
       municipio: company.municipio,
       uf: company.uf,
       status: company.status,
       nicho: company.nicho,
       palavras_chave: company.palavrasChave,
       palavrasChave: company.palavrasChave,
+      radar_tipos_objeto: Array.isArray(company.radarTiposObjeto) ? company.radarTiposObjeto : [],
+      radarTiposObjeto: Array.isArray(company.radarTiposObjeto) ? company.radarTiposObjeto : [],
+      radar_incluir_sem_classificacao: company.radarIncluirSemClassificacao ?? true,
+      radarIncluirSemClassificacao: company.radarIncluirSemClassificacao ?? true,
       valor_min: company.valorMin ? Number(company.valorMin) : null,
       valor_max: company.valorMax ? Number(company.valorMax) : null,
       regioes: company.regioes,
@@ -115,13 +138,18 @@ export class EmpresasService {
     const manualFantasia = String(
       body.nome_fantasia ?? body.nomeFantasia ?? manualRazao ?? ''
     ).trim();
+    const manualCnae = String(body.cnae_principal ?? body.cnaePrincipal ?? '').trim();
+    const manualMunicipio = String(body.municipio ?? body.cidade ?? '').trim();
+    const manualUf = body.uf ? String(body.uf).trim().slice(0, 2).toUpperCase() : '';
+    const manualStatus = body.status ? String(body.status).trim() : '';
+    const manualPorte = body.porte ? String(body.porte).trim() : '';
 
     const official = await this.consultarEmpresaOficial(cleanCnpj, {
       razao_social: manualRazao,
       nome_fantasia: manualFantasia,
-      cnae_principal: body.cnae_principal ? String(body.cnae_principal) : undefined,
-      municipio: body.municipio ? String(body.municipio) : undefined,
-      uf: body.uf ? String(body.uf).trim().slice(0, 2).toUpperCase() : undefined,
+      cnae_principal: manualCnae || undefined,
+      municipio: manualMunicipio || undefined,
+      uf: manualUf || undefined,
     });
     const cnpj = cleanCnpj;
 
@@ -143,15 +171,19 @@ export class EmpresasService {
     });
     await planGuardService.assertCanCreateCompany(userId, currentCompanyCount);
 
-    const nichosManuais = this.stringArray(body.nicho);
+    const nichosManuais = this.stringArray(body.nicho ?? body.cnaesSecundarios ?? body.cnaes_secundarios);
     const nichosOficiais = official.cnaes_secundarios || [];
-    const nichosFinais = Array.from(new Set([...nichosManuais, ...nichosOficiais]));
+    const nichosFinais = nichosManuais.length > 0
+      ? Array.from(new Set([...nichosManuais, ...nichosOficiais]))
+      : nichosOficiais;
 
     const regioesManuais = this.stringArray(body.regioes);
-    const ufOficial = official.uf ? official.uf.slice(0, 2).toUpperCase() : null;
-    const regioesFinais = ufOficial && !regioesManuais.includes(ufOficial)
-      ? [...regioesManuais, ufOficial]
+    const ufFinal = (manualUf || official.uf || '').slice(0, 2).toUpperCase() || null;
+    const regioesFinais = ufFinal && !regioesManuais.includes(ufFinal)
+      ? [...regioesManuais, ufFinal]
       : regioesManuais;
+    const razaoFinal = manualRazao || official.razao_social;
+    const fantasiaFinal = manualFantasia || official.nome_fantasia;
 
     const row = await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
@@ -159,14 +191,25 @@ export class EmpresasService {
           tenantId,
           userId,
           cnpj,
-          razaoSocial: official.razao_social,
-          nomeFantasia: official.nome_fantasia,
-          cnaePrincipal: official.cnae_principal,
-          municipio: official.municipio,
-          uf: ufOficial,
-          status: official.status || 'ATIVO',
+          razaoSocial: razaoFinal,
+          nomeFantasia: fantasiaFinal,
+          cnaePrincipal: manualCnae || official.cnae_principal,
+          municipio: manualMunicipio || official.municipio,
+          uf: ufFinal,
+          cep: this.optionalString(body.cep),
+          logradouro: this.optionalString(body.logradouro),
+          bairro: this.optionalString(body.bairro),
+          telefone: this.optionalString(body.telefone),
+          email: this.optionalString(body.email),
+          porte: manualPorte || null,
+          status: manualStatus || official.status || 'ATIVO',
           nicho: nichosFinais,
-          palavrasChave: this.stringArray(body.palavras_chave),
+          palavrasChave: this.stringArray(body.palavras_chave ?? body.palavrasChave),
+          radarTiposObjeto: this.stringArray(body.radar_tipos_objeto ?? body.radarTiposObjeto),
+          radarIncluirSemClassificacao:
+            body.radar_incluir_sem_classificacao === undefined && body.radarIncluirSemClassificacao === undefined
+              ? true
+              : Boolean(body.radar_incluir_sem_classificacao ?? body.radarIncluirSemClassificacao),
           valorMin: this.numberOrNull(body.valor_min),
           valorMax: this.numberOrNull(body.valor_max),
           regioes: regioesFinais,
@@ -180,7 +223,7 @@ export class EmpresasService {
           userId,
           tipo: 'empresa_configurada',
           titulo: 'Empresa configurada com sucesso',
-          mensagem: `${official.razao_social} foi vinculada à conta.`,
+          mensagem: `${razaoFinal} foi vinculada à conta.`,
           link: '/fornecedor/dashboard',
           status: 'enviada',
           enviadaEm: new Date(),
@@ -205,19 +248,16 @@ export class EmpresasService {
     }
 
     const atual = this.mapCompany(atualRow);
-    const requestedCnpj = String(body.cnpj ?? atual.cnpj).toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const official = !requestedCnpj || requestedCnpj === atualRow.cnpj
-      ? {
-          cnpj: atualRow.cnpj,
-          razao_social: atualRow.razaoSocial,
-          nome_fantasia: atualRow.nomeFantasia,
-          cnae_principal: atualRow.cnaePrincipal,
-          municipio: atualRow.municipio,
-          uf: atualRow.uf,
-          status: atualRow.status,
-        }
-      : await this.consultarEmpresaOficial(requestedCnpj);
-    const cnpj = official.cnpj;
+    const hasCnpjInput = body.cnpj !== undefined && String(body.cnpj ?? '').trim() !== '';
+    const requestedCnpj = hasCnpjInput
+      ? String(body.cnpj).toUpperCase().replace(/[^A-Z0-9]/g, '')
+      : atualRow.cnpj;
+    const cnpjChanged = Boolean(requestedCnpj && requestedCnpj !== atualRow.cnpj);
+
+    const official = cnpjChanged
+      ? await this.consultarEmpresaOficial(requestedCnpj)
+      : null;
+    const cnpj = official ? official.cnpj : (requestedCnpj || atualRow.cnpj);
 
     const conflict = await prisma.company.findFirst({
       where: {
@@ -235,20 +275,61 @@ export class EmpresasService {
       );
     }
 
+    const rawRazao = body.razaoSocial ?? body.razao_social ?? body.razoesocial;
+    const rawFantasia = body.nomeFantasia ?? body.nome_fantasia;
+    const rawCnae = body.cnaePrincipal ?? body.cnae_principal;
+    const rawMunicipio = body.municipio ?? body.cidade;
+    const rawUf = body.uf;
+    const rawNicho = body.nicho ?? body.cnaesSecundarios ?? body.cnaes_secundarios;
+    const rawPalavras = body.palavrasChave ?? body.palavras_chave;
+
+    const nextRazao = rawRazao !== undefined && String(rawRazao ?? '').trim()
+      ? String(rawRazao).trim()
+      : (official?.razao_social ?? atualRow.razaoSocial);
+    const nextFantasia = rawFantasia !== undefined
+      ? (String(rawFantasia ?? '').trim() || null)
+      : (official?.nome_fantasia ?? atualRow.nomeFantasia);
+    const nextCnae = rawCnae !== undefined
+      ? (String(rawCnae ?? '').trim() || null)
+      : (official?.cnae_principal ?? atualRow.cnaePrincipal);
+    const nextMunicipio = rawMunicipio !== undefined
+      ? (String(rawMunicipio ?? '').trim() || null)
+      : (official?.municipio ?? atualRow.municipio);
+    const nextUf = rawUf !== undefined
+      ? (String(rawUf ?? '').trim().slice(0, 2).toUpperCase() || null)
+      : (official?.uf ?? atualRow.uf);
+    const nextStatus = body.status !== undefined
+      ? (String(body.status ?? '').trim() || null)
+      : (official?.status ?? atualRow.status);
+
     const row = await prisma.company.update({
       where: { id },
       data: {
         cnpj,
-        razaoSocial: official.razao_social,
-        nomeFantasia: official.nome_fantasia,
-        cnaePrincipal: official.cnae_principal,
-        municipio: official.municipio,
-        uf: official.uf,
-        status: official.status,
-        nicho: body.nicho === undefined ? atual.nicho : this.stringArray(body.nicho),
-        palavrasChave: body.palavras_chave === undefined
+        razaoSocial: nextRazao,
+        nomeFantasia: nextFantasia,
+        cnaePrincipal: nextCnae,
+        municipio: nextMunicipio,
+        uf: nextUf,
+        cep: body.cep === undefined ? atualRow.cep : this.optionalString(body.cep),
+        logradouro: body.logradouro === undefined ? atualRow.logradouro : this.optionalString(body.logradouro),
+        bairro: body.bairro === undefined ? atualRow.bairro : this.optionalString(body.bairro),
+        telefone: body.telefone === undefined ? atualRow.telefone : this.optionalString(body.telefone),
+        email: body.email === undefined ? atualRow.email : this.optionalString(body.email),
+        porte: body.porte === undefined ? atualRow.porte : this.optionalString(body.porte),
+        status: nextStatus,
+        nicho: rawNicho === undefined ? atual.nicho : this.stringArray(rawNicho),
+        palavrasChave: rawPalavras === undefined
           ? atual.palavras_chave
-          : this.stringArray(body.palavras_chave),
+          : this.stringArray(rawPalavras),
+        radarTiposObjeto:
+          body.radar_tipos_objeto === undefined && body.radarTiposObjeto === undefined
+            ? atual.radar_tipos_objeto
+            : this.stringArray(body.radar_tipos_objeto ?? body.radarTiposObjeto),
+        radarIncluirSemClassificacao:
+          body.radar_incluir_sem_classificacao === undefined && body.radarIncluirSemClassificacao === undefined
+            ? atual.radar_incluir_sem_classificacao
+            : Boolean(body.radar_incluir_sem_classificacao ?? body.radarIncluirSemClassificacao),
         valorMin: body.valor_min === undefined ? atual.valor_min : this.numberOrNull(body.valor_min),
         valorMax: body.valor_max === undefined ? atual.valor_max : this.numberOrNull(body.valor_max),
         regioes: body.regioes === undefined
@@ -264,6 +345,13 @@ export class EmpresasService {
     });
 
     return this.mapCompany(row);
+  }
+
+  private optionalString(value: unknown) {
+    if (value === null) return null;
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed || null;
   }
 
   private stringArray(value: unknown) {

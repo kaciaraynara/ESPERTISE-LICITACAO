@@ -640,9 +640,16 @@ export class AiGroundingService {
 
   private async findNoticesByIds(ids: string[], tenantId: string | null) {
     if (!ids.length) return [];
+    const sliced = ids.slice(0, MAX_NOTICES);
+    const uuidIds = sliced.filter((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v)));
+    const orFilters: any[] = [
+      ...(uuidIds.length ? [{ id: { in: uuidIds } }] : []),
+      { externalId: { in: sliced } },
+      { dedupeKey: { in: sliced } },
+    ];
     return this.client.procurementNotice.findMany({
       where: {
-        AND: [tenantVisibilityWhere(tenantId), { id: { in: ids.slice(0, MAX_NOTICES) } }],
+        AND: [tenantVisibilityWhere(tenantId), { OR: orFilters }],
       },
       take: MAX_NOTICES,
       select: retrievalNoticeSelect(),

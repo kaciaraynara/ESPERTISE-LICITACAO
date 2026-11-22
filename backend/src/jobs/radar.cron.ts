@@ -1,3 +1,4 @@
+import { syncPcaRecentDays } from '../services/pca-sync.service';
 import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
 import { syncPortalTransparenciaEditais } from '../services/portal-transparencia-licitacoes.service';
 import { emitEditaisAtualizados } from '../services/realtime-editais.service';
@@ -18,22 +19,41 @@ import { DataPlatformWorkerService } from '../services/data-platform';
 import { CertificatesWorker } from '../workers/certificates.worker';
 import { NotificationsWorker } from '../workers/notifications.worker';
 import { enviarAlertaEditaisCnae } from '../services/resend.service';
+import { listarLicitacoes } from '../services/licitacoes.service';
+import {
+  readIngestionCursor,
+  recordIngestionJob,
+  saveIngestionCursor,
+} from '../services/ingestion-cursor.service';
 
 
-const DEFAULT_CRON_SCHEDULE = '*/30 * * * *'; // 2h e 14h todos os dias
+const DEFAULT_CRON_SCHEDULE = '*/30 * * * *'; // A cada 30 minutos com cursor contínuo
 const DEFAULT_DEADLINE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const DEFAULT_CERTIFICATE_ALERT_SCHEDULE = '0 8 * * *'; // 8h todos os dias
 const TIMEZONE = 'America/Sao_Paulo';
 const PAGE_SIZE = 50;
 const PERSIST_CONCURRENCY = 10;
 
-const MODALIDADES_PNCP = [
+export const MODALIDADES_PNCP = [
   { codigo: 6, nome: 'Pregão Eletrônico' },
   { codigo: 8, nome: 'Dispensa de Licitação' },
   { codigo: 4, nome: 'Concorrência Eletrônica' },
   { codigo: 12, nome: 'Credenciamento' },
+  { codigo: 7, nome: 'Pregão Presencial' },
+  { codigo: 5, nome: 'Concorrência Presencial' },
+  { codigo: 1, nome: 'Leilão Eletrônico' },
+  { codigo: 13, nome: 'Leilão Presencial' },
+  { codigo: 11, nome: 'Pré-Qualificação' },
+  { codigo: 10, nome: 'Manifestação de Interesse' },
+  { codigo: 3, nome: 'Concurso' },
   { codigo: 9, nome: 'Inexigibilidade' },
-];
+] as const;
+
+export const UFS_BRASIL = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+] as const;
 
 function isCronEnabled(value?: string | null): boolean {
   if (value === undefined || value === null) return true; // Habilitado por padrão
@@ -264,14 +284,16 @@ export async function syncPncpLast24Hours(): Promise<{
   upsertados: number;
   erros: number;
 }> {
+  const startedAt = new Date();
   console.info(JSON.stringify({
     event: 'PNCP_CRON_JOB_STARTED',
-    timestamp: new Date().toISOString(),
-    message: 'Iniciando sincronização de publicações PNCP (ordem reversa D0 primeiro) com backoff exponencial...',
+    timestamp: startedAt.toISOString(),
+    message: 'Iniciando sincronização de publicações PNCP (todas as 12 modalidades, D0 primeiro) com backoff exponencial...',
   }));
 
   const dataFinal = dateInBrazil(new Date());
-  const dataInicial = subtractCalendarDays(dataFinal, 3);
+  const lookbackDays = Math.max(1, Math.min(15, Number(process.env.PNCP_PUBLICACAO_DAYS_BACK || 3)));
+  const dataInicial = subtractCalendarDays(dataFinal, lookbackDays);
 
   let totalEncontrados = 0;
   let upsertados = 0;
@@ -406,6 +428,25 @@ export async function syncPncpLast24Hours(): Promise<{
     }
   }
 
+  await saveIngestionCursor('PNCP', 'publicacao_diaria', {
+    dataInicial,
+    dataFinal,
+    modalidades: MODALIDADES_PNCP.length,
+    totalEncontrados,
+    upsertados,
+    erros,
+  });
+  await recordIngestionJob({
+    source: 'PNCP',
+    connector: 'syncPncpLast24Hours',
+    status: erros > 0 && upsertados === 0 ? 'failed' : erros > 0 ? 'partial' : 'completed',
+    recordsSeen: totalEncontrados,
+    recordsAccepted: upsertados,
+    recordsFailed: erros,
+    startedAt,
+    metadata: { dataInicial, dataFinal, modalidades: MODALIDADES_PNCP.length },
+  });
+
   console.info(JSON.stringify({
     event: 'PNCP_CRON_JOB_COMPLETED',
     timestamp: new Date().toISOString(),
@@ -419,54 +460,242 @@ export async function syncPncpLast24Hours(): Promise<{
 
 /**
  * Sincroniza editais com recebimento de propostas em aberto (/contratacoes/proposta)
- * usando paginação reversa para capturar primeiro as publicações mais recentes de 2026.
+ * combinando captura imediata dos mais recentes + varredura contínua por cursor em todas as modalidades
+ * (com rotação por UF para Dispensa código 8, evitando timeout da consulta nacional sem filtro).
  */
-export async function syncPncpPropostasAbertas(maxPagesPerModality = 5): Promise<{
+export async function syncPncpPropostasAbertas(
+  pagesPerModality = 15,
+  options: {
+    useCursor?: boolean;
+    modalities?: ReadonlyArray<{ codigo: number; nome: string }>;
+    dispensaUfCount?: number;
+  } = {},
+): Promise<{
   totalEncontrados: number;
   upsertados: number;
+  erros: number;
+  modalidadesProcessadas: number;
 }> {
+  const startedAt = new Date();
   let totalEncontrados = 0;
   let upsertados = 0;
-  const modalidades = [
-    { codigo: 6, nome: 'Pregão Eletrônico' },
-    { codigo: 8, nome: 'Dispensa de Licitação' },
-    { codigo: 4, nome: 'Concorrência Eletrônica' },
-    { codigo: 12, nome: 'Credenciamento' },
-  ];
+  let erros = 0;
+  let modalidadesProcessadas = 0;
+  const useCursor = options.useCursor !== false;
+  const targetModalities = options.modalities ?? MODALIDADES_PNCP;
+  const maxPagesSweep = Math.max(1, pagesPerModality);
 
-  for (const mod of modalidades) {
-    for (let pagina = 1; pagina <= maxPagesPerModality; pagina++) {
+  const persistList = async (items: LicitacaoPNCP[], modName: string) => {
+    for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
+      const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
+      const done = await Promise.all(
+        batch.map(async (item) => {
+          try {
+            return await upsertPncpNoticeItem(item, modName);
+          } catch {
+            erros += 1;
+            return false;
+          }
+        }),
+      );
+      upsertados += done.filter(Boolean).length;
+    }
+  };
+
+  for (const mod of targetModalities) {
+    modalidadesProcessadas += 1;
+
+    // Caso especial Dispensa (8): rota nacional sem UF frequentemente excede 15s no PNCP;
+    // rotacionamos lotes de UF com cursor persistente (~6 UFs por ciclo cobrem todo o Brasil).
+    if (mod.codigo === 8) {
+      const cursorKey = 'proposta_sweep_mod_8_uf';
+      const existingCursor = useCursor ? await readIngestionCursor('PNCP', cursorKey) : null;
+      const startIdx = Math.max(
+        0,
+        Math.min(UFS_BRASIL.length - 1, Number(existingCursor?.cursorValue?.nextUfIndex || 0)),
+      );
+      const ufCount =
+        options.dispensaUfCount ??
+        Math.max(1, Math.min(27, Number(process.env.PNCP_DISPENSA_UFS_PER_RUN || 6)));
+      const pagesPerUf = Math.max(1, Math.min(3, Math.ceil(maxPagesSweep / 4)));
+      const processedUfs: string[] = [];
+
+      for (let i = 0; i < ufCount; i++) {
+        const uf = UFS_BRASIL[(startIdx + i) % UFS_BRASIL.length];
+        processedUfs.push(uf);
+
+        for (let pagina = 1; pagina <= pagesPerUf; pagina++) {
+          try {
+            const res = await fetchWithBackoff(
+              () =>
+                buscarContratacoesPNCP({
+                  endpoint: 'proposta',
+                  codigoModalidadeContratacao: 8,
+                  uf,
+                  pagina,
+                  tamanhoPagina: PAGE_SIZE,
+                  ordemOriginal: true,
+                }),
+              { context: `Propostas Dispensa UF ${uf} pág ${pagina}`, maxRetries: 1, initialDelayMs: 1000 },
+            );
+            const items = res.data || [];
+            totalEncontrados += items.length;
+            if (items.length === 0) break;
+            await persistList(items, mod.nome);
+            if (items.length < PAGE_SIZE) break;
+            await sleep(200);
+          } catch (err: any) {
+            erros += 1;
+            console.warn(`[PNCP Propostas] Dispensa UF ${uf} pág ${pagina}:`, err?.message || err);
+            break;
+          }
+        }
+      }
+
+      if (useCursor) {
+        const nextUfIndex = (startIdx + ufCount) % UFS_BRASIL.length;
+        const covered = nextUfIndex === 0 ? UFS_BRASIL.length : nextUfIndex;
+        const progressPct = Math.min(100, Math.round((covered / UFS_BRASIL.length) * 100));
+        await saveIngestionCursor('PNCP', cursorKey, {
+          modalidadeCodigo: 8,
+          modalidadeNome: mod.nome,
+          nextUfIndex,
+          lastUfs: processedUfs,
+          totalUfs: UFS_BRASIL.length,
+          progressPct,
+          ...(nextUfIndex === 0 ? { lastFullSweepAt: new Date().toISOString() } : {}),
+        });
+      }
+      continue;
+    }
+
+    // Demais modalidades: Fase A (recência imediata via páginas finais) + Fase B (varredura contínua via cursor)
+    let totalRegistros: number | null = null;
+    const recentPages = mod.codigo === 9 ? 1 : Math.min(2, maxPagesSweep);
+
+    for (let pagina = 1; pagina <= recentPages; pagina++) {
       try {
         const res = await fetchWithBackoff(
-          () => buscarContratacoesPNCP({
-            endpoint: 'proposta',
-            codigoModalidadeContratacao: mod.codigo,
-            pagina,
-            tamanhoPagina: PAGE_SIZE,
-          }),
-          { context: `Propostas ${mod.nome} pág ${pagina}`, maxRetries: 2, initialDelayMs: 1000 },
+          () =>
+            buscarContratacoesPNCP({
+              endpoint: 'proposta',
+              codigoModalidadeContratacao: mod.codigo,
+              pagina,
+              tamanhoPagina: PAGE_SIZE,
+            }),
+          { context: `Propostas ${mod.nome} recente pág ${pagina}`, maxRetries: 2, initialDelayMs: 1000 },
         );
+        if (typeof res.totalRegistros === 'number' && res.totalRegistros >= 0) {
+          totalRegistros = res.totalRegistros;
+        }
         const items = res.data || [];
         totalEncontrados += items.length;
         if (items.length === 0) break;
-
-        for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
-          const batch = items.slice(offset, offset + PERSIST_CONCURRENCY);
-          const done = await Promise.all(
-            batch.map((item) => upsertPncpNoticeItem(item, mod.nome).catch(() => false)),
-          );
-          upsertados += done.filter(Boolean).length;
-        }
-        await sleep(300);
+        await persistList(items, mod.nome);
+        if (items.length < PAGE_SIZE) break;
+        await sleep(250);
       } catch (err: any) {
+        erros += 1;
         console.warn(`[PNCP Propostas] Falha em ${mod.nome} pág ${pagina}:`, err?.message || err);
         break;
       }
     }
+
+    if (!useCursor) continue;
+
+    const cursorKey = `proposta_sweep_mod_${mod.codigo}`;
+    const totalPages = totalRegistros !== null && totalRegistros > 0
+      ? Math.max(1, Math.ceil(totalRegistros / PAGE_SIZE))
+      : 1;
+
+    if (totalPages <= recentPages || mod.codigo === 9) {
+      await saveIngestionCursor('PNCP', cursorKey, {
+        modalidadeCodigo: mod.codigo,
+        modalidadeNome: mod.nome,
+        nextPage: 1,
+        totalPages,
+        totalRegistros: totalRegistros ?? 0,
+        progressPct: 100,
+        lastFullSweepAt: new Date().toISOString(),
+      });
+      continue;
+    }
+
+    const existingCursor = await readIngestionCursor('PNCP', cursorKey);
+    const startPage = Math.max(
+      1,
+      Math.min(totalPages, Number(existingCursor?.cursorValue?.nextPage || 1)),
+    );
+    const endPage = Math.min(totalPages, startPage + maxPagesSweep - 1);
+    let lastPageRead = startPage - 1;
+    let reachedEnd = false;
+
+    for (let pagina = startPage; pagina <= endPage; pagina++) {
+      try {
+        const res = await fetchWithBackoff(
+          () =>
+            buscarContratacoesPNCP({
+              endpoint: 'proposta',
+              codigoModalidadeContratacao: mod.codigo,
+              pagina,
+              tamanhoPagina: PAGE_SIZE,
+              ordemOriginal: true,
+            }),
+          { context: `Propostas Sweep ${mod.nome} pág ${pagina}/${totalPages}`, maxRetries: 2, initialDelayMs: 1000 },
+        );
+        const items = res.data || [];
+        lastPageRead = pagina;
+        totalEncontrados += items.length;
+        if (items.length === 0) {
+          reachedEnd = true;
+          break;
+        }
+        await persistList(items, mod.nome);
+        if (pagina >= totalPages || items.length < PAGE_SIZE) {
+          reachedEnd = true;
+          break;
+        }
+        await sleep(250);
+      } catch (err: any) {
+        erros += 1;
+        console.warn(`[PNCP Propostas Sweep] Falha em ${mod.nome} pág ${pagina}:`, err?.message || err);
+        break;
+      }
+    }
+
+    const finishedSweep = reachedEnd || lastPageRead >= totalPages;
+    const nextPage = finishedSweep ? 1 : Math.max(1, lastPageRead + 1);
+    const progressPct = finishedSweep
+      ? 100
+      : Math.min(99, Math.round((Math.max(1, lastPageRead) / totalPages) * 100));
+
+    await saveIngestionCursor('PNCP', cursorKey, {
+      modalidadeCodigo: mod.codigo,
+      modalidadeNome: mod.nome,
+      nextPage,
+      lastPageRead,
+      totalPages,
+      totalRegistros: totalRegistros ?? 0,
+      progressPct,
+      ...(finishedSweep ? { lastFullSweepAt: new Date().toISOString() } : {}),
+    });
   }
 
-  console.info(`[PNCP Propostas] Sincronizados ${upsertados}/${totalEncontrados} editais com proposta aberta.`);
-  return { totalEncontrados, upsertados };
+  await recordIngestionJob({
+    source: 'PNCP',
+    connector: 'syncPncpPropostasAbertas',
+    status: erros > 0 && upsertados === 0 ? 'failed' : erros > 0 ? 'partial' : 'completed',
+    recordsSeen: totalEncontrados,
+    recordsAccepted: upsertados,
+    recordsFailed: erros,
+    startedAt,
+    metadata: { pagesPerModality, modalidadesProcessadas },
+  });
+
+  console.info(
+    `[PNCP Propostas] Sincronizados ${upsertados}/${totalEncontrados} editais abertos em ${modalidadesProcessadas} modalidades (${erros} erros).`,
+  );
+  return { totalEncontrados, upsertados, erros, modalidadesProcessadas };
 }
 
 /**
@@ -476,10 +705,12 @@ export async function syncPncpAtualizacoes(maxPagesPerModality = 4): Promise<{
   totalEncontrados: number;
   upsertados: number;
 }> {
+  const startedAt = new Date();
   const dataFinal = dateInBrazil(new Date());
   const dataInicial = subtractCalendarDays(dataFinal, 2);
   let totalEncontrados = 0;
   let upsertados = 0;
+  let failed = 0;
 
   const persistBatch = async (items: LicitacaoPNCP[], modalityName: string) => {
     for (let offset = 0; offset < items.length; offset += PERSIST_CONCURRENCY) {
@@ -539,9 +770,27 @@ export async function syncPncpAtualizacoes(maxPagesPerModality = 4): Promise<{
         }
       }
     } catch (err: any) {
+      failed += 1;
       console.warn(`[PNCP Atualizacoes] Falha em ${mod.nome}:`, err?.message || err);
     }
   }
+
+  await saveIngestionCursor('PNCP', 'atualizacao_48h', {
+    dataInicial,
+    dataFinal,
+    totalEncontrados,
+    upsertados,
+  });
+  await recordIngestionJob({
+    source: 'PNCP',
+    connector: 'syncPncpAtualizacoes',
+    status: failed > 0 && upsertados === 0 ? 'failed' : failed > 0 ? 'partial' : 'completed',
+    recordsSeen: totalEncontrados,
+    recordsAccepted: upsertados,
+    recordsFailed: failed,
+    startedAt,
+    metadata: { dataInicial, dataFinal },
+  });
 
   console.info(`[PNCP Atualizacoes] Atualizados ${upsertados}/${totalEncontrados} editais modificados recentemente.`);
   return { totalEncontrados, upsertados };
@@ -549,7 +798,10 @@ export async function syncPncpAtualizacoes(maxPagesPerModality = 4): Promise<{
 
 let multiPortalSyncInFlight = false;
 
-export async function runMultiPortalSync(): Promise<{ totalUpsertados: number }> {
+export async function runMultiPortalSync(): Promise<{
+  totalUpsertados: number;
+  porFonte?: Record<string, number>;
+}> {
   if (multiPortalSyncInFlight) {
     return { totalUpsertados: 0 };
   }
@@ -557,25 +809,41 @@ export async function runMultiPortalSync(): Promise<{ totalUpsertados: number }>
   let totalUpsertados = 0;
 
   try {
-    const [pub, atu, prop, cg, qd, pt] = await Promise.allSettled([
-      syncPncpLast24Hours(),
-      syncPncpAtualizacoes(4),
-      syncPncpPropostasAbertas(5),
-      syncComprasGovRecentes({ daysBack: 7, maxPages: 3 }),
-      syncQueridoDiarioEditais({ daysBack: 7, size: 60 }),
+    const runPncpPipeline = async () => {
+      const pub = await syncPncpLast24Hours();
+      const atu = await syncPncpAtualizacoes(4);
+      const prop = await syncPncpPropostasAbertas(12);
+      return pub.upsertados + atu.upsertados + prop.upsertados;
+    };
+
+    const [pncpRes, cgRes, qdRes, ptRes] = await Promise.allSettled([
+      runPncpPipeline(),
+      syncComprasGovRecentes({ daysBack: 7, maxPages: 4 }),
+      syncQueridoDiarioEditais({ daysBack: 10, size: 60, maxPages: 3 }),
       syncPortalTransparenciaEditais({ daysBack: 28 }),
+      syncPcaRecentDays({ daysBack: 2, maxPagesPerDay: 4 }),
     ]);
 
-    if (pub.status === 'fulfilled') totalUpsertados += pub.value.upsertados;
-    if (atu.status === 'fulfilled') totalUpsertados += atu.value.upsertados;
-    if (prop.status === 'fulfilled') totalUpsertados += prop.value.upsertados;
-    if (cg.status === 'fulfilled') totalUpsertados += cg.value.persisted;
-    if (qd.status === 'fulfilled') totalUpsertados += qd.value.persisted;
-    if (pt.status === 'fulfilled') totalUpsertados += pt.value.persisted;
+    const pncpTotal = pncpRes.status === 'fulfilled' ? pncpRes.value : 0;
+    const cgTotal = cgRes.status === 'fulfilled' ? cgRes.value.persisted : 0;
+    const qdTotal = qdRes.status === 'fulfilled' ? qdRes.value.persisted : 0;
+    const ptTotal = ptRes.status === 'fulfilled' ? ptRes.value.persisted : 0;
+
+    totalUpsertados = pncpTotal + cgTotal + qdTotal + ptTotal;
 
     emitEditaisAtualizados({ fonte: 'multifonte', quantidade: totalUpsertados });
-    console.info(`[MultiPortal Sync] Ciclo concluído. Total upsertados/atualizados: ${totalUpsertados}.`);
-    return { totalUpsertados };
+    console.info(
+      `[MultiPortal Sync] Ciclo concluído. Total upsertados/atualizados: ${totalUpsertados} (PNCP=${pncpTotal}, ComprasGov=${cgTotal}, QueridoDiario=${qdTotal}, Transparencia=${ptTotal}).`,
+    );
+    return {
+      totalUpsertados,
+      porFonte: {
+        PNCP: pncpTotal,
+        ComprasGov: cgTotal,
+        querido_diario: qdTotal,
+        portal_transparencia: ptTotal,
+      },
+    };
   } finally {
     multiPortalSyncInFlight = false;
   }
@@ -752,58 +1020,69 @@ export function setupCnaeAlertCron() {
 
       console.info(`[Radar Cron][${new Date().toISOString()}] 🏢 ${empresas.length} empresa(s) ativa(s) carregada(s) para análise.`);
 
-      // 4. Coleta de Editais (Janela Temporal de 24 horas)
+      // 4. Janela Temporal de 24 horas para filtro aderente por perfil de empresa
       const dataOntem = new Date();
       dataOntem.setDate(dataOntem.getDate() - 1);
+      const dataPublicacaoIso = dataOntem.toISOString().slice(0, 10);
 
-      const editaisCandidatos = await prisma.procurementNotice.findMany({
-        where: { createdAt: { gte: dataOntem } },
-        take: 30,
-        select: {
-          id: true,
-          noticeNumber: true,
-          buyerName: true,
-          object: true,
-          estimatedValue: true,
-        },
-      });
-
-      console.info(`[Radar Cron][${new Date().toISOString()}] 📋 ${editaisCandidatos.length} edital(is) recente(s) encontrado(s) na janela de 24h.`);
-
-      if (editaisCandidatos.length === 0) {
-        console.info(`[Radar Cron][${new Date().toISOString()}] ℹ️ Nenhum novo edital nas últimas 24h. Envio de e-mails suspenso hoje.`);
-        return;
-      }
-
-      const appUrl = (process.env.FRONTEND_URL || 'https://espertise-licitacao-53xf.vercel.app').replace(/\/+$/, '');
+      const appUrl = (process.env.FRONTEND_URL || 'https://www.expertiselicitatoria.com.br').replace(/\/+$/, '');
       let totalDisparos = 0;
 
-      // 5. Loop de Validação por Empresa
+      // 5. Loop de Validação por Empresa respeitando UF, palavras-chave, CNAE e tipo de objeto
       for (const empresa of empresas) {
         const email = (empresa as any).email || empresa.user?.email;
         if (!email || !empresa.cnaePrincipal) continue;
 
+        const regioesEmpresa = Array.isArray(empresa.regioes) && empresa.regioes.length > 0
+          ? empresa.regioes.map((u: string) => String(u).trim().toUpperCase()).filter(Boolean)
+          : (empresa.uf ? [String(empresa.uf).trim().toUpperCase()] : []);
+        const palavrasEmpresa = Array.from(new Set([
+          ...(Array.isArray(empresa.palavrasChave) ? empresa.palavrasChave : []),
+          ...(Array.isArray(empresa.nicho) ? empresa.nicho : []),
+          ...keywordsForCnae(empresa.cnaePrincipal),
+        ].map((k) => String(k).trim()).filter(Boolean))).slice(0, 12);
+        const tiposObjetoEmpresa = Array.isArray((empresa as any).radarTiposObjeto)
+          ? (empresa as any).radarTiposObjeto.filter(Boolean)
+          : [];
+
+        const buscaEmpresa = await listarLicitacoes({
+          apenasAbertos: true,
+          dataPublicacao: dataPublicacaoIso,
+          ...(regioesEmpresa.length > 0 ? { ufs: regioesEmpresa, uf: regioesEmpresa.join(',') } : {}),
+          ...(palavrasEmpresa.length > 0 ? { palavras: palavrasEmpresa } : {}),
+          ...(tiposObjetoEmpresa.length > 0 ? { tipoObjeto: tiposObjetoEmpresa.join(',') } : {}),
+          incluirSemClassificacao: (empresa as any).radarIncluirSemClassificacao ?? true,
+          tamanhoPagina: 15,
+          pagina: 1,
+          ordenarPor: 'recentes',
+        }).catch(() => ({ data: [] as any[] }));
+
+        const editaisCandidatos = Array.isArray(buscaEmpresa?.data) ? buscaEmpresa.data : [];
+        if (editaisCandidatos.length === 0) continue;
+
         const editaisValidados = [];
 
         for (const edital of editaisCandidatos) {
-          if (!edital.object) continue;
+          const objTexto = edital.objeto || (edital as any).object;
+          if (!objTexto) continue;
+          const valEstimado = edital.valorEstimado ?? edital.valorTotalEstimado ?? null;
 
           try {
             const analise = await avaliarCompatibilidadeCnae({
-              objetoEdital: edital.object,
+              objetoEdital: objTexto,
               cnaeCodigo: empresa.cnaePrincipal,
               razaoSocial: empresa.razaoSocial,
-              valorEstimado: edital.estimatedValue ? Number(edital.estimatedValue) : null,
+              valorEstimado: valEstimado ? Number(valEstimado) : null,
             });
 
             if (analise.aderente) {
               editaisValidados.push({
-                titulo: `${edital.noticeNumber || 'Edital'} - ${analise.resumoObjeto}`,
-                orgao: edital.buyerName || 'Órgão Convocador',
-                valorEstimado: edital.estimatedValue
-                  ? `R$ ${Number(edital.estimatedValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                titulo: `${edital.numeroEdital || edital.numeroCompra || 'Edital'} - ${analise.resumoObjeto}`,
+                orgao: edital.orgao || 'Órgão Convocador',
+                valorEstimado: valEstimado
+                  ? `R$ ${Number(valEstimado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                   : undefined,
-                link: `${appUrl}/licitacoes/${edital.id}`,
+                link: `${appUrl}/fornecedor/licitacoes/${edital.id}`,
                 resumoExecutivo: analise.resumoObjeto,
                 pontosDeAtencao: [analise.justificativa],
               });

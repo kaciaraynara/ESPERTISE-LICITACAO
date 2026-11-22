@@ -630,10 +630,23 @@ export class ProposalAutomationService {
       parsePncpControlNumber(notice?.numeroControlePncp) ||
       parsePncpControlNumber(cleanId);
 
-    // 2. Se o edital não tiver itens no banco ou itens vazios, busca na API oficial do PNCP
+    // 2. Se o edital não tiver itens ou estiver potencialmente truncado em 10 itens, busca todas as páginas no PNCP
     let rawItems: any[] = [];
-    if (notice?.items && notice.items.length > 0) {
-      rawItems = notice.items.map((it) => ({
+    const existingNoticeItems = Array.isArray(notice?.items) ? notice.items : [];
+    const somaAtual = existingNoticeItems.reduce(
+      (acc: number, it: any) =>
+        acc + (Number(it.estimatedTotalValue) || (Number(it.estimatedUnitValue) || 0) * (Number(it.quantity) || 1)),
+      0,
+    );
+    const precisaResyncCompleto =
+      existingNoticeItems.length === 0 ||
+      (existingNoticeItems.length === 10 &&
+        Boolean(parsed) &&
+        Number(notice?.estimatedValue || 0) > 0 &&
+        somaAtual < Number(notice?.estimatedValue || 0) * 0.95);
+
+    if (existingNoticeItems.length > 0 && !precisaResyncCompleto) {
+      rawItems = existingNoticeItems.map((it) => ({
         id: it.id,
         numeroItem: it.itemNumber,
         descricao: it.description,
@@ -648,52 +661,92 @@ export class ProposalAutomationService {
         const pncpItems = await buscarItensPNCP(parsed.cnpj, parsed.ano, parsed.sequencial);
         if (pncpItems && pncpItems.length > 0) {
           rawItems = pncpItems;
-          // Persiste os itens na tabela ProcurementItem vinculada ao ProcurementNotice
+          // Persiste os itens na tabela ProcurementItem vinculada ao ProcurementNotice em lotes de 20
           if (notice?.id) {
-            for (const it of pncpItems) {
-              const itemNumber = String(it.numeroItem ?? 1);
-              const desc = String(it.descricao ?? 'Item da contratação').trim();
-              const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
-              const vUnit = Number(it.valorUnitarioEstimado) > 0 ? Number(it.valorUnitarioEstimado) : null;
-              const vTot = Number(it.valorTotal) > 0 ? Number(it.valorTotal) : (vUnit ? vUnit * qtd : null);
-              const unit = String(it.unidadeMedida ?? 'UN').trim();
-              const catCod = it.codigoItemCatalogo ?? it.catalogoCodigo ?? null;
+            const batchSize = 20;
+            for (let offset = 0; offset < pncpItems.length; offset += batchSize) {
+              const batch = pncpItems.slice(offset, offset + batchSize);
+              await Promise.all(
+                batch.map((it) => {
+                  const itemNumber = String(it.numeroItem ?? 1);
+                  const desc = String(it.descricao ?? 'Item da contratação').trim();
+                  const qtd = Number(it.quantidade) > 0 ? Number(it.quantidade) : 1;
+                  const vUnit = Number(it.valorUnitarioEstimado) > 0 ? Number(it.valorUnitarioEstimado) : null;
+                  const vTot = Number(it.valorTotal) > 0 ? Number(it.valorTotal) : (vUnit ? vUnit * qtd : null);
+                  const unit = String(it.unidadeMedida ?? 'UN').trim();
+                  const catCod = it.codigoItemCatalogo ?? it.catalogoCodigo ?? null;
 
-              await prisma.procurementItem.upsert({
-                where: {
-                  procurementNoticeId_itemNumber: {
-                    procurementNoticeId: notice.id,
-                    itemNumber,
-                  },
-                },
-                create: {
-                  procurementNoticeId: notice.id,
-                  tenantId: tenantId ?? notice.tenantId ?? null,
-                  itemNumber,
-                  description: desc,
-                  quantity: qtd,
-                  unit,
-                  estimatedUnitValue: vUnit,
-                  estimatedTotalValue: vTot,
-                  catalogoCodigo: catCod,
-                  metadata: it,
-                },
-                update: {
-                  description: desc,
-                  quantity: qtd,
-                  unit,
-                  estimatedUnitValue: vUnit,
-                  estimatedTotalValue: vTot,
-                  catalogoCodigo: catCod,
-                  metadata: it,
-                },
-              }).catch(() => null);
+                  return prisma.procurementItem.upsert({
+                    where: {
+                      procurementNoticeId_itemNumber: {
+                        procurementNoticeId: notice.id,
+                        itemNumber,
+                      },
+                    },
+                    create: {
+                      procurementNoticeId: notice.id,
+                      tenantId: tenantId ?? notice.tenantId ?? null,
+                      itemNumber,
+                      description: desc,
+                      quantity: qtd,
+                      unit,
+                      estimatedUnitValue: vUnit,
+                      estimatedTotalValue: vTot,
+                      catalogoCodigo: catCod,
+                      metadata: it,
+                    },
+                    update: {
+                      description: desc,
+                      quantity: qtd,
+                      unit,
+                      estimatedUnitValue: vUnit,
+                      estimatedTotalValue: vTot,
+                      catalogoCodigo: catCod,
+                      metadata: it,
+                    },
+                  }).catch(() => null);
+                }),
+              );
             }
           }
+        } else if (existingNoticeItems.length > 0) {
+          rawItems = existingNoticeItems.map((it) => ({
+            id: it.id,
+            numeroItem: it.itemNumber,
+            descricao: it.description,
+            quantidade: it.quantity ? Number(it.quantity) : 1,
+            unidadeMedida: it.unit || 'UN',
+            valorUnitarioEstimado: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : null,
+            valorTotal: it.estimatedTotalValue ? Number(it.estimatedTotalValue) : null,
+            catalogoCodigo: it.catalogoCodigo || null,
+          }));
         }
       } catch (pncpErr) {
         console.warn('[syncNoticeItemsWithCatalog] Falha ao consultar itens no PNCP:', pncpErr);
+        if (existingNoticeItems.length > 0) {
+          rawItems = existingNoticeItems.map((it) => ({
+            id: it.id,
+            numeroItem: it.itemNumber,
+            descricao: it.description,
+            quantidade: it.quantity ? Number(it.quantity) : 1,
+            unidadeMedida: it.unit || 'UN',
+            valorUnitarioEstimado: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : null,
+            valorTotal: it.estimatedTotalValue ? Number(it.estimatedTotalValue) : null,
+            catalogoCodigo: it.catalogoCodigo || null,
+          }));
+        }
       }
+    } else if (existingNoticeItems.length > 0) {
+      rawItems = existingNoticeItems.map((it) => ({
+        id: it.id,
+        numeroItem: it.itemNumber,
+        descricao: it.description,
+        quantidade: it.quantity ? Number(it.quantity) : 1,
+        unidadeMedida: it.unit || 'UN',
+        valorUnitarioEstimado: it.estimatedUnitValue ? Number(it.estimatedUnitValue) : null,
+        valorTotal: it.estimatedTotalValue ? Number(it.estimatedTotalValue) : null,
+        catalogoCodigo: it.catalogoCodigo || null,
+      }));
     }
 
     // 3. Busca catálogo de produtos da empresa ativa

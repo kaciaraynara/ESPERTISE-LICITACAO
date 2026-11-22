@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error';
+import { ApiError } from '../errors/ApiError';
 import { logger } from '../utils/logger';
 import { RequestWithCorrelationId } from './correlation-id.middleware';
 
@@ -20,11 +21,11 @@ export const errorHandler: ErrorRequestHandler = (
     stack: error.stack,
   });
 
-  // 1. Erros Operacionais Customizados (AppError)
-  if (error instanceof AppError) {
+  // 1. Erros Operacionais Customizados (AppError / ApiError)
+  if (error instanceof AppError || error instanceof ApiError) {
     res.status(error.statusCode).json({
       success: false,
-      code: error.code,
+      code: error.code || 'API_ERROR',
       message: error.message,
       requestId,
       ...(error.details ? { details: error.details } : {}),

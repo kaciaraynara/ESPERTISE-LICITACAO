@@ -1299,13 +1299,13 @@ function toIso(value: unknown) {
 
 export function resolveNoticeWhere(idOrControl: string) {
   const clean = String(idOrControl || '').trim();
-  const isPncpControl = /^\d{14}/.test(clean) || clean.startsWith('pncp-');
-  if (!isPncpControl) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+  const isPncpControl = /^\d{14}/.test(clean) || clean.startsWith('pncp-') || clean.includes('/');
+  if (isUuid || !isPncpControl) {
     return { id: clean };
   }
   return {
     OR: [
-      { id: clean },
       { externalId: clean },
       { dedupeKey: clean.startsWith('pncp-') ? clean : `pncp-${clean}` },
       { dedupeKey: clean },

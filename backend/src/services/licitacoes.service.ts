@@ -2,6 +2,7 @@ import {
   FiltrosBusca,
   LicitacaoPNCP,
   LicitacaoRadarPNCP,
+  RadarFacets,
   ResultadoConsultaPNCP,
   ResultadoRadarPNCP,
 } from '../interfaces/pncp.interface';
@@ -19,6 +20,16 @@ import {
   keywordsForCnae,
   type TenantRadarProfile,
 } from './cnae-to-keywords.service';
+import {
+  buildRadarSqlQuery,
+  normalizeModalityFilter,
+  normalizeSourceValues,
+  parseDateBoundary,
+  parsePalavras,
+  parseTipoObjeto,
+  parseUfs,
+  type RadarSortOrder,
+} from './radar-query-builder.service';
 
 const AUTOMATIC_RADAR_KEYWORD_LIMIT = 20;
 const PNCP_MODALITIES = [4, 6, 8, 12] as const;
@@ -217,6 +228,7 @@ interface LicitacoesCacheEntry<T> {
 
 const tenantRadarProfileCache = new Map<string, LicitacoesCacheEntry<TenantRadarProfile | null>>();
 const paginationCountCache = new Map<string, LicitacoesCacheEntry<number>>();
+const radarFacetsCache = new Map<string, LicitacoesCacheEntry<RadarFacets>>();
 
 function setLicitacoesCache<T>(cache: Map<string, LicitacoesCacheEntry<T>>, key: string, value: T, ttlMs = 60_000) {
   if (cache.size > 200) {
@@ -917,6 +929,8 @@ export async function listarLicitacoes(
 ): Promise<ResultadoRadarPNCP & {
   totalPaginas: number;
   perfilRadar: { cnaes: string[]; palavras_chave: string[] } | null;
+  facets?: RadarFacets;
+  tempoBuscaMs?: number;
   aviso?: string;
 }> {
   if (
@@ -927,9 +941,10 @@ export async function listarLicitacoes(
   }
 
   const { prisma } = require('../database/prisma');
+  const t0 = Date.now();
 
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
-  const size = filtros.tamanhoPagina ? Math.max(1, Number(filtros.tamanhoPagina)) : 100;
+  const size = filtros.tamanhoPagina ? Math.max(1, Math.min(200, Number(filtros.tamanhoPagina))) : 100;
   const tenantRadarProfile = tenantId ? await getCachedTenantRadarProfile(tenantId) : null;
 
   let effectiveFilters: FiltrosBusca = { ...filtros };
@@ -966,9 +981,273 @@ export async function listarLicitacoes(
     }
   }
 
-  const searchTerms = getAutomaticSearchTerms(effectiveFilters, tenantRadarProfile);
-  let avisoRadar: string | undefined;
+  const ufsFilter = Array.from(new Set([
+    ...parseUfs(filtros.ufs),
+    ...parseUfs(filtros.uf),
+  ]));
+  const sourcesFilter = normalizeSourceValues(filtros.fonte);
+  const isApenasAbertos = filtros.apenasAbertos === true || filtros.apenasAbertos === 'true';
+  const isBaixaProcura = filtros.baixaProcura === true || filtros.baixaProcura === 'true';
+  const isSrpFilter = filtros.srp === true || filtros.srp === 'true';
+  const selectedTypes = parseTipoObjeto(filtros.tipoObjeto);
+  const includeUnclassified = filtros.incluirSemClassificacao === undefined
+    ? true
+    : (filtros.incluirSemClassificacao === true || filtros.incluirSemClassificacao === 'true');
+  const sortOrder: RadarSortOrder = (
+    ['recentes', 'encerramento', 'maior_valor', 'menor_valor', 'relevancia'] as const
+  ).includes(filtros.ordenarPor as any)
+    ? (filtros.ordenarPor as RadarSortOrder)
+    : 'recentes';
 
+  const explicitQuery = String(
+    filtros.q
+    || filtros.termo
+    || filtros.busca
+    || filtros.search
+    || filtros.palavraChave
+    || filtros.palavrasChave
+    || '',
+  ).trim();
+  const explicitPalavras = parsePalavras(filtros.palavras);
+  const hasExplicitCnae = Boolean(effectiveFilters.cnae && String(effectiveFilters.cnae).trim().length > 0);
+  const cnaeTerms = hasExplicitCnae ? expandCnaeFilterTerms(effectiveFilters.cnae).slice(0, 6) : [];
+  const profilePalavrasForSql = Array.from(new Set([...explicitPalavras, ...cnaeTerms]));
+
+  const companyProfile = tenantRadarProfile
+    ? {
+      cnaeKeywords: tenantRadarProfile.keywords,
+      uf: tenantRadarProfile.uf,
+      valorMin: undefined,
+      valorMax: undefined,
+    }
+    : null;
+
+  function calcularScoreItem(rObj: string | null | undefined, rUf: string | null | undefined, rEstVal: number | null, rOpenAt: Date | string | null | undefined, profile: typeof companyProfile) {
+    if (!profile || profile.cnaeKeywords.length === 0) {
+      let base = 70;
+      const rawValNum = rEstVal ?? 0;
+      if (rawValNum > 0) base += 10;
+      else base += 5;
+      if (rOpenAt) base += 5;
+      return { pontuacao: Math.min(base, 95), nivel: base >= 75 ? 'alta' : 'media' };
+    }
+
+    const objLower = (rObj || '').toLowerCase();
+    const matches = profile.cnaeKeywords.filter((kw) => objLower.includes(kw));
+
+    let scoreNicho = 15;
+    if (matches.length >= 3) scoreNicho = 55;
+    else if (matches.length === 2) scoreNicho = 45;
+    else if (matches.length === 1) scoreNicho = 35;
+
+    let scoreRegiao = 10;
+    if (profile.uf && rUf && profile.uf.toUpperCase() === rUf.toUpperCase()) {
+      scoreRegiao = 25;
+    }
+
+    let scoreValor = 15;
+    const val = rEstVal ?? 0;
+    if (val > 0) {
+      if (profile.valorMin && val < profile.valorMin) scoreValor = 5;
+      else if (profile.valorMax && val > profile.valorMax) scoreValor = 10;
+      else scoreValor = 20;
+    }
+
+    const totalScore = Math.min(100, Math.max(10, scoreNicho + scoreRegiao + scoreValor));
+    const nivel = totalScore >= 75 ? 'alta' : totalScore >= 50 ? 'media' : 'baixa';
+    return { pontuacao: totalScore, nivel };
+  }
+
+  const safeFormatDate = (val: unknown): string | null => {
+    if (!val) return null;
+    if (val instanceof Date) return val.toISOString();
+    return String(val);
+  };
+
+  const mapNoticeRowToRadarItem = (r: any) => {
+    const extId = r.externalId ?? r.external_id ?? '';
+    const ctrlPncp = r.numeroControlePncp ?? r.numero_controle_pncp ?? '';
+    const noticeNum = r.noticeNumber ?? r.notice_number ?? '';
+    const buyerDoc = r.buyerDocument ?? r.buyer_document ?? '';
+    const buyerNm = r.buyerName ?? r.buyer_name ?? '';
+    const rawEstVal = r.estimatedValue ?? r.estimated_value;
+    const rawEst = rawEstVal != null ? Number(rawEstVal) : null;
+    const valorEstimado = rawEst != null && rawEst > 0 ? rawEst : null;
+    const pubDate = safeFormatDate(r.publishedAt ?? r.published_at);
+    const openDate = safeFormatDate(r.openingAt ?? r.opening_at);
+    const closeDate = safeFormatDate(r.closingAt ?? r.closing_at);
+    const numControle = extId || ctrlPncp || noticeNum || '';
+    const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || r.url || '';
+    const portalUrl = downloadUrl || r.url || '';
+    const auditParams = extractPncpAuditParams(numControle, buyerDoc, null, null);
+    const urlOficialPncp = auditParams?.urlOficialPncp || r.url || 'https://pncp.gov.br/app/editais';
+    const obj = r.object || '';
+    const modoDisp = r.modoDisputa ?? r.modo_disputa ?? '';
+    const judgCrit = r.judgmentCriterion ?? r.judgment_criterion ?? (r.rawPayload as any)?.criterioJulgamentoNome ?? (r.rawPayload as any)?.tipoJulgamentoNome ?? null;
+    const tipoObjeto = r.objectType ?? r.object_type ?? null;
+
+    return {
+      id: r.id,
+      databaseId: r.id,
+      numeroControlePNCP: numControle || r.id,
+      orgao: buyerNm,
+      cnpjOrgao: buyerDoc,
+      anoCompra: auditParams?.anoCompra,
+      sequencialCompra: auditParams?.sequencialCompra,
+      urlOficial: urlOficialPncp,
+      urlOficialPncp,
+      unidade: '',
+      uf: r.uf || '',
+      municipio: r.municipality || '',
+      objeto: obj,
+      processo: noticeNum,
+      numeroCompra: noticeNum,
+      numeroEdital: noticeNum || numControle || r.id,
+      modalidade: r.modality || '',
+      modalidadeId: null,
+      modoDisputa: modoDisp,
+      criterioJulgamento: judgCrit,
+      situacao: r.status || '',
+      valorTotalEstimado: valorEstimado,
+      valorEstimado,
+      valor_estimado: valorEstimado,
+      dataPublicacao: pubDate,
+      data_publicacao: pubDate,
+      dataAbertura: openDate,
+      data_abertura: openDate,
+      dataAberturaProposta: openDate,
+      dataInicioRecebimento: openDate,
+      dataEncerramento: closeDate,
+      data_encerramento: closeDate,
+      dataEncerramentoProposta: closeDate,
+      dataFimRecebimento: closeDate,
+      dataLimiteProposta: closeDate,
+      dataSessaoDisputa: openDate || closeDate,
+      link: portalUrl || urlOficialPncp,
+      linkSistemaOrigem: portalUrl || urlOficialPncp,
+      documento_url: downloadUrl,
+      linkDownloadEdital: downloadUrl,
+      srp: Boolean(r.srp),
+      fonte: r.source || 'PNCP',
+      tipoObjeto,
+      score: calcularScoreItem(obj, r.uf, valorEstimado, openDate, companyProfile),
+    };
+  };
+
+  if (typeof prisma?.$queryRawUnsafe === 'function') {
+    const built = buildRadarSqlQuery({
+      ufs: ufsFilter,
+      q: explicitQuery || undefined,
+      palavras: profilePalavrasForSql,
+      orgao: filtros.orgao,
+      fonte: filtros.fonte,
+      apenasAbertos: isApenasAbertos,
+      baixaProcura: isBaixaProcura,
+      srp: isSrpFilter,
+      modalidade: filtros.modalidade ?? filtros.codigoModalidadeContratacao,
+      dataPublicacao: filtros.dataPublicacao,
+      dataInicial: filtros.dataInicial,
+      dataFinal: filtros.dataFinal,
+      valorMin: filtros.valorMin !== undefined ? Number(filtros.valorMin) : undefined,
+      valorMax: filtros.valorMax !== undefined ? Number(filtros.valorMax) : undefined,
+      buyerCnpjFilter,
+      tipoObjeto: filtros.tipoObjeto,
+      incluirSemClassificacao: includeUnclassified,
+      ordenarPor: sortOrder,
+      profileKeywords: tenantRadarProfile?.keywords,
+      profileUfs: tenantRadarProfile?.uf ? [tenantRadarProfile.uf] : [],
+    });
+
+    const facetsCacheKey = JSON.stringify({ where: built.baseWhereSql, params: built.baseParams });
+    const cachedFacetEntry = radarFacetsCache.get(facetsCacheKey);
+    const isFacetCached = Boolean(cachedFacetEntry && cachedFacetEntry.expiresAt > Date.now());
+
+    const facetsSql = `
+      SELECT
+        count(*)::int AS todas,
+        count(*) FILTER (WHERE object_type = 'BENS')::int AS bens,
+        count(*) FILTER (WHERE object_type = 'SERVICOS')::int AS servicos,
+        count(*) FILTER (WHERE object_type = 'OBRAS')::int AS obras,
+        count(*) FILTER (WHERE object_type IS NULL)::int AS sem_classificacao,
+        count(*) FILTER (WHERE published_at >= NOW() - INTERVAL '24 hours')::int AS novas_24h,
+        count(*) FILTER (WHERE closing_at > NOW() AND closing_at <= NOW() + INTERVAL '48 hours')::int AS encerrando_48h,
+        count(*) FILTER (WHERE closing_at > NOW() AND closing_at <= NOW() + INTERVAL '5 days')::int AS encerrando_5_dias
+      FROM procurement_notices
+      WHERE ${built.baseWhereSql}
+    `;
+
+    const limitPlaceholder = `$${built.listParams.length + 1}`;
+    const offsetPlaceholder = `$${built.listParams.length + 2}`;
+    const rowsSql = `
+      SELECT
+        id, external_id, numero_controle_pncp, notice_number, url,
+        buyer_document, buyer_name, estimated_value, published_at,
+        opening_at, closing_at, uf, municipality, object, modality,
+        modo_disputa, judgment_criterion, status, srp, source, object_type
+      FROM procurement_notices
+      WHERE ${built.fullWhereSql}
+      ORDER BY ${built.orderBySql}
+      LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}
+    `;
+
+    const facetsPromise: Promise<RadarFacets> = isFacetCached
+      ? Promise.resolve(cachedFacetEntry!.value)
+      : (prisma.$queryRawUnsafe(facetsSql, ...built.baseParams) as Promise<any[]>).then((resRows) => {
+          const f = resRows?.[0] || {};
+          const computed: RadarFacets = {
+            todas: Number(f.todas ?? 0),
+            bens: Number(f.bens ?? 0),
+            servicos: Number(f.servicos ?? 0),
+            obras: Number(f.obras ?? 0),
+            semClassificacao: Number(f.sem_classificacao ?? 0),
+            novas24h: Number(f.novas_24h ?? 0),
+            encerrando48h: Number(f.encerrando_48h ?? 0),
+            encerrando5Dias: Number(f.encerrando_5_dias ?? 0),
+          };
+          setLicitacoesCache(radarFacetsCache, facetsCacheKey, computed, 20_000);
+          return computed;
+        });
+
+    const rowsPromise = prisma.$queryRawUnsafe(
+      rowsSql,
+      ...built.listParams,
+      size,
+      (page - 1) * size,
+    ) as Promise<any[]>;
+
+    const [facets, rawRows] = await Promise.all([facetsPromise, rowsPromise]);
+
+    let count = facets.todas;
+    if (built.hasObjectTypeFilter) {
+      count =
+        (built.selectedObjectTypes.includes('BENS') ? facets.bens : 0)
+        + (built.selectedObjectTypes.includes('SERVICOS') ? facets.servicos : 0)
+        + (built.selectedObjectTypes.includes('OBRAS') ? facets.obras : 0)
+        + (built.includeUnclassified ? facets.semClassificacao : 0);
+    }
+
+    return {
+      data: (Array.isArray(rawRows) ? rawRows : []).map(mapNoticeRowToRadarItem),
+      totalRegistros: count,
+      pagina: page,
+      tamanhoPagina: size,
+      totalPaginas: Math.ceil(count / size) || 1,
+      perfilRadar: tenantRadarProfile
+        ? {
+          cnaes: tenantRadarProfile.cnaes,
+          palavras_chave: tenantRadarProfile.keywords,
+        }
+        : null,
+      facets,
+      tempoBuscaMs: Date.now() - t0,
+    };
+  }
+
+  // Fallback Prisma (utilizado em suítes unitárias com Prisma mockado sem $queryRawUnsafe)
+  const searchTerms = Array.from(new Set([
+    ...getAutomaticSearchTerms(effectiveFilters, tenantRadarProfile),
+    ...explicitPalavras.flatMap(expandAccentVariants),
+  ]));
   const and: any[] = [];
 
   if (buyerCnpjFilter) {
@@ -980,14 +1259,15 @@ export async function listarLicitacoes(
     });
   }
 
-  if (filtros.uf && filtros.uf.trim().toUpperCase() !== 'TODOS') {
-    const ufVal = filtros.uf.trim().toUpperCase();
+  if (ufsFilter.length === 1) {
     and.push({
       OR: [
-        { uf: { equals: ufVal, mode: 'insensitive' } },
-        { uf: { contains: ufVal, mode: 'insensitive' } },
+        { uf: { equals: ufsFilter[0], mode: 'insensitive' } },
+        { uf: { contains: ufsFilter[0], mode: 'insensitive' } },
       ],
     });
+  } else if (ufsFilter.length > 1) {
+    and.push({ uf: { in: ufsFilter } });
   }
 
   if (filtros.orgao && filtros.orgao.trim()) {
@@ -996,42 +1276,46 @@ export async function listarLicitacoes(
     });
   }
 
-  if (filtros.fonte && filtros.fonte.trim().toUpperCase() !== 'TODAS') {
-    const fNorm = filtros.fonte.trim().toLowerCase();
-    if (fNorm === 'pncp') {
-      and.push({ source: { in: ['PNCP', 'pncp'] } });
-    } else if (fNorm === 'comprasgov' || fNorm === 'compras_gov') {
-      and.push({ source: { in: ['ComprasGov', 'compras_gov', 'comprasgov'] } });
-    } else {
-      and.push({ source: { equals: filtros.fonte.trim(), mode: 'insensitive' } });
-    }
+  if (sourcesFilter) {
+    and.push({ source: { in: sourcesFilter } });
   }
 
-  if (filtros.apenasAbertos === true || filtros.apenasAbertos === 'true') {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+  if (isApenasAbertos) {
+    const now = new Date();
+    const qdCutoff = new Date(Date.now() - 15 * 86_400_000);
+    const credCutoff = new Date(Date.now() - 60 * 86_400_000);
+    and.push({
+      NOT: {
+        OR: [
+          { status: { contains: 'Suspens', mode: 'insensitive' } },
+          { status: { contains: 'Revogad', mode: 'insensitive' } },
+          { status: { contains: 'Anulad', mode: 'insensitive' } },
+          { status: { contains: 'Cancelad', mode: 'insensitive' } },
+          { status: { contains: 'Encerrad', mode: 'insensitive' } },
+          { status: { contains: 'Homologad', mode: 'insensitive' } },
+        ],
+      },
+    });
     and.push({
       OR: [
-        { closingAt: { gt: new Date() } },
-        { AND: [{ closingAt: null }, { publishedAt: { gte: thirtyDaysAgo } }] },
+        { closingAt: { gt: now } },
+        { AND: [{ closingAt: null }, { source: 'querido_diario' }, { publishedAt: { gte: qdCutoff } }] },
+        { AND: [{ closingAt: null }, { modality: { contains: 'Credenciamento', mode: 'insensitive' } }, { publishedAt: { gte: credCutoff } }] },
       ],
     });
   }
 
   if (filtros.dataPublicacao && filtros.dataPublicacao.trim()) {
-    const rawPub = filtros.dataPublicacao.trim();
-    const iso = /^\d{8}$/.test(rawPub)
-      ? `${rawPub.slice(0, 4)}-${rawPub.slice(4, 6)}-${rawPub.slice(6, 8)}`
-      : rawPub;
-    const dt = new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
-    if (!isNaN(dt.getTime())) {
+    const dt = parseDateBoundary(filtros.dataPublicacao, false);
+    if (dt) {
       and.push({ publishedAt: { gte: dt } });
     }
   }
 
-  if (filtros.srp === true || filtros.srp === 'true') {
+  if (isSrpFilter) {
     and.push({ srp: true });
   }
-  if (filtros.baixaProcura === true || filtros.baixaProcura === 'true') {
+  if (isBaixaProcura) {
     and.push({
       OR: [
         { modality: { contains: 'Dispensa', mode: 'insensitive' } },
@@ -1041,53 +1325,35 @@ export async function listarLicitacoes(
     });
     and.push({
       AND: [
-        { object: { not: { contains: 'obra de engenharia', mode: 'insensitive' } } },
-        { object: { not: { contains: 'concessão', mode: 'insensitive' } } },
-        { object: { not: { contains: 'parceria público-privada', mode: 'insensitive' } } },
+        { NOT: { object: { contains: 'obra de engenharia', mode: 'insensitive' } } },
+        { NOT: { object: { contains: 'concessão', mode: 'insensitive' } } },
+        { NOT: { object: { contains: 'parceria público-privada', mode: 'insensitive' } } },
       ],
     });
   }
 
-  const rawMod = filtros.modalidade ?? filtros.codigoModalidadeContratacao;
-  if (rawMod && String(rawMod).trim().toLowerCase() !== 'todos') {
-    const rawStr = String(rawMod).trim();
-    const normalized = rawStr
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
+  if (typeof filtros.valorMin === 'number' && Number.isFinite(filtros.valorMin) && filtros.valorMin > 0) {
+    and.push({ estimatedValue: { gte: filtros.valorMin } });
+  }
+  if (typeof filtros.valorMax === 'number' && Number.isFinite(filtros.valorMax) && filtros.valorMax > 0) {
+    and.push({ estimatedValue: { lte: filtros.valorMax } });
+  }
 
-    if (normalized === 'srp' || normalized.includes('registro de precos')) {
-      and.push({ srp: true });
+  if (selectedTypes.length > 0) {
+    if (includeUnclassified) {
+      and.push({ OR: [{ objectType: { in: selectedTypes } }, { objectType: null }] });
     } else {
-      let modTerm = rawStr;
-      if (normalized.includes('pregao') || rawStr === '6') {
-        modTerm = 'Pregão';
-      } else if (normalized.includes('concorrencia') || rawStr === '4' || rawStr === '5' || rawStr === '7') {
-        modTerm = 'Concorrência';
-      } else if (normalized.includes('credenciamento') || rawStr === '12') {
-        modTerm = 'Credenciamento';
-      } else if (normalized.includes('dispensa') || rawStr === '8') {
-        modTerm = 'Dispensa';
-      } else if (normalized.includes('inexigibilidade') || rawStr === '9') {
-        modTerm = 'Inexigibilidade';
-      } else if (normalized.includes('leilao') || rawStr === '1') {
-        modTerm = 'Leilão';
-      } else if (normalized.includes('concurso') || rawStr === '2') {
-        modTerm = 'Concurso';
-      } else if (normalized.includes('dialogo') || rawStr === '14') {
-        modTerm = 'Diálogo Competitivo';
-      } else if (normalized.includes('pre-qualificacao') || normalized.includes('prequalificacao') || rawStr === '13') {
-        modTerm = 'Pré-Qualificação';
-      } else if (normalized.includes('pmi') || normalized.includes('manifestacao de interesse') || rawStr === '15') {
-        modTerm = 'Manifestação de Interesse';
-      } else if (normalized.includes('registro cadastral') || rawStr === '16') {
-        modTerm = 'Registro Cadastral';
-      }
-
-      and.push({
-        modality: { contains: modTerm, mode: 'insensitive' },
-      });
+      and.push({ objectType: { in: selectedTypes } });
     }
+  }
+
+  const modFilter = normalizeModalityFilter(filtros.modalidade ?? filtros.codigoModalidadeContratacao);
+  if (modFilter.isSrp) {
+    and.push({ srp: true });
+  } else if (modFilter.term) {
+    and.push({
+      modality: { contains: modFilter.term, mode: 'insensitive' },
+    });
   }
 
   if (searchTerms.length > 0) {
@@ -1102,29 +1368,25 @@ export async function listarLicitacoes(
 
   if (filtros.dataInicial || filtros.dataFinal) {
     const publishedAt: any = {};
-    if (filtros.dataInicial && filtros.dataInicial.length === 8) {
-      const y = filtros.dataInicial.substring(0, 4);
-      const m = filtros.dataInicial.substring(4, 6);
-      const d = filtros.dataInicial.substring(6, 8);
-      publishedAt.gte = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
-    }
-    if (filtros.dataFinal && filtros.dataFinal.length === 8) {
-      const y = filtros.dataFinal.substring(0, 4);
-      const m = filtros.dataFinal.substring(4, 6);
-      const d = filtros.dataFinal.substring(6, 8);
-      publishedAt.lte = new Date(`${y}-${m}-${d}T23:59:59.999Z`);
-    }
+    const iniDt = parseDateBoundary(filtros.dataInicial, false);
+    const fimDt = parseDateBoundary(filtros.dataFinal, true);
+    if (iniDt) publishedAt.gte = iniDt;
+    if (fimDt) publishedAt.lte = fimDt;
     if (Object.keys(publishedAt).length > 0) {
       and.push({ publishedAt });
     }
   }
 
   const where: any = and.length > 0 ? { AND: and } : {};
+  let prismaOrderBy: any = { publishedAt: { sort: 'desc', nulls: 'last' } };
+  if (sortOrder === 'maior_valor') prismaOrderBy = { estimatedValue: { sort: 'desc', nulls: 'last' } };
+  else if (sortOrder === 'menor_valor') prismaOrderBy = { estimatedValue: { sort: 'asc', nulls: 'last' } };
+  else if (sortOrder === 'encerramento') prismaOrderBy = { closingAt: { sort: 'asc', nulls: 'last' } };
 
   let count = 0;
   let rows: any[] = [];
 
-  const whereCacheKey = JSON.stringify(where);
+  const whereCacheKey = JSON.stringify({ where, orderBy: sortOrder });
   const cachedCountEntry = paginationCountCache.get(whereCacheKey);
   const isCountCached = Boolean(cachedCountEntry && cachedCountEntry.expiresAt > Date.now());
 
@@ -1135,7 +1397,7 @@ export async function listarLicitacoes(
       select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
       skip: (page - 1) * size,
       take: size,
-      orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
+      orderBy: prismaOrderBy,
     });
   } else {
     if (typeof prisma.$transaction === 'function') {
@@ -1146,7 +1408,7 @@ export async function listarLicitacoes(
           select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
           skip: (page - 1) * size,
           take: size,
-          orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
+          orderBy: prismaOrderBy,
         }),
       ]);
       count = typeof res?.[0] === 'number' ? res[0] : 0;
@@ -1158,146 +1420,14 @@ export async function listarLicitacoes(
         select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
         skip: (page - 1) * size,
         take: size,
-        orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
+        orderBy: prismaOrderBy,
       });
     }
     setLicitacoesCache(paginationCountCache, whereCacheKey, count, 60_000);
   }
 
-  if (count === 0 && !filtros.q && !filtros.termo && searchTerms.length > 0) {
-    const andSemCnae = and.filter((item) => !(item?.OR && Array.isArray(item.OR) && item.OR.some((x: any) => x?.object !== undefined)));
-    const whereSemCnae: any = andSemCnae.length > 0 ? { AND: andSemCnae, publishedAt: { not: null } } : { publishedAt: { not: null } };
-    const [fbCount, fbRows] = await Promise.all([
-      prisma.procurementNotice.count({ where: whereSemCnae }),
-      prisma.procurementNotice.findMany({
-        where: whereSemCnae,
-        select: PROCUREMENT_NOTICE_ENXUTO_SELECT,
-        skip: (page - 1) * size,
-        take: size,
-        orderBy: { publishedAt: { sort: 'desc', nulls: 'last' } },
-      }),
-    ]);
-    if (fbCount > 0) {
-      count = fbCount;
-      rows = fbRows;
-      avisoRadar = 'Nenhum edital encontrado exatamente para o seu CNAE neste filtro; exibindo os editais disponíveis na base.';
-    }
-  }
-
-  const companyProfile = tenantRadarProfile
-    ? {
-      cnaeKeywords: tenantRadarProfile.keywords,
-      uf: tenantRadarProfile.uf,
-      valorMin: undefined,
-      valorMax: undefined,
-    }
-    : null;
-
-  function calcularScoreItem(r: any, profile: typeof companyProfile) {
-    if (!profile || profile.cnaeKeywords.length === 0) {
-      let base = 70;
-      const rawValNum = r.estimatedValue ? Number(r.estimatedValue) : 0;
-      if (rawValNum > 0) base += 10;
-      else base += 5; // neutro para orçamentos sigilosos no PNCP
-      if (r.openingAt) base += 5;
-      return { pontuacao: Math.min(base, 95), nivel: base >= 75 ? 'alta' : 'media' };
-    }
-
-    const objLower = (r.object || '').toLowerCase();
-    const matches = profile.cnaeKeywords.filter(kw => objLower.includes(kw));
-
-    let scoreNicho = 15;
-    if (matches.length >= 3) scoreNicho = 55;
-    else if (matches.length === 2) scoreNicho = 45;
-    else if (matches.length === 1) scoreNicho = 35;
-
-    let scoreRegiao = 10;
-    if (profile.uf && r.uf && profile.uf.toUpperCase() === r.uf.toUpperCase()) {
-      scoreRegiao = 25;
-    }
-
-    // Regra: quando val <= 0 (orçamento sigiloso), atribua scoreValor = 15 (neutro)
-    let scoreValor = 15;
-    const val = r.estimatedValue ? Number(r.estimatedValue) : 0;
-    if (val > 0) {
-      if (profile.valorMin && val < profile.valorMin) scoreValor = 5;
-      else if (profile.valorMax && val > profile.valorMax) scoreValor = 10;
-      else scoreValor = 20;
-    } else {
-      scoreValor = 15; // neutro para orçamentos sigilosos
-    }
-
-    const totalScore = Math.min(100, Math.max(10, scoreNicho + scoreRegiao + scoreValor));
-    const nivel = totalScore >= 75 ? 'alta' : totalScore >= 50 ? 'media' : 'baixa';
-    return { pontuacao: totalScore, nivel };
-  }
-
-  const safeFormatDate = (val: unknown): string | null => {
-    if (!val) return null;
-    if (val instanceof Date) return val.toISOString();
-    return String(val);
-  };
-
   return {
-    data: rows.map((r: any) => {
-      const numControle = r.externalId || r.numeroControlePncp || r.noticeNumber || '';
-      const downloadUrl = resolvePncpDownloadUrl(numControle, r.url, null) || r.url || '';
-      const portalUrl = downloadUrl || r.url || '';
-      const auditParams = extractPncpAuditParams(numControle, r.buyerDocument, null, null);
-      const urlOficialPncp = auditParams?.urlOficialPncp || r.url || 'https://pncp.gov.br/app/editais';
-
-      const rawEst = r.estimatedValue ? Number(r.estimatedValue) : null;
-      const valorEstimado = rawEst != null && rawEst > 0 ? rawEst : null;
-      const pubDate = safeFormatDate(r.publishedAt);
-      const openDate = safeFormatDate(r.openingAt);
-      const closeDate = safeFormatDate(r.closingAt);
-
-      return {
-        id: r.id,
-        databaseId: r.id,
-        numeroControlePNCP: numControle || r.id,
-        orgao: r.buyerName || '',
-        cnpjOrgao: r.buyerDocument || '',
-        anoCompra: auditParams?.anoCompra,
-        sequencialCompra: auditParams?.sequencialCompra,
-        urlOficial: urlOficialPncp,
-        urlOficialPncp,
-        unidade: '',
-        uf: r.uf || '',
-        municipio: r.municipality || '',
-        objeto: r.object || '',
-        processo: r.noticeNumber || '',
-        numeroCompra: r.noticeNumber || '',
-        numeroEdital: r.noticeNumber || numControle || r.id,
-        modalidade: r.modality || '',
-        modalidadeId: null,
-        modoDisputa: r.modoDisputa || '',
-        criterioJulgamento: r.judgmentCriterion || (r.rawPayload as any)?.criterioJulgamentoNome || (r.rawPayload as any)?.tipoJulgamentoNome || null,
-        situacao: r.status || '',
-        valorTotalEstimado: valorEstimado,
-        valorEstimado,
-        valor_estimado: valorEstimado,
-        dataPublicacao: pubDate,
-        data_publicacao: pubDate,
-        dataAbertura: openDate,
-        data_abertura: openDate,
-        dataAberturaProposta: openDate,
-        dataInicioRecebimento: openDate,
-        dataEncerramento: closeDate,
-        data_encerramento: closeDate,
-        dataEncerramentoProposta: closeDate,
-        dataFimRecebimento: closeDate,
-        dataLimiteProposta: closeDate,
-        dataSessaoDisputa: openDate || closeDate,
-        link: portalUrl || urlOficialPncp,
-        linkSistemaOrigem: portalUrl || urlOficialPncp,
-        documento_url: downloadUrl,
-        linkDownloadEdital: downloadUrl,
-        srp: Boolean(r.srp),
-        fonte: r.source || 'PNCP',
-        score: calcularScoreItem(r, companyProfile),
-      };
-    }),
+    data: rows.map(mapNoticeRowToRadarItem),
     totalRegistros: count,
     pagina: page,
     tamanhoPagina: size,
@@ -1308,7 +1438,7 @@ export async function listarLicitacoes(
         palavras_chave: tenantRadarProfile.keywords,
       }
       : null,
-    aviso: avisoRadar,
+    tempoBuscaMs: Date.now() - t0,
   };
 }
 

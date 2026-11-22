@@ -8,6 +8,7 @@ import api from '@services/api';
 import toast from 'react-hot-toast';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
+import { useCompany } from '@/contexts/CompanyContext';
 
 function deriveRadarPreview(empresa: any) {
   const raw = [
@@ -28,11 +29,13 @@ function deriveRadarPreview(empresa: any) {
 }
 
 export default function EmpresaPage() {
+  const { refreshCompanies } = useCompany();
   const [cnpj, setCnpj] = useState('');
   const [cpfSocio, setCpfSocio] = useState('');
   const [empresa, setEmpresa] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
+  const [erroSalvar, setErroSalvar] = useState('');
   const [mostrarGovBr, setMostrarGovBr] = useState(false);
 
   const [formFields, setFormFields] = useState({
@@ -44,6 +47,10 @@ export default function EmpresaPage() {
     municipio: '',
     uf: '',
     cnae_principal: '',
+    porte: '',
+    telefone: '',
+    email: '',
+    palavras_chave: '',
     status: 'ATIVA',
   });
 
@@ -56,6 +63,9 @@ export default function EmpresaPage() {
         if (!cancelled && primeiraEmpresa) {
           setEmpresa(primeiraEmpresa);
           setCnpj(formatCnpjMask(primeiraEmpresa.cnpj));
+          const kw = Array.isArray(primeiraEmpresa.palavras_chave)
+            ? primeiraEmpresa.palavras_chave.join(', ')
+            : '';
           setFormFields({
             razao_social: primeiraEmpresa.razao_social || primeiraEmpresa.razaoSocial || '',
             nome_fantasia: primeiraEmpresa.nome_fantasia || primeiraEmpresa.nomeFantasia || '',
@@ -65,6 +75,10 @@ export default function EmpresaPage() {
             municipio: primeiraEmpresa.municipio || '',
             uf: primeiraEmpresa.uf || '',
             cnae_principal: primeiraEmpresa.cnae_principal || primeiraEmpresa.cnaePrincipal || '',
+            porte: primeiraEmpresa.porte || '',
+            telefone: primeiraEmpresa.telefone || '',
+            email: primeiraEmpresa.email || '',
+            palavras_chave: kw,
             status: primeiraEmpresa.status || 'ATIVA',
           });
         }
@@ -84,7 +98,21 @@ export default function EmpresaPage() {
   } = useBrasilApiCnpj(cnpj, {
     onSuccess: (dados) => {
       setErro('');
-      const updated = {
+      setErroSalvar('');
+      setFormFields((prev) => ({
+        ...prev,
+        razao_social: dados.razaoSocial || prev.razao_social,
+        nome_fantasia: dados.nomeFantasia || prev.nome_fantasia,
+        cep: dados.cep || prev.cep,
+        logradouro: dados.logradouro || prev.logradouro,
+        bairro: dados.bairro || prev.bairro,
+        municipio: dados.cidade || prev.municipio,
+        uf: dados.uf || prev.uf,
+        cnae_principal: dados.cnaePrincipal || prev.cnae_principal,
+        status: dados.status || prev.status || 'ATIVA',
+      }));
+      setEmpresa((prev: any) => ({
+        ...(prev || {}),
         cnpj: dados.cnpj,
         razao_social: dados.razaoSocial,
         nome_fantasia: dados.nomeFantasia,
@@ -95,9 +123,7 @@ export default function EmpresaPage() {
         uf: dados.uf,
         cnae_principal: dados.cnaePrincipal,
         status: dados.status || 'ATIVA',
-      };
-      setFormFields(updated);
-      setEmpresa((prev: any) => ({ ...(prev || {}), ...updated }));
+      }));
     },
     onError: (msg) => {
       setErro(msg);
@@ -105,19 +131,33 @@ export default function EmpresaPage() {
   });
 
   const salvarEmpresa = async () => {
+    setErroSalvar('');
     const cnpjLimpo = sanitizeCnpj(cnpj);
-    if (cnpjLimpo.length > 0 && !isValidCnpj(cnpjLimpo, { optional: false })) {
-      toast.error('Consulte ou preencha um CNPJ válido antes de ativar a análise.');
+    if (!cnpjLimpo || !isValidCnpj(cnpjLimpo, { optional: false })) {
+      const msg = 'Consulte ou preencha um CNPJ válido com 14 dígitos antes de salvar.';
+      setErroSalvar(msg);
+      toast.error(msg);
       return;
     }
     if (!formFields.razao_social.trim()) {
-      toast.error('Preencha a Razão Social da empresa antes de salvar.');
+      const msg = 'Preencha a Razão Social da empresa antes de salvar.';
+      setErroSalvar(msg);
+      toast.error(msg);
       return;
     }
 
     setSaving(true);
 
     try {
+      const palavrasManuais = formFields.palavras_chave
+        .split(/[,;]+/)
+        .map((item) => item.trim())
+        .filter((item) => item.length >= 2);
+      const palavrasDerivadas = String(formFields.cnae_principal || formFields.razao_social || '')
+        .split(/[-,\s/]+/)
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => item.length >= 4);
+
       const payload = {
         cnpj: cnpjLimpo,
         razao_social: formFields.razao_social.trim(),
@@ -128,19 +168,31 @@ export default function EmpresaPage() {
         cnae_principal: formFields.cnae_principal.trim(),
         municipio: formFields.municipio.trim(),
         uf: formFields.uf.trim().toUpperCase().slice(0, 2),
+        porte: formFields.porte.trim() || undefined,
+        telefone: formFields.telefone.trim(),
+        email: formFields.email.trim(),
         status: formFields.status || 'ATIVA',
-        palavras_chave: String(formFields.cnae_principal || formFields.razao_social || '')
-          .split(/[-,\s/]+/)
-          .map((item) => item.trim().toLowerCase())
-          .filter((item) => item.length >= 4),
+        palavras_chave: palavrasManuais.length > 0 ? palavrasManuais : palavrasDerivadas,
         regioes: formFields.uf ? [formFields.uf.trim().toUpperCase().slice(0, 2)] : [],
       };
 
-      const response = await api.post('/empresas', payload);
-      setEmpresa(response.data?.data ?? payload);
-      toast.success('Empresa vinculada ao radar com sucesso.');
-    } catch {
-      toast.error('Não foi possível salvar a empresa agora.');
+      const response = empresa?.id
+        ? await api.patch(`/empresas/${empresa.id}`, payload)
+        : await api.post('/empresas', payload);
+      const savedCompany = response.data?.data ?? payload;
+      setEmpresa(savedCompany);
+      if (Array.isArray(savedCompany?.palavras_chave)) {
+        setFormFields((prev) => ({ ...prev, palavras_chave: savedCompany.palavras_chave.join(', ') }));
+      }
+      await refreshCompanies();
+      toast.success('Dados da empresa salvos e sincronizados com sucesso.');
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Não foi possível salvar a empresa agora.';
+      setErroSalvar(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -280,7 +332,69 @@ export default function EmpresaPage() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">CNAE Principal</label>
+                <input
+                  type="text"
+                  placeholder="Código e descrição do CNAE"
+                  value={formFields.cnae_principal}
+                  onChange={(e) => setFormFields((p) => ({ ...p, cnae_principal: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Porte da Empresa</label>
+                <select
+                  value={formFields.porte}
+                  onChange={(e) => setFormFields((p) => ({ ...p, porte: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="MEI">MEI - Microempreendedor Individual</option>
+                  <option value="ME">ME - Microempresa</option>
+                  <option value="EPP">EPP - Empresa de Pequeno Porte</option>
+                  <option value="DEMAIS">Demais Empresas</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">Telefone / WhatsApp</label>
+                <input
+                  type="text"
+                  placeholder="(00) 00000-0000"
+                  value={formFields.telefone}
+                  onChange={(e) => setFormFields((p) => ({ ...p, telefone: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">E-mail Comercial</label>
+                <input
+                  type="email"
+                  placeholder="contato@empresa.com.br"
+                  value={formFields.email}
+                  onChange={(e) => setFormFields((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold uppercase text-brand-blue/70 mb-1">
+                  Palavras-chave do Radar (separadas por vírgula)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex.: uniformes, vestuário, enxoval hospitalar, fardamento"
+                  value={formFields.palavras_chave}
+                  onChange={(e) => setFormFields((p) => ({ ...p, palavras_chave: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-brand-blue outline-none focus:border-brand-blue/40"
+                />
+              </div>
             </div>
+
+            {erroSalvar && (
+              <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">
+                {erroSalvar}
+              </p>
+            )}
 
             {/* Resultado do CNPJ */}
             {empresa && (
@@ -376,16 +490,19 @@ export default function EmpresaPage() {
           </div>
 
           {/* BOTÃO ATIVAR */}
-          {empresa && (
-            <button
-              id="btn-ativar-expertise"
-              onClick={() => void salvarEmpresa()}
-              disabled={saving}
-              className="w-full py-4 bg-brand-blue hover:bg-[#172554] text-white font-bold rounded-lg shadow-lg shadow-[0_4px_20px_rgba(30,58,138,0.05)] transition-all flex items-center justify-center gap-3 active:scale-95"
-            >
-              <Radar className="w-5 h-5" /> {saving ? 'Salvando Empresa...' : 'Ativar Análise Expertise'}
-            </button>
-          )}
+          <button
+            id="btn-ativar-expertise"
+            onClick={() => void salvarEmpresa()}
+            disabled={saving}
+            className="w-full py-4 bg-brand-blue hover:bg-[#172554] text-white font-bold rounded-lg shadow-lg shadow-[0_4px_20px_rgba(30,58,138,0.05)] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-60"
+          >
+            <Radar className="w-5 h-5" />
+            {saving
+              ? 'Salvando Empresa...'
+              : empresa?.id
+              ? 'Salvar Alterações e Atualizar Radar'
+              : 'Salvar Empresa e Ativar Análise Expertise'}
+          </button>
         </div>
 
         {/* PAINEL LATERAL — GUIA GOV.BR */}

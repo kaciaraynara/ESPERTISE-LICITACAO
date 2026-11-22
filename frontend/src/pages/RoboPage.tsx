@@ -28,14 +28,14 @@ const PORTAIS_OFICIAIS = [
   { nome: 'Portal de Compras Publicas', url: 'https://www.portaldecompraspublicas.com.br/' },
   { nome: 'BLL Compras', url: 'https://bll.org.br/' },
   { nome: 'BNC', url: 'https://bnc.org.br/' },
-  { nome: 'Licitacoes-e (BB)', url: 'https://www.licitacoes-e.com.br/' },
+  { nome: 'Licitações-e (BB)', url: 'https://www.licitações-e.com.br/' },
 ];
 
 function formatarMoeda(v: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 }
 
-export const RoboPage: React.FC = () => {
+export const RobôPage: React.FC = () => {
   const [edital, setEdital] = useState<EditalOption | null>(null);
   const [urlNavegador, setUrlNavegador] = useState('https://pncp.gov.br/app/editais');
   const [urlAtiva, setUrlAtiva] = useState('');
@@ -150,10 +150,10 @@ export const RoboPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-extrabold text-[#081C3A]">
-              Sala de Disputa & Planilha do Robo de Lances
+              Sala de Disputa & Planilha do Robô de Lances
             </h1>
             <p className="text-xs text-slate-500">
-              Acesse o portal da disputa integrado e controle os precos por item em formato planilha
+              Acesse o portal da disputa integrado e controle os preços por item em formato planilha
             </p>
           </div>
         </div>
@@ -230,12 +230,12 @@ export const RoboPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Planilha Estilo Excel de Precos e Lances */}
+      {/* Planilha Estilo Excel de Preços e Lances */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
-              <Table2 className="h-4 w-4 text-emerald-600" /> Planilha de Precos e Lances (Estilo Excel)
+              <Table2 className="h-4 w-4 text-emerald-600" /> Planilha de Preços e Lances (Estilo Excel)
             </h2>
             <p className="text-xs text-slate-500">
               Edite qualquer celula de preco diretamente; os calculos de total e piso minimo atualizam na hora
@@ -391,4 +391,4 @@ export const RoboPage: React.FC = () => {
   );
 };
 
-export default RoboPage;
+export default RobôPage;

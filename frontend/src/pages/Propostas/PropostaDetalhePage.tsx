@@ -758,7 +758,9 @@ export const PropostaDetalhePage: React.FC = () => {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/70">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <DollarSign size={13} className="text-[#EA580C]" />
-                Valor Total Homologado
+                {proposta?.status === 'HOMOLOGADA' || proposta?.status === 'GANHA'
+                  ? 'Valor Total Homologado'
+                  : 'Valor Total da Proposta'}
               </span>
               <p className="text-xl font-black text-slate-900 mt-1">
                 {formatarMoeda(totalCalculado)}
@@ -802,7 +804,7 @@ export const PropostaDetalhePage: React.FC = () => {
                 <InfoTooltip text="Prazo oficial durante o qual seus preços permanecem congelados para o órgão público." />
               </span>
               <p className="text-base font-bold text-slate-900 mt-1">
-                {proposta.validadeDias} dias corridos
+                {proposta.validadeDias ?? (proposta as any).validade_dias ?? 60} dias corridos
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Padrão Art. 90 da Lei 14.133/21

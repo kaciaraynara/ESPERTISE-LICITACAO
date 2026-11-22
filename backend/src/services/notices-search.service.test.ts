@@ -103,11 +103,12 @@ describe('NoticesSearchService', () => {
     expect((result.data[0] as any).metadata).toMatchObject({ token: '[redacted]' });
     expect(client.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-      scope: 'notices',
-      action: 'NOTICE_SEARCH_EXECUTED',
-      outcome: 'success',
-      userId: 'user-1',
-    })}));
+        scope: 'notices',
+        action: 'NOTICE_SEARCH_EXECUTED',
+        outcome: 'success',
+        userId: 'user-1',
+      })
+    }));
   });
 
   test('filtra por fonte', async () => {
@@ -177,10 +178,11 @@ describe('NoticesSearchService', () => {
     expect((result as any).rawPayload).toBeUndefined();
     expect(client.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-      action: 'NOTICE_VIEWED',
-      entityType: 'procurement_notice',
-      entityId: 'notice-1',
-    })}));
+        action: 'NOTICE_VIEWED',
+        entityType: 'procurement_notice',
+        entityId: 'notice-1',
+      })
+    }));
   });
 
   test('inclui itens do edital no detalhe sem incluir itens no payload de busca', async () => {
@@ -265,10 +267,11 @@ describe('NoticesSearchService', () => {
     expect(result).toMatchObject({ rawPayloadIncluded: false });
     expect(client.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-      action: 'NOTICE_RAW_PAYLOAD_DENIED',
-      outcome: 'failure',
-      entityId: 'notice-1',
-    })}));
+        action: 'NOTICE_RAW_PAYLOAD_DENIED',
+        outcome: 'failure',
+        entityId: 'notice-1',
+      })
+    }));
   });
 
   test('permite rawPayload para admin e sanitiza conteudo retornado', async () => {

@@ -33,8 +33,8 @@ interface DossieItem {
     valorTotalContratado: number;
     ticketMedio: number;
     maiorContrato: number;
-    orgaosContratantes: number;
-    porOrgao?: Array<{ orgao: string; total: number; valorTotal: number }>;
+    órgãosContratantes: number;
+    porÓrgão?: Array<{ orgao: string; total: number; valorTotal: number }>;
     porModalidade?: Record<string, number>;
   };
   contratos: Array<{
@@ -116,7 +116,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       setDossies(resultados);
       toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Nao foi possivel consultar os concorrentes agora.');
+      toast.error(err?.response?.data?.error || 'Não foi possível consultar os concorrentes agora.');
     } finally {
       setCarregando(false);
     }
@@ -124,11 +124,11 @@ export const HistoricoConcorrentesPage: React.FC = () => {
 
   const totalContratos = dossies.reduce((s, d) => s + (d.estatisticas?.totalContratos || 0), 0);
   const valorGlobal = dossies.reduce((s, d) => s + (d.estatisticas?.valorTotalContratado || 0), 0);
-  const totalOrgaos = dossies.reduce((s, d) => s + (d.estatisticas?.orgaosContratantes || 0), 0);
+  const totalÓrgãos = dossies.reduce((s, d) => s + (d.estatisticas?.órgãosContratantes || 0), 0);
   const ticketMedioGeral = totalContratos > 0 ? valorGlobal / totalContratos : 0;
 
-  const dadosGraficoOrgaos = dossies
-    .flatMap((d) => d.estatisticas?.porOrgao || [])
+  const dadosGraficoÓrgãos = dossies
+    .flatMap((d) => d.estatisticas?.porÓrgão || [])
     .slice(0, 6)
     .map((o) => ({
       nome: o.orgao.length > 22 ? o.orgao.slice(0, 22) + '...' : o.orgao,
@@ -153,9 +153,9 @@ export const HistoricoConcorrentesPage: React.FC = () => {
             <Building2 className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-[#081C3A]">Historico de Concorrentes</h1>
+            <h1 className="text-xl font-extrabold text-[#081C3A]">Histórico de Concorrentes</h1>
             <p className="text-xs text-slate-500">
-              Conheca os concorrentes, onde atuam, suas vitorias e principais contratacoes reais no PNCP
+              Conheça os concorrentes, onde atuam, suas vitórias e principais contratações reais no PNCP
             </p>
           </div>
         </div>
@@ -165,7 +165,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            CNPJs para Comparativo de Historico
+            CNPJs para Comparativo de Histórico
           </span>
           <button
             type="button"
@@ -230,7 +230,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50"
           >
             {carregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Consultar Historico Real
+            Consultar Histórico Real
           </button>
         </div>
       </div>
@@ -245,21 +245,21 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <Award className="h-4 w-4 text-[#F97316]" /> Contratos / Vitorias
+            <Award className="h-4 w-4 text-[#F97316]" /> Contratos / Vitórias
           </div>
           <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalContratos}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <DollarSign className="h-4 w-4 text-emerald-600" /> Ticket Medio
+            <DollarSign className="h-4 w-4 text-emerald-600" /> Ticket Médio
           </div>
           <div className="mt-2 text-lg font-extrabold text-[#081C3A]">{formatarMoeda(ticketMedioGeral)}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <MapPin className="h-4 w-4 text-[#0070C0]" /> Orgaos Atendidos
+            <MapPin className="h-4 w-4 text-[#0070C0]" /> Órgãos Atendidos
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalOrgaos}</div>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalÓrgãos}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -273,9 +273,9 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         {[
           { id: 'ranking', label: 'Ranking de Concorrentes', icon: Award },
-          { id: 'regiao', label: 'Orgaos e Atuacao', icon: MapPin },
+          { id: 'regiao', label: 'Órgãos e Atuacao', icon: MapPin },
           { id: 'atividades', label: 'Modalidades Frequentes', icon: Layers },
-          { id: 'potencial', label: 'Analise de Potencial', icon: TrendingUp },
+          { id: 'potencial', label: 'Análise de Potencial', icon: TrendingUp },
         ].map((tab) => {
           const Icon = tab.icon;
           const active = abaAtiva === tab.id;
@@ -302,12 +302,12 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">
-              Orgaos com Maior Concentracao de Contratos
+              Órgãos com Maior Concentracao de Contratos
             </h2>
-            {dadosGraficoOrgaos.length > 0 ? (
+            {dadosGraficoÓrgãos.length > 0 ? (
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dadosGraficoOrgaos} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <BarChart data={dadosGraficoÓrgãos} layout="vertical" margin={{ left: 10, right: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis type="number" tick={{ fontSize: 11 }} />
                     <YAxis dataKey="nome" type="category" width={130} tick={{ fontSize: 11 }} />
@@ -358,7 +358,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                   <th className="py-2 pr-3">Contratos</th>
                   <th className="py-2 pr-3">Volume Contratado</th>
                   <th className="py-2 pr-3">Maior Contrato</th>
-                  <th className="py-2">Orgaos</th>
+                  <th className="py-2">Órgãos</th>
                 </tr>
               </thead>
               <tbody>
@@ -386,7 +386,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                         {formatarMoeda(d.estatisticas?.valorTotalContratado || 0)}
                       </td>
                       <td className="py-3 pr-3">{formatarMoeda(d.estatisticas?.maiorContrato || 0)}</td>
-                      <td className="py-3">{d.estatisticas?.orgaosContratantes || 0}</td>
+                      <td className="py-3">{d.estatisticas?.órgãosContratantes || 0}</td>
                     </tr>
                   );
                 })}
@@ -399,7 +399,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                 {dossies.flatMap((d) => d.contratos || []).slice(0, 6).map((c) => (
                   <div key={c.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
                     <span className="truncate pr-4 font-medium text-slate-700">
-                      {c.orgao || 'Orgao'} — {c.objeto || 'Objeto nao informado'}
+                      {c.orgao || 'Órgão'} — {c.objeto || 'Objeto nao informado'}
                     </span>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="font-bold text-[#081C3A]">{formatarMoeda(c.valor)}</span>
@@ -417,7 +417,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-          Adicione um ou mais CNPJs acima e clique em <strong>Consultar Historico Real</strong> para montar os graficos e o ranking.
+          Adicione um ou mais CNPJs acima e clique em <strong>Consultar Histórico Real</strong> para montar os graficos e o ranking.
         </div>
       )}
     </div>

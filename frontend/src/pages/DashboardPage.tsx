@@ -72,20 +72,20 @@ export const DashboardPage: React.FC = () => {
 
   const ferramentas = [
     { titulo: 'Leitor de Edital (Luli)', icon: Bot, rota: FORNECEDOR_ROUTES.lex },
-    { titulo: 'Analise de Irregularidades', icon: ShieldAlert, rota: FORNECEDOR_ROUTES.radar_nulidades },
-    { titulo: 'Analise de Viabilidade', icon: TrendingUp, rota: FORNECEDOR_ROUTES.score_viabilidade },
-    { titulo: 'Robo de Lance', icon: Cpu, rota: FORNECEDOR_ROUTES.robo_lances },
-    { titulo: 'Historico Concorrentes', icon: Briefcase, rota: FORNECEDOR_ROUTES.historico_concorrentes },
-    { titulo: 'SRP e Gestao de Atas', icon: Calculator, rota: FORNECEDOR_ROUTES.srp },
+    { titulo: 'Análise de Irregularidades', icon: ShieldAlert, rota: FORNECEDOR_ROUTES.radar_nulidades },
+    { titulo: 'Análise de Viabilidade', icon: TrendingUp, rota: FORNECEDOR_ROUTES.score_viabilidade },
+    { titulo: 'Robô de Lance', icon: Cpu, rota: FORNECEDOR_ROUTES.robo_lances },
+    { titulo: 'Histórico Concorrentes', icon: Briefcase, rota: FORNECEDOR_ROUTES.historico_concorrentes },
+    { titulo: 'SRP e Gestão de Atas', icon: Calculator, rota: FORNECEDOR_ROUTES.srp },
   ];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#081C3A]">Ola, {nomeUsuario}!</h1>
+          <h1 className="text-2xl font-extrabold text-[#081C3A]">Olá, {nomeUsuario}!</h1>
           <p className="text-sm text-slate-500">
-            Acompanhe suas oportunidades reais, alertas e ferramentas estrategicas.
+            Acompanhe suas oportunidades reais, alertas e ferramentas estratégicas.
           </p>
         </div>
         <button
@@ -93,14 +93,14 @@ export const DashboardPage: React.FC = () => {
           onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
           className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600"
         >
-          Explorar Radar de Licitacoes <ArrowRight className="h-4 w-4" />
+          Explorar Radar de Licitações <ArrowRight className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Trilha Guiada - Por onde comecar */}
+      {/* Trilha Guiada - Por onde começar */}
       <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-[#081C3A] to-[#0f3460] p-4 sm:p-5 text-white shadow-sm">
         <div className="mb-3 text-xs font-bold uppercase tracking-wider text-[#F97316]">
-          Por onde comecar — Fluxo Completo em 3 Passos
+          Por onde começar — Fluxo Completo em 3 Passos
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <button
@@ -134,7 +134,7 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <Target className="h-4 w-4 text-[#F97316]" /> Licitacoes no Radar
+            <Target className="h-4 w-4 text-[#F97316]" /> Licitações no Radar
           </div>
           <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{totalRadar}</div>
         </div>
@@ -180,18 +180,18 @@ export const DashboardPage: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-2 pr-3">Orgao</th>
+                  <th className="py-2 pr-3">Órgão</th>
                   <th className="py-2 pr-3">Objeto</th>
                   <th className="py-2 pr-3">Valor Estimado</th>
                   <th className="py-2 pr-3">Abertura / Prazo</th>
-                  <th className="py-2 text-right">Acao</th>
+                  <th className="py-2 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {editais.slice(0, 5).map((ed) => (
                   <tr key={ed.id || ed.numeroControlePNCP} className="border-b border-slate-100">
                     <td className="py-3 pr-3 font-bold text-[#081C3A]">
-                      {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Orgao Publico'}
+                      {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Órgão Publico'}
                     </td>
                     <td className="max-w-md truncate py-3 pr-3 text-slate-700">
                       {ed.objeto || ed.objetoCompra || 'Objeto nao informado'}
@@ -218,7 +218,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         ) : (
           <p className="py-6 text-xs text-slate-500">
-            Nenhum edital sincronizado no momento. Acesse o Radar de Licitacoes para buscar por UF ou CNAE.
+            Nenhum edital sincronizado no momento. Acesse o Radar de Licitações para buscar por UF ou CNAE.
           </p>
         )}
       </div>

@@ -135,12 +135,25 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return !isAuthenticated ? <>{children}</> : <Navigate to={resolveAuthenticatedHome()} replace />;
 }
 
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  const role = String((user as any)?.role || '').toLowerCase();
+  const isAdmin = Boolean((user as any)?.isAdmin) || role === 'admin' || role === 'super_admin';
+  if (!isAdmin) {
+    return <Navigate to={resolveAuthenticatedHome()} replace />;
+  }
+  return <>{children}</>;
+}
+
 // ----------------------------------------------------
 // VERIFICAÇÃO DE SESSÃO — EXECUTA UMA ÚNICA VEZ NA CARGA DO APP
 // ----------------------------------------------------
 // Não depende de mudanças de rota. Renovações durante o uso ficam a cargo
 // do interceptor 401 em services/api.ts (refresh sob demanda, deduplicado).
-const PUBLIC_PATHS = ['/', '/login', '/register', '/cadastro', '/forgot-password', '/esqueci-senha', '/reset-password', '/redefinir-senha', '/auth/redefinir-senha', '/termos', '/privacidade'];
 const TOKEN_EXPIRY_SAFETY_MS = 60_000;
 
 function isAccessTokenValid(token: string | null | undefined): boolean {
@@ -167,17 +180,26 @@ function AuthBootstrap() {
 
     const { isAuthenticated, accessToken, refreshToken, setAuth, logout } = useAuthStore.getState();
 
-    // Token válido em memória → nenhuma chamada de rede.
-    if (isAuthenticated && isAccessTokenValid(accessToken)) return;
-
-    // Páginas públicas não exigem sessão.
-    if (PUBLIC_PATHS.includes(window.location.pathname)) return;
-
-    // Sem sessão prévia: o PrivateRoute redireciona para /login sem chamar a API.
+    // Sem sessão prévia: rotas privadas redirecionam pelo PrivateRoute e rotas públicas seguem normais.
     if (!isAuthenticated && !refreshToken) return;
 
-    // Executa uma única vez (guardado por hasBootstrapped). Reutiliza a mesma
-    // promise de refresh do interceptor 401, evitando chamadas paralelas.
+    // Token válido em memória → valida com /auth/me caso esteja ativo para garantir sessão não revogada.
+    if (isAuthenticated && isAccessTokenValid(accessToken)) {
+      authApi.me().catch((err: any) => {
+        const status = err?.response?.status;
+        if (status === 401 || status === 403 || status === 404) {
+          logout();
+        }
+      });
+      return;
+    }
+
+    if (!refreshToken) {
+      logout();
+      return;
+    }
+
+    // Executa uma única vez (inclusive se houver sessão expirada antes de entrar em /login).
     authApi
       .refresh()
       .then(({ data }) => {
@@ -464,9 +486,9 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
 
-          {/* Painel Privado do Proprietário (Super Admin) - Fora da visão dos licitantes */}
-          <Route path="/master-admin-vault" element={<SuperAdminPage />} />
-          <Route path="/internal-ops-vault" element={<SuperAdminPage />} />
+          {/* Painel Privado do Proprietário (Super Admin) - Protegido por role */}
+          <Route path="/master-admin-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
+          <Route path="/internal-ops-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
 
           {/* Fallback 404 */}
           <Route path="*" element={<NotFoundPage />} />

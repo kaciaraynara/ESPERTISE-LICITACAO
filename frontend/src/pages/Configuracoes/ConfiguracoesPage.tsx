@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Settings, Building, ShieldCheck, Bell, 
   Cpu, Save, CheckCircle2, Loader2, Send, Plus, Lock
@@ -66,7 +67,10 @@ export default function ConfiguracoesPage() {
     cidade: '',
     uf: '',
     cnaePrincipal: '',
+    porte: '',
     status: '',
+    telefone: '',
+    email: authUser?.email || '',
     whatsapp: authUser?.telefone || '',
   });
 
@@ -83,11 +87,31 @@ export default function ConfiguracoesPage() {
         cidade: empresa.municipio || empresa.cidade || prev.cidade || '',
         uf: empresa.uf || prev.uf || '',
         cnaePrincipal: empresa.cnaePrincipal || empresa.cnae_principal || prev.cnaePrincipal || '',
+        porte: empresa.porte || prev.porte || '',
         status: empresa.status || prev.status || '',
-        whatsapp: authUser?.telefone || prev.whatsapp || '',
+        telefone: empresa.telefone || authUser?.telefone || prev.telefone || '',
+        email: empresa.email || authUser?.email || prev.email || '',
+        whatsapp: authUser?.telefone || empresa.telefone || prev.whatsapp || '',
       }));
     }
-  }, [empresa?.id, authUser?.telefone]);
+  }, [
+    empresa?.id,
+    empresa?.razaoSocial,
+    empresa?.razao_social,
+    empresa?.cep,
+    empresa?.logradouro,
+    empresa?.bairro,
+    empresa?.municipio,
+    empresa?.uf,
+    empresa?.cnaePrincipal,
+    empresa?.cnae_principal,
+    empresa?.porte,
+    empresa?.status,
+    empresa?.telefone,
+    empresa?.email,
+    authUser?.telefone,
+    authUser?.email,
+  ]);
 
   const {
     isLoading: isBuscandoCnpj,
@@ -143,10 +167,13 @@ export default function ConfiguracoesPage() {
       }
       return Promise.all(requests);
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: async (_result, variables) => {
       updateUser({ telefone: variables.whatsapp });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['minhas_empresas'] }),
+        refreshCompanies(),
+      ]);
       toast.success('Configurações salvas com sucesso!');
-      queryClient.invalidateQueries({ queryKey: ['minhas_empresas'] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || 'Erro ao salvar configurações.');
@@ -246,6 +273,9 @@ export default function ConfiguracoesPage() {
         uf: formData.uf,
         cnaePrincipal: formData.cnaePrincipal,
         cnae_principal: formData.cnaePrincipal,
+        porte: formData.porte,
+        telefone: formData.telefone.trim(),
+        email: formData.email.trim(),
         status: formData.status,
       },
       whatsapp: formData.whatsapp.trim(),
@@ -585,8 +615,26 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div>
+                <label htmlFor="cfg-porte" className="block text-xs font-bold text-slate-600 mb-1">
+                  Porte da Empresa
+                </label>
+                <select
+                  id="cfg-porte"
+                  value={formData.porte}
+                  onChange={(e) => setFormData((p) => ({ ...p, porte: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="MEI">MEI - Microempreendedor Individual</option>
+                  <option value="ME">Microempresa (ME)</option>
+                  <option value="EPP">Empresa de Pequeno Porte (EPP)</option>
+                  <option value="DEMAIS">Demais (Geral)</option>
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="cfg-status" className="block text-xs font-bold text-slate-600 mb-1">
-                  Porte da Empresa / Status
+                  Situação Cadastral / Status
                 </label>
                 <select
                   id="cfg-status"
@@ -595,10 +643,11 @@ export default function ConfiguracoesPage() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 >
                   <option value="">Selecione...</option>
+                  <option value="ATIVA">Ativa</option>
+                  <option value="INATIVA">Inativa</option>
                   <option value="EPP">Empresa de Pequeno Porte (EPP)</option>
                   <option value="ME">Microempresa (ME)</option>
                   <option value="DEMAIS">Demais (Geral)</option>
-                  <option value="ATIVA">Ativa</option>
                 </select>
               </div>
 
@@ -615,6 +664,34 @@ export default function ConfiguracoesPage() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
                 />
               </div>
+
+              <div>
+                <label htmlFor="cfg-telefone" className="block text-xs font-bold text-slate-600 mb-1">
+                  Telefone / Contato Comercial
+                </label>
+                <input
+                  id="cfg-telefone"
+                  type="text"
+                  placeholder="(00) 00000-0000"
+                  value={formData.telefone}
+                  onChange={(e) => setFormData((p) => ({ ...p, telefone: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="cfg-email" className="block text-xs font-bold text-slate-600 mb-1">
+                  E-mail Comercial da Empresa
+                </label>
+                <input
+                  id="cfg-email"
+                  type="email"
+                  placeholder="licitacoes@empresa.com.br"
+                  value={formData.email}
+                  onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0A2540]"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -622,20 +699,35 @@ export default function ConfiguracoesPage() {
         {abaAtiva === 'CERTIFICADO' && (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Gerenciamento do Certificado Digital A1 (.PFX / .P12)
+              Certificado Digital A1 (.PFX / .P12) e Assinatura Oficial
             </h3>
 
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="text-emerald-600" size={20} />
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="text-amber-600 mt-0.5 shrink-0" size={20} />
                 <div>
-                  <strong className="text-xs font-bold text-emerald-900 block">Certificado Válido Instalado</strong>
-                  <span className="text-[10px] text-emerald-700">Validade até: 22/11/2026 | Emissor: AC Certisign RFB</span>
+                  <strong className="text-xs font-bold text-amber-950 block">
+                    Nenhum certificado digital A1 configurado na plataforma
+                  </strong>
+                  <span className="text-[11px] text-amber-800 block mt-1">
+                    O envio de lances e assinaturas com certificado ICP-Brasil (A1/A3) ocorre diretamente nos portais oficiais (Compras.gov.br / PNCP). Armazene sua documentação societária e certidões no Cofre de Documentos.
+                  </span>
                 </div>
               </div>
-              <button className="px-3 py-1.5 bg-white border border-emerald-300 text-emerald-800 text-xs font-bold rounded-lg hover:bg-emerald-100 transition-all">
-                Substituir Certificado
-              </button>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <Link
+                  to="/fornecedor/cofre"
+                  className="px-3 py-1.5 bg-white border border-amber-300 text-amber-900 text-xs font-bold rounded-lg hover:bg-amber-100 transition-all"
+                >
+                  Abrir Cofre de Documentos
+                </Link>
+                <Link
+                  to="/fornecedor/sicaf-credenciamento"
+                  className="px-3 py-1.5 bg-[#0A2540] text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-all"
+                >
+                  Checklist SICAF
+                </Link>
+              </div>
             </div>
           </div>
         )}
@@ -643,24 +735,41 @@ export default function ConfiguracoesPage() {
         {abaAtiva === 'INTEGRACOES' && (
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Conexões Ativas com Portais
+              Status das Integrações com Portais de Licitação
             </h3>
 
             <div className="space-y-3">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
                 <div>
-                  <strong className="text-slate-900 font-bold block">Compras.gov.br (SIASG)</strong>
-                  <span className="text-slate-500 text-[10px]">Acesso pelo certificado digital e pelas credenciais do portal</span>
+                  <strong className="text-slate-900 font-bold block">Compras.gov.br (SIASG) — Envio de Lances</strong>
+                  <span className="text-slate-500 text-[10px]">
+                    Captura pública de editais via API oficial; envio de lances deve ser feito diretamente com suas credenciais no portal Compras.gov.br
+                  </span>
                 </div>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800">CONECTADO</span>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0 self-start sm:self-center">
+                  NÃO CONECTADO (ACESSO EXTERNO)
+                </span>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
                 <div>
                   <strong className="text-slate-900 font-bold block">LicitaNet / Portal de Compras Públicas</strong>
-                  <span className="text-slate-500 text-[10px]">Envie os lances diretamente no portal oficial</span>
+                  <span className="text-slate-500 text-[10px]">
+                    Não há robô de sessão autenticado conectado a esta conta; acompanhe os editais capturados e envie lances diretamente no portal oficial
+                  </span>
                 </div>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800">CONECTADO</span>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded bg-slate-200 text-slate-700 shrink-0 self-start sm:self-center">
+                  NÃO CONECTADO (ACESSO EXTERNO)
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <Link
+                  to="/fornecedor/integracoes"
+                  className="inline-flex items-center gap-2 text-xs font-bold text-[#0070C0] hover:underline"
+                >
+                  Consultar saúde das APIs públicas (PNCP, Querido Diário, Transparência) →
+                </Link>
               </div>
             </div>
           </div>

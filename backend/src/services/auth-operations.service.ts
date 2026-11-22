@@ -40,6 +40,20 @@ export type AuthUser = {
     cnpj: string;
     uf: string | null;
     municipio: string | null;
+    cep?: string | null;
+    logradouro?: string | null;
+    bairro?: string | null;
+    endereco?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    porte?: string | null;
+    cnaePrincipal?: string | null;
+    cnae_principal?: string | null;
+    palavrasChave?: string[];
+    nicho?: string[];
+    regioes?: string[];
+    radarTiposObjeto?: string[];
+    radarIncluirSemClassificacao?: boolean;
   } | null;
   isTrialActive?: boolean;
   trialEndsAt?: string | null;
@@ -57,14 +71,39 @@ export class AuthOperationsService {
 
   public buildPublicUser(user: any, primaryCompany?: any): AuthUser {
     const resolvedCompany = primaryCompany
-      ? {
-        id: String(primaryCompany.id),
-        razaoSocial: String(primaryCompany.razaoSocial || primaryCompany.razao_social || 'Empresa'),
-        nomeFantasia: primaryCompany.nomeFantasia ?? primaryCompany.nome_fantasia ?? null,
-        cnpj: String(primaryCompany.cnpj || ''),
-        uf: primaryCompany.uf ?? null,
-        municipio: primaryCompany.municipio ?? null,
-      }
+      ? (() => {
+          const enderecoParts = [
+            primaryCompany.logradouro,
+            primaryCompany.bairro,
+            primaryCompany.municipio,
+            primaryCompany.uf,
+            primaryCompany.cep,
+          ]
+            .map((p) => (typeof p === 'string' ? p.trim() : ''))
+            .filter(Boolean);
+          return {
+            id: String(primaryCompany.id),
+            razaoSocial: String(primaryCompany.razaoSocial || primaryCompany.razao_social || 'Empresa'),
+            nomeFantasia: primaryCompany.nomeFantasia ?? primaryCompany.nome_fantasia ?? null,
+            cnpj: String(primaryCompany.cnpj || ''),
+            uf: primaryCompany.uf ?? null,
+            municipio: primaryCompany.municipio ?? null,
+            cep: primaryCompany.cep ?? null,
+            logradouro: primaryCompany.logradouro ?? null,
+            bairro: primaryCompany.bairro ?? null,
+            endereco: enderecoParts.length > 0 ? enderecoParts.join(', ') : null,
+            telefone: primaryCompany.telefone ?? user.telefone ?? null,
+            email: primaryCompany.email ?? normalizeAuthEmail(user.emailNormalized || user.email),
+            porte: primaryCompany.porte ?? null,
+            cnaePrincipal: primaryCompany.cnaePrincipal ?? null,
+            cnae_principal: primaryCompany.cnaePrincipal ?? null,
+            palavrasChave: Array.isArray(primaryCompany.palavrasChave) ? primaryCompany.palavrasChave : [],
+            nicho: Array.isArray(primaryCompany.nicho) ? primaryCompany.nicho : [],
+            regioes: Array.isArray(primaryCompany.regioes) ? primaryCompany.regioes : [],
+            radarTiposObjeto: Array.isArray(primaryCompany.radarTiposObjeto) ? primaryCompany.radarTiposObjeto : [],
+            radarIncluirSemClassificacao: primaryCompany.radarIncluirSemClassificacao ?? true,
+          };
+        })()
       : null;
 
     const fallbackTrialEndsAt = user.createdAt
@@ -74,7 +113,7 @@ export class AuthOperationsService {
     const isTrialActive = Boolean(rawTrialEndsAt && new Date(rawTrialEndsAt) > new Date());
     const trialEndsAtIso = rawTrialEndsAt ? new Date(rawTrialEndsAt).toISOString() : null;
     const daysLeftTrial = isTrialActive
-      ? Math.max(1, Math.ceil((new Date(rawTrialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      ? Math.min(10, Math.max(1, Math.ceil((new Date(rawTrialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))))
       : 0;
 
     // Se o trial estiver ativo (15 dias de teste), o usuário possui plano Master completo com todas as ferramentas
@@ -178,6 +217,24 @@ export class AuthOperationsService {
       ''
     ).trim();
 
+    const manualCnae = (
+      validatedData.cnaePrincipal ||
+      validatedData.cnae_principal ||
+      ''
+    ).trim();
+
+    const manualNicho = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(validatedData.cnaesSecundarios) ? validatedData.cnaesSecundarios : []),
+          ...(Array.isArray(validatedData.cnaes_secundarios) ? validatedData.cnaes_secundarios : []),
+          ...(Array.isArray(validatedData.nicho) ? validatedData.nicho : []),
+        ]
+          .map((item) => String(item || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
     let empresaOficial: {
       cnpj: string;
       razao_social: string;
@@ -186,20 +243,42 @@ export class AuthOperationsService {
       uf: string | null;
       cnae_principal: string | null;
       status: string | null;
+      nicho: string[];
     };
 
     if (cleanCnpj.length === 14) {
       try {
         const oficial = await consultarCnpjOficial(cleanCnpj);
-        empresaOficial = {
-          cnpj: cleanCnpj,
-          razao_social: oficial.razao_social?.trim() || manualRazao || `Empresa ${cleanCnpj}`,
-          nome_fantasia: oficial.nome_fantasia?.trim() || manualFantasia || null,
-          municipio: oficial.municipio || validatedData.municipio || null,
-          uf: (oficial.uf || validatedData.uf || null)?.slice(0, 2).toUpperCase() || null,
-          cnae_principal: oficial.cnae_principal || validatedData.cnae_principal || null,
-          status: oficial.status || 'ATIVO',
-        };
+        const oficialInapto = /INAPTA|BAIXADA|NULA|SUSPENSA/i.test(String(oficial.status || ''));
+
+        if (oficialInapto) {
+          empresaOficial = {
+            cnpj: cleanCnpj,
+            razao_social: manualRazao || `Empresa ${cleanCnpj}`,
+            nome_fantasia: manualFantasia || manualRazao || null,
+            municipio: validatedData.municipio?.trim() || null,
+            uf: validatedData.uf ? String(validatedData.uf).trim().slice(0, 2).toUpperCase() : null,
+            cnae_principal: manualCnae || null,
+            status: oficial.status || 'INAPTA',
+            nicho: manualNicho,
+          };
+        } else {
+          empresaOficial = {
+            cnpj: cleanCnpj,
+            razao_social: manualRazao || oficial.razao_social?.trim() || `Empresa ${cleanCnpj}`,
+            nome_fantasia: manualFantasia || oficial.nome_fantasia?.trim() || null,
+            municipio: validatedData.municipio?.trim() || oficial.municipio || null,
+            uf: (validatedData.uf || oficial.uf || null)?.slice(0, 2).toUpperCase() || null,
+            cnae_principal: manualCnae || oficial.cnae_principal || null,
+            status: oficial.status || 'ATIVO',
+            nicho:
+              manualNicho.length > 0
+                ? manualNicho
+                : Array.isArray((oficial as any).cnaes_secundarios)
+                  ? (oficial as any).cnaes_secundarios
+                  : [],
+          };
+        }
       } catch (companyError: any) {
         console.warn(`[AUTH_REGISTER_CNPJ_FALLBACK] Consulta externa falhou para CNPJ ${cleanCnpj}. Utilizando dados manuais/fallback:`, companyError?.message || companyError);
 
@@ -211,8 +290,9 @@ export class AuthOperationsService {
           nome_fantasia: manualFantasia || fallbackRazao,
           municipio: validatedData.municipio?.trim() || null,
           uf: validatedData.uf ? String(validatedData.uf).trim().slice(0, 2).toUpperCase() : null,
-          cnae_principal: validatedData.cnae_principal?.trim() || null,
+          cnae_principal: manualCnae || null,
           status: 'ATIVO',
+          nicho: manualNicho,
         };
       }
     } else {
@@ -223,8 +303,9 @@ export class AuthOperationsService {
         nome_fantasia: manualFantasia || fallbackRazao,
         municipio: validatedData.municipio?.trim() || null,
         uf: validatedData.uf ? String(validatedData.uf).trim().slice(0, 2).toUpperCase() : null,
-        cnae_principal: validatedData.cnae_principal?.trim() || null,
+        cnae_principal: manualCnae || null,
         status: 'ATIVO',
+        nicho: manualNicho,
       };
     }
 
@@ -241,7 +322,7 @@ export class AuthOperationsService {
           slug: `workspace-${randomUUID()}`,
         },
       });
-      // Janela de Free Trial oficial de 15 dias (plano Master / Full)
+      // Janela oficial de Free Trial de 10 dias (plano Master)
       const trialEndsAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
 
       const user = await tx.user.create({
@@ -288,8 +369,15 @@ export class AuthOperationsService {
           razaoSocial: empresaOficial.razao_social.trim(),
           nomeFantasia: empresaOficial.nome_fantasia?.trim() || null,
           cnaePrincipal: empresaOficial.cnae_principal,
+          nicho: empresaOficial.nicho,
           municipio: empresaOficial.municipio,
           uf: empresaOficial.uf,
+          cep: validatedData.cep?.trim() || null,
+          logradouro: validatedData.logradouro?.trim() || null,
+          bairro: validatedData.bairro?.trim() || null,
+          telefone: telefone?.trim() || null,
+          email: emailNormalized,
+          porte: validatedData.porte?.trim() || null,
           status: empresaOficial.status,
           trialEndsAt,
         },

@@ -278,20 +278,48 @@ export interface RadarLicitacao {
   fonte: 'PNCP';
 }
 
+export interface RadarFacets {
+  todas: number;
+  bens: number;
+  servicos: number;
+  obras: number;
+  semClassificacao: number;
+  novas24h: number;
+  encerrando48h: number;
+  encerrando5Dias: number;
+}
+
 export interface RadarLicitacoesFiltros {
   dataInicial?: string;
   dataFinal?: string;
+  dataPublicacao?: string;
   codigoModalidadeContratacao?: number;
   uf?: string;
+  ufs?: string[];
   cnpj?: string;
   cnae?: string;
   busca?: string;
+  q?: string;
+  orgao?: string;
+  fonte?: string;
+  apenasAbertos?: boolean;
+  baixaProcura?: boolean;
   srp?: boolean;
   palavraChave?: string;
+  palavras?: string | string[];
   termo?: string;
   modalidade?: string;
+  tipoObjeto?: string;
+  incluirSemClassificacao?: boolean;
+  ordenarPor?: 'recentes' | 'encerramento' | 'maior_valor' | 'menor_valor' | 'relevancia';
+  valorMin?: number;
+  valorMax?: number;
+  local?: boolean;
+  tempoReal?: boolean;
   pagina?: number;
+  page?: number;
   tamanhoPagina?: number;
+  limit?: number;
 }
 
 export interface RadarLicitacoesResponse {
@@ -303,5 +331,7 @@ export interface RadarLicitacoesResponse {
     tamanhoPagina: number;
     totalRegistros: number | null;
     atualizadoEm: string;
+    facets?: RadarFacets | null;
+    tempoBuscaMs?: number | null;
   };
 }

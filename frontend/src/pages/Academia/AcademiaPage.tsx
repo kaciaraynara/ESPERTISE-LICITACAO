@@ -20,22 +20,22 @@ interface CursoItem {
 const CURSOS: CursoItem[] = [
   {
     id: 'lei-14133',
-    titulo: 'Lei 14.133/21 — Aplicacao Pratica',
-    subtitulo: 'Fases do pregao eletronico, habilitacao, lances e julgamento.',
+    titulo: 'Lei 14.133/21 — Aplicação Prática',
+    subtitulo: 'Fases do pregão eletronico, habilitação, lances e julgamento.',
     aulas: [
-      'Visao geral da Nova Lei de Licitacoes e modalidades',
+      'Visao geral da Nova Lei de Licitações e modalidades',
       'Leitura estrategica do Edital e Termo de Referencia',
       'Habilitacao juridica, fiscal e qualificacao tecnica',
     ],
   },
   {
     id: 'gestao-contratos',
-    titulo: 'Gestao e Fiscalizacao de Contratos',
+    titulo: 'Gestão e Fiscalizacao de Contratos',
     subtitulo: 'Execucao contratual, aditivos, medicoes e prevencao de glosas.',
     aulas: [
       'Obrigacoes da contratada e recebimento provisorio/definitivo',
       'Alteracoes contratuais e limites legais de acrescimo',
-      'Gestao de garantias e notificacoes administrativas',
+      'Gestão de garantias e notificacoes administrativas',
     ],
   },
   {
@@ -50,12 +50,12 @@ const CURSOS: CursoItem[] = [
   },
   {
     id: 'auditoria',
-    titulo: 'Auditoria e Controle em Licitacoes',
+    titulo: 'Auditoria e Controle em Licitações',
     subtitulo: 'Impugnacoes, recursos, jurisprudencia do TCU e integridade.',
     aulas: [
       'Identificando clausulas restritivas e direcionamento',
       'Prazos decadenciais de impugnacao e recurso administrativo',
-      'Boas praticas de compliance e defesa perante orgaos de controle',
+      'Boas praticas de compliance e defesa perante órgãos de controle',
     ],
   },
 ];
@@ -101,10 +101,10 @@ export const AcademiaPage: React.FC = () => {
             <GraduationCap className="h-4 w-4" /> Academia do Licitante
           </div>
           <h1 className="text-2xl font-extrabold md:text-3xl">
-            Cursos, aulas e capacitacao pratica em licitacoes e contratos
+            Cursos, aulas e capacitação pratica em licitações e contratos
           </h1>
           <p className="text-sm text-slate-200">
-            Treinamento direto ao ponto para vencer pregoes, evitar inabilitacoes e proteger a margem da sua empresa.
+            Treinamento direto ao ponto para vencer pregões, evitar inabilitações e proteger a margem da sua empresa.
           </p>
           <button
             type="button"
@@ -195,7 +195,7 @@ export const AcademiaPage: React.FC = () => {
                 </span>
                 <span className="inline-flex items-center gap-1 font-bold">
                   <CheckCircle2 className={`h-4 w-4 ${feita ? 'text-emerald-600' : 'text-slate-400'}`} />
-                  {feita ? 'Concluida' : 'Marcar concluida'}
+                  {feita ? 'Concluída' : 'Marcar concluida'}
                 </span>
               </button>
             );

@@ -258,7 +258,7 @@ class TokenManagerService {
     if (
       !record ||
       now - record.windowStart >
-        60_000
+      60_000
     ) {
       this.userCallMap.set(userId, {
         count: 1,
@@ -341,7 +341,7 @@ class TokenManagerService {
     const usedThisMinute =
       now -
         this.usage.windowStart <
-      60_000
+        60_000
         ? this.usage.count
         : 0;
 
@@ -371,7 +371,7 @@ class TokenManagerService {
         Math.max(
           0,
           limit -
-            usedThisMinute,
+          usedThisMinute,
         ),
 
       isBlocked:
@@ -380,8 +380,8 @@ class TokenManagerService {
       blockedUntil:
         this.isBlocked()
           ? new Date(
-              this.blockedUntil,
-            )
+            this.blockedUntil,
+          )
           : null,
     };
   }
@@ -435,7 +435,7 @@ class TokenManagerService {
         ] of this.userCallMap.entries()) {
           if (
             now -
-              record.windowStart >
+            record.windowStart >
             120_000
           ) {
             this.userCallMap.delete(key);

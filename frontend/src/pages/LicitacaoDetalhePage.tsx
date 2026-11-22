@@ -419,7 +419,7 @@ export default function LicitacaoDetalhePage() {
   const valorEdital = rawValorEdital > 0 ? rawValorEdital : somaValorItens;
 
   // Parâmetros de custos interativos com defaults baseados no edital
-  const custoProduto = custoProdutoCustom ?? Math.round(valorEdital * 0.65);
+  const custoProduto = custoProdutoCustom ?? Math.round(valorEdital * 0.60);
   const aliquotaImpostos = aliquotaImpostosCustom ?? 12;
   const custoFrete = custoFreteCustom ?? Math.round(valorEdital * 0.05);
   const taxasAdm = taxasAdmCustom ?? Math.round(valorEdital * 0.03);
@@ -427,7 +427,7 @@ export default function LicitacaoDetalhePage() {
 
   const custosDiretos = custoProduto + custoFrete + taxasAdm;
   const divisor = Math.max(0.05, 1 - (aliquotaImpostos + margemDesejada) / 100);
-  const precoMinimoSustentavel = Math.round(custosDiretos / divisor);
+  const precoMinimoSustentavel = Math.round((custosDiretos / divisor) * 100) / 100;
   const impostosCalculados = Math.round(valorEdital * (aliquotaImpostos / 100));
   const saldoLiquido = valorEdital - custosDiretos - impostosCalculados;
   const margemRealPercentual = valorEdital > 0 ? Math.round(((saldoLiquido / valorEdital) * 100) * 10) / 10 : 0;
@@ -446,7 +446,7 @@ export default function LicitacaoDetalhePage() {
       badgeClass: 'border-slate-200 bg-slate-50 text-slate-700',
       descricao: 'Edital oficial sem valor de referência divulgado. Necessário cotar itens unitários para estimar a margem.',
     };
-  } else if (precoMinimoSustentavel > valorEdital || margemRealPercentual < 5) {
+  } else if (precoMinimoSustentavel > valorEdital + 0.05 || margemRealPercentual < 5) {
     viabilidadeStatus = {
       status: 'INVIAVEL',
       label: 'Inviável (Preço Mínimo Excede Teto)',
@@ -579,15 +579,6 @@ export default function LicitacaoDetalhePage() {
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  id="btn-investigar-historico-orgao-card"
-                  onClick={handleInvestigarHistoricoOrgao}
-                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue hover:text-brand-orange transition cursor-pointer"
-                >
-                  <FileSearch className="h-3.5 w-3.5" />
-                  Investigar Histórico do Órgão
-                </button>
               </div>
 
               <div className="rounded-[24px] border border-gray-100 bg-white p-5">

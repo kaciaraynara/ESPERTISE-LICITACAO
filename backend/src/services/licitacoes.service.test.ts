@@ -373,4 +373,137 @@ describe('licitacoes.service', () => {
       orgao: 'Prefeitura Municipal',
     });
   });
+
+  test('aplica baixaProcura no fallback Prisma usando NOT válido sem Unknown argument mode', async () => {
+    const mockCount = jest.fn().mockResolvedValue(0);
+    const mockFindMany = jest.fn().mockResolvedValue([]);
+
+    jest.doMock('../database/prisma', () => ({
+      prisma: {
+        $transaction: jest.fn().mockImplementation((queries) => Promise.all(queries)),
+        procurementNotice: {
+          count: mockCount,
+          findMany: mockFindMany,
+        },
+      },
+    }));
+
+    const { listarLicitacoes } = require('./licitacoes.service');
+    await listarLicitacoes({ uf: 'CE', baixaProcura: true, apenasAbertos: true });
+
+    const whereArg = mockFindMany.mock.calls[0][0].where;
+    const serialized = JSON.stringify(whereArg);
+    expect(serialized).not.toContain('"not":{"contains"');
+    expect(serialized).toContain('"NOT":{"object":{"contains":"obra de engenharia","mode":"insensitive"}}');
+  });
+
+  test('usa caminho SQL FTS com facets reais e não retorna resultados falsos quando count === 0', async () => {
+    const mockQueryRawUnsafe = jest.fn()
+      .mockResolvedValueOnce([
+        {
+          todas: 12,
+          bens: 8,
+          servicos: 3,
+          obras: 0,
+          sem_classificacao: 1,
+          novas_24h: 4,
+          encerrando_48h: 2,
+          encerrando_5_dias: 5,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'notice-ce-1',
+          external_id: '07954514000125-1-000010/2026',
+          numero_controle_pncp: '07954514000125-1-000010/2026',
+          notice_number: '10/2026',
+          url: null,
+          buyer_document: '07954514000125',
+          buyer_name: 'Estado do Ceará',
+          estimated_value: '45000.00',
+          published_at: new Date('2026-11-21T10:00:00Z'),
+          opening_at: new Date('2026-11-25T09:00:00Z'),
+          closing_at: new Date('2026-11-30T18:00:00Z'),
+          uf: 'CE',
+          municipality: 'Fortaleza',
+          object: 'Aquisição de uniformes e vestuário escolar',
+          modality: 'Pregão Eletrônico',
+          modo_disputa: 'Aberto',
+          judgment_criterion: 'MENOR_PRECO',
+          status: 'Divulgada no PNCP',
+          srp: false,
+          source: 'PNCP',
+          object_type: 'BENS',
+        },
+      ]);
+
+    jest.doMock('../database/prisma', () => ({
+      prisma: {
+        $queryRawUnsafe: mockQueryRawUnsafe,
+      },
+    }));
+
+    const { listarLicitacoes } = require('./licitacoes.service');
+    const result = await listarLicitacoes({
+      uf: 'CE',
+      q: 'vestuario',
+      tipoObjeto: 'BENS',
+      incluirSemClassificacao: true,
+      apenasAbertos: true,
+    });
+
+    expect(mockQueryRawUnsafe).toHaveBeenCalledTimes(2);
+    expect(result.facets).toEqual({
+      todas: 12,
+      bens: 8,
+      servicos: 3,
+      obras: 0,
+      semClassificacao: 1,
+      novas24h: 4,
+      encerrando48h: 2,
+      encerrando5Dias: 5,
+    });
+    expect(result.totalRegistros).toBe(9);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({
+      uf: 'CE',
+      tipoObjeto: 'BENS',
+      fonte: 'PNCP',
+    });
+    expect(typeof result.tempoBuscaMs).toBe('number');
+  });
+
+  test('retorna zero honesto no caminho SQL quando fonte=querido_diario não tem resultados para o termo', async () => {
+    const mockQueryRawUnsafe = jest.fn()
+      .mockResolvedValueOnce([
+        {
+          todas: 0,
+          bens: 0,
+          servicos: 0,
+          obras: 0,
+          sem_classificacao: 0,
+          novas_24h: 0,
+          encerrando_48h: 0,
+          encerrando_5_dias: 0,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    jest.doMock('../database/prisma', () => ({
+      prisma: {
+        $queryRawUnsafe: mockQueryRawUnsafe,
+      },
+    }));
+
+    const { listarLicitacoes } = require('./licitacoes.service');
+    const result = await listarLicitacoes({
+      fonte: 'querido_diario',
+      q: 'termoinexistente123',
+      apenasAbertos: true,
+    });
+
+    expect(result.totalRegistros).toBe(0);
+    expect(result.data).toHaveLength(0);
+    expect(result.aviso).toBeUndefined();
+  });
 });

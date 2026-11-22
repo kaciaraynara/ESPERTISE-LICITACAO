@@ -1,5 +1,4 @@
-
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Search,
   Building2,
@@ -16,12 +15,24 @@ import {
   Zap,
   Award,
   X,
+  Sparkles,
+  LayoutList,
+  LayoutGrid,
+  Sliders,
+  AlertCircle,
+  Clock,
 } from 'lucide-react';
 import { licitacoesApi, crmApi } from '../services/api';
 import { motion } from 'framer-motion';
 import { useCompany } from '../contexts/CompanyContext';
 import DossieEditalModal from '../components/DossieEditalModal';
+import {
+  RadarPerfilModal,
+  type ObjectTypeOption,
+  type RadarPerfilDraft,
+} from '../components/radar/RadarPerfilModal';
 import { buildOfficialPncpPortalUrl, formatCnpj } from '@/utils/pncp';
+import type { RadarFacets } from '../types';
 import toast from 'react-hot-toast';
 
 export interface EditalItem {
@@ -78,6 +89,7 @@ export interface EditalItem {
   srp?: boolean;
   fonte?: string;
   source?: string;
+  tipoObjeto?: string | null;
   viabilidade?: number;
   scoreViabilidade?: number;
   matchScore?: number;
@@ -124,31 +136,6 @@ function formatarDataHora(dataStr?: string | null): string {
   return hora === '00:00' ? data : `${data} às ${hora}`;
 }
 
-function getSemaforoViabilidade(score: number) {
-  if (score >= 75) {
-    return {
-      label: 'Alta viabilidade',
-      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      dot: 'bg-emerald-500',
-      borda: 'border-l-4 border-l-emerald-500',
-    };
-  }
-  if (score >= 50) {
-    return {
-      label: 'Média viabilidade',
-      badge: 'border-amber-200 bg-amber-50 text-amber-800',
-      dot: 'bg-amber-500',
-      borda: 'border-l-4 border-l-amber-400',
-    };
-  }
-  return {
-    label: 'Baixa viabilidade',
-    badge: 'border-rose-200 bg-rose-50 text-rose-700',
-    dot: 'bg-rose-500',
-    borda: 'border-l-4 border-l-rose-500',
-  };
-}
-
 function formatarData(dataStr?: string | null): string {
   if (!dataStr) return 'Ver no edital';
   const d = new Date(dataStr);
@@ -160,21 +147,15 @@ function formatarData(dataStr?: string | null): string {
   });
 }
 
-function extrairPalavrasChaveCnaes(empresa: any): string[] {
-  const cnpjLimpo = String(empresa?.cnpj || '').replace(/\D/g, '');
-  let cnaesSalvos: string[] = [];
-  try {
-    const raw = cnpjLimpo ? localStorage.getItem(`@Expertise:cnaes_${cnpjLimpo}`) : null;
-    if (raw) cnaesSalvos = JSON.parse(raw);
-  } catch {}
-
+function extrairPalavrasChaveCnaes(empresa: any, cnaesCache: string[] = []): string[] {
   const textos = [
     empresa?.cnaeDescricao,
     empresa?.ramoAtividade,
     empresa?.cnaePrincipal,
+    empresa?.cnae_principal,
     empresa?.atividadePrincipal,
     ...(Array.isArray(empresa?.cnaesSecundarios) ? empresa.cnaesSecundarios : []),
-    ...cnaesSalvos,
+    ...cnaesCache,
   ].filter(Boolean);
 
   const stopWords = new Set([
@@ -196,7 +177,7 @@ function extrairPalavrasChaveCnaes(empresa: any): string[] {
       if (!unicas.includes(p)) unicas.push(p);
     }
   }
-  return unicas.slice(0, 6);
+  return unicas.slice(0, 8);
 }
 
 const SINONIMOS_RAMO: Record<string, string[]> = {
@@ -211,58 +192,44 @@ const SINONIMOS_RAMO: Record<string, string[]> = {
   moveis: ['moveis', 'mobiliario', 'cadeira', 'mesa'],
 };
 
-function expandirSinonimosRamo(termo: string, empresa: any): string[] {
-  const base = extrairPalavrasChaveCnaes(empresa);
-  const limpo = (termo || '').trim().toLowerCase();
+function expandirSinonimosRamo(termo: string, empresa: any, cnaesCache: string[] = []): string[] {
+  const base = extrairPalavrasChaveCnaes(empresa, cnaesCache);
+  const limpo = (termo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
   const lista = new Set<string>();
-  if (limpo && SINONIMOS_RAMO[limpo]) {
-    SINONIMOS_RAMO[limpo].forEach((s) => lista.add(s));
-  }
-  for (const p of base) {
-    lista.add(p);
-    if (SINONIMOS_RAMO[p]) {
-      SINONIMOS_RAMO[p].forEach((s) => lista.add(s));
+  if (limpo) {
+    lista.add(limpo);
+    if (SINONIMOS_RAMO[limpo]) {
+      SINONIMOS_RAMO[limpo].forEach((s) => lista.add(s));
     }
   }
-  if (lista.size === 0 && limpo) lista.add(limpo);
-  return Array.from(lista).slice(0, 4);
+  for (const p of base) {
+    if (!limpo || p === limpo) {
+      lista.add(p);
+      if (SINONIMOS_RAMO[p]) {
+        SINONIMOS_RAMO[p].forEach((s) => lista.add(s));
+      }
+    }
+  }
+  return Array.from(lista).slice(0, 8);
 }
 
-function extrairPalavraChaveRamo(empresa: any): string {
-  return extrairPalavrasChaveCnaes(empresa)[0] || '';
+function getSourceBadgeLabel(rawSource?: string): string {
+  const lower = String(rawSource || 'PNCP').toLowerCase();
+  if (lower.includes('querido')) return 'Diário Oficial';
+  if (lower.includes('compras')) return 'Compras.gov.br';
+  if (lower.includes('transparencia')) return 'Transparência';
+  return 'PNCP';
 }
 
-function calcularEscoreViabilidade(edital: EditalItem, empresa: any): number {
-  const existente = edital.scoreViabilidade ?? edital.viabilidade ?? edital.matchScore;
-  if (typeof existente === 'number' && existente > 0) {
-    return Math.min(99, Math.max(20, Math.round(existente)));
-  }
-
-  let pontos = 42;
-  const objeto = (edital.objetoCompra || edital.objeto || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const termosEmpresa = expandirSinonimosRamo('', empresa);
-
-  const acertos = termosEmpresa.filter((t) => t && objeto.includes(t)).length;
-  if (acertos >= 2) pontos += 40;
-  else if (acertos === 1) pontos += 30;
-
-  const ufEmpresa = empresa?.uf || empresa?.estado;
-  const ufEdital = edital.unidadeOrgao?.ufSigla || edital.uf;
-  if (ufEmpresa && ufEdital && ufEmpresa.toUpperCase() === ufEdital.toUpperCase()) {
-    pontos += 10;
-  }
-
-  const encerramento = edital.dataEncerramentoProposta || edital.dataEncerramento
-    ? new Date(edital.dataEncerramentoProposta || edital.dataEncerramento || '').getTime()
-    : 0;
-  if (encerramento > Date.now()) {
-    const dias = (encerramento - Date.now()) / (1000 * 60 * 60 * 24);
-    if (dias >= 3) pontos += 6;
-    else if (dias < 1) pontos -= 10;
-  }
-
-  return Math.min(98, Math.max(25, pontos));
+function getTipoObjetoLabel(tipo?: string | null): string | null {
+  if (tipo === 'BENS') return 'Bens';
+  if (tipo === 'SERVICOS') return 'Serviços';
+  if (tipo === 'OBRAS') return 'Obras';
+  return null;
 }
 
 export default function LicitacoesPage({
@@ -275,13 +242,21 @@ export default function LicitacoesPage({
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [totalPaginas, setTotalPaginas] = useState(1);
+  const [facets, setFacets] = useState<RadarFacets | null>(null);
+  const [tempoBuscaMs, setTempoBuscaMs] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
 
   const [palavraChave, setPalavraChave] = useState('');
-  const [ufSelecionada, setUfSelecionada] = useState('');
+  const [palavraChaveDebounced, setPalavraChaveDebounced] = useState('');
+  const [palavrasPerfil, setPalavrasPerfil] = useState<string[]>([]);
+  const [cnaeChipAtivo, setCnaeChipAtivo] = useState<string | null>(null);
+
+  const [ufsSelecionadas, setUfsSelecionadas] = useState<string[]>([]);
   const [orgaoFiltro, setOrgaoFiltro] = useState('');
-  const [fonteAtiva, setFonteAtiva] = useState<'TODAS' | 'PNCP' | 'ComprasGov' | 'querido_diario' | 'portal_transparencia'>('TODAS');
+  const [orgaoDebounced, setOrgaoDebounced] = useState('');
+  const [fonteAtiva, setFonteAtiva] = useState<'TODAS' | 'PNCP' | 'ComprasGov' | 'querido_diario'>('TODAS');
   const [apenasAbertos, setApenasAbertos] = useState(true);
   const [modalidadeAtiva, setModalidadeAtiva] = useState(() => {
     const m = (modalidadeInicial || '').toLowerCase();
@@ -292,71 +267,148 @@ export default function LicitacoesPage({
     if (m.includes('srp') || m.includes('registro')) return 'SRP';
     return 'TODAS';
   });
+  const [tipoObjetoAtivo, setTipoObjetoAtivo] = useState<'TODAS' | ObjectTypeOption>('TODAS');
+  const [incluirSemClassificacao, setIncluirSemClassificacao] = useState(true);
   const [dataPublicacao, setDataPublicacao] = useState('');
-  const [ordenacao, setOrdenacao] = useState<'relevancia' | 'recentes' | 'maior_valor'>('relevancia');
+  const [ordenacao, setOrdenacao] = useState<'recentes' | 'encerramento' | 'maior_valor' | 'menor_valor' | 'relevancia'>('recentes');
+  const [visualizacao, setVisualizacao] = useState<'detalhada' | 'compacta'>('detalhada');
   const [mostrarFiltrosExtras, setMostrarFiltrosExtras] = useState(false);
+
+  const [perfilAtivo, setPerfilAtivo] = useState(false);
+  const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const [salvosMap, setSalvosMap] = useState<Record<string, string>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
   const setEditalParaResumo = setEditalSelecionado;
   const [cnaesExtrasApi, setCnaesExtrasApi] = useState<string[]>([]);
+  const [cnaesStorageCache, setCnaesStorageCache] = useState<string[]>([]);
 
-  const listaCnaesEmpresa = useMemo(() => {
-    const cnpjLimpo = String(selectedCompany?.cnpj || '').replace(/\D/g, '');
-    let cnaesSalvos: string[] = [];
-    try {
-      const raw = cnpjLimpo ? localStorage.getItem(`@Expertise:cnaes_${cnpjLimpo}`) : null;
-      if (raw) cnaesSalvos = JSON.parse(raw);
-    } catch {}
-    const emp = selectedCompany as any;
-    const todos = [
-      emp?.cnaeDescricao || emp?.ramoAtividade || emp?.atividadePrincipal,
-      ...(Array.isArray(emp?.cnaesSecundarios) ? emp.cnaesSecundarios : []),
-      ...cnaesSalvos,
-      ...cnaesExtrasApi,
-    ].filter(Boolean).map((item: any) => typeof item === 'string' ? item : item?.descricao || item?.text || '').filter(Boolean);
-    return Array.from(new Set(todos)).slice(0, 8);
-  }, [selectedCompany, cnaesExtrasApi]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestSeqRef = useRef(0);
+  const syncPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  
+  const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
+
+  const exibirAviso = useCallback((tipo: 'sucesso' | 'info' | 'erro', texto: string) => {
+    setAviso({ tipo, texto });
+    setTimeout(() => setAviso(null), 5000);
+  }, []);
+
+  // Debounce palavra-chave e órgão comprador
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPalavraChaveDebounced(palavraChave);
+      setPagina(1);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [palavraChave]);
 
   useEffect(() => {
+    const t = setTimeout(() => {
+      setOrgaoDebounced(orgaoFiltro);
+      setPagina(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [orgaoFiltro]);
+
+  // Limpa estados de CNAE ao trocar de empresa (zero vazamento de empresa anterior)
+  useEffect(() => {
+    setCnaesExtrasApi([]);
+    setCnaesStorageCache([]);
+    setCnaeChipAtivo(null);
+
     const cnpjLimpo = String(selectedCompany?.cnpj || '').replace(/\D/g, '');
-    if (cnpjLimpo.length !== 14) return;
+    if (typeof window === 'undefined' || cnpjLimpo.length !== 14) return;
+
     const cacheKey = `@Expertise:cnaes_${cnpjLimpo}`;
     try {
-      const saved = localStorage.getItem(cacheKey);
+      const saved = window.localStorage.getItem(cacheKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          setCnaesStorageCache(parsed);
           setCnaesExtrasApi(parsed);
           return;
         }
       }
     } catch {}
+
+    let cancelled = false;
     fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return;
+        if (cancelled || !data) return;
         const lista = [
           data.cnae_fiscal_descricao,
           ...(Array.isArray(data.cnaes_secundarios) ? data.cnaes_secundarios.map((c: any) => c.descricao) : []),
         ].filter(Boolean);
         if (lista.length > 0) {
+          setCnaesStorageCache(lista);
           setCnaesExtrasApi(lista);
-          try { localStorage.setItem(cacheKey, JSON.stringify(lista)); } catch {}
+          try {
+            window.localStorage.setItem(cacheKey, JSON.stringify(lista));
+          } catch {}
         }
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCompany?.cnpj]);
 
-  const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'info' | 'erro'; texto: string } | null>(null);
+  const listaCnaesEmpresa = useMemo(() => {
+    const emp = selectedCompany as any;
+    const todos = [
+      emp?.cnaeDescricao || emp?.ramoAtividade || emp?.atividadePrincipal || emp?.cnaePrincipal || emp?.cnae_principal,
+      ...(Array.isArray(emp?.cnaesSecundarios) ? emp.cnaesSecundarios : []),
+      ...cnaesStorageCache,
+      ...cnaesExtrasApi,
+    ]
+      .filter(Boolean)
+      .map((item: any) => (typeof item === 'string' ? item : item?.descricao || item?.text || ''))
+      .filter(Boolean);
+    return Array.from(new Set(todos)).slice(0, 8);
+  }, [selectedCompany, cnaesStorageCache, cnaesExtrasApi]);
 
-  const exibirAviso = (tipo: 'sucesso' | 'info' | 'erro', texto: string) => {
-    setAviso({ tipo, texto });
-    setTimeout(() => setAviso(null), 5000);
-  };
+  const companyProfileDraft: RadarPerfilDraft = useMemo(() => {
+    const emp = selectedCompany as any;
+    const ramos = Array.isArray(emp?.nicho) ? emp.nicho.filter(Boolean) : [];
+    const palavras = Array.isArray(emp?.palavrasChave)
+      ? emp.palavrasChave.filter(Boolean)
+      : Array.isArray(emp?.palavras_chave)
+        ? emp.palavras_chave.filter(Boolean)
+        : [];
+    const tipos = Array.isArray(emp?.radarTiposObjeto)
+      ? emp.radarTiposObjeto.filter((t: string) => t === 'BENS' || t === 'SERVICOS' || t === 'OBRAS')
+      : [];
+    const regioes = Array.isArray(emp?.regioes) && emp.regioes.length > 0
+      ? emp.regioes.filter(Boolean)
+      : (emp?.uf ? [String(emp.uf).toUpperCase()] : []);
+
+    return {
+      ramos,
+      palavras,
+      tiposObjeto: tipos as ObjectTypeOption[],
+      incluirSemClassificacao: emp?.radarIncluirSemClassificacao ?? true,
+      ufs: regioes,
+    };
+  }, [selectedCompany]);
+
+  const currentModalDraft: RadarPerfilDraft = useMemo(() => {
+    return {
+      ramos: companyProfileDraft.ramos,
+      palavras: palavrasPerfil.length > 0 ? palavrasPerfil : companyProfileDraft.palavras,
+      tiposObjeto:
+        tipoObjetoAtivo !== 'TODAS'
+          ? [tipoObjetoAtivo]
+          : companyProfileDraft.tiposObjeto,
+      incluirSemClassificacao,
+      ufs: ufsSelecionadas.length > 0 ? ufsSelecionadas : companyProfileDraft.ufs,
+    };
+  }, [companyProfileDraft, palavrasPerfil, tipoObjetoAtivo, incluirSemClassificacao, ufsSelecionadas]);
 
   const carregarSalvos = useCallback(async () => {
     try {
@@ -377,141 +429,228 @@ export default function LicitacoesPage({
     }
   }, []);
 
-  const buscarEditais = useCallback(
-    async (termoOverride?: string, usarSinonimosRamo = false, paginaAlvo = 1) => {
-      setCarregando(true);
-      setPagina(paginaAlvo);
-      try {
-        const q = termoOverride !== undefined ? termoOverride : palavraChave;
-        const buildParams = (termo: string, isTempoReal: boolean) => {
-          const p: Record<string, any> = {
-            limit: 50,
-            tamanhoPagina: 50,
-            pagina: paginaAlvo,
-            page: paginaAlvo,
-            apenasAbertos,
-            ...(isTempoReal ? { tempoReal: true } : { local: true }),
-          };
-          if (termo.trim()) p.q = termo.trim();
-          if (ufSelecionada) p.uf = ufSelecionada;
-          if (orgaoFiltro.trim()) p.orgao = orgaoFiltro.trim();
-          if (fonteAtiva !== 'TODAS') p.fonte = fonteAtiva;
-          if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP' && modalidadeAtiva !== 'BAIXA_PROCURA') {
-            p.modalidade = modalidadeAtiva;
-          }
-          if (modalidadeAtiva === 'SRP') p.srp = true;
-          if (modalidadeAtiva === 'BAIXA_PROCURA') p.baixaProcura = true;
-          if (dataPublicacao) p.dataPublicacao = dataPublicacao;
-          return p;
-        };
+  const executarBusca = useCallback(async (paginaAlvo: number, tempoRealForcado = false) => {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const reqId = ++requestSeqRef.current;
 
-        let lista: EditalItem[] = [];
-        let totalResp = 0;
-        let totalPgsResp = 1;
-        let avisoBackend = '';
+    setCarregando(true);
+    setErroBusca(null);
 
-        if (usarSinonimosRamo) {
-          const termos = expandirSinonimosRamo(q, selectedCompany);
-          if (termos.length > 0) {
-            const respostas = await Promise.all(
-              termos.map((t) => licitacoesApi.listar(buildParams(t, false)).catch(() => null))
-            );
-            const mapa = new Map<string, EditalItem>();
-            for (const resp of respostas) {
-              const items = resp?.data?.items || resp?.data?.data || (Array.isArray(resp?.data) ? resp.data : []);
-              for (const item of items) {
-                const key = String(item.numeroControlePNCP || item.id);
-                if (!mapa.has(key)) mapa.set(key, item);
-              }
-            }
-            lista = Array.from(mapa.values());
-            totalResp = lista.length;
-            totalPgsResp = 1;
-          }
-          if (lista.length === 0 && q.trim() && fonteAtiva === 'TODAS') {
-            const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
-            const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
-            if (listaLive.length > 0) {
-              lista = listaLive;
-              totalResp = Number(respLive?.data?.meta?.totalRegistros ?? respLive?.data?.total ?? listaLive.length);
-              totalPgsResp = Number(respLive?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
-            }
-          }
-        } else {
-          const resposta = await licitacoesApi.listar(buildParams(q, false));
-          lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
-          totalResp = Number(resposta?.data?.meta?.totalRegistros ?? resposta?.data?.total ?? lista.length);
-          totalPgsResp = Number(resposta?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
-          avisoBackend = resposta?.data?.meta?.aviso || '';
+    try {
+      const params: Record<string, any> = {
+        limit: 50,
+        tamanhoPagina: 50,
+        pagina: paginaAlvo,
+        page: paginaAlvo,
+        apenasAbertos,
+        ordenarPor: ordenacao,
+        incluirSemClassificacao,
+        ...(tempoRealForcado ? { tempoReal: true } : { local: true }),
+      };
 
-          const temFiltro = Boolean(q.trim() || ufSelecionada || orgaoFiltro.trim() || modalidadeAtiva !== 'TODAS');
-          if (lista.length === 0 && paginaAlvo === 1 && temFiltro && fonteAtiva === 'TODAS') {
-            const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
-            const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
-            if (listaLive.length > 0) {
-              lista = listaLive;
-              totalResp = Number(respLive?.data?.meta?.totalRegistros ?? respLive?.data?.total ?? listaLive.length);
-              totalPgsResp = Number(respLive?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)));
-            }
-          }
-        }
+      if (palavraChaveDebounced.trim()) params.q = palavraChaveDebounced.trim();
+      if (palavrasPerfil.length > 0) params.palavras = palavrasPerfil.join(',');
+      if (ufsSelecionadas.length > 0) params.uf = ufsSelecionadas.join(',');
+      if (orgaoDebounced.trim()) params.orgao = orgaoDebounced.trim();
+      if (fonteAtiva !== 'TODAS') params.fonte = fonteAtiva;
+      if (modalidadeAtiva !== 'TODAS' && modalidadeAtiva !== 'SRP' && modalidadeAtiva !== 'BAIXA_PROCURA') {
+        params.modalidade = modalidadeAtiva;
+      }
+      if (modalidadeAtiva === 'SRP') params.srp = true;
+      if (modalidadeAtiva === 'BAIXA_PROCURA') params.baixaProcura = true;
+      if (tipoObjetoAtivo !== 'TODAS') params.tipoObjeto = tipoObjetoAtivo;
+      if (dataPublicacao) params.dataPublicacao = dataPublicacao;
 
-        if (avisoBackend) {
-          exibirAviso('info', avisoBackend);
-        }
-        setEditais(lista);
-        setTotal(totalResp);
-        setTotalPaginas(Math.max(1, totalPgsResp));
-      } catch {
-        exibirAviso('info', 'Base local sem conexão momentânea. Clique em Atualizar editais para tentar novamente.');
-      } finally {
+      const resposta = await licitacoesApi.listar(params, { signal: controller.signal });
+      if (controller.signal.aborted || reqId !== requestSeqRef.current) return;
+
+      const lista: EditalItem[] =
+        resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
+      const totalResp = Number(resposta?.data?.meta?.totalRegistros ?? resposta?.data?.total ?? lista.length);
+      const totalPgsResp = Number(
+        resposta?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)),
+      );
+      const facetsResp: RadarFacets | null = resposta?.data?.meta?.facets ?? null;
+      const msResp: number | null =
+        typeof resposta?.data?.meta?.tempoBuscaMs === 'number' ? resposta.data.meta.tempoBuscaMs : null;
+      const avisoBackend = resposta?.data?.meta?.aviso || '';
+
+      setEditais(lista);
+      setTotal(totalResp);
+      setTotalPaginas(Math.max(1, totalPgsResp));
+      setFacets(facetsResp);
+      setTempoBuscaMs(msResp);
+      if (avisoBackend) exibirAviso('info', avisoBackend);
+    } catch (err: any) {
+      if (
+        controller.signal.aborted ||
+        err?.code === 'ERR_CANCELED' ||
+        err?.name === 'CanceledError' ||
+        err?.name === 'AbortError' ||
+        reqId !== requestSeqRef.current
+      ) {
+        return;
+      }
+      setEditais([]);
+      setTotal(0);
+      setTotalPaginas(1);
+      setFacets(null);
+      const msg =
+        err?.response?.data?.message ||
+        'Não foi possível consultar os editais com esses filtros. Tente novamente.';
+      setErroBusca(msg);
+      exibirAviso('erro', msg);
+    } finally {
+      if (reqId === requestSeqRef.current && !controller.signal.aborted) {
         setCarregando(false);
       }
-    },
-    [palavraChave, ufSelecionada, orgaoFiltro, modalidadeAtiva, dataPublicacao, fonteAtiva, apenasAbertos, selectedCompany]
-  );
+    }
+  }, [
+    apenasAbertos,
+    ordenacao,
+    incluirSemClassificacao,
+    palavraChaveDebounced,
+    palavrasPerfil,
+    ufsSelecionadas,
+    orgaoDebounced,
+    fonteAtiva,
+    modalidadeAtiva,
+    tipoObjetoAtivo,
+    dataPublicacao,
+    exibirAviso,
+  ]);
 
   useEffect(() => {
-    carregarSalvos();
+    void carregarSalvos();
+    return () => {
+      abortControllerRef.current?.abort();
+      if (syncPollTimerRef.current) clearInterval(syncPollTimerRef.current);
+    };
   }, [carregarSalvos]);
 
   useEffect(() => {
-    void extrairPalavraChaveRamo;
-    void buscarEditais(undefined, false, 1);
-  }, [ufSelecionada, modalidadeAtiva, fonteAtiva, apenasAbertos, dataPublicacao, selectedCompany]);
+    void executarBusca(pagina, false);
+  }, [executarBusca, pagina, searchNonce]);
 
   const handleSincronizarPncp = async () => {
     setSincronizando(true);
     try {
-      await Promise.race([
-        licitacoesApi.sincronizar({
-          q: palavraChave.trim() || undefined,
-          uf: ufSelecionada || undefined,
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT_PNCP')), 45000)
-        ),
-      ]);
-      await buscarEditais();
-      exibirAviso('sucesso', 'Base de editais atualizada com sucesso!');
+      const resp = await licitacoesApi.sincronizar({
+        async: true,
+        q: palavraChave.trim() || undefined,
+        uf: ufsSelecionadas.join(',') || undefined,
+      });
+
+      if (resp?.status === 202 || resp?.data?.status === 'started' || resp?.data?.status === 'already_running') {
+        exibirAviso('info', 'Sincronização em segundo plano iniciada! Você pode continuar filtrando normalmente.');
+        if (syncPollTimerRef.current) clearInterval(syncPollTimerRef.current);
+        let ticks = 0;
+        syncPollTimerRef.current = setInterval(async () => {
+          ticks += 1;
+          try {
+            const st = await licitacoesApi.statusSincronizacao();
+            const running = Boolean(st?.data?.data?.running);
+            if (!running || ticks >= 12) {
+              if (syncPollTimerRef.current) {
+                clearInterval(syncPollTimerRef.current);
+                syncPollTimerRef.current = null;
+              }
+              setSincronizando(false);
+              setSearchNonce((n) => n + 1);
+              if (!running) {
+                const qtd = st?.data?.data?.lastTotalSincronizados;
+                const txt = typeof qtd === 'number'
+                  ? `Base atualizada (${qtd} editais processados)!`
+                  : 'Base de editais atualizada com sucesso!';
+                exibirAviso('sucesso', txt);
+                toast.success(txt);
+              }
+            }
+          } catch {
+            if (ticks >= 12) {
+              if (syncPollTimerRef.current) {
+                clearInterval(syncPollTimerRef.current);
+                syncPollTimerRef.current = null;
+              }
+              setSincronizando(false);
+            }
+          }
+        }, 2500);
+        return;
+      }
+
+      setSincronizando(false);
+      setSearchNonce((n) => n + 1);
       toast.success('Base de editais atualizada com sucesso!');
     } catch {
-      exibirAviso('info', 'O portal nacional está com resposta lenta no momento. Exibindo os editais mais recentes disponíveis na base.');
-    } finally {
       setSincronizando(false);
+      exibirAviso('info', 'O portal nacional está com resposta lenta no momento. Tente novamente em instantes.');
     }
   };
 
-  
   const handleLimparFiltros = () => {
     setPalavraChave('');
-    setUfSelecionada('');
+    setPalavraChaveDebounced('');
+    setPalavrasPerfil([]);
+    setCnaeChipAtivo(null);
+    setUfsSelecionadas([]);
     setOrgaoFiltro('');
+    setOrgaoDebounced('');
     setFonteAtiva('TODAS');
     setApenasAbertos(true);
     setModalidadeAtiva('TODAS');
+    setTipoObjetoAtivo('TODAS');
+    setIncluirSemClassificacao(true);
     setDataPublicacao('');
-    buscarEditais('', false, 1);
+    setOrdenacao('recentes');
+    setPerfilAtivo(false);
+    setPagina(1);
+    setSearchNonce((n) => n + 1);
+  };
+
+  const handleToggleMeuPerfil = () => {
+    if (perfilAtivo) {
+      setPerfilAtivo(false);
+      setPalavrasPerfil([]);
+      setUfsSelecionadas([]);
+      setTipoObjetoAtivo('TODAS');
+      setCnaeChipAtivo(null);
+      setPagina(1);
+      return;
+    }
+
+    const kws = companyProfileDraft.palavras.length > 0
+      ? companyProfileDraft.palavras
+      : extrairPalavrasChaveCnaes(selectedCompany, cnaesStorageCache);
+
+    if (kws.length === 0 && companyProfileDraft.ufs.length === 0 && companyProfileDraft.tiposObjeto.length === 0) {
+      setModalPerfilAberto(true);
+      return;
+    }
+
+    setPalavrasPerfil(kws);
+    setUfsSelecionadas(companyProfileDraft.ufs);
+    setTipoObjetoAtivo(
+      companyProfileDraft.tiposObjeto.length === 1 ? companyProfileDraft.tiposObjeto[0] : 'TODAS',
+    );
+    setIncluirSemClassificacao(companyProfileDraft.incluirSemClassificacao);
+    setOrdenacao('relevancia');
+    setPerfilAtivo(true);
+    setCnaeChipAtivo(null);
+    setPagina(1);
+  };
+
+  const handleAplicarDraftPerfil = (draft: RadarPerfilDraft) => {
+    setPalavrasPerfil(draft.palavras);
+    setUfsSelecionadas(draft.ufs);
+    setTipoObjetoAtivo(draft.tiposObjeto.length === 1 ? draft.tiposObjeto[0] : 'TODAS');
+    setIncluirSemClassificacao(draft.incluirSemClassificacao);
+    setPerfilAtivo(draft.palavras.length > 0 || draft.ufs.length > 0 || draft.tiposObjeto.length > 0);
+    setCnaeChipAtivo(null);
+    setPagina(1);
+    setSearchNonce((n) => n + 1);
   };
 
   const handleAlternarSalvar = async (edital: EditalItem, e?: React.MouseEvent) => {
@@ -584,60 +723,22 @@ export default function LicitacoesPage({
     }
   };
 
-  const editaisOrdenados = useMemo(() => {
-    const comScore = editais
-      .filter((item) => {
-        if (!dataPublicacao) return true;
-        const raw =
-          item.dataPublicacao ||
-          item.data_publicacao ||
-          item.dataPublicacaoPncp ||
-          item.publishedAt ||
-          item.createdAt;
-        if (!raw) return false;
-        const data = new Date(raw);
-        if (Number.isNaN(data.getTime())) return false;
-        return data >= new Date(`${dataPublicacao}T00:00:00`);
-      })
-      .map((item) => ({
-        ...item,
-        _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
-      }));
-
-    if (ordenacao === 'relevancia') {
-      return comScore.sort((a, b) => b._scoreCalculado - a._scoreCalculado);
-    }
-    if (ordenacao === 'maior_valor') {
-      return comScore.sort(
-        (a, b) =>
-          (b.valorTotalEstimado || b.valorEstimado || 0) -
-          (a.valorTotalEstimado || a.valorEstimado || 0)
-      );
-    }
-    return comScore.sort((a, b) => {
-      const da = new Date(
-        a.dataPublicacao ||
-        a.data_publicacao ||
-        a.dataPublicacaoPncp ||
-        a.publishedAt ||
-        a.createdAt ||
-        0
-      ).getTime();
-      const db = new Date(
-        b.dataPublicacao ||
-        b.data_publicacao ||
-        b.dataPublicacaoPncp ||
-        b.publishedAt ||
-        b.createdAt ||
-        0
-      ).getTime();
-      return db - da;
-    });
-  }, [editais, selectedCompany, ordenacao, dataPublicacao]);
+  const temFiltroAtivo = Boolean(
+    palavraChave ||
+      palavrasPerfil.length > 0 ||
+      ufsSelecionadas.length > 0 ||
+      orgaoFiltro ||
+      fonteAtiva !== 'TODAS' ||
+      !apenasAbertos ||
+      modalidadeAtiva !== 'TODAS' ||
+      tipoObjetoAtivo !== 'TODAS' ||
+      dataPublicacao ||
+      perfilAtivo,
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-5">
         {/* Cabeçalho */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
@@ -649,8 +750,28 @@ export default function LicitacoesPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleToggleMeuPerfil}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
+                perfilAtivo
+                  ? 'border-[#0070C0] bg-[#0070C0] text-white shadow-sm'
+                  : 'border-slate-200 bg-white text-[#081C3A] hover:border-[#0070C0]'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {perfilAtivo ? 'Meu Perfil ativo' : 'Filtrar pelo Meu Perfil'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setModalPerfilAberto(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-[#081C3A] shadow-xs transition hover:border-[#FF6600] hover:text-[#FF6600] cursor-pointer"
+            >
+              <Sliders className="h-3.5 w-3.5" />
+              Escolher ramo / Alertas IA
+            </button>
 
             <button
               type="button"
@@ -659,7 +780,7 @@ export default function LicitacoesPage({
               className="inline-flex items-center gap-2 rounded-full bg-[#081C3A] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0f2b56] disabled:opacity-60 cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
-              {sincronizando ? 'Atualizando...' : 'Atualizar editais'}
+              {sincronizando ? 'Atualizando em 2º plano...' : 'Atualizar editais'}
             </button>
           </div>
         </div>
@@ -675,23 +796,18 @@ export default function LicitacoesPage({
           </div>
           <div className="rounded-2xl border border-emerald-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Editais com Prazo Próximo</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Encerrando em 48h</p>
               <p className="mt-1 text-2xl font-extrabold text-emerald-700">
-                {editaisOrdenados.filter((e) => e._scoreCalculado >= 75).length}
+                {(facets?.encerrando48h ?? 0).toLocaleString('pt-BR')}
               </p>
             </div>
-            <span className="h-3 w-3 rounded-full bg-emerald-500" />
+            <Clock className="h-5 w-5 text-emerald-600" />
           </div>
           <div className="rounded-2xl border border-amber-200/80 bg-white px-5 py-4 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-amber-800">Encerrando em 5 dias</p>
               <p className="mt-1 text-2xl font-extrabold text-amber-700">
-                {editaisOrdenados.filter((e) => {
-                  const dt = e.dataEncerramentoProposta || e.dataEncerramento;
-                  if (!dt) return false;
-                  const diff = new Date(dt).getTime() - Date.now();
-                  return diff > 0 && diff <= 5 * 24 * 60 * 60 * 1000;
-                }).length}
+                {(facets?.encerrando5Dias ?? 0).toLocaleString('pt-BR')}
               </p>
             </div>
             <span className="h-3 w-3 rounded-full bg-amber-500" />
@@ -721,7 +837,10 @@ export default function LicitacoesPage({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              buscarEditais();
+              setPalavraChaveDebounced(palavraChave);
+              setOrgaoDebounced(orgaoFiltro);
+              setPagina(1);
+              setSearchNonce((n) => n + 1);
             }}
             className="flex flex-col gap-3 md:flex-row"
           >
@@ -731,7 +850,7 @@ export default function LicitacoesPage({
                 type="text"
                 value={palavraChave}
                 onChange={(e) => setPalavraChave(e.target.value)}
-                placeholder="Buscar editais por produto, serviço ou objeto (ex: materiais, informática, engenharia)..."
+                placeholder="Buscar editais por produto, serviço, CNPJ ou objeto (ex: vestuário, informática, engenharia)..."
                 className="w-full rounded-full border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-sm text-[#081C3A] outline-none transition focus:border-[#0070C0] focus:bg-white"
               />
             </div>
@@ -759,11 +878,20 @@ export default function LicitacoesPage({
             <div className="relative">
               <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <select
-                value={ufSelecionada}
-                onChange={(e) => setUfSelecionada(e.target.value)}
+                aria-label="Filtrar por Estado"
+                value={ufsSelecionadas.length === 1 ? ufsSelecionadas[0] : ufsSelecionadas.length > 1 ? '__MULTI__' : ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) setUfsSelecionadas([]);
+                  else if (v !== '__MULTI__') setUfsSelecionadas([v]);
+                  setPagina(1);
+                }}
                 className="appearance-none rounded-full border border-slate-200 bg-white py-2 pl-9 pr-8 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0] cursor-pointer"
               >
                 <option value="">Todos os Estados</option>
+                {ufsSelecionadas.length > 1 && (
+                  <option value="__MULTI__">Estados: {ufsSelecionadas.join(', ')}</option>
+                )}
                 {UFS.map((uf) => (
                   <option key={uf} value={uf}>
                     Estado: {uf}
@@ -784,27 +912,32 @@ export default function LicitacoesPage({
             <select
               aria-label="Portal de origem"
               value={fonteAtiva}
-              onChange={(e) => setFonteAtiva(e.target.value as any)}
+              onChange={(e) => {
+                setFonteAtiva(e.target.value as any);
+                setPagina(1);
+              }}
               className="appearance-none rounded-full border border-slate-200 bg-white py-2 px-4 text-xs font-medium text-slate-700 outline-none focus:border-[#0070C0] cursor-pointer"
             >
               <option value="TODAS">Todos os Portais</option>
               <option value="PNCP">PNCP Oficial</option>
               <option value="ComprasGov">Compras.gov.br</option>
               <option value="querido_diario">Diários Oficiais (Municípios)</option>
-              <option value="portal_transparencia">Portal da Transparência</option>
             </select>
 
             <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 cursor-pointer hover:border-[#0070C0]">
               <input
                 type="checkbox"
                 checked={apenasAbertos}
-                onChange={(e) => setApenasAbertos(e.target.checked)}
+                onChange={(e) => {
+                  setApenasAbertos(e.target.checked);
+                  setPagina(1);
+                }}
                 className="h-3.5 w-3.5 accent-[#0070C0]"
               />
               Somente abertos
             </label>
 
-            {(palavraChave || ufSelecionada || orgaoFiltro || fonteAtiva !== 'TODAS' || !apenasAbertos || modalidadeAtiva !== 'TODAS' || dataPublicacao) && (
+            {temFiltroAtivo && (
               <button
                 type="button"
                 onClick={handleLimparFiltros}
@@ -815,6 +948,52 @@ export default function LicitacoesPage({
             )}
           </div>
 
+          {/* Chips de estados e palavras do perfil ativos */}
+          {(ufsSelecionadas.length > 0 || palavrasPerfil.length > 0) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {ufsSelecionadas.map((uf) => (
+                <span
+                  key={`uf-${uf}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#0070C0]"
+                >
+                  UF: {uf}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUfsSelecionadas((prev) => prev.filter((item) => item !== uf));
+                      setPagina(1);
+                    }}
+                    className="hover:text-[#081C3A] cursor-pointer"
+                    aria-label={`Remover estado ${uf}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              {palavrasPerfil.map((kw) => (
+                <span
+                  key={`kw-${kw}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-[#081C3A]"
+                >
+                  {kw}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = palavrasPerfil.filter((item) => item !== kw);
+                      setPalavrasPerfil(next);
+                      if (next.length === 0) setPerfilAtivo(false);
+                      setPagina(1);
+                    }}
+                    className="hover:text-rose-600 cursor-pointer"
+                    aria-label={`Remover termo ${kw}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {mostrarFiltrosExtras && (
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
               <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
@@ -823,7 +1002,10 @@ export default function LicitacoesPage({
                 <input
                   type="date"
                   value={dataPublicacao}
-                  onChange={(e) => setDataPublicacao(e.target.value)}
+                  onChange={(e) => {
+                    setDataPublicacao(e.target.value);
+                    setPagina(1);
+                  }}
                   className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-[#0070C0]"
                 />
               </label>
@@ -831,46 +1013,57 @@ export default function LicitacoesPage({
           )}
 
           {listaCnaesEmpresa.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
-                Atividades da Empresa (CNAEs) — clique para filtrar oportunidades
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {listaCnaesEmpresa.map((cnae, idx) => {
-                const kw = extrairPalavrasChaveCnaes({ cnaeDescricao: cnae })[0] || '';
-                const ativo = kw && palavraChave.toLowerCase() === kw.toLowerCase();
-                return (
-                  <motion.button
-                    key={idx}
-                    type="button"
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      if (!kw) return;
-                      setPalavraChave(kw);
-                      buscarEditais(kw, true);
-                    }}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all border ${
-                      ativo
-                        ? 'border-[#0070C0] bg-[#0070C0] text-white shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-[#0070C0]/50 hover:bg-[#0070C0]/5'
-                    }`}
-                  >
-                    {cnae}
-                  </motion.button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                  Atividades da Empresa (CNAEs) — clique para filtrar ou desativar
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {listaCnaesEmpresa.map((cnae, idx) => {
+                  const ativo = cnaeChipAtivo === cnae;
+                  return (
+                    <motion.button
+                      key={`${selectedCompany?.cnpj || 'default'}-${idx}`}
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        if (ativo) {
+                          setCnaeChipAtivo(null);
+                          setPalavrasPerfil([]);
+                          setPagina(1);
+                          return;
+                        }
+                        const termos = expandirSinonimosRamo('', { cnaePrincipal: cnae }, []);
+                        const fallback = extrairPalavrasChaveCnaes({ cnaePrincipal: cnae }, []);
+                        const listaTermos = termos.length > 0 ? termos : fallback;
+                        if (listaTermos.length === 0) return;
+                        setCnaeChipAtivo(cnae);
+                        setPalavrasPerfil(listaTermos);
+                        setPalavraChave('');
+                        setPalavraChaveDebounced('');
+                        setPagina(1);
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all border cursor-pointer ${
+                        ativo
+                          ? 'border-[#0070C0] bg-[#0070C0] text-white shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-[#0070C0]/50 hover:bg-[#0070C0]/5'
+                      }`}
+                    >
+                      {cnae}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
             {MODALIDADES_RAPIDAS.map((mod) => {
               const Icon = mod.icon;
               const ativa = modalidadeAtiva === mod.id;
@@ -878,7 +1071,10 @@ export default function LicitacoesPage({
                 <button
                   key={mod.id}
                   type="button"
-                  onClick={() => setModalidadeAtiva(mod.id)}
+                  onClick={() => {
+                    setModalidadeAtiva(mod.id);
+                    setPagina(1);
+                  }}
                   className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-3.5 text-xs font-semibold transition cursor-pointer ${
                     ativa
                       ? 'border-[#0070C0] bg-blue-50/70 text-[#0070C0] shadow-sm'
@@ -886,36 +1082,138 @@ export default function LicitacoesPage({
                   }`}
                 >
                   <Icon className={`h-5 w-5 ${ativa ? 'text-[#0070C0]' : 'text-slate-500'}`} />
-                  <span>{mod.label}</span>
+                  <span className="text-center leading-tight">{mod.label}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Quantidade e Ordenação */}
+        {/* Abas de Tipo de Objeto (Todas | Bens | Serviços | Obras) com contagens reais */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+          <div className="flex flex-wrap items-center gap-1">
+            {(
+              [
+                { id: 'TODAS', label: 'Todas', count: facets?.todas ?? total },
+                { id: 'BENS', label: 'Bens', count: facets?.bens ?? 0 },
+                { id: 'SERVICOS', label: 'Serviços', count: facets?.servicos ?? 0 },
+                { id: 'OBRAS', label: 'Obras', count: facets?.obras ?? 0 },
+              ] as const
+            ).map((tab) => {
+              const active = tipoObjetoAtivo === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setTipoObjetoAtivo(tab.id);
+                    setPagina(1);
+                  }}
+                  className={`inline-flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-bold transition cursor-pointer ${
+                    active
+                      ? 'border-[#081C3A] text-[#081C3A]'
+                      : 'border-transparent text-slate-500 hover:text-[#081C3A]'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${
+                      active ? 'bg-[#081C3A] text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {tab.count.toLocaleString('pt-BR')}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {facets && facets.novas24h > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                {facets.novas24h.toLocaleString('pt-BR')} novas em 24h
+              </span>
+            )}
+
+            {tipoObjetoAtivo !== 'TODAS' && (
+              <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={incluirSemClassificacao}
+                  onChange={(e) => {
+                    setIncluirSemClassificacao(e.target.checked);
+                    setPagina(1);
+                  }}
+                  className="h-3.5 w-3.5 accent-[#0070C0]"
+                />
+                + sem classificação ({(facets?.semClassificacao ?? 0).toLocaleString('pt-BR')})
+              </label>
+            )}
+
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5">
+              <button
+                type="button"
+                onClick={() => setVisualizacao('detalhada')}
+                className={`rounded-lg p-1.5 cursor-pointer ${
+                  visualizacao === 'detalhada' ? 'bg-slate-100 text-[#081C3A]' : 'text-slate-400'
+                }`}
+                aria-label="Visualização detalhada"
+                title="Visualização detalhada"
+              >
+                <LayoutList className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisualizacao('compacta')}
+                className={`rounded-lg p-1.5 cursor-pointer ${
+                  visualizacao === 'compacta' ? 'bg-slate-100 text-[#081C3A]' : 'text-slate-400'
+                }`}
+                aria-label="Visualização compacta"
+                title="Visualização compacta"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Quantidade e Ordenação (100% Server-Side) */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="text-sm font-semibold text-slate-600">
-            <span className="text-[#081C3A]">{total.toLocaleString('pt-BR')}</span>{' '}
-            {total === 1 ? 'edital encontrado' : 'editais encontrados'}
-            {editaisOrdenados.length > 0 && editaisOrdenados.length < total && (
-              <span className="font-normal text-slate-500"> (exibindo {editaisOrdenados.length} nesta página)</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
+            <p>
+              <span className="text-[#081C3A]">{total.toLocaleString('pt-BR')}</span>{' '}
+              {total === 1 ? 'edital encontrado' : 'editais encontrados'}
+              {editais.length > 0 && editais.length < total && (
+                <span className="font-normal text-slate-500"> (exibindo {editais.length} nesta página)</span>
+              )}
+              {palavraChaveDebounced.trim() && (
+                <span className="font-normal text-slate-400"> para “{palavraChaveDebounced.trim()}”</span>
+              )}
+            </p>
+            {tempoBuscaMs !== null && !carregando && (
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-mono text-slate-500">
+                {tempoBuscaMs} ms
+              </span>
             )}
-            {palavraChave.trim() && (
-              <span className="font-normal text-slate-400"> para “{palavraChave.trim()}”</span>
-            )}
-          </p>
+          </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-500">Ordenar por</span>
             <select
+              aria-label="Ordenar por"
               value={ordenacao}
-              onChange={(e) => setOrdenacao(e.target.value as any)}
+              onChange={(e) => {
+                setOrdenacao(e.target.value as any);
+                setPagina(1);
+              }}
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0] cursor-pointer"
             >
-              <option value="relevancia">Mais aderentes aos CNAEs</option>
               <option value="recentes">Mais recentes</option>
+              <option value="encerramento">Encerramento mais próximo</option>
               <option value="maior_valor">Maior valor estimado</option>
+              <option value="menor_valor">Menor valor estimado</option>
+              <option value="relevancia">Mais aderentes ao perfil</option>
             </select>
           </div>
         </div>
@@ -927,18 +1225,54 @@ export default function LicitacoesPage({
               <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white p-5" />
             ))}
           </div>
-        ) : editaisOrdenados.length === 0 ? (
+        ) : erroBusca ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50/70 p-10 text-center">
+            <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
+            <h3 className="mt-3 text-base font-bold text-red-900">Falha ao consultar o Radar</h3>
+            <p className="mt-1 text-sm text-red-700">{erroBusca}</p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSearchNonce((n) => n + 1)}
+                className="rounded-full bg-[#081C3A] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0f2b56] cursor-pointer"
+              >
+                Tentar novamente
+              </button>
+              {temFiltroAtivo && (
+                <button
+                  type="button"
+                  onClick={handleLimparFiltros}
+                  className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+          </div>
+        ) : editais.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <FileText className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 text-base font-bold text-[#081C3A]">
-              {palavraChave.trim()
-                ? `Nenhum edital encontrado para “${palavraChave.trim()}”`
+              {palavraChaveDebounced.trim()
+                ? `Nenhum edital encontrado para “${palavraChaveDebounced.trim()}”`
                 : 'Nenhum edital encontrado para esses filtros'}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              A consulta ao vivo não retornou contratações abertas para esses filtros. Clique em “Buscar no PNCP agora” para tentar novamente ou limpe os filtros.
+              Ajuste os filtros aplicados, expanda os estados selecionados ou consulte o PNCP em tempo real.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
+              {ufsSelecionadas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUfsSelecionadas([]);
+                    setPagina(1);
+                  }}
+                  className="rounded-full border border-[#0070C0] bg-blue-50 px-5 py-2.5 text-sm font-semibold text-[#0070C0] hover:bg-blue-100 cursor-pointer"
+                >
+                  Expandir para todo o Brasil
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleLimparFiltros}
@@ -948,7 +1282,7 @@ export default function LicitacoesPage({
               </button>
               <button
                 type="button"
-                onClick={handleSincronizarPncp}
+                onClick={() => void executarBusca(1, true)}
                 className="rounded-full bg-[#0070C0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#005ea3] cursor-pointer"
               >
                 Buscar no PNCP agora
@@ -956,13 +1290,12 @@ export default function LicitacoesPage({
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            {editaisOrdenados.map((edital) => {
+          <div className="space-y-3.5">
+            {editais.map((edital) => {
               const idStr = String(edital.id);
               const estaSalvo = Boolean(salvosMap[idStr]);
               const salvandoEste = salvandoId === idStr;
 
-              // Nome real do órgão comprador (prioridade estrita nos dados reais)
               const orgao =
                 edital.orgao ||
                 edital.nomeOrgao ||
@@ -971,14 +1304,12 @@ export default function LicitacoesPage({
                 edital.orgaoNome ||
                 'Órgão Licitante';
 
-              // CNPJ do órgão comprador
               const cnpjOrgao =
                 edital.cnpjOrgao ||
                 edital.buyerDocument ||
                 edital.orgaoEntidade?.cnpj ||
                 edital.orgaoCnpj;
 
-              // Número do edital / processo
               const numeroEdital =
                 edital.numeroEdital ||
                 edital.numeroCompra ||
@@ -986,7 +1317,6 @@ export default function LicitacoesPage({
                 edital.numeroControlePNCP ||
                 idStr;
 
-              // Data real de publicação
               const dataPublicacaoReal =
                 edital.dataPublicacao ||
                 edital.data_publicacao ||
@@ -994,7 +1324,6 @@ export default function LicitacoesPage({
                 edital.publishedAt ||
                 edital.createdAt;
 
-              // Prazos de propostas / disputa
               const dataInicio =
                 edital.dataAbertura ||
                 edital.data_abertura ||
@@ -1006,7 +1335,6 @@ export default function LicitacoesPage({
                 edital.dataLimiteProposta ||
                 edital.dataSessaoDisputa;
 
-              // Localidade e Modalidade
               const uf = edital.unidadeOrgao?.ufSigla || edital.uf || 'BR';
               const municipio = edital.unidadeOrgao?.municipioNome || edital.municipio || '';
               const modalidade =
@@ -1014,20 +1342,71 @@ export default function LicitacoesPage({
                 edital.modalidade ||
                 edital.nomeModalidade ||
                 'Pregão Eletrônico';
-              void getSemaforoViabilidade;
               const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
               const valor =
                 edital.valorTotalEstimado ??
                 edital.valorEstimado ??
                 edital.valor_estimado ??
                 edital.estimatedValue;
-              const score = edital._scoreCalculado || 75;
+              const tipoBadge = getTipoObjetoLabel(edital.tipoObjeto);
 
-              // Link direto para o portal oficial do PNCP
               const urlOficialPncp = buildOfficialPncpPortalUrl(edital);
 
-              void score;
-              
+              if (visualizacao === 'compacta') {
+                return (
+                  <div
+                    key={idStr}
+                    onClick={() => setEditalSelecionado(edital)}
+                    className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xs transition hover:border-[#0070C0] sm:flex-row sm:items-center cursor-pointer"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold text-[#081C3A]">
+                          {modalidade}
+                        </span>
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 font-bold text-indigo-700">
+                          {getSourceBadgeLabel(edital.fonte || edital.source)}
+                        </span>
+                        {tipoBadge && (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">
+                            {tipoBadge}
+                          </span>
+                        )}
+                        <span className="font-semibold text-slate-600">
+                          {municipio ? `${municipio} - ${uf}` : uf}
+                        </span>
+                      </div>
+                      <h3 className="truncate text-sm font-bold text-[#081C3A]">{objeto}</h3>
+                      <p className="truncate text-xs text-slate-500">
+                        {orgao} • Encerramento: {formatarDataHora(dataEncerramento)} •{' '}
+                        <strong className="text-[#0070C0]">{formatarMoeda(valor)}</strong>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <a
+                        href={urlOficialPncp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-download-edital btn-link-pncp rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0070C0] hover:border-[#0070C0]"
+                      >
+                        Portal Oficial ↗
+                      </a>
+                      <button
+                        type="button"
+                        onClick={(e) => handleAlternarSalvar(edital, e)}
+                        disabled={salvandoEste}
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer ${
+                          estaSalvo
+                            ? 'border border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:border-[#FF6600]'
+                        }`}
+                      >
+                        {estaSalvo ? 'Salvo' : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div
@@ -1035,10 +1414,7 @@ export default function LicitacoesPage({
                   onClick={() => setEditalSelecionado(edital)}
                   className="group relative flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#FF6600]/60 hover:shadow-md cursor-pointer overflow-hidden"
                 >
-                  {/* Borda indicadora de escore */}
-                  <div
-                    className={`absolute left-0 top-0 bottom-0 w-1.5 bg-[#0070C0]`}
-                  />
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#0070C0]" />
 
                   {/* Linha 1: Badges e Botões de Ação */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pl-2">
@@ -1048,14 +1424,14 @@ export default function LicitacoesPage({
                       </span>
 
                       <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 border border-indigo-100">
-                        {String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('querido')
-                          ? 'Diário Oficial'
-                          : String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('compras')
-                            ? 'Compras.gov.br'
-                            : String(edital.fonte || edital.source || 'PNCP').toLowerCase().includes('transparencia')
-                              ? 'Transparência'
-                              : 'PNCP'}
+                        {getSourceBadgeLabel(edital.fonte || edital.source)}
                       </span>
+
+                      {tipoBadge && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-100">
+                          {tipoBadge}
+                        </span>
+                      )}
 
                       {edital.srp && (
                         <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#0070C0]">
@@ -1066,12 +1442,9 @@ export default function LicitacoesPage({
                       <span className="font-mono text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-0.5 rounded-md">
                         {numeroEdital}
                       </span>
-
-                      
                     </div>
 
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      {/* Link direto para o Portal Oficial do PNCP */}
                       <a
                         href={urlOficialPncp}
                         target="_blank"
@@ -1084,7 +1457,6 @@ export default function LicitacoesPage({
                         <ExternalLink className="h-3 w-3" />
                       </a>
 
-                      {/* Botão Salvar para Proposta */}
                       <button
                         type="button"
                         onClick={(e) => handleAlternarSalvar(edital, e)}
@@ -1176,13 +1548,14 @@ export default function LicitacoesPage({
             {totalPaginas > 1 && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm">
                 <span className="text-xs font-semibold text-slate-600">
-                  Página <strong className="text-[#081C3A]">{pagina}</strong> de <strong className="text-[#081C3A]">{totalPaginas}</strong> • {total.toLocaleString('pt-BR')} editais disponíveis
+                  Página <strong className="text-[#081C3A]">{pagina}</strong> de{' '}
+                  <strong className="text-[#081C3A]">{totalPaginas}</strong> • {total.toLocaleString('pt-BR')} editais disponíveis
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     disabled={pagina <= 1 || carregando}
-                    onClick={() => buscarEditais(undefined, false, pagina - 1)}
+                    onClick={() => setPagina((p) => Math.max(1, p - 1))}
                     className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-bold text-[#081C3A] hover:border-[#0070C0] disabled:opacity-40 cursor-pointer"
                   >
                     Anterior
@@ -1190,7 +1563,7 @@ export default function LicitacoesPage({
                   <button
                     type="button"
                     disabled={pagina >= totalPaginas || carregando}
-                    onClick={() => buscarEditais(undefined, false, pagina + 1)}
+                    onClick={() => setPagina((p) => p + 1)}
                     className="rounded-full bg-[#081C3A] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0f2b56] disabled:opacity-40 cursor-pointer"
                   >
                     Próxima
@@ -1201,6 +1574,15 @@ export default function LicitacoesPage({
           </div>
         )}
       </div>
+
+      {/* Modal de Perfil Inteligente / Ramos & Alertas */}
+      <RadarPerfilModal
+        isOpen={modalPerfilAberto}
+        onClose={() => setModalPerfilAberto(false)}
+        company={selectedCompany}
+        initialDraft={currentModalDraft}
+        onApply={handleAplicarDraftPerfil}
+      />
 
       {/* Modal de Dossiê e Resumo do Edital (RESUMO DO EDITAL) */}
       {editalSelecionado && (
@@ -1215,7 +1597,7 @@ export default function LicitacoesPage({
           isSalvando={Boolean(editalSelecionado && salvandoId === String(editalSelecionado.id))}
           onSalvar={() => {
             if (editalSelecionado) {
-              handleAlternarSalvar(editalSelecionado);
+              void handleAlternarSalvar(editalSelecionado);
             }
           }}
         />

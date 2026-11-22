@@ -176,6 +176,45 @@ describe('pncp.service', () => {
     });
   });
 
+  test('buscarItensPNCP pagina automaticamente além da página 1 e retorna todos os 505 itens sem truncar', async () => {
+    const page1Items = Array.from({ length: 500 }, (_, idx) => ({
+      numeroItem: idx + 1,
+      descricao: `Item ${idx + 1}`,
+      quantidade: 2,
+      valorUnitarioEstimado: 10,
+      valorTotal: 20,
+    }));
+    const page2Items = Array.from({ length: 5 }, (_, idx) => ({
+      numeroItem: 501 + idx,
+      descricao: `Item ${501 + idx}`,
+      quantidade: 1,
+      valorUnitarioEstimado: 50,
+      valorTotal: 50,
+    }));
+
+    const getMock = jest
+      .spyOn(axios, 'get')
+      .mockResolvedValueOnce({ data: page1Items, status: 200, headers: {}, config: { headers: {} } } as any)
+      .mockResolvedValueOnce({ data: page2Items, status: 200, headers: {}, config: { headers: {} } } as any);
+
+    const itens = await buscarItensPNCP('83102277000152', '2025', '15');
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+    expect(getMock).toHaveBeenNthCalledWith(
+      1,
+      'https://pncp.gov.br/api/pncp/v1/orgaos/83102277000152/compras/2025/15/itens',
+      expect.objectContaining({ params: { pagina: 1, tamanhoPagina: 500 } }),
+    );
+    expect(getMock).toHaveBeenNthCalledWith(
+      2,
+      'https://pncp.gov.br/api/pncp/v1/orgaos/83102277000152/compras/2025/15/itens',
+      expect.objectContaining({ params: { pagina: 2, tamanhoPagina: 500 } }),
+    );
+    expect(itens).toHaveLength(505);
+    expect(itens[0].numeroItem).toBe(1);
+    expect(itens[504].numeroItem).toBe(505);
+  });
+
   test('buscarArquivosPNCP formata a chamada oficial e retorna lista de anexos', async () => {
     const response: any = {
       data: [

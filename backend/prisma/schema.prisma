@@ -113,6 +113,14 @@ model Company {
   orgaosBloqueados     String[]             @default([]) @map("orgaos_bloqueados")
   impedimentoLicitacao Boolean              @default(false) @map("impedimento_licitacao")
   impedimentoDetalhes  String?              @map("impedimento_detalhes") @db.Text
+  cep                  String?
+  logradouro           String?
+  bairro               String?
+  telefone             String?
+  email                String?
+  porte                String?
+  radarTiposObjeto     String[]             @default([]) @map("radar_tipos_objeto")
+  radarIncluirSemClassificacao Boolean      @default(true) @map("radar_incluir_sem_classificacao")
   createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -472,6 +480,8 @@ model AnnualProcurementPlan {
 
   @@index([year, uf])
   @@index([buyerDocument])
+  items         AnnualProcurementPlanItem[]
+
   @@map("annual_procurement_plans")
 }
 
@@ -496,6 +506,8 @@ model ProcurementNotice {
   modoDisputa             String?                  @map("modo_disputa")
   srp                     Boolean                  @default(false)
   amparoLegal             String?                  @default("Lei 14.133/2021") @map("amparo_legal")
+  objectType              String?                  @map("object_type")
+  searchVector            Unsupported("tsvector")? @map("search_vector")
   buyerName               String?                  @map("buyer_name")
   buyerDocument     String?                  @map("buyer_document")
   object            String
@@ -535,6 +547,10 @@ model ProcurementNotice {
   @@index([uf, modality, publishedAt(sort: Desc)])
   @@index([externalId])
   @@index([closingAt])
+  @@index([source, publishedAt(sort: Desc)])
+  @@index([objectType, publishedAt(sort: Desc)])
+  @@index([uf, closingAt, publishedAt(sort: Desc)])
+  @@index([estimatedValue(sort: Desc), publishedAt(sort: Desc)])
   @@map("procurement_notices")
 }
 
@@ -2256,4 +2272,34 @@ model ContractTaxLedger {
   @@index([taxRuleVersionId])
   @@index([rebalanceJustified])
   @@map("contract_tax_ledgers")
+}
+
+model AnnualProcurementPlanItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId         String?  @map("plan_id") @db.Uuid
+  pncpId         String   @map("pncp_id")
+  itemNumber     Int      @default(1) @map("item_number")
+  year           Int
+  buyerName      String   @map("buyer_name")
+  buyerDocument  String   @map("buyer_document")
+  uf             String?
+  municipality   String?
+  category       String?
+  description    String
+  desiredDate    DateTime? @map("desired_date") @db.Timestamptz(6)
+  estimatedValue Decimal?  @map("estimated_value") @db.Decimal(18, 2)
+  linkPcaPncp    String?   @map("link_pca_pncp")
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  updatedAtPncp  DateTime? @map("updated_at_pncp") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  plan AnnualProcurementPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@unique([pncpId, itemNumber])
+  @@index([year, uf])
+  @@index([desiredDate])
+  @@index([category])
+  @@index([buyerDocument])
+  @@map("annual_procurement_plan_items")
 }

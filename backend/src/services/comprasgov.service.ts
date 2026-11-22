@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { prisma } from '../database/prisma';
 import crypto from 'crypto';
+import { recordIngestionJob, saveIngestionCursor } from './ingestion-cursor.service';
 
 const DEFAULT_COMPRASGOV_BASE = 'https://dadosabertos.compras.gov.br';
 const DEFAULT_TIMEOUT_MS = 25000;
@@ -717,6 +718,7 @@ export async function syncComprasGovRecentes(options: { daysBack?: number; maxPa
   persisted: number;
   byModality: Record<number, number>;
 }> {
+  const startedAt = new Date();
   const daysBack = options.daysBack ?? 7;
   const maxPages = Math.max(1, options.maxPages ?? 3);
   const hoje = new Date();
@@ -726,6 +728,7 @@ export async function syncComprasGovRecentes(options: { daysBack?: number; maxPa
   const modalidades = [5, 6, 3, 7];
   const pageSize = 500;
   let persisted = 0;
+  let failed = 0;
   const byModality: Record<number, number> = {};
 
   for (const modalidade of modalidades) {
@@ -771,11 +774,29 @@ export async function syncComprasGovRecentes(options: { daysBack?: number; maxPa
         }
       }
     } catch (err: any) {
+      failed += 1;
       console.warn(`[ComprasGov Sync] Modalidade SIASG ${modalidade}:`, resolveAxiosErrorSummary(err));
     }
     byModality[modalidade] = modPersisted;
     persisted += modPersisted;
   }
+
+  await saveIngestionCursor('ComprasGov', 'contratacoes_recentes', {
+    daysBack,
+    maxPages,
+    persisted,
+    byModality,
+  });
+  await recordIngestionJob({
+    source: 'ComprasGov',
+    connector: 'syncComprasGovRecentes',
+    status: failed > 0 && persisted === 0 ? 'failed' : failed > 0 ? 'partial' : 'completed',
+    recordsSeen: persisted,
+    recordsAccepted: persisted,
+    recordsFailed: failed,
+    startedAt,
+    metadata: { daysBack, maxPages, byModality },
+  });
 
   console.info(`[ComprasGov Sync] Sincronizados ${persisted} editais recentes (últimos ${daysBack} dias).`, byModality);
   return { fonte: 'ComprasGov', persisted, byModality };

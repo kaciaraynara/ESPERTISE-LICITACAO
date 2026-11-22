@@ -367,7 +367,7 @@ export default function ContenciosoHubPage() {
                   Prazo Legal de Contrarrazões
                 </span>
                 <p className="text-xs font-semibold text-blue-800">
-                  Sob o Art. 165, § 1º, alínea "b" da Lei 14.133/2021, o prazo para apresentação de contrarrazões é de <strong>3 (três) dias úteis</strong> após a intimação.
+                  Sob o Art. 165, § 4º da Lei 14.133/2021, o prazo para apresentação de contrarrazões é de <strong>3 (três) dias úteis</strong> após a intimação.
                 </p>
               </div>
             </div>

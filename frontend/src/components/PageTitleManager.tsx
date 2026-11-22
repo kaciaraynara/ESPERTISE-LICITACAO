@@ -10,7 +10,9 @@ const SUFFIX = 'Expertise Licitatória';
  */
 const TITLES: Array<[RegExp, string]> = [
   [/^\/$/, 'Radar PNCP e documentos'],
-  [/^\/(login|register|cadastro|forgot-password|reset-password|redefinir-senha|auth\/redefinir-senha|esqueci-senha)\/?$/, 'Entrar'],
+  [/^\/login\/?$/, 'Entrar'],
+  [/^\/(register|cadastro)\/?$/, 'Criar conta'],
+  [/^\/(forgot-password|reset-password|redefinir-senha|auth\/redefinir-senha|esqueci-senha)\/?$/, 'Recuperar senha'],
   [/^\/termos\/?$/, 'Termos de Uso'],
   [/^\/privacidade\/?$/, 'Política de Privacidade'],
 

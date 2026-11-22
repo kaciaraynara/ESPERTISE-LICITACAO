@@ -16,6 +16,21 @@ export interface Company {
   cnaesSecundarios?: string[];
   cnaes_secundarios?: string[];
   nicho?: string[];
+  palavrasChave?: string[];
+  palavras_chave?: string[];
+  regioes?: string[];
+  radarTiposObjeto?: string[];
+  radar_tipos_objeto?: string[];
+  radarIncluirSemClassificacao?: boolean;
+  radar_incluir_sem_classificacao?: boolean;
+  cep?: string | null;
+  logradouro?: string | null;
+  bairro?: string | null;
+  endereco?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  porte?: string | null;
+  status?: string | null;
   qsa?: Array<{
     nome?: string;
     qual?: string;
@@ -25,6 +40,7 @@ export interface Company {
   }>;
   uf?: string | null;
   municipio?: string | null;
+  cidade?: string | null;
 }
 
 export interface CompanyContextData {
@@ -78,6 +94,18 @@ export function normalizeCompany(raw: any): Company {
       : Array.isArray(raw?.nicho)
         ? raw.nicho
         : [];
+  const palavras = Array.isArray(raw?.palavrasChave)
+    ? raw.palavrasChave
+    : Array.isArray(raw?.palavras_chave)
+      ? raw.palavras_chave
+      : [];
+  const municipio = raw?.municipio || raw?.cidade || null;
+  const enderecoDerivado = [raw?.logradouro, raw?.bairro, municipio, raw?.uf, raw?.cep]
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter(Boolean)
+    .join(', ');
+  const endereco = raw?.endereco || enderecoDerivado || null;
+
   return {
     id: String(raw?.id || 'default'),
     razaoSocial: razao,
@@ -90,9 +118,35 @@ export function normalizeCompany(raw: any): Company {
     cnaesSecundarios: cnaesSec,
     cnaes_secundarios: cnaesSec,
     nicho: cnaesSec,
+    palavrasChave: palavras,
+    palavras_chave: palavras,
+    regioes: Array.isArray(raw?.regioes) ? raw.regioes : [],
+    radarTiposObjeto: Array.isArray(raw?.radarTiposObjeto)
+      ? raw.radarTiposObjeto
+      : Array.isArray(raw?.radar_tipos_objeto)
+        ? raw.radar_tipos_objeto
+        : [],
+    radar_tipos_objeto: Array.isArray(raw?.radar_tipos_objeto)
+      ? raw.radar_tipos_objeto
+      : Array.isArray(raw?.radarTiposObjeto)
+        ? raw.radarTiposObjeto
+        : [],
+    radarIncluirSemClassificacao:
+      raw?.radarIncluirSemClassificacao ?? raw?.radar_incluir_sem_classificacao ?? true,
+    radar_incluir_sem_classificacao:
+      raw?.radar_incluir_sem_classificacao ?? raw?.radarIncluirSemClassificacao ?? true,
+    cep: raw?.cep || null,
+    logradouro: raw?.logradouro || null,
+    bairro: raw?.bairro || null,
+    endereco,
+    telefone: raw?.telefone || null,
+    email: raw?.email || null,
+    porte: raw?.porte || null,
+    status: raw?.status || null,
     qsa: Array.isArray(raw?.qsa) ? raw.qsa : undefined,
     uf: raw?.uf || null,
-    municipio: raw?.municipio || null,
+    municipio,
+    cidade: municipio,
   };
 }
 
@@ -156,7 +210,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isFetching, setIsFetching] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = useAuthStore.getState().accessToken || window.sessionStorage.getItem('token') || window.localStorage.getItem('token');
       if (!token) return false;
       const stored = localStorage.getItem('@Expertise:selectedCompany');
       if (stored) {
@@ -223,7 +277,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const refreshCompanies = useCallback(async () => {
-    const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
+    const hasToken = typeof window !== 'undefined' && Boolean(useAuthStore.getState().accessToken || window.sessionStorage.getItem('token') || window.localStorage.getItem('token'));
     if (!useAuthStore.getState().isAuthenticated && !hasToken) {
       setIsLoading(false);
       setIsFetching(false);
@@ -318,7 +372,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [isAuthenticated, refreshCompanies]);
 
-  const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
+  const hasToken = typeof window !== 'undefined' && Boolean(useAuthStore.getState().accessToken || window.sessionStorage.getItem('token') || window.localStorage.getItem('token'));
   const isUserAuthenticated = isAuthenticated || hasToken;
   const isPublicRoute =
     typeof window !== 'undefined' &&

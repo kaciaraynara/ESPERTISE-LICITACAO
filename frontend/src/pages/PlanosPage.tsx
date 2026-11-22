@@ -587,33 +587,6 @@ export default function PlanosPage() {
                   </button>
                 </div>
 
-                <div className="mb-4 grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100/90 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setFormaPagamento('PIX')}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
-                      formaPagamento === 'PIX'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <QrCode className="w-3.5 h-3.5" weight="bold" />
-                    <span>Pix</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormaPagamento('CREDIT_CARD')}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition cursor-pointer ${
-                      formaPagamento === 'CREDIT_CARD'
-                        ? 'bg-[#081C3A] text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5" weight="bold" />
-                    <span>Cartão</span>
-                  </button>
-                </div>
-
                 <button
                   type="button"
                   id={`btn-plan-${plan.id}`}

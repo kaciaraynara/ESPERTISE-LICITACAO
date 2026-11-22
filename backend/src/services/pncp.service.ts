@@ -953,26 +953,99 @@ export async function buscarItensPNCP(
 
   const baseUrl = (process.env.PNCP_API_BASE_URL || DEFAULT_PNCP_API_V1_BASE_URL).replace(/\/+$/, '');
   const url = `${baseUrl}/orgaos/${cleanCnpj}/compras/${cleanAno}/${cleanSeq}/itens`;
+  const headers = {
+    Accept: 'application/json',
+    'User-Agent': 'EXPERTISE-SaaS/1.0',
+  };
 
   try {
-    const response = await axios.get(url, {
-      timeout: timeoutMs(),
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'EXPERTISE-SaaS/1.0',
-      },
-    });
+    let pageSize = 500;
+    let firstRaw: unknown;
+    let disablePagination = false;
 
-    const items = readRawItems(response.data);
-    return items.map((it: any) => ({
-      numeroItem: it.numeroItem ?? it.item ?? it.itemNumero ?? 1,
-      descricao: it.descricao ?? it.especificacao ?? it.descricaoItem ?? it.objeto ?? 'Item da contratação',
-      quantidade: Number(it.quantidade ?? it.quantidadeHomologada ?? 1),
-      valorUnitarioEstimado: Number(it.valorUnitarioEstimado ?? it.valorEstimado ?? it.precoUnitario ?? 0),
-      valorTotal: Number(it.valorTotal ?? it.valorEstimadoTotal ?? ((Number(it.quantidade) || 1) * (Number(it.valorUnitarioEstimado) || 0))),
-      unidadeMedida: it.unidadeMedida ?? it.siglaUnidadeMedida ?? 'UN',
-      situacaoCompraItemNome: it.situacaoCompraItemNome ?? it.situacaoItemNome ?? 'Ativo',
-    }));
+    try {
+      const response = await axios.get(url, {
+        params: { pagina: 1, tamanhoPagina: pageSize },
+        timeout: timeoutMs(),
+        headers,
+      });
+      firstRaw = response.data;
+    } catch (firstErr) {
+      if (axios.isAxiosError(firstErr) && firstErr.response?.status === 400) {
+        try {
+          pageSize = 100;
+          const retry100 = await axios.get(url, {
+            params: { pagina: 1, tamanhoPagina: pageSize },
+            timeout: timeoutMs(),
+            headers,
+          });
+          firstRaw = retry100.data;
+        } catch (secondErr) {
+          if (axios.isAxiosError(secondErr) && secondErr.response?.status === 400) {
+            disablePagination = true;
+            const retryBare = await axios.get(url, {
+              timeout: timeoutMs(),
+              headers,
+            });
+            firstRaw = retryBare.data;
+          } else {
+            throw secondErr;
+          }
+        }
+      } else {
+        throw firstErr;
+      }
+    }
+
+    const collected = new Map<string, any>();
+    let seqFallbackIdx = 0;
+
+    const appendBatch = (rawBatch: any[]) => {
+      for (const it of rawBatch) {
+        seqFallbackIdx += 1;
+        const key = String(it?.numeroItem ?? it?.item ?? it?.itemNumero ?? `idx-${seqFallbackIdx}`);
+        if (!collected.has(key)) {
+          collected.set(key, it);
+        }
+      }
+    };
+
+    const firstBatch = readRawItems(firstRaw);
+    appendBatch(firstBatch);
+
+    if (!disablePagination && firstBatch.length >= pageSize) {
+      for (let pagina = 2; pagina <= 20; pagina += 1) {
+        try {
+          const nextRes = await axios.get(url, {
+            params: { pagina, tamanhoPagina: pageSize },
+            timeout: timeoutMs(),
+            headers,
+          });
+          const nextBatch = readRawItems(nextRes.data);
+          if (nextBatch.length === 0) break;
+          const sizeBefore = collected.size;
+          appendBatch(nextBatch);
+          if (collected.size === sizeBefore || nextBatch.length < pageSize) break;
+        } catch (pageErr) {
+          if (axios.isAxiosError(pageErr) && pageErr.response?.status === 404) {
+            break;
+          }
+          break;
+        }
+      }
+    }
+
+    return Array.from(collected.values())
+      .map((it: any) => ({
+        numeroItem: it.numeroItem ?? it.item ?? it.itemNumero ?? 1,
+        descricao: it.descricao ?? it.especificacao ?? it.descricaoItem ?? it.objeto ?? 'Item da contratação',
+        quantidade: Number(it.quantidade ?? it.quantidadeHomologada ?? 1),
+        valorUnitarioEstimado: Number(it.valorUnitarioEstimado ?? it.valorEstimado ?? it.precoUnitario ?? 0),
+        valorTotal: Number(it.valorTotal ?? it.valorEstimadoTotal ?? ((Number(it.quantidade) || 1) * (Number(it.valorUnitarioEstimado) || 0))),
+        unidadeMedida: it.unidadeMedida ?? it.siglaUnidadeMedida ?? 'UN',
+        situacaoCompraItemNome: it.situacaoCompraItemNome ?? it.situacaoItemNome ?? 'Ativo',
+      }))
+      .sort((a, b) => Number(a.numeroItem) - Number(b.numeroItem));
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       return [];

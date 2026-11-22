@@ -1147,6 +1147,10 @@ router.get(
 // ==========================================
 
 router.get('/licitacoes/pca', fornecedor, handle(licitacoes.listarPcas.bind(licitacoes) as RequestHandler));
+router.get('/licitacoes/sync-status', fornecedor, handle(licitacoes.statusSincronizacao as RequestHandler));
+router.get('/licitacoes/ramos', fornecedor, handle(licitacoes.listarRamos as RequestHandler));
+router.post('/licitacoes/sugerir-perfil', fornecedor, handle(licitacoes.sugerirPerfil as RequestHandler));
+router.post('/licitacoes/estimar-perfil', fornecedor, handle(licitacoes.estimarPerfil as RequestHandler));
 
 router.get(
   '/licitacoes',
@@ -1256,6 +1260,16 @@ router.get(
   fornecedor,
   handle(
     integracoes.health.bind(
+      integracoes,
+    ) as RequestHandler,
+  ),
+);
+
+router.get(
+  '/integracoes/telemetria',
+  fornecedor,
+  handle(
+    integracoes.telemetria.bind(
       integracoes,
     ) as RequestHandler,
   ),

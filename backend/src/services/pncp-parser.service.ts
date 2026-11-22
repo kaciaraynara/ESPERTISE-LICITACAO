@@ -171,7 +171,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
           notice = await prisma.procurementNotice.findFirst({
             where: {
               OR: [
-                { id: targetId },
+                ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId) ? [{ id: targetId }] : []),
                 { externalId: fetched.numeroControlePNCP },
                 { dedupeKey: `pncp-${fetched.numeroControlePNCP}` },
               ],

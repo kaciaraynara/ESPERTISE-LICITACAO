@@ -39,7 +39,7 @@ export const NulidadesPage: React.FC = () => {
 
   const adicionarCnpj = () => {
     if (cnpjs.length >= 6) {
-      toast.error('Maximo de 6 empresas por analise.');
+      toast.error('Maximo de 6 empresas por análise.');
       return;
     }
     setCnpjs([...cnpjs, '']);
@@ -72,13 +72,13 @@ export const NulidadesPage: React.FC = () => {
     }
   };
 
-  const baixarRelatorioPdf = () => {
+  const baixarRelatórioPdf = () => {
     if (!resultado) return;
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Relatorio de Integridade Licitatoria</title>
+  <title>Relatório de Integridade Licitatória</title>
   <style>
     @page { size: A4; margin: 18mm; }
     body { font-family: Arial, sans-serif; color: #0f172a; }
@@ -92,19 +92,19 @@ export const NulidadesPage: React.FC = () => {
 </head>
 <body>
   <div class="top">
-    <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatoria" />
+    <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatória" />
     <div style="text-align:right;font-size:11px;color:#475569;">
-      <strong>Radar de Inteligencia e Integridade</strong><br/>
+      <strong>Radar de Inteligência e Integridade</strong><br/>
       ${new Date().toLocaleString('pt-BR')}
     </div>
   </div>
-  <h1>Analise de Possiveis Irregularidades</h1>
+  <h1>Análise de Possíveis Irregularidades</h1>
   ${processoRef ? `<p style="font-size:12px;"><strong>Processo / Edital:</strong> ${escapeHtml(processoRef)}</p>` : ''}
   <p style="font-size:13px;"><strong>Indice de Risco:</strong> ${escapeHtml(resultado.nivelRisco)} (${resultado.indiceRisco}%)</p>
   <div class="aviso">${escapeHtml(resultado.avisoLegal)}</div>
   <h2>Empresas Analisadas</h2>
   <ul>${(resultado.empresas || []).map((e: any) => `<li><strong>${escapeHtml(e.razaoSocial)}</strong> (${escapeHtml(e.cnpj)}) — ${escapeHtml(e.situacaoCadastral)} | ${escapeHtml(e.endereco)}</li>`).join('')}</ul>
-  <h2>Indicios Identificados</h2>
+  <h2>Indícios Identificados</h2>
   <ul>${(resultado.indicios || []).length ? resultado.indicios.map((i: any) => `<li>[${escapeHtml(i.severidade)}] <strong>${escapeHtml(i.titulo)}:</strong> ${escapeHtml(i.detalhe)}</li>`).join('') : '<li>Nenhum indicio critico detectado automaticamente.</li>'}</ul>
   <h2>Linhas de Defesa Sugeridas</h2>
   <ul>${(resultado.linhasDefesa || []).map((l: string) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
@@ -136,10 +136,10 @@ export const NulidadesPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-[#081C3A]">
-              Analise de Possiveis Irregularidades
+              Análise de Possíveis Irregularidades
             </h1>
             <p className="text-xs text-slate-500">
-              Radar de Inteligencia e Integridade Licitatoria — cruzamento de dados publicos e linhas de defesa
+              Radar de Inteligência e Integridade Licitatória — cruzamento de dados públicos e linhas de defesa
             </p>
           </div>
         </div>
@@ -155,11 +155,11 @@ export const NulidadesPage: React.FC = () => {
           {resultado && (
             <button
               type="button"
-              onClick={baixarRelatorioPdf}
+              onClick={baixarRelatórioPdf}
               className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
             >
               <Download className="h-4 w-4 text-[#F97316]" />
-              Relatorio PDF
+              Relatório PDF
             </button>
           )}
         </div>
@@ -171,7 +171,7 @@ export const NulidadesPage: React.FC = () => {
           type="text"
           value={processoRef}
           onChange={(e) => setProcessoRef(e.target.value)}
-          placeholder="Processo / Edital e Orgao (opcional, ex: PE 014/2026 - Prefeitura Municipal)"
+          placeholder="Processo / Edital e Órgão (opcional, ex: PE 014/2026 - Prefeitura Municipal)"
           className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
         />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -214,9 +214,9 @@ export const NulidadesPage: React.FC = () => {
           {/* Abas */}
           <div className="flex flex-wrap gap-2">
             {[
-              { id: 'geral', label: 'Visao Geral' },
+              { id: 'geral', label: 'Visão Geral' },
               { id: 'cruzamento', label: 'Cruzamento de Dados' },
-              { id: 'indicios', label: 'Indicios' },
+              { id: 'indicios', label: 'Indícios' },
               { id: 'defesa', label: 'Linhas de Defesa' },
             ].map((t) => (
               <button
@@ -255,7 +255,7 @@ export const NulidadesPage: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold text-slate-500">Indicios Identificados</div>
+              <div className="text-xs font-semibold text-slate-500">Indícios Identificados</div>
               <div className="mt-3 text-3xl font-extrabold text-[#081C3A]">
                 {resultado.indicios?.length || 0}
               </div>
@@ -310,7 +310,7 @@ export const NulidadesPage: React.FC = () => {
             {(aba === 'geral' || aba === 'indicios') && (
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
-                  <AlertTriangle className="h-4 w-4 text-rose-600" /> Principais Indicios
+                  <AlertTriangle className="h-4 w-4 text-rose-600" /> Principais Indícios
                 </h2>
                 {(resultado.indicios || []).length > 0 ? (
                   <ul className="space-y-2.5 text-xs">
@@ -362,7 +362,7 @@ export const NulidadesPage: React.FC = () => {
                         Empresa {String.fromCharCode(65 + i)}: {emp.razaoSocial} ({formatCnpjMask(emp.cnpj)})
                       </div>
                       <div className="mt-1 text-slate-500">
-                        QSA: {emp.socios?.length ? emp.socios.map((s: any) => s.nome).join(', ') : 'Nao informado'}
+                        QSA: {emp.sócios?.length ? emp.sócios.map((s: any) => s.nome).join(', ') : 'Nao informado'}
                       </div>
                       <div className="text-slate-500">TCU: {emp.tcuStatus} | CGU: {emp.cguStatus}</div>
                     </div>

@@ -62,7 +62,7 @@ export const SrpPage: React.FC = () => {
     (s, r) => s + Number(r.valorTotalEstimado ?? r.valorEstimado ?? 0),
     0
   );
-  const orgaosUnicos = new Set(filtrados.map((r) => r.orgao || r.orgaoEntidade?.razaoSocial)).size;
+  const órgãosUnicos = new Set(filtrados.map((r) => r.orgao || r.orgaoEntidade?.razaoSocial)).size;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
@@ -184,7 +184,7 @@ export const SrpPage: React.FC = () => {
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
             <Building2 className="h-4 w-4 text-emerald-600" /> Órgãos Participantes
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{orgaosUnicos}</div>
+          <div className="mt-2 text-2xl font-extrabold text-[#081C3A]">{órgãosUnicos}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">

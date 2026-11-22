@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { crmApi, propostasApi, licitacoesApi } from '../../services/api';
 import { useCompany } from '../../contexts/CompanyContext';
+import { useAuthStore } from '../../store/auth.store';
 import * as pdfGen from '../../utils/pdfGenerator';
 
 interface ItemProposta {
@@ -41,6 +42,7 @@ function moeda(v: number): string {
 
 export function PropostasPage() {
   const { selectedCompany } = useCompany();
+  const authUser = useAuthStore((s) => s.user);
 
   const [etapa, setEtapa] = useState(1);
   const [oportunidades, setOportunidades] = useState<any[]>([]);
@@ -97,30 +99,40 @@ export function PropostasPage() {
     const op = oportunidades.find((o) => String(o.id) === id);
     if (!op) return;
     const notice = op.notice || {};
-    setOrgao(notice.orgaoEntidade?.razaoSocial || notice.orgaoNome || '');
-    setModalidade(notice.modalidadeNome || notice.modalidade || 'Pregão Eletrônico');
-    setNumeroProcesso(notice.numeroCompra ? `${notice.numeroCompra}/${notice.anoCompra || ''}` : '');
-    setDataAbertura(
-      (notice.openingAt || notice.dataAberturaProposta || notice.dataEncerramentoProposta)
-        ? new Date((notice.openingAt || notice.dataAberturaProposta || notice.dataEncerramentoProposta)).toLocaleDateString('pt-BR')
-        : ''
+    setOrgao(notice.buyerName || notice.orgaoEntidade?.razaoSocial || notice.orgaoNome || op.buyerName || '');
+    setModalidade(notice.modality || notice.modalidadeNome || notice.modalidade || 'Pregão Eletrônico');
+    setNumeroProcesso(
+      notice.noticeNumber ||
+        notice.processoAdministrativo ||
+        (notice.numeroCompra ? `${notice.numeroCompra}/${notice.anoCompra || ''}` : '') ||
+        notice.externalId ||
+        ''
     );
+    const rawData =
+      notice.closingAt ||
+      notice.openingAt ||
+      notice.dataEncerramentoProposta ||
+      notice.dataAberturaProposta;
+    setDataAbertura(rawData ? new Date(rawData).toLocaleDateString('pt-BR') : '');
     const noticeId = notice.id || op.noticeId || op.licitacaoId;
     if (noticeId) {
       try {
         const resItens = await licitacoesApi.obterItens(String(noticeId));
         const lista = resItens?.data?.data?.itens || resItens?.data?.itens || resItens?.data?.data || [];
         if (Array.isArray(lista) && lista.length > 0) {
-          setItens(lista.slice(0, 30).map((it: any, idx: number) => ({
-            id: String(it.id || idx + 1),
-            numero: Number(it.numeroItem || idx + 1),
-            descricao: String(it.descricao || it.especificacao || it.materialOuServico || `Item ${idx + 1}`),
-            marcaModelo: String(it.marca || 'Conforme edital'),
-            unidade: String(it.unidadeMedida || it.unidade || 'UN'),
-            quantidade: Number(it.quantidade || 1),
-            custoUnitario: Number(it.valorUnitarioEstimado || it.valorReferencia || 0) * 0.85,
-            valorUnitario: Number(it.valorUnitarioEstimado || it.valorReferencia || 0),
-          })));
+          setItens(lista.map((it: any, idx: number) => {
+            const ref = Number(it.valorUnitarioEstimado || it.valorReferencia || 0);
+            return {
+              id: String(it.id || idx + 1),
+              numero: Number(it.numeroItem || idx + 1),
+              descricao: String(it.descricao || it.especificacao || it.materialOuServico || `Item ${idx + 1}`),
+              marcaModelo: String(it.marca || 'Conforme edital'),
+              unidade: String(it.unidadeMedida || it.unidade || 'UN'),
+              quantidade: Number(it.quantidade || 1),
+              custoUnitario: Number((ref * 0.85).toFixed(2)),
+              valorUnitario: Number(ref.toFixed(2)),
+            };
+          }));
           toast.success(`${lista.length} itens do edital carregados automaticamente!`);
         }
       } catch {
@@ -182,10 +194,27 @@ export function PropostasPage() {
 
   const handleGerarPdf = async () => {
     const emp = selectedCompany as any;
-    if (!emp?.cnpj || String(emp.cnpj).replace(/\D/g, '').length < 11) { toast.error('Cadastre o CNPJ válido da empresa em Minha Empresa antes de gerar a proposta.'); return; }
-    if (!emp?.endereco || (!emp?.telefone && !emp?.email)) { toast.error('Complete endereço e telefone ou e-mail em Minha Empresa antes de gerar a proposta.'); return; }
-    if (!orgao.trim() || !numeroProcesso.trim() || !objeto.trim()) { toast.error('Preencha Órgão, Nº do Processo/Edital e Objeto real antes de gerar o PDF.'); return; }
-    if (totalGeral <= 0 || itens.some((i) => i.quantidade <= 0 || i.valorUnitario <= 0 || i.custoUnitario <= 0)) { toast.error('Informe custo unitário e valor unitário maiores que zero em todos os itens.'); return; }
+    const cleanDoc = String(emp?.cnpj || '').replace(/\D/g, '');
+    if (!emp?.cnpj || cleanDoc.length < 11) {
+      toast.error('Cadastre o CNPJ válido da empresa em Minha Empresa antes de gerar a proposta.');
+      return;
+    }
+    const enderecoComposto =
+      emp?.endereco ||
+      [emp?.logradouro, emp?.bairro, emp?.cidade || emp?.municipio, emp?.uf, emp?.cep].filter(Boolean).join(', ');
+    const telefoneComposto = emp?.telefone || authUser?.telefone || '';
+    const emailComposto = emp?.email || authUser?.email || '';
+    if (!enderecoComposto) {
+      toast('Dica: complete o endereço em Minha Empresa para sair impresso no cabeçalho da proposta.');
+    }
+    if (!orgao.trim() || !numeroProcesso.trim() || !objeto.trim()) {
+      toast.error('Preencha Órgão, Nº do Processo/Edital e Objeto real antes de gerar o PDF.');
+      return;
+    }
+    if (totalGeral <= 0 || itens.some((i) => i.quantidade <= 0 || i.valorUnitario <= 0 || i.custoUnitario <= 0)) {
+      toast.error('Informe custo unitário e valor unitário maiores que zero em todos os itens.');
+      return;
+    }
     const gerarFn =
       (pdfGen as any).gerarPropostaComercialPdf ||
       (pdfGen as any).gerarPropostaPDF ||
@@ -194,19 +223,19 @@ export function PropostasPage() {
     if (typeof gerarFn === 'function') {
       gerarFn({
         empresa: {
-          razaoSocial: emp?.razaoSocial || 'Empresa Licitante',
+          razaoSocial: emp?.razaoSocial || emp?.razao_social || 'Empresa Licitante',
           cnpj: emp?.cnpj || '',
-          endereco: emp?.endereco || '',
-          cidadeUf: [emp?.cidade, emp?.uf].filter(Boolean).join(' - '),
-          telefone: emp?.telefone || '',
-          email: emp?.email || '',
+          endereco: enderecoComposto || 'Endereço a informar na assinatura',
+          cidadeUf: [emp?.cidade || emp?.municipio, emp?.uf].filter(Boolean).join(' - '),
+          telefone: telefoneComposto,
+          email: emailComposto,
         },
         orgao: orgao || 'Órgão Licitante',
         numeroProcesso,
         modalidade,
         objeto,
         enquadramento: emp?.porte || emp?.enquadramento || 'Ampla Concorrência',
-        totalCalculado: totalGeral,
+        totalCalculado: Number(totalGeral.toFixed(2)),
         validadeDias,
         prazoEntrega,
         garantia,
@@ -216,11 +245,11 @@ export function PropostasPage() {
           unidade: i.unidade,
           quantidade: i.quantidade,
           marca: i.marcaModelo,
-          custoDireto: i.custoUnitario,
+          custoDireto: Number(i.custoUnitario.toFixed(2)),
           encargosPercentual: despesasPercentual,
           margemLucroPercentual: margemPercentual,
-          valorUnitario: i.valorUnitario,
-          valorTotal: i.quantidade * i.valorUnitario,
+          valorUnitario: Number(i.valorUnitario.toFixed(2)),
+          valorTotal: Number((i.quantidade * i.valorUnitario).toFixed(2)),
         })),
       });
     } else {
@@ -247,8 +276,8 @@ export function PropostasPage() {
               descricao: item.descricao || 'Item da Proposta',
               unidade: item.unidade,
               quantidade: item.quantidade,
-              precoUnitarioProposto: item.valorUnitario,
-              precoTotalProposto: item.quantidade * item.valorUnitario,
+              precoUnitarioProposto: Number(item.valorUnitario.toFixed(2)),
+              precoTotalProposto: Number((item.quantidade * item.valorUnitario).toFixed(2)),
               marca: item.marcaModelo,
             }).catch(() => {});
           }
@@ -279,11 +308,20 @@ export function PropostasPage() {
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-3 self-start rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-            <div>
-              <p className="text-xs font-bold text-[#081C3A]">Rascunho salvo</p>
-              <p className="text-[11px] text-slate-500">Suas alterações estão seguras • Agora</p>
+          <div className="flex flex-wrap items-center gap-3 self-start">
+            <Link
+              to="/fornecedor/propostas/criar"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-[#081C3A] shadow-sm transition hover:border-[#0070C0] hover:text-[#0070C0]"
+            >
+              <FileText className="h-4 w-4" />
+              Minhas Propostas / Editor Avançado
+            </Link>
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              <div>
+                <p className="text-xs font-bold text-[#081C3A]">Rascunho salvo</p>
+                <p className="text-[11px] text-slate-500">Suas alterações estão seguras • Agora</p>
+              </div>
             </div>
           </div>
         </div>

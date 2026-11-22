@@ -81,7 +81,9 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const authState = useAuthStore.getState();
   const token =
     authState.accessToken ||
-    (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    (typeof window !== 'undefined'
+      ? (window.sessionStorage.getItem('token') || window.localStorage.getItem('token'))
+      : null);
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -317,8 +319,15 @@ export const prazosApi = {
 export const licitacoesApi = {
   listarPca: (params?: { q?: string; uf?: string; ano?: number; cnae?: string; pagina?: number; tamanhoPagina?: number; refresh?: boolean }) =>
     api.get('/licitacoes/pca', { params }),
-  listar: (params?: RadarLicitacoesFiltros) => api.get('/licitacoes', { params }),
+  listar: (params?: RadarLicitacoesFiltros, config?: { signal?: AbortSignal }) =>
+    api.get('/licitacoes', { params, signal: config?.signal }),
   sincronizar: (body?: Record<string, unknown>) => api.post('/licitacoes/sincronizar', body || {}),
+  statusSincronizacao: () => api.get('/licitacoes/sync-status'),
+  listarRamos: () => api.get('/licitacoes/ramos'),
+  sugerirPerfil: (body: { descricao?: string; cnae?: string; ramos?: string[]; ufs?: string[] }) =>
+    api.post('/licitacoes/sugerir-perfil', body),
+  estimarPerfil: (body: { palavras?: string[]; tiposObjeto?: string[]; incluirSemClassificacao?: boolean; ufs?: string[] }) =>
+    api.post('/licitacoes/estimar-perfil', body),
   buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),
   obterItens: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}/itens`),
   monitorar: (id: string) => api.post('/licitacoes/monitor', { id }),
@@ -345,6 +354,7 @@ export const licitacoesApi = {
 export const integracoesApi = {
   catalogo: () => api.get('/integracoes/catalogo'),
   health: () => api.get('/integracoes/health'),
+  telemetria: () => api.get('/integracoes/telemetria'),
   cnpj: (cnpj: string) => api.get(`/integracoes/cnpj/${encodeURIComponent(cnpj)}`),
   cnpjPublico: (cnpj: string) => api.get(`/public/cnpj/${encodeURIComponent(cnpj)}`),
   sincronizarPncp: () => api.post('/integracoes/sincronizar/pncp'),

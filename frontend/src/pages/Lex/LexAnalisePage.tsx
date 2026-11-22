@@ -29,7 +29,7 @@ const ACOES_RAPIDAS = [
   {
     titulo: 'Investigar CNPJ',
     icon: Building2,
-    prompt: 'Investigue este CNPJ (socios, endereco, CNAE e possiveis vinculos entre empresas): ',
+    prompt: 'Investigue este CNPJ (sócios, endereco, CNAE e possíveis vínculos entre empresas): ',
   },
   {
     titulo: 'Proposta (-8%)',
@@ -39,12 +39,12 @@ const ACOES_RAPIDAS = [
   {
     titulo: 'Riscos e Irregularidades',
     icon: ShieldAlert,
-    prompt: 'Faca uma varredura investigativa neste edital buscando clausulas restritivas, exigencias atipicas ou indicios de direcionamento, com linhas de defesa: ',
+    prompt: 'Faça uma varredura investigativa neste edital buscando clausulas restritivas, exigências atipicas ou indicios de direcionamento, com linhas de defesa: ',
   },
   {
     titulo: 'Resumo Executivo',
     icon: FileText,
-    prompt: 'Faca um resumo executivo direto e visual deste edital (objeto, valor estimado, data da sessao, habilitacao e pontos de atencao): ',
+    prompt: 'Faca um resumo executivo direto e visual deste edital (objeto, valor estimado, data da sessao, habilitação e pontos de atencao): ',
   },
 ];
 
@@ -72,7 +72,7 @@ export const LexAnalisePage: React.FC = () => {
       id: 'welcome',
       role: 'assistant',
       content:
-        'Ola! Eu sou a Luli, especialista em licitacoes da Expertise.\n\nCole aqui um link do PNCP, envie um PDF/Foto do edital ou digite um CNPJ para eu analisar e responder de forma completa.',
+        'Olá! Eu sou a Luli, especialista em licitações da Expertise.\n\nCole aqui um link do PNCP, envie um PDF/Foto do edital ou digite um CNPJ para eu analisar e responder de forma completa.',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -93,7 +93,7 @@ export const LexAnalisePage: React.FC = () => {
     return [
       `ID do Edital: ${edital.id}`,
       edital.objeto ? `Objeto: ${edital.objeto}` : '',
-      edital.orgao ? `Orgao: ${edital.orgao}` : '',
+      edital.orgao ? `Órgão: ${edital.orgao}` : '',
       (edital as any).uf ? `UF: ${(edital as any).uf}` : '',
       edital.valorEstimado ? `Valor Estimado: R$ ${edital.valorEstimado}` : '',
     ]
@@ -106,7 +106,7 @@ export const LexAnalisePage: React.FC = () => {
     if (!texto && !anexo) return;
     if (carregando) return;
 
-    const conteudoEnvio = texto || `Analise o arquivo anexado: ${anexo?.name}`;
+    const conteudoEnvio = texto || `Análise o arquivo anexado: ${anexo?.name}`;
     const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const novaMsgUser: MensagemChat = {
       id: `user-${Date.now()}`,
@@ -155,7 +155,7 @@ export const LexAnalisePage: React.FC = () => {
         data.data?.resposta ||
         data.data?.response ||
         data.data?.answer ||
-        'Nao foi possivel obter o parecer agora. Tente novamente.';
+        'Não foi possível obter o parecer agora. Tente novamente.';
 
       setMensagens((prev) => [
         ...prev,
@@ -170,7 +170,7 @@ export const LexAnalisePage: React.FC = () => {
       const msgErro =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        'A analise demorou mais que o esperado. Tente novamente com um trecho menor ou um link especifico do PNCP.';
+        'A análise demorou mais que o esperado. Tente novamente com um trecho menor ou um link especifico do PNCP.';
       toast.error(msgErro);
       setMensagens((prev) => [
         ...prev,
@@ -189,7 +189,7 @@ export const LexAnalisePage: React.FC = () => {
   useEffect(() => {
     if (urlEditalId && editalSelecionado && !autoExecutedRef.current) {
       autoExecutedRef.current = true;
-      enviarMensagem(`Faca uma analise completa e objetiva do edital selecionado (${editalSelecionado.objeto || urlEditalId}).`);
+      enviarMensagem(`Faça uma análise completa e objetiva do edital selecionado (${editalSelecionado.objeto || urlEditalId}).`);
     }
   }, [urlEditalId, editalSelecionado]);
 
@@ -218,7 +218,7 @@ export const LexAnalisePage: React.FC = () => {
           m.role === 'user' ? '#cbd5e1' : '#bfdbfe'
         };background:${m.role === 'user' ? '#f8fafc' : '#eff6ff'};">
           <div style="font-size:11px;font-weight:700;color:#081C3A;margin-bottom:6px;text-transform:uppercase;">
-            ${m.role === 'user' ? 'Consulta do Licitante' : 'Parecer Luli - Expertise Licitatoria'} (${escapeHtml(m.timestamp)})
+            ${m.role === 'user' ? 'Consulta do Licitante' : 'Parecer Luli - Expertise Licitatória'} (${escapeHtml(m.timestamp)})
           </div>
           <div style="font-size:13px;line-height:1.6;color:#1e293b;white-space:pre-wrap;">${escapeHtml(m.content)}</div>
         </div>`
@@ -229,7 +229,7 @@ export const LexAnalisePage: React.FC = () => {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Parecer Luli - Expertise Licitatoria</title>
+  <title>Parecer Luli - Expertise Licitatória</title>
   <style>
     @page { size: A4; margin: 18mm; }
     body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; }
@@ -239,7 +239,7 @@ export const LexAnalisePage: React.FC = () => {
 </head>
 <body>
   <div class="header">
-    <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatoria" />
+    <img src="${window.location.origin}/assets/logo-expertise.png" alt="Expertise Licitatória" />
     <div style="text-align:right;font-size:11px;color:#475569;">
       <strong>Luli Investigativa</strong><br/>Emitido em ${new Date().toLocaleString('pt-BR')}
     </div>
@@ -266,7 +266,7 @@ export const LexAnalisePage: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-extrabold text-[#081C3A]">Luli — Analise Investigativa</h1>
+              <h1 className="text-base font-extrabold text-[#081C3A]">Luli — Análise Investigativa</h1>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
                 <Sparkles className="h-3 w-3" /> Online
               </span>

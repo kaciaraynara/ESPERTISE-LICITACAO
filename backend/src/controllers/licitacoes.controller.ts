@@ -1,3 +1,4 @@
+import { queryPcaFromDb } from '../services/pca-sync.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
 import { scaleCacheGet, scaleCacheSet } from '../services/scale-cache.service';
 const __radarFastCache = new Map<string, { ts: number; body: any }>();
@@ -22,6 +23,25 @@ import { proposalAutomationService } from '../services/proposal-automation.servi
 import { ensureFreshPncpSync } from '../jobs/radar.cron';
 import { syncComprasGovRecentes } from '../services/comprasgov.service';
 import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
+import {
+  estimarPerfilRadar,
+  RADAR_RAMOS_CATALOG,
+  sugerirPerfilRadar,
+} from '../services/radar-profile-suggester.service';
+
+const radarSyncState: {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastTotalSincronizados: number | null;
+  lastError: string | null;
+} = {
+  running: false,
+  startedAt: null,
+  finishedAt: null,
+  lastTotalSincronizados: null,
+  lastError: null,
+};
 
 function stringParam(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
@@ -50,6 +70,10 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.cnpj_orgao),
     cnae: stringParam(source.cnae),
     uf: stringParam(source.uf),
+    ufs: Array.isArray(source.ufs) ? source.ufs.map(String) : undefined,
+    palavras: Array.isArray(source.palavras)
+      ? source.palavras.map(String)
+      : stringParam(source.palavras),
     orgao:
       stringParam(source.orgao)
       ?? stringParam(source.orgaoNome)
@@ -71,8 +95,25 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.limit)
       ?? stringParam(source.size)
       ?? '100',
+    valorMin:
+      source.valorMin !== undefined && source.valorMin !== '' && Number.isFinite(Number(source.valorMin))
+        ? Number(source.valorMin)
+        : undefined,
+    valorMax:
+      source.valorMax !== undefined && source.valorMax !== '' && Number.isFinite(Number(source.valorMax))
+        ? Number(source.valorMax)
+        : undefined,
     srp: rawSrp === true || rawSrp === 'true',
     baixaProcura: source.baixaProcura === true || source.baixaProcura === 'true',
+    tipoObjeto:
+      stringParam(source.tipoObjeto)
+      ?? stringParam(source.tipo_objeto)
+      ?? stringParam(source.objectType),
+    incluirSemClassificacao:
+      source.incluirSemClassificacao === undefined
+        ? undefined
+        : (source.incluirSemClassificacao === true || source.incluirSemClassificacao === 'true'),
+    ordenarPor: (stringParam(source.ordenarPor) ?? stringParam(source.sort)) as FiltrosBusca['ordenarPor'],
     fonte: stringParam(source.fonte),
     apenasAbertos:
       rawApenasAbertos === true || rawApenasAbertos === 'true'
@@ -138,6 +179,8 @@ export class LicitacoesController {
           totalRegistros: resultado.totalRegistros,
           totalPaginas: resultado.totalPaginas,
           atualizadoEm: new Date().toISOString(),
+          facets: resultado.facets ?? null,
+          tempoBuscaMs: resultado.tempoBuscaMs ?? null,
           perfilRadar: resultado.perfilRadar
             ? {
                 cnaes: resultado.perfilRadar.cnaes,
@@ -152,52 +195,157 @@ export class LicitacoesController {
     }
   };
 
+  private runFullSync = async (filtros: FiltrosBusca) => {
+    const [pncpPropRes, pncpPubRes, comprasRes, queridoRes] = await Promise.allSettled([
+      sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'proposta' }),
+      sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'publicacao' }),
+      syncComprasGovRecentes({ daysBack: 3, maxPages: 1 }),
+      syncQueridoDiarioEditais({ daysBack: 7, size: 40 }),
+    ]);
+
+    if (pncpPropRes.status === 'rejected' && pncpPubRes.status === 'rejected') {
+      throw pncpPropRes.reason;
+    }
+
+    const itemsMap = new Map<string, any>();
+    let pncpTotal = 0;
+    for (const resItem of [pncpPropRes, pncpPubRes]) {
+      if (resItem.status === 'fulfilled') {
+        pncpTotal += resItem.value.totalSincronizados;
+        for (const it of resItem.value.items) {
+          if (!itemsMap.has(it.numeroControlePNCP)) {
+            itemsMap.set(it.numeroControlePNCP, it);
+          }
+        }
+      }
+    }
+
+    const extrasCompras = comprasRes.status === 'fulfilled' ? comprasRes.value.persisted : 0;
+    const extrasQuerido = queridoRes.status === 'fulfilled' ? queridoRes.value.persisted : 0;
+    const totalSincronizados = pncpTotal + extrasCompras + extrasQuerido;
+
+    return {
+      totalSincronizados,
+      items: Array.from(itemsMap.values()),
+    };
+  };
+
   public sincronizar = async (
     req: AuthRequest,
     res: Response,
   ): Promise<Response> => {
     try {
-      const filtros = buildFiltros((req.body as Record<string, unknown>) || {});
-      const [pncpPropRes, pncpPubRes, comprasRes, queridoRes] = await Promise.allSettled([
-        sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'proposta' }),
-        sincronizarLicitacoesPNCP({ ...filtros, endpoint: 'publicacao' }),
-        syncComprasGovRecentes({ daysBack: 3, maxPages: 1 }),
-        syncQueridoDiarioEditais({ daysBack: 7, size: 40 }),
-      ]);
+      const body = (req.body as Record<string, unknown>) || {};
+      const filtros = buildFiltros(body);
+      const isAsync = body.async === true || body.async === 'true';
 
-      if (pncpPropRes.status === 'rejected' && pncpPubRes.status === 'rejected') {
-        throw pncpPropRes.reason;
-      }
-
-      const itemsMap = new Map<string, any>();
-      let pncpTotal = 0;
-      for (const resItem of [pncpPropRes, pncpPubRes]) {
-        if (resItem.status === 'fulfilled') {
-          pncpTotal += resItem.value.totalSincronizados;
-          for (const it of resItem.value.items) {
-            if (!itemsMap.has(it.numeroControlePNCP)) {
-              itemsMap.set(it.numeroControlePNCP, it);
-            }
-          }
+      if (isAsync) {
+        if (radarSyncState.running) {
+          return res.status(202).json({
+            success: true,
+            status: 'already_running',
+            message: 'Sincronização em andamento em segundo plano.',
+            data: { ...radarSyncState },
+          });
         }
+
+        radarSyncState.running = true;
+        radarSyncState.startedAt = new Date().toISOString();
+        radarSyncState.lastError = null;
+
+        void this.runFullSync(filtros)
+          .then((result) => {
+            radarSyncState.running = false;
+            radarSyncState.finishedAt = new Date().toISOString();
+            radarSyncState.lastTotalSincronizados = result.totalSincronizados;
+          })
+          .catch((err: any) => {
+            radarSyncState.running = false;
+            radarSyncState.finishedAt = new Date().toISOString();
+            radarSyncState.lastError = err?.message || 'Falha na sincronização em segundo plano.';
+          });
+
+        return res.status(202).json({
+          success: true,
+          status: 'started',
+          message: 'Sincronização iniciada em segundo plano.',
+          data: { ...radarSyncState },
+        });
       }
 
-      const extrasCompras = comprasRes.status === 'fulfilled' ? comprasRes.value.persisted : 0;
-      const extrasQuerido = queridoRes.status === 'fulfilled' ? queridoRes.value.persisted : 0;
-      const totalSincronizados = pncpTotal + extrasCompras + extrasQuerido;
+      const result = await this.runFullSync(filtros);
 
       return res.json({
         success: true,
-        message: `${totalSincronizados} editais sincronizados com sucesso (PNCP + Compras.gov.br + Diários Oficiais).`,
-        data: {
-          totalSincronizados,
-          items: Array.from(itemsMap.values()),
-        },
+        message: `${result.totalSincronizados} editais sincronizados com sucesso (PNCP + Compras.gov.br + Diários Oficiais).`,
+        data: result,
         meta: {
           fonte: 'MULTIFONTE',
           atualizadoEm: new Date().toISOString(),
         },
       });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+
+  public statusSincronizacao = async (
+    _req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    return res.json({
+      success: true,
+      data: { ...radarSyncState },
+    });
+  };
+
+  public listarRamos = async (
+    _req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    return res.json({
+      success: true,
+      data: RADAR_RAMOS_CATALOG.map((r) => ({
+        id: r.id,
+        label: r.label,
+        palavras: r.palavras,
+        tiposObjeto: r.tiposObjeto,
+      })),
+    });
+  };
+
+  public sugerirPerfil = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const body = (req.body as Record<string, unknown>) || {};
+      const data = await sugerirPerfilRadar({
+        descricao: typeof body.descricao === 'string' ? body.descricao : undefined,
+        cnae: typeof body.cnae === 'string' ? body.cnae : undefined,
+        ramos: Array.isArray(body.ramos) ? body.ramos.map(String) : undefined,
+        ufs: Array.isArray(body.ufs) ? body.ufs.map(String) : undefined,
+      });
+      return res.json({ success: true, data });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+
+  public estimarPerfil = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const body = (req.body as Record<string, unknown>) || {};
+      const data = await estimarPerfilRadar({
+        palavras: Array.isArray(body.palavras) ? body.palavras.map(String) : undefined,
+        tiposObjeto: Array.isArray(body.tiposObjeto) ? body.tiposObjeto.map(String) : undefined,
+        incluirSemClassificacao:
+          body.incluirSemClassificacao === undefined ? true : Boolean(body.incluirSemClassificacao),
+        ufs: Array.isArray(body.ufs) ? body.ufs.map(String) : undefined,
+      });
+      return res.json({ success: true, data });
     } catch (error) {
       return sendPncpError(res, error);
     }
@@ -606,7 +754,7 @@ export class LicitacoesController {
       const cnae = stringParam(req.query.cnae);
       const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
 
-      const resultado = await buscarPcasPNCP({
+      const resultado = await queryPcaFromDb({
         anoPca: ano,
         pagina,
         tamanhoPagina,

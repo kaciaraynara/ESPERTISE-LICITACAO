@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, Search } from 'lucide-react';
 import { authApi } from '../services/api';
@@ -142,6 +142,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [manterConectado, setManterConectado] = useState(false);
   const [reset, setReset] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -166,7 +167,7 @@ export function LoginPage() {
       const refreshToken = data.refreshToken || '';
 
       if (user && accessToken) {
-        useAuthStore.getState().setAuth(user, accessToken, refreshToken);
+        useAuthStore.getState().setAuth(user, accessToken, refreshToken, manterConectado);
       }
       navigate(FORNECEDOR_ROUTES.dashboard);
     } catch (err: any) {
@@ -213,7 +214,20 @@ export function LoginPage() {
           />
         )}
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          {!reset ? (
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={manterConectado}
+                onChange={(e) => setManterConectado(e.target.checked)}
+                className="h-3.5 w-3.5 rounded accent-[#0070C0]"
+              />
+              Manter conectado neste dispositivo
+            </label>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={() => {
@@ -268,6 +282,7 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [avisoCnpj, setAvisoCnpj] = useState('');
+  const [alertaSituacaoCnpj, setAlertaSituacaoCnpj] = useState('');
 
   async function buscarCnpj() {
     const digitos = cnpj.replace(/\D/g, '');
@@ -277,6 +292,7 @@ export function RegisterPage() {
     }
     setErro('');
     setAvisoCnpj('');
+    setAlertaSituacaoCnpj('');
     setBuscandoCnpj(true);
     try {
       const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digitos}`);
@@ -284,6 +300,12 @@ export function RegisterPage() {
       const dados = await resp.json();
       if (dados.razao_social) setRazaoSocial(dados.razao_social);
       if (dados.ddd_telefone_1) setTelefone(dados.ddd_telefone_1);
+      const situacao = String(dados.descricao_situacao_cadastral || '').toUpperCase();
+      if (/INAPTA|BAIXADA|NULA|SUSPENSA/.test(situacao)) {
+        setAlertaSituacaoCnpj(
+          `Atenção: este CNPJ consta na Receita Federal com situação "${dados.descricao_situacao_cadastral}". Você pode editar manualmente os dados cadastrais antes de concluir.`,
+        );
+      }
       const todosCnaes = [
         dados.cnae_fiscal_descricao ? `${dados.cnae_fiscal || ''} - ${dados.cnae_fiscal_descricao}`.trim() : '',
         ...(Array.isArray(dados.cnaes_secundarios)
@@ -364,7 +386,7 @@ export function RegisterPage() {
       const refreshToken = data.refreshToken || '';
 
       if (user && accessToken) {
-        useAuthStore.getState().setAuth(user, accessToken, refreshToken);
+        useAuthStore.getState().setAuth(user, accessToken, refreshToken, false);
       }
       navigate(FORNECEDOR_ROUTES.dashboard);
     } catch (err: any) {
@@ -477,7 +499,15 @@ export function RegisterPage() {
                     inputMode="numeric"
                     placeholder="00.000.000/0000-00"
                     value={cnpj}
-                    onChange={(e) => setCnpj(e.target.value)}
+                    onChange={(e) => {
+                      const nextVal = e.target.value;
+                      if (nextVal.replace(/\D/g, '') !== cnpj.replace(/\D/g, '')) {
+                        setCnaesLista([]);
+                        setAvisoCnpj('');
+                        setAlertaSituacaoCnpj('');
+                      }
+                      setCnpj(nextVal);
+                    }}
                     required
                     className="h-10 flex-1 rounded-xl border border-slate-200 px-3.5 text-sm outline-none focus:border-[#0070C0]"
                   />
@@ -493,6 +523,11 @@ export function RegisterPage() {
                 </div>
               </Field>
               {avisoCnpj && <p className="mt-1.5 text-xs font-semibold text-emerald-600">{avisoCnpj}</p>}
+              {alertaSituacaoCnpj && (
+                <p className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  {alertaSituacaoCnpj}
+                </p>
+              )}
             </div>
 
             <Field label="Nome da empresa" id="company">
@@ -578,7 +613,29 @@ export function RegisterPage() {
               checked={aceite}
               onChange={(e) => setAceite(e.target.checked)}
             />
-            Confirmo os dados informados e concordo com os Termos de Uso e Política de Privacidade.
+            <span>
+              Confirmo os dados informados e concordo com os{' '}
+              <Link
+                to="/termos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#0070C0] underline hover:text-[#005899]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Termos de Uso
+              </Link>{' '}
+              e{' '}
+              <Link
+                to="/privacidade"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#0070C0] underline hover:text-[#005899]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Política de Privacidade
+              </Link>
+              .
+            </span>
           </label>
 
           {erro && <p className="rounded-xl bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">{erro}</p>}
