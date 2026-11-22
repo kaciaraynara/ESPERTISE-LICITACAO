@@ -96,6 +96,7 @@ const PcaPage = React.lazy(() => import('./pages/Pca/PcaPage'));
 const SrpPage = React.lazy(() =>
   import('./pages/Srp/SrpPage').then((module) => ({ default: module.SrpPage })),
 );
+const ParceiroAcademiaPage = React.lazy(() => import('./pages/Academia/ParceiroAcademiaPage'));
 const AcademiaPage = React.lazy(() =>
   import('./pages/Academia/AcademiaPage').then((module) => ({ default: module.AcademiaPage })),
 );
@@ -353,6 +354,7 @@ export default function App() {
           <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
           
           {/* Rotas de Autenticação */}
+          <Route path="/parceiro/academia" element={<ParceiroAcademiaPage />} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
           <Route path="/cadastro" element={<PublicRoute><RegisterPage /></PublicRoute>} />

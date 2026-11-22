@@ -1,3 +1,4 @@
+import { academiaController } from '../controllers/academia.controller';
 import { attachEditaisSseStream } from '../services/realtime-editais.service';
 import { createSimpleRateLimit } from '../shared/middlewares/rate-limit.middleware';
 import { Router, RequestHandler } from 'express';

@@ -123,7 +123,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
     else setCarregando(true);
 
     try {
-      const resp = await licitacoesApi.listar({ local: !tempoReal, apenasAbertos: true } as any);
+      const cnaeQuery = selectedCompany?.cnaePrincipal || selectedCompany?.cnae_principal || '';
+      const resp = await licitacoesApi.listar({
+        ...(cnaeQuery ? { cnae: cnaeQuery } : {}), local: !tempoReal, apenasAbertos: true } as any);
       const lista = resp.data?.items || resp.data?.data || [];
       setEditais(Array.isArray(lista) ? lista : []);
     } catch {

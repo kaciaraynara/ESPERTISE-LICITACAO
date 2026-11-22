@@ -1,207 +1,384 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  GraduationCap,
   PlayCircle,
   BookOpen,
   Award,
-  Users,
   Video,
+  Users,
   CheckCircle2,
-  ArrowRight,
+  Clock,
+  ExternalLink,
+  X,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
+import api from '@/services/api';
 
-interface CursoItem {
+interface Lesson {
   id: string;
-  titulo: string;
-  subtitulo: string;
-  aulas: string[];
+  courseId: string;
+  title: string;
+  description?: string;
+  lessonType: 'VIDEO' | 'LIVE' | 'PDF' | 'QUIZ' | string;
+  videoUrl?: string | null;
+  materialUrl?: string | null;
+  activityPrompt?: string | null;
+  durationMinutes: number;
+  completed: boolean;
 }
 
-const CURSOS: CursoItem[] = [
-  {
-    id: 'lei-14133',
-    titulo: 'Lei 14.133/21 — Aplicação Prática',
-    subtitulo: 'Fases do pregão eletronico, habilitação, lances e julgamento.',
-    aulas: [
-      'Visao geral da Nova Lei de Licitações e modalidades',
-      'Leitura estrategica do Edital e Termo de Referencia',
-      'Habilitacao juridica, fiscal e qualificacao tecnica',
-    ],
-  },
-  {
-    id: 'gestao-contratos',
-    titulo: 'Gestão e Fiscalizacao de Contratos',
-    subtitulo: 'Execucao contratual, aditivos, medicoes e prevencao de glosas.',
-    aulas: [
-      'Obrigacoes da contratada e recebimento provisorio/definitivo',
-      'Alteracoes contratuais e limites legais de acrescimo',
-      'Gestão de garantias e notificacoes administrativas',
-    ],
-  },
-  {
-    id: 'reequilibrio',
-    titulo: 'Reequilibrio, Reajuste e Repactuacao',
-    subtitulo: 'Como preservar sua margem de lucro em contratos de longo prazo.',
-    aulas: [
-      'Diferenca entre reajuste por indice, repactuacao e reequilibrio',
-      'Comprovacao documental de variacao extraordinaria de custos',
-      'Modelo pratico de requerimento administrativo',
-    ],
-  },
-  {
-    id: 'auditoria',
-    titulo: 'Auditoria e Controle em Licitações',
-    subtitulo: 'Impugnacoes, recursos, jurisprudencia do TCU e integridade.',
-    aulas: [
-      'Identificando clausulas restritivas e direcionamento',
-      'Prazos decadenciais de impugnacao e recurso administrativo',
-      'Boas praticas de compliance e defesa perante órgãos de controle',
-    ],
-  },
+interface Course {
+  id: string;
+  partnerName: string;
+  title: string;
+  category: string;
+  level: string;
+  description: string;
+  thumbnailUrl?: string | null;
+  featured: boolean;
+  progresso: number;
+  totalAulas: number;
+  aulasConcluidas: number;
+  lessons: Lesson[];
+}
+
+function getEmbedUrl(url?: string | null): string | null {
+  if (!url) return null;
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1`;
+  const vimeo = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}?autoplay=1`;
+  return null;
+}
+
+const CATEGORIAS = [
+  { id: 'Todos', label: 'Todos os Cursos', icon: Sparkles },
+  { id: 'Cursos Online', label: 'Cursos Online', icon: PlayCircle },
+  { id: 'Cursos de Extensão', label: 'Cursos de Extensão', icon: GraduationCap },
+  { id: 'Aulas ao Vivo', label: 'Aulas ao Vivo', icon: Video },
+  { id: 'Biblioteca Digital', label: 'Biblioteca Digital', icon: BookOpen },
+  { id: 'Certificados', label: 'Meus Certificados', icon: Award },
 ];
 
 export const AcademiaPage: React.FC = () => {
-  const [progresso, setProgresso] = useState<Record<string, string[]>>({});
-  const [cursoAtivo, setCursoAtivo] = useState<CursoItem>(CURSOS[0]);
+  const [cursos, setCursos] = useState<Course[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
+  const [cursoSelecionado, setCursoSelecionado] = useState<Course | null>(null);
+  const [aulaAtiva, setAulaAtiva] = useState<Lesson | null>(null);
+  const [salvandoAula, setSalvandoAula] = useState(false);
 
-  useEffect(() => {
+  const carregarCatalogo = async () => {
+    setCarregando(true);
     try {
-      const salvo = localStorage.getItem('expertise_academia_progresso');
-      if (salvo) setProgresso(JSON.parse(salvo));
-    } catch {
-      // ignora
+      const resp = await api.get('/academia/catalogo');
+      const lista: Course[] = resp.data?.data || [];
+      setCursos(lista);
+      if (cursoSelecionado) {
+        const atualizado = lista.find((c) => c.id === cursoSelecionado.id);
+        if (atualizado) {
+          setCursoSelecionado(atualizado);
+          if (aulaAtiva) {
+            const aulaAtual = atualizado.lessons.find((l) => l.id === aulaAtiva.id);
+            if (aulaAtual) setAulaAtiva(aulaAtual);
+          }
+        }
+      }
+    } finally {
+      setCarregando(false);
     }
-  }, []);
-
-  const alternarAula = (cursoId: string, aula: string) => {
-    const atuais = progresso[cursoId] || [];
-    const novos = atuais.includes(aula)
-      ? atuais.filter((a) => a !== aula)
-      : [...atuais, aula];
-    const atualizado = { ...progresso, [cursoId]: novos };
-    setProgresso(atualizado);
-    localStorage.setItem('expertise_academia_progresso', JSON.stringify(atualizado));
   };
 
-  const atalhos = [
-    { nome: 'Cursos Online', icon: PlayCircle },
-    { nome: 'Cursos de Extensao', icon: GraduationCap },
-    { nome: 'Aulas ao Vivo', icon: Video },
-    { nome: 'Biblioteca Digital', icon: BookOpen },
-    { nome: 'Certificados', icon: Award },
-    { nome: 'Professores', icon: Users },
-  ];
+  useEffect(() => {
+    void carregarCatalogo();
+  }, []);
+
+  const abrirCurso = (curso: Course, aulaInicial?: Lesson) => {
+    setCursoSelecionado(curso);
+    setAulaAtiva(aulaInicial || curso.lessons[0] || null);
+  };
+
+  const toggleConcluirAula = async (lesson: Lesson) => {
+    setSalvandoAula(true);
+    try {
+      await api.post(`/academia/aulas/${lesson.id}/concluir`);
+      await carregarCatalogo();
+    } finally {
+      setSalvandoAula(false);
+    }
+  };
+
+  const cursoDestaque = cursos.find((c) => c.featured) || cursos[0] || null;
+
+  const cursosFiltrados = cursos.filter((c) => {
+    if (categoriaAtiva === 'Todos') return true;
+    if (categoriaAtiva === 'Certificados') return c.progresso === 100;
+    return c.category.toLowerCase() === categoriaAtiva.toLowerCase();
+  });
+
+  const embedUrl = getEmbedUrl(aulaAtiva?.videoUrl);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      {/* Banner Principal */}
-      <div className="flex flex-col justify-between gap-6 rounded-3xl bg-gradient-to-r from-[#081C3A] to-[#0f3460] p-6 text-white shadow-md md:flex-row md:items-center md:p-8">
-        <div className="max-w-xl space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-[#F97316]">
-            <GraduationCap className="h-4 w-4" /> Academia do Licitante
+    <div className="space-y-6 pb-24">
+      {/* HERO ESTILO STREAMING COM CONTRASTE BRANCO LEGÍVEL */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#081C3A] via-[#0F2D5C] to-[#005596] p-6 sm:p-10 text-white shadow-lg">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="max-w-2xl space-y-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-amber-300">
+              <GraduationCap className="h-3.5 w-3.5" />
+              Academia do Licitante • Lei 14.133/2021
+            </span>
+            <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+              {cursoDestaque ? cursoDestaque.title : 'Cursos, aulas e capacitação prática em licitações'}
+            </h1>
+            <p className="text-sm sm:text-base text-slate-200 leading-relaxed">
+              {cursoDestaque
+                ? cursoDestaque.description
+                : 'Treinamento direto ao ponto para vencer pregões, evitar inabilitações e proteger a margem da sua empresa.'}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              {cursoDestaque && (
+                <button
+                  type="button"
+                  onClick={() => abrirCurso(cursoDestaque)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-5 py-2.5 text-sm font-bold text-white shadow transition cursor-pointer"
+                >
+                  <PlayCircle className="h-4 w-4" />
+                  Assistir Agora
+                </button>
+              )}
+              <Link
+                to="/parceiro/academia"
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 hover:bg-white/20 px-5 py-2.5 text-sm font-bold text-white transition"
+              >
+                <Users className="h-4 w-4" />
+                Portal de Professores & Parceiros
+              </Link>
+            </div>
           </div>
-          <h1 className="text-2xl font-extrabold md:text-3xl">
-            Cursos, aulas e capacitação pratica em licitações e contratos
-          </h1>
-          <p className="text-sm text-slate-200">
-            Treinamento direto ao ponto para vencer pregões, evitar inabilitações e proteger a margem da sua empresa.
-          </p>
-          <button
-            type="button"
-            onClick={() => setCursoAtivo(CURSOS[0])}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-xs font-bold text-white hover:bg-orange-600"
-          >
-            Acessar cursos <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="grid grid-cols-2 gap-3 shrink-0">
+            <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+              <p className="text-xs text-slate-300">Trilhas Disponíveis</p>
+              <p className="text-2xl font-black text-white mt-1">{cursos.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+              <p className="text-xs text-slate-300">Certificados Obtidos</p>
+              <p className="text-2xl font-black text-emerald-300 mt-1">
+                {cursos.filter((c) => c.progresso === 100).length}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 6 Atalhos */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {atalhos.map((a) => {
-          const Icon = a.icon;
+      {/* BARRA DE CATEGORIAS RESPONSIVA */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {CATEGORIAS.map((cat) => {
+          const Icon = cat.icon;
+          const ativo = categoriaAtiva === cat.id;
           return (
-            <div
-              key={a.nome}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm"
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategoriaAtiva(cat.id)}
+              className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center transition cursor-pointer ${
+                ativo
+                  ? 'border-[#0070C0] bg-[#081C3A] text-white shadow-md'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-[#0070C0]'
+              }`}
             >
-              <div className="rounded-xl bg-orange-50 p-2.5 text-[#F97316]">
-                <Icon className="h-5 w-5" />
-              </div>
-              <span className="text-xs font-bold text-[#081C3A]">{a.nome}</span>
-            </div>
+              <Icon className={`h-5 w-5 ${ativo ? 'text-[#FF6600]' : 'text-[#FF6600]'}`} />
+              <span className="text-xs font-bold">{cat.label}</span>
+            </button>
           );
         })}
       </div>
 
-      {/* Cursos em Destaque */}
-      <div>
-        <h2 className="mb-3 text-base font-extrabold text-[#081C3A]">Cursos em Destaque</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {CURSOS.map((curso) => {
-            const concluidas = (progresso[curso.id] || []).length;
-            const pct = Math.round((concluidas / curso.aulas.length) * 100);
-            const selecionado = cursoAtivo.id === curso.id;
-            return (
-              <button
-                key={curso.id}
-                type="button"
-                onClick={() => setCursoAtivo(curso)}
-                className={`flex flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition ${
-                  selecionado
-                    ? 'border-[#F97316] bg-orange-50/30'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                <div>
-                  <div className="text-sm font-extrabold text-[#081C3A]">{curso.titulo}</div>
-                  <p className="mt-1 text-xs text-slate-500">{curso.subtitulo}</p>
-                </div>
-                <div className="mt-4">
-                  <div className="mb-1 flex justify-between text-[11px] font-bold text-slate-600">
-                    <span>Progresso</span>
-                    <span>{pct}%</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+      {/* GRADE ESTILO NETFLIX */}
+      {carregando ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+          Carregando trilhas e aulas da Academia...
         </div>
-      </div>
+      ) : cursosFiltrados.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-3">
+          <p className="text-sm font-semibold text-slate-700">
+            Nenhum curso encontrado nesta categoria ainda.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCategoriaAtiva('Todos')}
+            className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
+          >
+            Ver Todos os Cursos
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          {cursosFiltrados.map((curso) => (
+            <div
+              key={curso.id}
+              onClick={() => abrirCurso(curso)}
+              className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg hover:border-[#0070C0] transition cursor-pointer"
+            >
+              <div>
+                <div className="relative h-36 bg-gradient-to-br from-[#081C3A] to-[#0070C0] p-4 flex flex-col justify-between">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      {curso.category}
+                    </span>
+                    <span className="rounded-full bg-[#FF6600] px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      {curso.level}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-white">
+                    <span className="text-xs font-medium text-slate-200 truncate">{curso.partnerName}</span>
+                    <PlayCircle className="h-8 w-8 text-white/90 group-hover:scale-110 transition shrink-0" />
+                  </div>
+                </div>
+                <div className="p-4 space-y-2">
+                  <h3 className="text-sm font-bold text-[#081C3A] line-clamp-2">{curso.title}</h3>
+                  <p className="text-xs text-slate-600 line-clamp-2">{curso.description}</p>
+                </div>
+              </div>
+              <div className="px-4 pb-4 pt-2 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                  <span>{curso.aulasConcluidas}/{curso.totalAulas} aulas</span>
+                  <span className={curso.progresso === 100 ? 'text-emerald-600 font-bold' : 'text-[#0070C0]'}>
+                    {curso.progresso}% concluído
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full transition-all ${curso.progresso === 100 ? 'bg-emerald-500' : 'bg-[#FF6600]'}`}
+                    style={{ width: `${curso.progresso}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Modulo de Aulas do Curso Selecionado */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-extrabold text-[#081C3A]">{cursoAtivo.titulo}</h3>
-        <p className="mt-1 text-xs text-slate-500">{cursoAtivo.subtitulo}</p>
-        <div className="mt-4 space-y-2.5">
-          {cursoAtivo.aulas.map((aula, i) => {
-            const feita = (progresso[cursoAtivo.id] || []).includes(aula);
-            return (
+      {/* MODAL PLAYER DE AULAS E ATIVIDADES */}
+      {cursoSelecionado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 p-3 sm:p-6">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-[#081C3A] px-5 py-4 text-white">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-amber-300">{cursoSelecionado.category} • {cursoSelecionado.partnerName}</p>
+                <h2 className="text-base sm:text-lg font-bold truncate">{cursoSelecionado.title}</h2>
+              </div>
               <button
-                key={aula}
                 type="button"
-                onClick={() => alternarAula(cursoAtivo.id, aula)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-xs font-semibold transition ${
-                  feita
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                    : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
-                }`}
+                aria-label="Fechar player"
+                onClick={() => { setCursoSelecionado(null); setAulaAtiva(null); }}
+                className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 cursor-pointer"
               >
-                <span>
-                  Aula {i + 1}: {aula}
-                </span>
-                <span className="inline-flex items-center gap-1 font-bold">
-                  <CheckCircle2 className={`h-4 w-4 ${feita ? 'text-emerald-600' : 'text-slate-400'}`} />
-                  {feita ? 'Concluída' : 'Marcar concluida'}
-                </span>
+                <X className="h-5 w-5" />
               </button>
-            );
-          })}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 overflow-y-auto">
+              {/* Player & Atividade */}
+              <div className="lg:col-span-2 p-5 space-y-4 border-b lg:border-b-0 lg:border-r border-slate-200">
+                {aulaAtiva ? (
+                  <>
+                    <div className="aspect-video w-full overflow-hidden rounded-2xl bg-slate-950 flex items-center justify-center">
+                      {embedUrl ? (
+                        <iframe
+                          src={embedUrl}
+                          title={aulaAtiva.title}
+                          className="h-full w-full"
+                          allow="autoplay; fullscreen; picture-in-picture"
+                          allowFullScreen
+                        />
+                      ) : aulaAtiva.videoUrl ? (
+                        <video src={aulaAtiva.videoUrl} controls className="h-full w-full" />
+                      ) : (
+                        <div className="p-6 text-center text-white space-y-2">
+                          <PlayCircle className="h-12 w-12 mx-auto text-[#FF6600]" />
+                          <p className="text-sm font-bold">{aulaAtiva.title}</p>
+                          <p className="text-xs text-slate-300">
+                            Conteúdo prático e roteiro de aplicação imediata na plataforma.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-bold text-[#081C3A]">{aulaAtiva.title}</h3>
+                        <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                          <Clock className="h-3.5 w-3.5" /> {aulaAtiva.durationMinutes} min • {aulaAtiva.lessonType}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={salvandoAula}
+                        onClick={() => void toggleConcluirAula(aulaAtiva)}
+                        className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                          aulaAtiva.completed
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-[#FF6600] text-white hover:bg-[#e55b00]'
+                        }`}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        {aulaAtiva.completed ? 'Aula Concluída' : 'Marcar como Concluída'}
+                      </button>
+                    </div>
+
+                    {aulaAtiva.activityPrompt && (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-xs font-bold text-amber-900 uppercase">Atividade Prática da Aula</p>
+                        <p className="text-sm text-amber-950 mt-1">{aulaAtiva.activityPrompt}</p>
+                      </div>
+                    )}
+
+                    {aulaAtiva.materialUrl && (
+                      <a
+                        href={aulaAtiva.materialUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-[#0070C0] hover:bg-slate-50"
+                      >
+                        Abrir Material Complementar <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">Nenhuma aula cadastrada neste curso ainda.</p>
+                )}
+              </div>
+
+              {/* Lista de Aulas do Curso */}
+              <div className="p-4 space-y-2 bg-slate-50">
+                <p className="text-xs font-bold uppercase text-slate-500 px-1">Aulas do Curso</p>
+                {cursoSelecionado.lessons.map((l, idx) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setAulaAtiva(l)}
+                    className={`w-full text-left rounded-xl border p-3 transition cursor-pointer ${
+                      aulaAtiva?.id === l.id
+                        ? 'border-[#0070C0] bg-white shadow-sm'
+                        : 'border-slate-200 bg-white/70 hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-bold text-[#081C3A]">
+                        {idx + 1}. {l.title}
+                      </span>
+                      {l.completed && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">{l.lessonType} • {l.durationMinutes} min</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
