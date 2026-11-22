@@ -88,8 +88,8 @@ export async function syncPcaRecentDays(options: { daysBack?: number; maxPagesPe
       for (let idx = 0; idx < itens.length; idx++) {
         const it = itens[idx];
         const itemNumber = Number(it.numeroItem || idx + 1);
-        const description = limparDescricao(it.descricao || it.objeto || it.classeNome || reg.objeto || '');
-        const category = it.categoriaItemPcaNome || it.categoriaItemPca || it.grupoNome || null;
+        const description = limparDescricao(it.descricaoItem || it.descricao || it.especificacao || it.materialOuServicoNome || it.classificacaoSuperiorNome || it.classeNome || reg.objeto || it.grupoNome || '');
+        const category = it.categoriaItemPcaNome || it.categoriaItemPca || it.classificacaoSuperiorNome || it.grupoNome || null;
         const rawDes = it.dataDesejada || reg.dataDesejada || null;
         const desiredDate = rawDes && !isNaN(new Date(rawDes).getTime()) ? new Date(rawDes) : null;
         const estimatedValue = it.valorTotal != null ? Number(it.valorTotal) : (reg.valorTotalEstimado != null ? Number(reg.valorTotalEstimado) : null);

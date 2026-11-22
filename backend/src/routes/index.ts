@@ -192,7 +192,15 @@ router.get('/health/readiness', async (_req, res) => {
 //  não possuem rate limit para evitar erros 429 no front-end)
 // ==========================================
 
+
+router.post('/academia/parceiro/cadastro', academiaController.cadastrarParceiro);
+router.post('/academia/parceiro/login', academiaController.loginParceiro);
+router.get('/academia/parceiro/meus-cursos', academiaController.meusCursosParceiro);
+router.post('/academia/parceiro/cursos', academiaController.criarCursoParceiro);
+router.post('/academia/parceiro/cursos/:courseId/aulas', academiaController.criarAulaParceiro);
 router.use(authMiddleware as RequestHandler);
+router.get('/academia/catalogo', academiaController.listarCatalogo);
+router.post('/academia/aulas/:lessonId/concluir', academiaController.alternarConclusaoAula);
 router.use(companyContextMiddleware as RequestHandler);
 
 // ==========================================
