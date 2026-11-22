@@ -415,6 +415,94 @@ export async function buscarLicitacoesComprasGov(params: BuscaComprasGovInput): 
   return { data: [], total: 0 };
 }
 
+/**
+ * Busca propostas com encerramento futuro no Compras.gov.br.
+ *
+ * O endpoint de contratações filtra por data de publicação e devolve os
+ * registros mais antigos primeiro. Para achar propostas abertas, é preciso
+ * olhar as últimas páginas da janela (publicações mais recentes) e filtrar
+ * pelo encerramento. É o fallback confiável quando o PNCP não responde.
+ *
+ * Resultado fica em cache curto (60s) para não sobrecarregar a fonte pública
+ * quando muitos usuários abrem o Radar ao mesmo tempo.
+ */
+let cachePropostasAbertas: {
+  key: string;
+  expiresAt: number;
+  data: LicitacaoComprasGov[];
+  total: number;
+} | null = null;
+
+export async function buscarPropostasAbertasComprasGov(params: {
+  uf?: string;
+  modalidade?: string | number;
+  maxPaginas?: number;
+} = {}): Promise<{ data: LicitacaoComprasGov[]; total: number }> {
+  const key = `${params.uf || 'BR'}:${params.modalidade || '6'}:${params.maxPaginas || 6}`;
+  if (cachePropostasAbertas && cachePropostasAbertas.key === key && cachePropostasAbertas.expiresAt > Date.now()) {
+    return { data: cachePropostasAbertas.data, total: cachePropostasAbertas.total };
+  }
+
+  const endpoint = '/modulo-contratacoes/1_consultarContratacoes_PNCP_14133';
+  const baseParams = buildContratacoesParams({
+    uf: params.uf,
+    modalidade: params.modalidade,
+  } as BuscaComprasGovInput);
+
+  const probe = await client.get(endpoint, { params: { ...baseParams, pagina: 1 } });
+  const totalPaginas = Math.max(1, Number((probe.data as any)?.totalPaginas || 1));
+  const maxPaginas = Math.max(1, Math.min(10, Number(params.maxPaginas || 6)));
+  const paginas: number[] = [];
+
+  for (let offset = 0; offset < maxPaginas; offset += 1) {
+    const pagina = totalPaginas - offset;
+    if (pagina >= 1) paginas.push(pagina);
+  }
+
+  const respostas = await Promise.all(
+    paginas.map((pagina) =>
+      client
+        .get(endpoint, { params: { ...baseParams, pagina } })
+        .catch(() => null),
+    ),
+  );
+
+  const agora = Date.now();
+  const vistos = new Set<string>();
+  const abertos: LicitacaoComprasGov[] = [];
+
+  for (const resposta of respostas) {
+    if (!resposta) continue;
+
+    for (const item of extractCollection(resposta.data).map(normalizePregao)) {
+      const encerramento = item.data_encerramento
+        ? new Date(item.data_encerramento).getTime()
+        : Number.NaN;
+
+      if (!Number.isFinite(encerramento) || encerramento <= agora) continue;
+      if (!item.id || vistos.has(item.id)) continue;
+
+      vistos.add(item.id);
+      abertos.push(item);
+    }
+  }
+
+  if (abertos.length > 0) {
+    persistComprasGovNotices(abertos).catch((err) => {
+      console.error('[ComprasGov] Erro ao persistir propostas abertas:', err);
+    });
+  }
+
+  cachePropostasAbertas = {
+    key,
+    expiresAt: Date.now() + 60_000,
+    data: abertos,
+    total: abertos.length,
+  };
+
+  return { data: abertos, total: abertos.length };
+}
+
 export async function buscarHistoricoPregoes(params: {
   descricao?: string;
   codigoCatmat?: string;

@@ -610,7 +610,9 @@ export async function buscarContratacoesPNCP(
   const uf = normalizeUf(filtros.uf);
   const isUfEmpty = !uf;
   // Quando uf for vazia ("Todas as UFs"), NUNCA faz busca em paralelo (Promise.all). Faz apenas 1 requisição rápida de 50 registros para evitar timeout.
-  const deveBuscarEmParalelo = (pagina === 1 && filtros.endpoint === 'proposta' && !filtros.cnpj) ? true : (isUfEmpty ? false : rawTamanho > 50);
+  const deveBuscarEmParalelo = filtros.fast
+    ? false
+    : ((pagina === 1 && filtros.endpoint === 'proposta' && !filtros.cnpj) ? true : (isUfEmpty ? false : rawTamanho > 50));
   const tamanhoPorChamada = isUfEmpty ? 50 : (deveBuscarEmParalelo ? 50 : Math.min(50, Math.max(10, rawTamanho)));
 
   const isPropostaEndpoint = filtros.endpoint === 'proposta';
@@ -716,7 +718,7 @@ export async function buscarContratacoesPNCP(
     let rawCombinedItems: unknown[] = [];
     let totalOficial: number | null = null;
 
-    if (pagina === 1 && isPropostaEndpoint && !cnpj) {
+    if (pagina === 1 && isPropostaEndpoint && !cnpj && !filtros.fast) {
       const probe = await executarRequisicao(1, tamanhoPorChamada);
       totalOficial = probe.total;
       const totalPages = totalOficial ? Math.ceil(totalOficial / tamanhoPorChamada) : 1;

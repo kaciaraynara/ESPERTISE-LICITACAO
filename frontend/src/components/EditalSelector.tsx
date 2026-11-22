@@ -89,6 +89,13 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
         console.warn('[EditalSelector] Aviso ao carregar /licitacoes/salvos:', salvosErr);
       }
 
+      // Libera o seletor assim que os editais salvos chegam, sem esperar as
+      // demais fontes (CRM, monitorados, propostas). O restante é anexado depois.
+      if (isMounted && listaFinal.length > 0) {
+        setEditais([...listaFinal]);
+        setLoading(false);
+      }
+
       // 1. Busca Editais Salvos para Disputar (Pipeline de Oportunidades do CRM)
       try {
         const resCrm = await crmApi.getOportunidades().catch((error) => {

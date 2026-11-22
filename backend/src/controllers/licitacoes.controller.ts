@@ -45,6 +45,10 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       ?? stringParam(source.cnpjOrgao)
       ?? stringParam(source.cnpj_orgao),
     uf: stringParam(source.uf),
+    orgao:
+      stringParam(source.orgao)
+      ?? stringParam(source.orgaoNome)
+      ?? stringParam(source.razaoSocial),
     dataInicial:
       stringParam(source.dataInicial)
       ?? stringParam(source.dataInicio),

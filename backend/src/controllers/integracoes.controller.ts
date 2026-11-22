@@ -140,9 +140,18 @@ export class IntegracoesController {
   }
 
   async health(_req: Request, res: Response) {
+    // As APIs públicas exigem tamanhoPagina >= 10 e janelas de data válidas.
+    // Sondar com tamanhoPagina=1 ou datas fixas no passado gerava 400/404 e
+    // fazia a tela de Integrações parecer quebrada mesmo com o Radar operante.
+    const hoje = new Date();
+    const em30Dias = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const ha30Dias = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const comprasGovBase = (process.env.COMPRASGOV_BASE_URL || 'https://dadosabertos.compras.gov.br').replace(/\/+$/, '');
+
     const checks = await Promise.all([
-      this.probeUrl('PNCP', 'https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao?dataInicial=20250101&dataFinal=20250101&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=1'),
-      this.probeUrl('COMPRAS.GOV', 'https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=1&codigoItemCatalogo=150515'),
+      this.probeUrl('PNCP', `https://pncp.gov.br/api/consulta/v1/contratacoes/proposta?dataFinal=${iso(em30Dias).replace(/-/g, '')}&codigoModalidadeContratacao=6&pagina=1&tamanhoPagina=10`),
+      this.probeUrl('COMPRAS.GOV', `${comprasGovBase}/modulo-contratacoes/1_consultarContratacoes_PNCP_14133?pagina=1&tamanhoPagina=20&dataPublicacaoPncpInicial=${iso(ha30Dias)}&dataPublicacaoPncpFinal=${iso(hoje)}&codigoModalidade=6&contratacaoExcluida=false`),
       this.probeUrl('RECEITA / CNPJ', 'https://brasilapi.com.br/api/cnpj/v1/00000000000191'),
       this.probeTransparencia(),
     ]);

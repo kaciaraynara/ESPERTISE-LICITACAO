@@ -15,6 +15,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import LandingPage from './pages/LandingPage';
 import AuthPages, { LoginPage, RegisterPage } from './pages/AuthPages';
 import { PremiumFeatureGuard } from './components/monetization/PremiumFeatureGuard';
+import { PageTitleManager } from './components/PageTitleManager';
 import { CompanyProvider } from './contexts/CompanyContext';
 
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
@@ -301,6 +302,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <CompanyProvider>
+      <PageTitleManager />
       <AuthBootstrap />
       <PlanAccessBootstrap />
       <a

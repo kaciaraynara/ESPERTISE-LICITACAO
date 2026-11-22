@@ -13,7 +13,7 @@ import {
   parsePncpControlNumber,
   parsePncpDateToIso,
 } from './pncp.service';
-import { buscarLicitacoesComprasGov } from './comprasgov.service';
+import { buscarPropostasAbertasComprasGov } from './comprasgov.service';
 import {
   getTenantRadarProfile,
   keywordsForCnae,
@@ -22,6 +22,42 @@ import {
 
 const AUTOMATIC_RADAR_KEYWORD_LIMIT = 20;
 const PNCP_MODALITIES = [4, 6, 8, 12] as const;
+
+// Cache curto do Radar ao vivo: evita repetir a mesma consulta pesada ao PNCP
+// para cada usuário/aba e protege a fonte pública em picos de acesso.
+const LIVE_RADAR_CACHE_TTL_MS = 45_000;
+const LIVE_RADAR_CACHE_MAX = 200;
+const liveRadarCache = new Map<string, { expiresAt: number; value: any }>();
+
+function normalizarBusca(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Semáforo global para chamadas ao PNCP. O cache + single-flight evita
+// repetição para filtros iguais; o semáforo protege a fonte pública quando
+// muitos filtros distintos chegam ao mesmo tempo (picos de acesso).
+const PNCP_MAX_CONCORRENTE = Math.max(1, Number(process.env.PNCP_MAX_CONCORRENTE || 4));
+let pncpEmAndamento = 0;
+const pncpFila: Array<() => void> = [];
+
+async function comLimitePncp<T>(tarefa: () => Promise<T>): Promise<T> {
+  if (pncpEmAndamento >= PNCP_MAX_CONCORRENTE) {
+    await new Promise<void>((resolve) => pncpFila.push(resolve));
+  }
+  pncpEmAndamento += 1;
+  try {
+    return await tarefa();
+  } finally {
+    pncpEmAndamento -= 1;
+    const proximo = pncpFila.shift();
+    if (proximo) proximo();
+  }
+}
 
 function resolvePncpDownloadUrl(
   numeroControlePNCP: string | null | undefined,
@@ -366,13 +402,75 @@ export function normalizarLicitacaoPNCP(
  * Consulta diretamente o endpoint oficial https://pncp.gov.br/api/consulta/v1/contratacoes/proposta
  * em tempo real, sem travar por CNAE local ou mocks.
  */
-export async function consultarRadarPncpTempoReal(
-  filtros: FiltrosBusca = {},
-): Promise<ResultadoRadarPNCP & {
+type RadarLiveResult = ResultadoRadarPNCP & {
   totalPaginas: number;
   perfilRadar: { cnaes: string[]; palavras_chave: string[] } | null;
   aviso?: string;
-}> {
+};
+
+const liveRadarInflight = new Map<string, Promise<RadarLiveResult>>();
+
+function buildLiveRadarCacheKey(filtros: FiltrosBusca): string {
+  const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
+  const size = filtros.tamanhoPagina ? Math.max(10, Math.min(2000, Number(filtros.tamanhoPagina))) : 50;
+  return JSON.stringify({
+    pagina: page,
+    tamanho: size,
+    uf: filtros.uf ?? '',
+    modalidade: filtros.modalidade ?? filtros.codigoModalidadeContratacao ?? '',
+    srp: Boolean(filtros.srp),
+    baixaProcura: Boolean(filtros.baixaProcura),
+    orgao: filtros.orgao ?? '',
+    dataFinal: filtros.dataFinal ?? '',
+    termo: (filtros as any).palavraChave ?? (filtros as any).q ?? (filtros as any).termo ?? '',
+  });
+}
+
+/**
+ * Radar ao vivo com cache curto e single-flight.
+ *
+ * Milhares de usuários podem abrir o Radar ao mesmo tempo com os mesmos
+ * filtros. Sem single-flight, todos disparariam a mesma consulta pesada ao
+ * PNCP antes do cache ser preenchido. A promessa em andamento é compartilhada
+ * e o resultado fica em cache por 45 segundos.
+ */
+export async function consultarRadarPncpTempoReal(
+  filtros: FiltrosBusca = {},
+): Promise<RadarLiveResult> {
+  const cacheKey = buildLiveRadarCacheKey(filtros);
+  const cached = liveRadarCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const running = liveRadarInflight.get(cacheKey);
+  if (running) {
+    return running;
+  }
+
+  const task = executarConsultaRadarPncpTempoReal(filtros)
+    .then((value) => {
+      liveRadarCache.set(cacheKey, {
+        expiresAt: Date.now() + LIVE_RADAR_CACHE_TTL_MS,
+        value,
+      });
+      if (liveRadarCache.size > LIVE_RADAR_CACHE_MAX) {
+        const oldest = liveRadarCache.keys().next().value;
+        if (oldest) liveRadarCache.delete(oldest);
+      }
+      return value;
+    })
+    .finally(() => {
+      liveRadarInflight.delete(cacheKey);
+    });
+
+  liveRadarInflight.set(cacheKey, task);
+  return task;
+}
+
+async function executarConsultaRadarPncpTempoReal(
+  filtros: FiltrosBusca = {},
+): Promise<RadarLiveResult> {
   const { prisma } = require('../database/prisma');
   const page = filtros.pagina ? Math.max(1, Number(filtros.pagina)) : 1;
   const size = filtros.tamanhoPagina ? Math.max(10, Math.min(2000, Number(filtros.tamanhoPagina))) : 50;
@@ -405,59 +503,133 @@ export async function consultarRadarPncpTempoReal(
     || filtros.termo
   )?.trim() || undefined;
 
+  const orgaoFiltro = String(filtros.orgao ?? '').trim();
+  const baixaProcuraAtivo = filtros.baixaProcura === true || filtros.baixaProcura === 'true';
+
   const rawUf = typeof filtros.uf === 'string' ? filtros.uf.trim().toUpperCase() : undefined;
   const uf = rawUf && rawUf !== 'TODOS' && rawUf !== 'TODAS' ? rawUf : undefined;
+  const temFiltroLocal = Boolean(palavraChave || orgaoFiltro || baixaProcuraAtivo);
 
   let resultadoPncp: ResultadoConsultaPNCP;
+  let usouComprasAbertas = false;
+  let pncpIndisponivel = false;
+
+  const mapearComprasGov = (c: any) => {
+    const ctrlId = String(c.numeroControlePNCP || c.id || c.numero_pregao || '').trim();
+    const encerramento = c.dataEncerramentoProposta
+      ?? c.data_encerramento
+      ?? c.dataEncerramento;
+    const abertura = c.dataAberturaProposta
+      ?? c.data_abertura
+      ?? c.dataAbertura
+      ?? c.dataPublicacao
+      ?? encerramento;
+
+    return {
+      numeroControlePNCP: ctrlId,
+      objeto: String(c.objeto || 'Objeto não informado'),
+      modalidadeNome: String(c.modalidade || 'Pregão Eletrônico'),
+      orgaoEntidade: {
+        razaoSocial: String(c.orgao || c.orgaoNome || 'Órgão Público'),
+        cnpj: String(c.cnpjOrgao || ''),
+      },
+      unidadeOrgao: {
+        ufSigla: String(c.uf || ''),
+        municipioNome: String(c.municipio || ''),
+      },
+      valorTotalEstimado: c.valor_estimado != null
+        ? Number(c.valor_estimado)
+        : (c.valorEstimado != null ? Number(c.valorEstimado) : undefined),
+      dataPublicacaoPncp: String(c.data_publicacao || c.dataPublicacao || abertura || new Date().toISOString()),
+      dataAberturaProposta: String(abertura || new Date().toISOString()),
+      dataEncerramentoProposta: encerramento ? String(encerramento) : undefined,
+      situacaoCompraNome: String(c.situacao || 'Divulgada no Compras.gov.br'),
+      linkEditalPNCP: c.link || c.linkEdital || c.url || undefined,
+      srp: Boolean(c.srp),
+    };
+  };
+
   try {
     // REGRA PNCP: Nunca enviar 'cnae' como parâmetro de query para a API do PNCP.
-    const [pncpRes, comprasRes] = await Promise.allSettled([
-      buscarContratacoesPNCP({
+    // O Compras.gov.br só é consultado quando o PNCP não entrega nenhuma
+    // proposta aberta: evita dobrar o tráfego em cada abertura do Radar.
+    const [pncpRes] = await Promise.allSettled([
+      comLimitePncp(() => buscarContratacoesPNCP({
         endpoint: 'proposta',
+        fast: true,
         pagina: page,
         tamanhoPagina: size,
         ...(uf ? { uf } : {}),
         ...(filtros.dataFinal ? { dataFinal: filtros.dataFinal } : {}),
         ...(!isAllModalities && rawMod ? { codigoModalidadeContratacao: rawMod } : {}),
-      }),
-      buscarLicitacoesComprasGov({
-        pagina: page,
-        ...(uf ? { uf } : {}),
-        ...(!isAllModalities && rawMod ? { modalidade: rawMod } : {}),
-      }),
+      })),
     ]);
 
-    resultadoPncp = pncpRes.status === 'fulfilled'
-      ? pncpRes.value
+    const pncpValue = pncpRes.status === 'fulfilled' ? pncpRes.value : null;
+    if (pncpRes.status === 'rejected') {
+      pncpIndisponivel = true;
+    }
+    resultadoPncp = pncpValue && Array.isArray(pncpValue.data)
+      ? pncpValue
       : { data: [], totalRegistros: 0, pagina: page, tamanhoPagina: size };
 
-    if (comprasRes.status === 'fulfilled' && Array.isArray(comprasRes.value?.data) && comprasRes.value.data.length > 0) {
-      const seen = new Set((resultadoPncp.data || []).map((x: any) => String(x.numeroControlePNCP || '')));
-      const extras = comprasRes.value.data
-        .map((c: any) => {
-          const ctrlId = String(c.numeroControlePNCP || c.id || c.numero_pregao || '').trim();
-          return { c, ctrlId };
-        })
-        .filter(({ ctrlId }) => ctrlId.length > 0 && !seen.has(ctrlId))
-        .map(({ c, ctrlId }) => ({
-          numeroControlePNCP: ctrlId,
-          objeto: String(c.objeto || 'Objeto não informado'),
-          modalidadeNome: String(c.modalidade || 'Pregão Eletrônico'),
-          orgaoEntidade: { razaoSocial: String(c.orgao || c.orgaoNome || 'Órgão Público'), cnpj: String(c.cnpjOrgao || '') },
-          unidadeOrgao: { ufSigla: String(c.uf || ''), municipioNome: String(c.municipio || '') },
-          valorTotalEstimado: c.valorEstimado != null ? Number(c.valorEstimado) : undefined,
-          dataPublicacaoPncp: String(c.dataPublicacao || new Date().toISOString()),
-          dataAberturaProposta: String(c.dataAbertura || c.dataPublicacao || new Date().toISOString()),
-          dataEncerramentoProposta: c.dataEncerramento || c.dataAbertura || undefined,
-          situacaoCompraNome: String(c.situacao || 'Divulgada no Compras.gov.br'),
-          linkEditalPNCP: c.linkEdital || c.url || undefined,
-          srp: Boolean(c.srp),
-        }));
-      resultadoPncp.data = [...(resultadoPncp.data || []), ...extras];
-      resultadoPncp.totalRegistros = (resultadoPncp.totalRegistros || 0) + extras.length;
+    // O endpoint de contratações do Compras.gov.br ordena pelas publicações
+    // mais antigas. A página 1 costuma vir inteira vencida, então buscamos as
+    // últimas páginas e mantemos apenas propostas com encerramento futuro.
+    const temPropostaAberta = (resultadoPncp.data || []).some((item: any) => {
+      const encerramento = item.dataEncerramentoProposta ?? item.dataEncerramento;
+      const data = encerramento ? new Date(encerramento).getTime() : Number.NaN;
+      return Number.isFinite(data) && data > Date.now();
+    });
+
+    if (!temPropostaAberta && (pncpIndisponivel || !temFiltroLocal)) {
+      const abertas = await buscarPropostasAbertasComprasGov({
+        uf,
+        modalidade: !isAllModalities ? rawMod : undefined,
+        maxPaginas: 6,
+      }).catch(() => ({ data: [], total: 0 }));
+
+      if (abertas.data.length > 0) {
+        const seen = new Set((resultadoPncp.data || []).map((x: any) => String(x.numeroControlePNCP || '')));
+        const extras = abertas.data
+          .map((c: any) => mapearComprasGov(c))
+          .filter((item) => item.numeroControlePNCP.length > 0 && !seen.has(item.numeroControlePNCP));
+
+        if (extras.length > 0) {
+          resultadoPncp.data = [...(resultadoPncp.data || []), ...extras];
+          resultadoPncp.totalRegistros = extras.length;
+          usouComprasAbertas = true;
+        }
+      }
     }
   } catch (apiError: any) {
-    // Fallback: se falhar (503, timeout, etc.), retorne cache do banco local (prisma), NUNCA erro 500 ou array vazio se houver cache.
+    // PNCP pode responder 429 (limite de requisições) ou ficar indisponível.
+    // Failsafe: tenta propostas abertas no Compras.gov.br e, depois, o cache
+    // local. Nunca devolve 500 para o Radar por indisponibilidade de fonte.
+    pncpIndisponivel = true;
+    try {
+      const abertas = await buscarPropostasAbertasComprasGov({
+        uf,
+        modalidade: !isAllModalities ? rawMod : undefined,
+        maxPaginas: 6,
+      }).catch(() => ({ data: [], total: 0 }));
+
+      if (abertas.data.length > 0) {
+        resultadoPncp = {
+          data: abertas.data.map((c: any) => mapearComprasGov(c)),
+          totalRegistros: abertas.data.length,
+          pagina: page,
+          tamanhoPagina: size,
+        };
+        usouComprasAbertas = true;
+      } else {
+        resultadoPncp = { data: [], totalRegistros: 0, pagina: page, tamanhoPagina: size };
+      }
+    } catch {
+      resultadoPncp = { data: [], totalRegistros: 0, pagina: page, tamanhoPagina: size };
+    }
+
+    // Fallback secundário: cache do banco local (Prisma).
     try {
       const noticeRepo = process.env.DATABASE_URL ? prisma?.procurementNotice : null;
       if (noticeRepo) {
@@ -554,10 +726,9 @@ export async function consultarRadarPncpTempoReal(
         }
       }
     } catch {
-      // Ignora erro no banco local e repassa o erro da API PNCP
+      // Ignora erro no banco local e segue com o fallback do Compras.gov.br
+      // ou com a lista vazia + aviso explícito.
     }
-
-    throw apiError;
   }
 
   const rawItems = (resultadoPncp.data || []).filter((item: LicitacaoPNCP) =>
@@ -570,11 +741,31 @@ export async function consultarRadarPncpTempoReal(
   // 1. FILTRO DE VERACIDADE DIÁRIA (ZERO EDITAIS ATRASADOS/VENCIDOS):
   // Descarte qualquer edital onde new Date(item.dataEncerramentoProposta) <= new Date()
   const now = new Date();
+  const termoNormalizado = normalizarBusca(palavraChave);
+  const tokensBusca = termoNormalizado.split(' ').filter((token) => token.length >= 2);
+
   const validItems = normalizedItems.filter((item: LicitacaoRadarPNCP) => {
     const encStr = item.dataEncerramentoProposta || item.dataLimiteProposta || item.dataEncerramento;
     if (!encStr) return false;
     const encDate = new Date(encStr);
     return !isNaN(encDate.getTime()) && encDate > now;
+  }).filter((item: LicitacaoRadarPNCP) => {
+    if (uf && normalizarBusca(item.uf || '') !== normalizarBusca(uf)) return false;
+    if (orgaoFiltro) {
+      const orgaoItem = normalizarBusca(`${item.orgao || ''} ${item.nomeOrgao || ''}`);
+      if (!orgaoItem.includes(normalizarBusca(orgaoFiltro))) return false;
+    }
+    if (baixaProcuraAtivo) {
+      const valor = Number(item.valorTotalEstimado ?? item.valorEstimado ?? 0);
+      const modalidade = normalizarBusca(`${item.modalidadeNome || ''} ${item.modalidade || ''}`);
+      const menorPorte = valor > 0
+        ? valor <= 80000
+        : (modalidade.includes('dispensa') || modalidade.includes('credenciamento'));
+      if (!menorPorte) return false;
+    }
+    if (tokensBusca.length === 0) return true;
+    const alvo = normalizarBusca(`${item.objeto} ${item.orgao} ${item.numeroControlePNCP}`);
+    return tokensBusca.every((token) => alvo.includes(token));
   });
 
   // 2. ORDENAÇÃO RIGOROSA: data de publicação/abertura mais recente (2026 no topo)
@@ -629,9 +820,10 @@ export async function consultarRadarPncpTempoReal(
     // Segue sem bloqueio caso o banco local não esteja configurado no ambiente
   }
 
-  const totalRegistros = isSrpFilter
-    ? validItems.length
-    : (resultadoPncp.totalRegistros ?? validItems.length);
+  // O total exposto deve corresponder exatamente aos itens retornados.
+  // O total bruto do PNCP inclui editais já encerrados e não pode ser usado
+  // como se fosse a quantidade de oportunidades abertas exibidas.
+  const totalRegistros = validItems.length;
 
   return {
     data: validItems,
@@ -640,9 +832,15 @@ export async function consultarRadarPncpTempoReal(
     tamanhoPagina: size,
     totalPaginas: Math.max(1, Math.ceil(totalRegistros / size)),
     perfilRadar: null,
-    aviso: validItems.length === 0
-      ? 'Nenhuma contratação encontrada diretamente no PNCP para estes filtros.'
-      : undefined,
+    aviso: validItems.length > 0
+      ? (usouComprasAbertas
+        ? (pncpIndisponivel
+          ? 'PNCP indisponível no momento. Exibindo propostas abertas do Compras.gov.br.'
+          : 'PNCP não retornou propostas abertas para estes filtros. Exibindo propostas abertas do Compras.gov.br.')
+        : undefined)
+      : (pncpIndisponivel
+        ? 'Não foi possível consultar o PNCP agora (limite de requisições ou indisponibilidade). Tente novamente em alguns instantes.'
+        : 'Nenhuma contratação aberta encontrada agora para estes filtros. Tente atualizar em alguns minutos.'),
   };
 }
 

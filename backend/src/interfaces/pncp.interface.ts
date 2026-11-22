@@ -8,6 +8,7 @@ export interface FiltrosBusca {
   cnpj?: string;
   cnae?: string;
   uf?: string;
+  orgao?: string;
   municipio?: string;
   dataInicial?: string;
   dataFinal?: string;
@@ -23,6 +24,8 @@ export interface FiltrosBusca {
   baixaProcura?: boolean | string;
   endpoint?: 'publicacao' | 'proposta';
   tempoReal?: boolean | string;
+  /** Uso interno: consulta rápida de 1 página para o Radar ao vivo. */
+  fast?: boolean;
 }
 
 export interface LicitacaoPNCP {

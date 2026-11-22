@@ -170,6 +170,14 @@ export const ScoreOportunidadesPage: React.FC = () => {
     .slice(0, 6)
     .map(([uf, qtd]) => ({ uf, qtd }));
 
+  const cnaeCadastrado = Boolean(
+    (selectedCompany as any)?.cnaePrincipal ||
+    (selectedCompany as any)?.cnae_principal ||
+    (selectedCompany as any)?.cnaeDescricao ||
+    ((selectedCompany as any)?.cnaesSecundarios || []).length ||
+    ((selectedCompany as any)?.cnaes_secundarios || []).length
+  );
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center">
@@ -204,6 +212,28 @@ export const ScoreOportunidadesPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {!cnaeCadastrado && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-bold text-amber-900">Sua empresa ainda não tem CNAE cadastrado</p>
+              <p className="text-xs text-amber-800">
+                Sem o CNAE, a aderência considera apenas palavra-chave e UF. Por isso, a maioria dos editais pode
+                aparecer como “Fora do Perfil” mesmo sendo do seu ramo.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/fornecedor/empresa')}
+            className="shrink-0 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700"
+          >
+            Completar meu CNAE
+          </button>
+        </div>
+      )}
 
       {/* KPIs simples sem numeracao tecnica */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

@@ -94,7 +94,7 @@ const MODALIDADES_RAPIDAS = [
   { id: 'DISPENSA', label: 'Dispensa', icon: Zap },
   { id: 'CREDENCIAMENTO', label: 'Credenciamento', icon: Award },
   { id: 'SRP', label: 'Registro de Preços', icon: Bookmark },
-  { id: 'BAIXA_PROCURA', label: 'Baixa Procura (Iniciantes)', icon: Zap },
+  { id: 'BAIXA_PROCURA', label: 'Menor Porte (até R$ 80 mil)', icon: Zap },
 ];
 
 const UFS = [
@@ -222,7 +222,7 @@ function expandirSinonimosRamo(termo: string, empresa: any): string[] {
       SINONIMOS_RAMO[p].forEach((s) => lista.add(s));
     }
   }
-  if (lista.size === 0 && limpo) lista.add(limpo);
+  if (lista.size === 0) lista.add(limpo);
   return Array.from(lista).slice(0, 4);
 }
 
@@ -270,7 +270,6 @@ export default function LicitacoesPage({
   const { selectedCompany } = useCompany();
 
   const [editais, setEditais] = useState<EditalItem[]>([]);
-  const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
 
@@ -391,7 +390,6 @@ export default function LicitacoesPage({
         };
 
         let lista: EditalItem[] = [];
-        let totalResp = 0;
 
         if (usarSinonimosRamo) {
           const termos = expandirSinonimosRamo(q, selectedCompany);
@@ -407,24 +405,37 @@ export default function LicitacoesPage({
             }
           }
           lista = Array.from(mapa.values());
-          totalResp = lista.length;
+
+          // Se não houver nada na base local, consulta o PNCP em tempo real
+          // com os mesmos termos, em vez de mostrar "0 editais" sem explicação.
+          if (lista.length === 0) {
+            const respostasLive = await Promise.all(
+              termos.slice(0, 3).map((t) => licitacoesApi.listar(buildParams(t, false)).catch(() => null))
+            );
+            const mapaLive = new Map<string, EditalItem>();
+            for (const resp of respostasLive) {
+              const items = resp?.data?.items || resp?.data?.data || (Array.isArray(resp?.data) ? resp.data : []);
+              for (const item of items) {
+                const key = String(item.numeroControlePNCP || item.id);
+                if (!mapaLive.has(key)) mapaLive.set(key, item);
+              }
+            }
+            lista = Array.from(mapaLive.values());
+          }
         } else {
           const resposta = await licitacoesApi.listar(buildParams(q, false));
           lista = resposta?.data?.items || resposta?.data?.data || (Array.isArray(resposta?.data) ? resposta.data : []);
-          totalResp = resposta?.data?.meta?.totalRegistros || resposta?.data?.total || lista.length;
 
           if (lista.length === 0 && q.trim()) {
             const respLive = await licitacoesApi.listar(buildParams(q, true)).catch(() => null);
             const listaLive = respLive?.data?.items || respLive?.data?.data || (Array.isArray(respLive?.data) ? respLive.data : []);
             if (listaLive.length > 0) {
               lista = listaLive;
-              totalResp = respLive?.data?.meta?.totalRegistros || respLive?.data?.total || listaLive.length;
             }
           }
         }
 
         setEditais(lista);
-        setTotal(totalResp);
       } catch {
         exibirAviso('info', 'Base local sem conexão momentânea. Clique em Atualizar editais para tentar novamente.');
       } finally {
@@ -437,7 +448,9 @@ export default function LicitacoesPage({
   useEffect(() => {
     carregarSalvos();
     void extrairPalavraChaveRamo;
-    buscarEditais('', true);
+    // O Radar abre com dados ao vivo. A base local pode estar vazia ou
+    // desatualizada e não deve esconder as contratações abertas do PNCP.
+    buscarEditais('', false);
   }, [carregarSalvos, selectedCompany]);
 
   const handleSincronizarPncp = async () => {
@@ -545,10 +558,24 @@ export default function LicitacoesPage({
   };
 
   const editaisOrdenados = useMemo(() => {
-    const comScore = editais.map((item) => ({
-      ...item,
-      _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
-    }));
+    const comScore = editais
+      .filter((item) => {
+        if (!dataPublicacao) return true;
+        const raw =
+          item.dataPublicacao ||
+          item.data_publicacao ||
+          item.dataPublicacaoPncp ||
+          item.publishedAt ||
+          item.createdAt;
+        if (!raw) return false;
+        const data = new Date(raw);
+        if (Number.isNaN(data.getTime())) return false;
+        return data >= new Date(`${dataPublicacao}T00:00:00`);
+      })
+      .map((item) => ({
+        ...item,
+        _scoreCalculado: calcularEscoreViabilidade(item, selectedCompany),
+      }));
 
     if (ordenacao === 'relevancia') {
       return comScore.sort((a, b) => b._scoreCalculado - a._scoreCalculado);
@@ -579,7 +606,7 @@ export default function LicitacoesPage({
       ).getTime();
       return db - da;
     });
-  }, [editais, selectedCompany, ordenacao]);
+  }, [editais, selectedCompany, ordenacao, dataPublicacao]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] px-4 py-6 sm:px-8">
@@ -819,7 +846,11 @@ export default function LicitacoesPage({
         {/* Quantidade e Ordenação */}
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="text-sm font-semibold text-slate-600">
-            <span className="text-[#081C3A]">{total}</span> editais encontrados
+            <span className="text-[#081C3A]">{editaisOrdenados.length}</span>{' '}
+            {editaisOrdenados.length === 1 ? 'edital exibido' : 'editais exibidos'}
+            {palavraChave.trim() && (
+              <span className="font-normal text-slate-400"> para “{palavraChave.trim()}”</span>
+            )}
           </p>
 
           <div className="flex items-center gap-2">
@@ -847,10 +878,12 @@ export default function LicitacoesPage({
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <FileText className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 text-base font-bold text-[#081C3A]">
-              Nenhum edital encontrado para esses filtros
+              {palavraChave.trim()
+                ? `Nenhum edital encontrado para “${palavraChave.trim()}”`
+                : 'Nenhum edital encontrado para esses filtros'}
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Tente limpar os filtros ou buscar novos editais diretamente no Portal Nacional.
+              A consulta ao vivo não retornou contratações abertas para esses filtros. Clique em “Buscar no PNCP agora” para tentar novamente ou limpe os filtros.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <button
