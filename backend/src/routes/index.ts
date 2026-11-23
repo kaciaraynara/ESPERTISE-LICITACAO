@@ -474,7 +474,6 @@ router.use(
 
 router.use(
   '/analise-viabilidade',
-  requirePlanFeature('analise_viabilidade'),
   analiseViabilidadeRoutes,
 );
 

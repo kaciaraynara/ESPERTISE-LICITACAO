@@ -65,17 +65,39 @@ function avaliarViabilidade(edital: any, empresa: any): {
     .split(/[^a-z0-9à-ú]+/i)
     .filter((w) => w.length >= 4 && !stopWordsCnae.has(w));
 
-  const sinonimosVestuario = ['vestuario', 'vestuário', 'roupa', 'uniforme', 'fardamento', 'calcado', 'calçado', 'tenis', 'tênis', 'confeccao', 'confecção', 'epi', 'textil', 'têxtil'];
-  const ehVestuario = palavrasCnae.some((p) => p.includes('vestu') || p.includes('roup') || p.includes('confe')) || /^1[345]/.test(cnaeDesc.replace(/\D/g, ''));
-  const ehFalsoPositivoVestuario = ehVestuario && /lavadora|lavanderia|eletrodom[eé]stico|refrigera[cç][aã]o/.test(objeto) && !sinonimosVestuario.some((s) => matchesWordBoundaryPt(objeto, s));
+  const sinonimosVestuario = [
+    'vestuario', 'vestuário', 'roupa', 'uniforme', 'fardamento', 'calcado', 'calçado',
+    'tenis', 'tênis', 'confeccao', 'confecção', 'epi', 'textil', 'têxtil', 'camisa',
+    'camiseta', 'jaleco', 'agasalho', 'calca', 'calça', 'meia', 'avental', 'lençol',
+    'cobertor', 'tecido', 'bone', 'boné', 'agasalhos', 'fardas', 'camisas'
+  ];
+  const ehVestuario =
+    palavrasCnae.some((p) => p.includes('vestu') || p.includes('roup') || p.includes('confe') || p.includes('calc') || p.includes('text') || p.includes('têxt')) ||
+    /^1[345]|^478[12]|^464[12]/.test(cnaeDesc.replace(/\D/g, ''));
+  const ehFalsoPositivoVestuario =
+    ehVestuario &&
+    /lavadora|lavanderia|eletrodom[eé]stico|refrigera[cç][aã]o|esclerosante|varizes|cir[uú]rgic|hospitalar|asfalto|pavimenta/.test(objeto) &&
+    !sinonimosVestuario.some((s) => matchesWordBoundaryPt(objeto, s));
 
   const bateuCnae =
     !ehFalsoPositivoVestuario &&
     (palavrasCnae.some((p) => matchesWordBoundaryPt(objeto, p)) ||
       (ehVestuario && sinonimosVestuario.some((s) => matchesWordBoundaryPt(objeto, s))));
 
+  const temCnaeCadastrado = Boolean(empresa?.cnaePrincipal || empresa?.cnae_principal || cnaeDesc.trim());
+
+  // REGRA DE SEGURANÇA ESTRITA: Se a empresa possui CNAE, editais sem aderência ao CNAE são estritamente FORA DO PERFIL
+  if (temCnaeCadastrado && !bateuCnae) {
+    return {
+      faixa: 'BAIXA',
+      rotulo: 'Fora do Perfil · Segmento Diferente',
+      resumo: 'Objeto licitado não corresponde às atividades ou CNAE cadastrados na sua empresa.',
+      motivos: ['Atividade fora do CNAE da empresa'],
+    };
+  }
+
   if (bateuCnae) {
-    pontos += 3;
+    pontos += 4;
     motivos.push('Objeto compatível com o CNAE da empresa');
   }
 
@@ -321,6 +343,16 @@ export const ScoreOportunidadesPage: React.FC = () => {
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-12 text-sm font-semibold text-[#081C3A]">
           <Loader2 className="h-5 w-5 animate-spin text-[#F97316]" />
           Carregando editais disponíveis para sua empresa...
+        </div>
+      ) : filtrados.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-3">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="text-sm font-bold text-slate-800">Nenhum edital localizado para este filtro</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+            Os editais são sincronizados e filtrados estritamente pelo CNAE da sua empresa ({selectedCompany?.razaoSocial || 'Empresa Ativa'}). Clique no botão &ldquo;Atualizar do PNCP em Tempo Real&rdquo; acima para buscar certames adicionais abertos na base nacional.
+          </p>
         </div>
       ) : (
         <div className="space-y-4">

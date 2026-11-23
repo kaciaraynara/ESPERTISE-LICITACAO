@@ -41,10 +41,12 @@ export class ErrorBoundary extends Component<Props, State> {
       errorMessage.includes('Importing a module script failed');
 
     if (isChunkLoadError && typeof window !== 'undefined') {
-      const alreadyAttempted = window.sessionStorage?.getItem('chunk_reload_attempted');
-      if (!alreadyAttempted) {
-        window.sessionStorage?.setItem('chunk_reload_attempted', 'true');
-        window.location.reload();
+      const lastAttempt = Number(window.sessionStorage?.getItem('chunk_reload_time') || 0);
+      const now = Date.now();
+      // Permite auto-recuperação a cada deploy sem prender o usuário na tela de erro
+      if (now - lastAttempt > 10000) {
+        window.sessionStorage?.setItem('chunk_reload_time', String(now));
+        window.location.href = window.location.pathname + window.location.search;
         return;
       }
     }
@@ -52,6 +54,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public handleRetry = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
+    if (typeof window !== 'undefined') {
+      window.sessionStorage?.removeItem('chunk_reload_time');
+      window.sessionStorage?.removeItem('chunk_reload_attempted');
+    }
     if (this.props.onReset) {
       try {
         this.props.onReset();
@@ -60,13 +66,8 @@ export class ErrorBoundary extends Component<Props, State> {
           window.location.reload();
         }
       }
-    }
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
-        if (this.state.hasError) {
-          window.location.reload();
-        }
-      }, 100);
+    } else if (typeof window !== 'undefined') {
+      window.location.reload();
     }
   };
 

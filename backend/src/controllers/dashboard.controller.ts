@@ -307,7 +307,7 @@ export class DashboardController {
             crmValorEmDisputa: valorTotalEmDisputa,
             prazosEstaSemana: prazosCriticos.length,
             statsRadar: globalSummary.statsRadar,
-            recomendacoes: globalSummary.recomendacoes,
+            recomendacoes: recomendacoesPersonalizadas,
             prazosCriticos: prazosCriticos.map((prazo: any) => ({
               id: prazo.id,
               evento: prazo.title,

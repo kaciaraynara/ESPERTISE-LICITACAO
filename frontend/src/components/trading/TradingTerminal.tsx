@@ -20,6 +20,7 @@ import Decimal from 'decimal.js';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
 import { propostasApi, licitacoesApi } from '@/services/api';
 import { buildOfficialPncpPortalUrl } from '@/utils/pncp';
+import { useCompany } from '@/contexts/CompanyContext';
 
 export type EstrategiaType = 'SNIPER' | 'COBERTURA' | 'MANUAL';
 export type StatusItemType = 'VENCENDO' | 'COBERTO' | 'PISO_ATINGIDO' | 'PAUSADO';
@@ -65,6 +66,8 @@ function roundDec(val: number): number {
 }
 
 export const TradingTerminal: React.FC = () => {
+  const { selectedCompany } = useCompany();
+
   // Edital Selecionado e Portal
   const [edital, setEdital] = useState<EditalOption | null>(null);
   const [portalUrl, setPortalUrl] = useState<string>('https://pncp.gov.br/app/editais');
@@ -82,6 +85,7 @@ export const TradingTerminal: React.FC = () => {
 
   // Planilha de Itens Reais (Inicia vazia até selecionar edital ou puxar proposta)
   const [itens, setItens] = useState<ItemPlanilhaTerminal[]>([]);
+  const [carregandoItens, setCarregandoItens] = useState<boolean>(false);
 
   // Mensagens do Pregoeiro e Avisos Oficiais
   const [mensagens, setMensagens] = useState<MensagemDisputa[]>([
@@ -130,6 +134,104 @@ export const TradingTerminal: React.FC = () => {
     },
     []
   );
+
+  // Sincronização automática inicial com propostas ou certames reais da empresa
+  useEffect(() => {
+    let active = true;
+    const inicializarDisputa = async () => {
+      try {
+        setCarregandoItens(true);
+        // 1. Tenta carregar da proposta comercial salva
+        const resProp = await propostasApi.listar();
+        const list = resProp?.data?.data || (resProp?.data as any)?.items || [];
+        if (Array.isArray(list) && list.length > 0) {
+          const prop = list[0];
+          const rawItens = Array.isArray(prop?.items) ? prop.items : [];
+          if (rawItens.length > 0 && active) {
+            setItens(
+              rawItens.map((it: any, idx: number) => {
+                const ref = roundDec(Number(it.precoUnitarioProposto || it.valorUnitario || it.custoDireto || 100));
+                const custo = roundDec(Number(it.custoDireto || ref * 0.75));
+                const piso = roundDec(custo * 1.10);
+                const lanceAlvo = roundDec(ref * 0.92);
+
+                return {
+                  id: String(it.id || idx + 1),
+                  itemNumero: Number(it.numero || idx + 1),
+                  descricao: String(it.descricao || `Item ${idx + 1}`),
+                  quantidade: Number(it.quantidade || 1),
+                  unidadeMedida: String(it.unidadeMedida || 'UN'),
+                  valorReferencia: ref,
+                  melhorLanceConcorrente: ref,
+                  seuUltimoLance: null,
+                  lanceAlvo,
+                  pisoMinimo: piso,
+                  estrategia: 'COBERTURA',
+                  decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+                  status: 'COBERTO',
+                  ativo: true,
+                  margemEstimadaPct: roundDec(((ref - custo) / (ref || 1)) * 100),
+                };
+              })
+            );
+            adicionarMensagem('SISTEMA', `Itens da proposta "${prop.titulo || 'Comercial'}" sincronizados para a disputa.`);
+            return;
+          }
+        }
+
+        // 2. Se não houver propostas salvas, busca certame compatível com o CNAE da empresa ativa
+        const cnaeAtivo = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal;
+        const resLic = await licitacoesApi.listar({ cnae: cnaeAtivo, local: true } as any);
+        const licList = resLic?.data?.items || resLic?.data?.data || [];
+        if (Array.isArray(licList) && licList.length > 0 && active) {
+          const primeiroEdital = licList[0];
+          setEdital(primeiroEdital);
+          const portalUrlOficial = buildOfficialPncpPortalUrl(primeiroEdital);
+          if (portalUrlOficial) setPortalUrl(portalUrlOficial);
+
+          const resItens = await licitacoesApi.obterItens(primeiroEdital.id);
+          const rawItens = resItens.data?.data || resItens.data?.items || resItens.data || [];
+          if (Array.isArray(rawItens) && rawItens.length > 0 && active) {
+            setItens(
+              rawItens.map((it: any, idx: number) => {
+                const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
+                const piso = roundDec(ref * 0.78);
+                const alvo = roundDec(ref * 0.92);
+                return {
+                  id: String(it.id || idx + 1),
+                  itemNumero: Number(it.numeroItem || it.numero || idx + 1),
+                  descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
+                  quantidade: Number(it.quantidade || 1),
+                  unidadeMedida: String(it.unidadeMedida || 'UN'),
+                  valorReferencia: ref,
+                  melhorLanceConcorrente: ref,
+                  seuUltimoLance: null,
+                  lanceAlvo: alvo,
+                  pisoMinimo: piso,
+                  estrategia: 'COBERTURA',
+                  decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+                  status: 'COBERTO',
+                  ativo: true,
+                  margemEstimadaPct: 22.0,
+                };
+              })
+            );
+            adicionarMensagem('SISTEMA', `Certame ${primeiroEdital.numeroEdital || primeiroEdital.id} vinculado à Sala de Disputa.`);
+          }
+        }
+      } catch {
+        // Falha silenciosa
+      } finally {
+        if (active) setCarregandoItens(false);
+      }
+    };
+
+    inicializarDisputa();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedCompany?.id, adicionarMensagem]);
 
   // PARADA DE EMERGÊNCIA GLOBAL (STOP ALL)
   const executarParadaEmergencia = () => {
@@ -626,7 +728,43 @@ export const TradingTerminal: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {itens.map((it) => {
+                    {carregandoItens ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-xs font-semibold text-slate-500">
+                          <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#F97316] mb-2" />
+                          Sincronizando itens e lotes com a base oficial...
+                        </td>
+                      </tr>
+                    ) : itens.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center">
+                          <div className="mx-auto max-w-md space-y-3 px-4">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#081C3A]">
+                              <Gavel className="h-6 w-6 text-[#F97316]" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-800">
+                                Nenhum certame vinculado no momento
+                              </h4>
+                              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                Selecione um edital monitorado no seletor acima ou clique no botão abaixo para puxar os itens da sua proposta comercial com margens travadas contra prejuízo.
+                              </p>
+                            </div>
+                            <div className="flex justify-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={sincronizarPropostaSalva}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
+                              >
+                                <RefreshCw className="h-3.5 w-3.5 text-[#F97316]" />
+                                Puxar Minha Proposta Comercial
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      itens.map((it) => {
                       const liderando = it.status === 'VENCENDO';
                       const pisoAtingido = it.status === 'PISO_ATINGIDO';
 
@@ -755,7 +893,7 @@ export const TradingTerminal: React.FC = () => {
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
               </div>

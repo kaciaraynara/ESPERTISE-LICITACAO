@@ -32,10 +32,17 @@ export const BASIC_PLAN_FEATURES = [
   'credenciamento',
   'credenciamento_srp_consulta',
   'calculadora_custos_basica',
+  'score_oportunidade',
+  'analise_viabilidade',
+  'robo_lances',
+  'pricing.strategy',
+  'precificacao_estrategica',
   // Aliases técnicos legados das rotas
   'notices.basic_summary',
   'notices.legal_precheck',
+  'notices.opportunity_score',
   'proposal.factory',
+  'bid.robot',
 ] as const;
 
 /**
