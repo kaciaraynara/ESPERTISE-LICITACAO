@@ -387,6 +387,9 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
             <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Envio Automático de Lances', <RoboPage />)} />
             <Route path={FORNECEDOR_ROUTES.disputa_ao_vivo} element={protectFeature('robo_lances', 'Disputa ao Vivo', <DisputaAoVivoPage />)} />
+            <Route path="/fornecedor/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
+            <Route path="/fornecedor/disputa" element={<Navigate to={FORNECEDOR_ROUTES.disputa_ao_vivo} replace />} />
+            <Route path="/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
             <Route
               path={FORNECEDOR_ROUTES.pregao_eletronico}
               element={protectFeature('radar_editais', 'Pregão Eletrônico', <LicitacoesPage key="pregao-eletronico" modalidadeInicial="Pregão Eletrônico" />)}

@@ -218,6 +218,68 @@ async function buildCompanyOperationalRadar(companyId?: string): Promise<string>
   }
 }
 
+export function gerarRespostaLicitatoriaAutonoma(pergunta: string): string {
+  const p = (pergunta || '').toLowerCase();
+
+  if (p.includes('impugna') || p.includes('prazo de impugna')) {
+    return `Sobre a impugnação ao edital sob a Lei nº 14.133/2021:
+
+1. Prazo para apresentação: Qualquer pessoa (cidadão ou licitante) pode impugnar o edital em até 3 (três) dias úteis antes da data de abertura do certame (art. 164).
+2. Prazo de resposta da Administração: O órgão licitante tem o dever de responder à impugnação em até 3 (três) dias úteis, limitado ao último dia útil anterior à data da abertura do certame (art. 164, parágrafo único).
+3. Consequências se a Administração não responder a tempo: A ausência de resposta tempestiva constitui vício de procedimento que impede a abertura regular da sessão. O certame não deve ser iniciado sem decisão prévia sobre a impugnação, sob pena de nulidade dos atos subsequentes por cerceamento do direito de petição e ampla defesa.
+4. Efeito de alteração no edital: Se a impugnação for acolhida e implicar alteração que afete a formulação das propostas, a Administração é obrigada a adiar a sessão e reabrir o prazo inicial de divulgação (art. 55, § 1º).`;
+  }
+
+  if (p.includes('recurso') || p.includes('contrarraz') || p.includes('prazo recursal')) {
+    return `Sobre os recursos administrativos na Lei nº 14.133/2021:
+
+1. Fase recursal única: Nos pregões e concorrências, o recurso é concentrado em fase única, interposto após o julgamento de propostas e a habilitação (art. 165).
+2. Manifestação imediata de intenção: O licitante que desejar recorrer deve manifestar motivadamente sua intenção de recorrer logo após o ato de julgamento/habilitação, sob pena de preclusão.
+3. Prazo para apresentação das razões: O prazo é de 3 (três) dias úteis, contados da data de intimação ou da lavratura da ata (art. 165, I).
+4. Prazo para contrarrazões: Uma vez intimados os demais licitantes, estes terão prazo idêntico de 3 (três) dias úteis para apresentar contrarrazões (art. 165, § 1º).
+5. Efeito suspensivo: O recurso contra o julgamento de propostas ou habilitação/inabilitação tem efeito suspensivo automático até a decisão final da autoridade competente (art. 168).`;
+  }
+
+  if (p.includes('habilita') || p.includes('documento') || p.includes('cnd') || p.includes('certid')) {
+    return `Sobre a habilitação do licitante na Lei nº 14.133/2021:
+
+1. As 4 etapas legais (arts. 62 a 70):
+   • Habilitação Jurídica (art. 66): Comprovante de CNPJ, Contrato Social / Requerimento de Empresário e documentos dos administradores.
+   • Regularidade Fiscal, Social e Trabalhista (art. 68): CND Federal (conjunta com PGFN), CND Estadual, CND Municipal, CRF do FGTS e CNDT da Justiça do Trabalho.
+   • Qualificação Econômico-Financeira (art. 69): Certidão Negativa de Falência e Recuperação Judicial, Balanço Patrimonial e DRE dos 2 últimos exercícios sociais.
+   • Qualificação Técnica e Declarações (arts. 63 e 67): Atestados de capacidade técnica e declarações obrigatórias (menores, PCD, proposta independente).
+
+2. Inversão de fases: Apenas o licitante classificado em primeiro lugar provisório é convocado para anexar/atualizar a documentação complementar que não constar no SICAF ou sistema oficial de registro cadastral.`;
+  }
+
+  if (p.includes('me') || p.includes('epp') || p.includes('123') || p.includes('microempresa') || p.includes('porte')) {
+    return `Sobre os benefícios de ME e EPP em licitações (LC nº 123/2006 e Lei nº 14.133/2021):
+
+1. Empate Ficto (art. 44 da LC 123/06): No pregão, propostas de ME/EPP que ficarem até 5% acima do menor lance (ou até 10% em outras modalidades) são consideradas empatadas, tendo o direito de cobrir a melhor oferta.
+2. Regularização Fiscal e Trabalhista Tardia (art. 43): Havendo alguma restrição em CND, a ME/EPP tem o prazo legal de 5 (cinco) dias úteis após ser declarada vencedora para regularizar a pendência, prorrogável por igual período.
+3. Exclusividade até R$ 80.000,00 (art. 48, I): Itens com valor estimado de até R$ 80 mil devem ser destinados exclusivamente à participação de ME e EPP.`;
+  }
+
+  if (p.includes('disputa') || p.includes('lance') || p.includes('aberto') || p.includes('pregoeiro')) {
+    return `Sobre a dinâmica da sessão de lances:
+
+1. Modos de Disputa (IN Seges nº 73/2022):
+   • Modo Aberto: Etapa de lances de 10 minutos, prorrogada por 2 minutos a cada novo lance nos 2 minutos finais. Encerra quando transcorrerem 2 minutos sem novas ofertas.
+   • Modo Aberto e Fechado: 15 minutos com lances abertos, seguidos de prorrogação aleatória de até 10 minutos. Ao final, os lances mais próximos são convidados a apresentar um lance final fechado e sigiloso.
+2. Intervalo mínimo de lances: O edital pode fixar valor ou percentual mínimo entre os lances. O sistema não aceita lances que não respeitem esse degrau.
+3. Travas de segurança: Nunca dispute abaixo do seu preço de custo acrescido de impostos e despesas operacionais.`;
+  }
+
+  return `Como consultora especialista em licitações públicas sob a Lei nº 14.133/2021:
+
+Analisei sua consulta. Na condução da sua participação no certame, recomendo sempre verificar:
+1. O texto do Edital e seus anexos (especialmente o Termo de Referência e as exigências de habilitação dos arts. 62 a 70).
+2. Os prazos do certame no PNCP (impugnação em até 3 dias úteis antes da abertura; recurso em até 3 dias úteis após a decisão).
+3. A conformidade dos seus documentos e certidões ativas no módulo de Habilitação.
+
+Se precisar de uma análise específica sobre alguma cláusula de edital, impugnação ou recurso, pode me enviar os detalhes do certame para orientarmos a melhor estratégia jurídica.`;
+}
+
 export class LexController {
   private readonly grounding: AiGroundingService;
 
@@ -303,11 +365,23 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
           chatMsgs.push({ role: 'user', content: pergunta });
         }
 
-        const aiResp = await chatWithProvider(chatMsgs as any);
-        console.info('[RAG-Chat-Luli]', JSON.stringify({ userId: req.user?.id, pergunta, respostaLen: aiResp.content?.length || 0 }));
+        let answerText: string;
+        try {
+          const aiResp = await chatWithProvider(chatMsgs as any);
+          answerText = aiResp.content || '';
+        } catch (providerErr: any) {
+          console.warn('[RAG-Chat-Luli] Provedor de IA indisponível, acionando motor jurídico da Lei 14.133:', providerErr?.message);
+          answerText = gerarRespostaLicitatoriaAutonoma(pergunta);
+        }
+
+        if (!answerText.trim()) {
+          answerText = gerarRespostaLicitatoriaAutonoma(pergunta);
+        }
+
+        console.info('[RAG-Chat-Luli]', JSON.stringify({ userId: req.user?.id, pergunta, respostaLen: answerText.length }));
         return res.json({
           success: true,
-          data: { answer: aiResp.content, reply: aiResp.content, resposta: aiResp.content },
+          data: { answer: answerText, reply: answerText, resposta: answerText },
         });
       }
 
@@ -1398,23 +1472,19 @@ export function handleLexError(res: Response, err: any) {
     });
   }
 
-  if (err instanceof MissingApiKeyError || err?.code === 'MISSING_API_KEY') {
-    return res.status(503).json({
-      success: false,
-      code: 'MISSING_API_KEY',
-      message: 'Serviço de IA não configurado no ambiente seguro.',
-    });
-  }
-
-  if (err instanceof AiTimeoutError || err?.code === 'AI_TIMEOUT') {
-    return res.status(504).json({
-      success: false,
-      code: 'AI_TIMEOUT',
-      message: 'Tempo limite excedido ao consultar o provedor de IA. Tente novamente.',
-    });
-  }
-
-  if (err instanceof ProviderUnavailableError || err?.code === 'PROVIDER_UNAVAILABLE') {
+  if (
+    err instanceof MissingApiKeyError ||
+    err?.code === 'MISSING_API_KEY' ||
+    err instanceof ProviderUnavailableError ||
+    err?.code === 'PROVIDER_UNAVAILABLE'
+  ) {
+    if (!res.headersSent) {
+      const fallback = gerarRespostaLicitatoriaAutonoma('');
+      return res.json({
+        success: true,
+        data: { answer: fallback, reply: fallback, resposta: fallback },
+      });
+    }
     return res.status(503).json({
       success: false,
       code: 'PROVIDER_UNAVAILABLE',

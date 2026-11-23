@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { dashboardApi, licitacoesApi } from '@/services/api';
 import { useAuthStore } from '@/store/auth.store';
+import { useCompany } from '@/contexts/CompanyContext';
 import { FORNECEDOR_ROUTES } from '@/routes';
 
 function formatarMoeda(valor: number | null | undefined): string {
@@ -40,6 +41,7 @@ function formatarData(raw?: string | null): string {
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const { selectedCompany } = useCompany();
   const nomeUsuario = (user as any)?.name || (user as any)?.nome || 'Licitante';
 
   const [editais, setEditais] = useState<any[]>([]);
@@ -48,11 +50,28 @@ export const DashboardPage: React.FC = () => {
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
+    document.title = 'Painel de Comando | Expertise Licitatória';
+  }, []);
+
+  useEffect(() => {
     let ativo = true;
     (async () => {
       try {
+        setCarregando(true);
+        const radarFiltros: Record<string, any> = { local: true, limite: 8 };
+
+        if (selectedCompany?.cnaePrincipal) {
+          radarFiltros.cnae = selectedCompany.cnaePrincipal;
+        }
+        if (selectedCompany?.palavrasChave?.length) {
+          radarFiltros.palavras = selectedCompany.palavrasChave;
+        }
+        if (selectedCompany?.id) {
+          radarFiltros.empresa_id = selectedCompany.id;
+        }
+
         const [radarResp, metricsResp] = await Promise.allSettled([
-          licitacoesApi.listar({ local: true, limite: 8 } as any),
+          licitacoesApi.listar(radarFiltros as any),
           dashboardApi.getMetrics(),
         ]);
 
@@ -80,7 +99,7 @@ export const DashboardPage: React.FC = () => {
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [selectedCompany?.id, selectedCompany?.cnaePrincipal]);
 
   const totalRadarExibido = Number(metrics?.statsRadar?.editaisAtivos || totalRadar || 0);
   const propostasCriadas = Number(metrics?.propostasCriadas || 0);
@@ -176,7 +195,7 @@ export const DashboardPage: React.FC = () => {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <FolderOpen className="h-4 w-4 text-[#081C3A]" /> Volume no Funil CRM
+            <FolderOpen className="h-4 w-4 text-[#081C3A]" /> Oportunidades em Acompanhamento
           </div>
           <div className="mt-2 text-base sm:text-xl font-extrabold text-emerald-700">
             {valorDisputa > 0 ? formatarMoeda(valorDisputa) : `${metrics?.editaisMonitorados ?? 0} monitorado(s)`}

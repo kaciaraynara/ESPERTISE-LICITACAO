@@ -49,15 +49,15 @@ export async function resolveAuthorizedCompany(userId: string, preferredCompanyI
 
   const company = cleanPreferred
     ? await prisma.company.findFirst({
-        where: {
-          id: cleanPreferred,
-          userId,
-        },
-      })
+      where: {
+        id: cleanPreferred,
+        userId,
+      },
+    })
     : await prisma.company.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'asc' },
-      });
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
 
   if (cacheEnabled) {
     if (authorizedCompanyCache.size >= COMPANY_CTX_CACHE_MAX) {
@@ -175,19 +175,19 @@ export async function companyContextMiddleware(
   try {
     const company = requestedCompanyId
       ? await prisma.company.findFirst({
-          where: {
-            id: requestedCompanyId,
-            userId: req.user.id,
-            tenantId: req.user.tenantId,
-          },
-        })
+        where: {
+          id: requestedCompanyId,
+          userId: req.user.id,
+          tenantId: req.user.tenantId,
+        },
+      })
       : await prisma.company.findFirst({
-          where: {
-            userId: req.user.id,
-            tenantId: req.user.tenantId,
-          },
-          orderBy: { createdAt: 'asc' },
-        });
+        where: {
+          userId: req.user.id,
+          tenantId: req.user.tenantId,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
 
     if (cacheEnabled) {
       if (companyContextCache.size >= COMPANY_CTX_CACHE_MAX) {
@@ -237,8 +237,8 @@ function getAccessToken(req: Request) {
     typeof query?.token === 'string' && query.token.trim()
       ? query.token.trim()
       : typeof query?.access_token === 'string' && query.access_token.trim()
-      ? query.access_token.trim()
-      : undefined;
+        ? query.access_token.trim()
+        : undefined;
 
   return (
     readCookie(req, 'admin_session_jwt') ||

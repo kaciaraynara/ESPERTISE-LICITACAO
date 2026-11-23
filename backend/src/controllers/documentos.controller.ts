@@ -72,31 +72,67 @@ export class DocumentosController {
             ...(tenantId ? [{ company: { tenantId } }] : []),
           ],
         },
-        select: { id: true, storageKey: true, url: true, fileMimeType: true, arquivoNome: true },
+        select: {
+          id: true,
+          tipo: true,
+          companyId: true,
+          storageKey: true,
+          url: true,
+          fileMimeType: true,
+          arquivoNome: true,
+          company: true,
+        },
       });
 
       if (!doc) {
         return res.status(404).json({ success: false, message: 'Documento não encontrado' });
       }
 
-      if (doc.storageKey) {
-        const { storageService } = await import('../services/storage.service');
-        const downloadUrl = await storageService.getPresignedDownloadUrl(doc.storageKey);
-
-        // Se for URL externa do S3, redireciona diretamente com presigned URL
-        if (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')) {
-          return res.redirect(downloadUrl);
-        }
-
-        // Modo local fallback
-        const fileContent = await storageService.getFileBuffer(doc.storageKey);
-        res.setHeader('Content-Type', doc.fileMimeType || fileContent.mimeType || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `inline; filename="${doc.arquivoNome || 'documento'}"`);
-        return res.send(fileContent.buffer);
-      }
-
+      // Se já tiver uma URL pública externa configurada
       if (doc.url && (doc.url.startsWith('http://') || doc.url.startsWith('https://'))) {
         return res.redirect(doc.url);
+      }
+
+      // 1. Tenta obter o buffer através do storage (S3 ou local)
+      if (doc.storageKey) {
+        try {
+          const { storageService } = await import('../services/storage.service');
+          const downloadUrl = await storageService.getPresignedDownloadUrl(doc.storageKey);
+
+          // Se for URL externa do S3, redireciona diretamente com presigned URL
+          if (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')) {
+            return res.redirect(downloadUrl);
+          }
+
+          // Modo local fallback
+          const fileContent = await storageService.getFileBuffer(doc.storageKey);
+          res.setHeader('Content-Type', doc.fileMimeType || fileContent.mimeType || 'application/pdf');
+          res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.arquivoNome || 'documento.pdf')}"`);
+          return res.send(fileContent.buffer);
+        } catch (storageErr) {
+          console.warn(`[DocumentosController] Storage local/S3 indisponível para key ${doc.storageKey}. Tentando contingência dinâmica...`, storageErr);
+        }
+      }
+
+      // 2. Contingência dinâmica para documentos emitidos pelo sistema (CNPJ e Declarações)
+      const empresa =
+        doc.company ||
+        (doc.companyId ? await prisma.company.findUnique({ where: { id: doc.companyId } }) : null);
+
+      if (doc.tipo === 'c01_cnpj' && empresa) {
+        const { habilitacaoService } = await import('../services/habilitacao.service');
+        const buffer = await habilitacaoService.gerarBufferPdfCnpj(empresa);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.arquivoNome || '01 - Comprovante CNPJ.pdf')}"`);
+        return res.send(buffer);
+      }
+
+      if (doc.tipo === 'c12_declaracoes_obrigatorias' && empresa) {
+        const { habilitacaoService } = await import('../services/habilitacao.service');
+        const buffer = await habilitacaoService.gerarBufferPdfDeclaracoesLei14133(empresa);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.arquivoNome || '12 - Declaracoes Obrigatorias Lei 14.133.pdf')}"`);
+        return res.send(buffer);
       }
 
       return res.status(404).json({ success: false, message: 'Arquivo não localizado no armazenamento' });

@@ -105,13 +105,24 @@ export class StorageService {
     }
 
     // 2. Fallback de Desenvolvimento Local (quando sem credenciais AWS)
+    const exactLocalPath = path.join(this.localFallbackDir, ...storageKey.split('/'));
+    const exactDir = path.dirname(exactLocalPath);
+    if (!fs.existsSync(exactDir)) {
+      fs.mkdirSync(exactDir, { recursive: true });
+    }
+    fs.writeFileSync(exactLocalPath, buffer);
+
+    // Também grava no caminho por usuário para compatibilidade histórica
     const userDir = path.join(this.localFallbackDir, userId);
     if (!fs.existsSync(userDir)) {
       fs.mkdirSync(userDir, { recursive: true });
     }
-
-    const localFilePath = path.join(userDir, `${timestamp}-${sanitizedName}`);
-    fs.writeFileSync(localFilePath, buffer);
+    const legacyPath = path.join(userDir, `${timestamp}-${sanitizedName}`);
+    try {
+      if (legacyPath !== exactLocalPath) {
+        fs.writeFileSync(legacyPath, buffer);
+      }
+    } catch {}
 
     const url = `/api/v1/documentos/download-local/${encodeURIComponent(storageKey)}`;
 
@@ -162,17 +173,48 @@ export class StorageService {
       };
     }
 
-    // Leitura local em modo fallback
-    const parts = storageKey.split('/');
-    const relativePath = parts.slice(1).join(path.sep); // remove 'documents/'
-    const localFilePath = path.join(this.localFallbackDir, relativePath);
+    // Leitura local em modo fallback - busca em múltiplos caminhos candidatos
+    const candidatePaths = [
+      path.join(this.localFallbackDir, ...storageKey.split('/')),
+      path.join(this.localFallbackDir, ...storageKey.split('/').slice(1)),
+      path.join(this.localFallbackDir, path.basename(storageKey)),
+    ];
 
-    if (!fs.existsSync(localFilePath)) {
+    let foundPath: string | null = null;
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        foundPath = p;
+        break;
+      }
+    }
+
+    if (!foundPath) {
+      const fileName = path.basename(storageKey);
+      const findRecursive = (dir: string): string | null => {
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              const res = findRecursive(full);
+              if (res) return res;
+            } else if (entry.name === fileName) {
+              return full;
+            }
+          }
+        } catch {}
+        return null;
+      };
+
+      foundPath = findRecursive(this.localFallbackDir);
+    }
+
+    if (!foundPath || !fs.existsSync(foundPath)) {
       throw new Error('STORAGE_FILE_NOT_FOUND:Arquivo não encontrado no armazenamento.');
     }
 
     return {
-      buffer: fs.readFileSync(localFilePath),
+      buffer: fs.readFileSync(foundPath),
     };
   }
 
