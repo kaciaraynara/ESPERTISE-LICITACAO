@@ -60,6 +60,50 @@ function extractDivision(cnae: string): number | null {
   return descriptionMatch?.min ?? null;
 }
 
+function extractSubgroupKeywords(cnae: string): string[] {
+  const digits = cnae.replace(/\D/g, '');
+  if (!digits) return [];
+
+  // Comércio e fabricação de vestuário, uniformes e calçados
+  if (/^(13|14|15|4641|4642|4781|4782)/.test(digits)) {
+    return ['vestuário', 'vestuario', 'uniformes', 'roupas', 'calçados', 'fardamento', 'têxteis', 'confecção', 'camisas', 'calças', 'jalecos', 'agasalhos'];
+  }
+  // Alimentos, merenda, refeições
+  if (/^(10|11|463|472|56)/.test(digits)) {
+    return ['alimentos', 'alimentação', 'merenda', 'refeições', 'hortifruti', 'gêneros alimentícios', 'refeição'];
+  }
+  // Tecnologia, TI, Software, Informática
+  if (/^(62|63|582|4651|4751|9511)/.test(digits)) {
+    return ['software', 'sistema', 'tecnologia', 'informática', 'computador', 'sistemas', 'suporte técnico', 'licença'];
+  }
+  // Saúde, medicamentos, hospitalar
+  if (/^(21|4644|4645|4664|4771|4773|86)/.test(digits)) {
+    return ['medicamentos', 'saúde', 'hospitalar', 'médico', 'insumos hospitalares', 'odontológico', 'enfermagem'];
+  }
+  // Móveis e mobiliário
+  if (/^(310|4649|4754)/.test(digits)) {
+    return ['móveis', 'mobiliário', 'cadeiras', 'mesas', 'armários', 'estações de trabalho'];
+  }
+  // Papelaria e suprimentos de escritório
+  if (/^(17|18|4647|4761|4789)/.test(digits)) {
+    return ['papelaria', 'material de escritório', 'suprimentos', 'impressão', 'toner', 'cartucho'];
+  }
+  // Limpeza, conservação, facilities
+  if (/^(812|4649408)/.test(digits)) {
+    return ['limpeza', 'conservação', 'asseio', 'higienização', 'desinfecção', 'zeladoria'];
+  }
+  // Segurança, CFTV, vigilância
+  if (/^(801|802|803)/.test(digits)) {
+    return ['segurança', 'vigilância', 'cftv', 'monitoramento', 'câmeras', 'controle de acesso'];
+  }
+  // Transporte, veículos, locação
+  if (/^(49|52|53|771)/.test(digits)) {
+    return ['transporte', 'veículos', 'locação de veículos', 'frete', 'van', 'ônibus'];
+  }
+
+  return [];
+}
+
 export function keywordsForCnae(cnae: string | null | undefined): string[] {
   if (!cnae?.trim()) {
     return [];
@@ -70,6 +114,7 @@ export function keywordsForCnae(cnae: string | null | undefined): string[] {
     ? undefined
     : CNAE_DIVISION_KEYWORDS.find(({ min, max }) => division >= min && division <= max);
 
+  const subgroupTerms = extractSubgroupKeywords(cnae);
   const dictTerms = expandirTermosCnae(cnae) || [];
 
   const descriptionTerms = cnae
@@ -80,7 +125,7 @@ export function keywordsForCnae(cnae: string | null | undefined): string[] {
     .split(/[^a-z0-9]+/)
     .filter((term) => term.length > 3 && !STOPWORDS.has(term));
 
-  return [...new Set([...(mapping?.keywords ?? []), ...dictTerms, ...descriptionTerms])];
+  return [...new Set([...subgroupTerms, ...(mapping?.keywords ?? []), ...dictTerms, ...descriptionTerms])];
 }
 
 export async function getTenantRadarProfile(tenantId: string): Promise<TenantRadarProfile> {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../database/prisma';
 import { calcularViabilidade, calcularViabilidadeAutentica } from '../services/viabilidade.service';
 import { buscarLicitacaoPorIdOuControle } from '../services/licitacoes.service';
+import { keywordsForCnae } from '../services/cnae-to-keywords.service';
 
 type ResumoItem = { titulo: string; status: string; riscosCount?: string; detalhe?: string };
 type ExigenciaItem = { id: string; categoria: string; status: string; detalhe?: string };
@@ -103,14 +104,40 @@ export class AnaliseViabilidadeController {
         }
       }
 
-      // Se nenhum edital específico foi requisitado, busca o edital ativo mais recente com valor estimado
+      // Se nenhum edital específico foi requisitado, busca um edital aderente ao CNAE da empresa ativa
       if (!notice) {
-        notice = await prisma.procurementNotice.findFirst({
-          where: {
-            estimatedValue: { not: null },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
+        const companyId = query.companyId ? String(query.companyId) : undefined;
+        let cnaeKeywords: string[] = [];
+        if (companyId) {
+          const comp = await prisma.company.findUnique({
+            where: { id: companyId },
+            select: { cnaePrincipal: true, palavrasChave: true },
+          });
+          if (comp?.cnaePrincipal) {
+            cnaeKeywords = keywordsForCnae(comp.cnaePrincipal);
+          }
+        }
+
+        if (cnaeKeywords.length > 0) {
+          notice = await prisma.procurementNotice.findFirst({
+            where: {
+              estimatedValue: { not: null },
+              OR: cnaeKeywords.slice(0, 3).map((kw) => ({
+                object: { contains: kw, mode: 'insensitive' as const },
+              })),
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+        }
+
+        if (!notice) {
+          notice = await prisma.procurementNotice.findFirst({
+            where: {
+              estimatedValue: { not: null },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+        }
       }
 
       if (!notice) {
