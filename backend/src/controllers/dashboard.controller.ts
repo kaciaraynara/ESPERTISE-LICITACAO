@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { scaleSingleflight } from '../services/scale-cache.service';
+import { expandirTermosCnae } from '../services/cnae-dictionary.service';
 
 interface GlobalRadarCache {
   statsRadar: {
@@ -240,6 +241,54 @@ export class DashboardController {
           const taxaSucesso = totalFinalizados > 0 ? Math.round((ganhosCount / totalFinalizados) * 100) : 0;
           const atencaoImediataCount = certidoesVencendoCount + prazosUrgentesCount;
           const isContaNova = crmOportunidades === 0 && propostasCriadas === 0 && catalogItemsCount === 0;
+
+          // Personalização estrita das recomendações por CNAE da Empresa
+          let recomendacoesPersonalizadas = globalSummary.recomendacoes;
+          const cnaeAlvo = company.cnaePrincipal;
+          const palavrasEmpresa = Array.isArray(company.palavrasChave) ? company.palavrasChave : [];
+          const termosCnae = cnaeAlvo ? expandirTermosCnae(cnaeAlvo) : [];
+          const termosBusca = Array.from(new Set([...palavrasEmpresa, ...termosCnae])).filter(Boolean);
+
+          if (termosBusca.length > 0) {
+            try {
+              const editaisFiltrados = await prisma.procurementNotice.findMany({
+                where: {
+                  publishedAt: { lte: now },
+                  OR: [{ closingAt: { gt: now } }, { closingAt: null }],
+                  AND: [
+                    {
+                      OR: termosBusca.slice(0, 8).map((termo) => ({
+                        object: { contains: termo, mode: 'insensitive' },
+                      })),
+                    },
+                  ],
+                },
+                take: 4,
+                orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }],
+                select: {
+                  id: true,
+                  buyerName: true,
+                  uf: true,
+                  object: true,
+                  estimatedValue: true,
+                  modality: true,
+                },
+              });
+
+              if (editaisFiltrados && editaisFiltrados.length > 0) {
+                recomendacoesPersonalizadas = editaisFiltrados.map((rec: any) => ({
+                  id: rec.id,
+                  orgao: rec.buyerName,
+                  uf: rec.uf,
+                  objeto: rec.object,
+                  valor: rec.estimatedValue ? Number(rec.estimatedValue) : null,
+                  modalidade: rec.modality,
+                }));
+              }
+            } catch (err) {
+              console.warn('[DashboardController] Aviso ao buscar editais aderentes por CNAE:', err);
+            }
+          }
 
           return {
             isContaNova,

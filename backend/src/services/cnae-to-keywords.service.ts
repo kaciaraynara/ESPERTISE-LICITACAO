@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '../database/prisma';
+import { expandirTermosCnae } from './cnae-dictionary.service';
 
 const CNAE_DIVISION_KEYWORDS: Array<{
   min: number;
@@ -63,6 +64,9 @@ export function keywordsForCnae(cnae: string | null | undefined): string[] {
   if (!cnae?.trim()) {
     return [];
   }
+
+    const dictTerms = expandirTermosCnae(cnae);
+  if (dictTerms && dictTerms.length > 0) return dictTerms;
 
   const division = extractDivision(cnae);
   const mapping = division === null

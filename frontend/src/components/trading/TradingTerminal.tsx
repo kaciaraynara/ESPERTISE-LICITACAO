@@ -18,7 +18,7 @@ import {
 import toast from 'react-hot-toast';
 import Decimal from 'decimal.js';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
-import { propostasApi } from '@/services/api';
+import { propostasApi, licitacoesApi } from '@/services/api';
 import { buildOfficialPncpPortalUrl } from '@/utils/pncp';
 
 export type EstrategiaType = 'SNIPER' | 'COBERTURA' | 'MANUAL';
@@ -80,91 +80,16 @@ export const TradingTerminal: React.FC = () => {
   const [tempoRestanteSegundos, setTempoRestanteSegundos] = useState<number>(30);
   const [disputaEmAndamento] = useState<boolean>(true);
 
-  // Planilha de Itens
-  const [itens, setItens] = useState<ItemPlanilhaTerminal[]>([
-    {
-      id: 'it-1',
-      itemNumero: 1,
-      descricao: 'Licenciamento de Software Corporativo e Nuvem',
-      quantidade: 12,
-      unidadeMedida: 'Mês',
-      valorReferencia: 45000.0,
-      melhorLanceConcorrente: 38200.0,
-      seuUltimoLance: 38500.0,
-      lanceAlvo: 37500.0,
-      pisoMinimo: 32000.0,
-      estrategia: 'SNIPER',
-      decrementoMinimo: 100.0,
-      status: 'COBERTO',
-      ativo: true,
-      margemEstimadaPct: 19.4,
-    },
-    {
-      id: 'it-2',
-      itemNumero: 2,
-      descricao: 'Serviço Especializado de Sustentação de TI',
-      quantidade: 1,
-      unidadeMedida: 'Serviço',
-      valorReferencia: 180000.0,
-      melhorLanceConcorrente: 152000.0,
-      seuUltimoLance: 152000.0,
-      lanceAlvo: 148000.0,
-      pisoMinimo: 130000.0,
-      estrategia: 'COBERTURA',
-      decrementoMinimo: 500.0,
-      status: 'VENCENDO',
-      ativo: true,
-      margemEstimadaPct: 16.9,
-    },
-    {
-      id: 'it-3',
-      itemNumero: 3,
-      descricao: 'Estações de Trabalho de Alta Performance',
-      quantidade: 30,
-      unidadeMedida: 'Unidade',
-      valorReferencia: 7500.0,
-      melhorLanceConcorrente: 5800.0,
-      seuUltimoLance: 6100.0,
-      lanceAlvo: 5700.0,
-      pisoMinimo: 5850.0,
-      estrategia: 'COBERTURA',
-      decrementoMinimo: 50.0,
-      status: 'PISO_ATINGIDO',
-      ativo: false,
-      margemEstimadaPct: 0.0,
-    },
-  ]);
+  // Planilha de Itens Reais (Inicia vazia até selecionar edital ou puxar proposta)
+  const [itens, setItens] = useState<ItemPlanilhaTerminal[]>([]);
 
   // Mensagens do Pregoeiro e Avisos Oficiais
   const [mensagens, setMensagens] = useState<MensagemDisputa[]>([
     {
       id: 'msg-1',
-      hora: '10:00:15',
-      autor: 'PREGOEIRO',
-      texto: 'Bom dia aos senhores licitantes. Sessão pública aberta para lances na modalidade Pregão Eletrônico (Lei nº 14.133/2021).',
-    },
-    {
-      id: 'msg-2',
-      hora: '10:02:40',
-      autor: 'LANCE',
-      texto: 'Oponente cobriu o Item #1 com oferta de R$ 38.200,00.',
-      itemNumero: 1,
-      valor: 38200.0,
-    },
-    {
-      id: 'msg-3',
-      hora: '10:04:10',
+      hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       autor: 'SISTEMA',
-      texto: 'Sua empresa assumiu o 1º Lugar no Item #2 com lance de R$ 152.000,00.',
-      itemNumero: 2,
-      valor: 152000.0,
-    },
-    {
-      id: 'msg-4',
-      hora: '10:06:55',
-      autor: 'ALERTA',
-      texto: 'Trava de proteção ativada no Item #3: O menor lance do mercado atingiu o seu piso de segurança. Disparo suspenso para garantir seu lucro.',
-      itemNumero: 3,
+      texto: 'Sessão pública conectada. Selecione um edital monitorado ou puxe sua proposta comercial para sincronizar os lotes e itens da sua atividade.',
     },
   ]);
 
@@ -384,13 +309,71 @@ export const TradingTerminal: React.FC = () => {
   };
 
   // Seleção de Edital
-  const handleSelectEdital = (e: EditalOption) => {
+  const handleSelectEdital = async (e: EditalOption) => {
     setEdital(e);
     const url = buildOfficialPncpPortalUrl(e);
     if (url) {
       setPortalUrl(url);
     }
     adicionarMensagem('SISTEMA', `Edital selecionado: ${e.numeroEdital || e.id} - ${e.orgao || 'Órgão Promotor'}.`);
+
+    // Sincroniza os itens reais do edital selecionado
+    try {
+      const resp = await licitacoesApi.obterItens(e.id);
+      const rawItens = resp.data?.data || resp.data?.items || resp.data || [];
+      if (Array.isArray(rawItens) && rawItens.length > 0) {
+        setItens(
+          rawItens.map((it: any, idx: number) => {
+            const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
+            const piso = roundDec(ref * 0.78);
+            const alvo = roundDec(ref * 0.92);
+            return {
+              id: String(it.id || idx + 1),
+              itemNumero: Number(it.numeroItem || it.numero || idx + 1),
+              descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
+              quantidade: Number(it.quantidade || 1),
+              unidadeMedida: String(it.unidadeMedida || 'UN'),
+              valorReferencia: ref,
+              melhorLanceConcorrente: ref,
+              seuUltimoLance: null,
+              lanceAlvo: alvo,
+              pisoMinimo: piso,
+              estrategia: 'COBERTURA',
+              decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+              status: 'COBERTO',
+              ativo: true,
+              margemEstimadaPct: 22.0,
+            };
+          })
+        );
+        adicionarMensagem('SISTEMA', `${rawItens.length} itens reais do certame carregados para a planilha.`);
+        toast.success(`${rawItens.length} itens carregados do edital.`);
+      } else {
+        const refGlobal = roundDec(Number(e.valorEstimado || 1000));
+        setItens([
+          {
+            id: `item-${e.id}-1`,
+            itemNumero: 1,
+            descricao: String(e.objeto || 'Lote Único da Disputa'),
+            quantidade: 1,
+            unidadeMedida: 'Global',
+            valorReferencia: refGlobal,
+            melhorLanceConcorrente: refGlobal,
+            seuUltimoLance: null,
+            lanceAlvo: roundDec(refGlobal * 0.92),
+            pisoMinimo: roundDec(refGlobal * 0.78),
+            estrategia: 'COBERTURA',
+            decrementoMinimo: roundDec(Math.max(10, refGlobal * 0.005)),
+            status: 'COBERTO',
+            ativo: true,
+            margemEstimadaPct: 22.0,
+          },
+        ]);
+        adicionarMensagem('SISTEMA', `Lote global do edital carregado.`);
+      }
+    } catch {
+      // Falha silenciosa preserva estado limpo
+    }
   };
 
   // Abrir Sala de Disputa no Portal Oficial

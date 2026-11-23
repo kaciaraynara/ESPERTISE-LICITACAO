@@ -48,7 +48,7 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
         { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Editais', icon: MagnifyingGlass },
         { path: '/fornecedor/pca', label: 'PCA — Futuras Compras', icon: Clock },
         { path: '/tipos-contratacao', label: 'Tipos de Contratação', icon: ListChecks },
-        { path: FORNECEDOR_ROUTES.analise_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle },
+        { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: CheckCircle },
         { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye },
         { path: '/fornecedor/investigacao', label: 'Inteligência Competitiva', icon: Trophy },
       ],

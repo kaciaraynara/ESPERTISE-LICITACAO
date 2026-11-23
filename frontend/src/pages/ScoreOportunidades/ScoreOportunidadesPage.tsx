@@ -149,14 +149,20 @@ export const ScoreOportunidadesPage: React.FC = () => {
     carregarEditais(false);
   }, [selectedCompany?.id]);
 
+  const cnaeAtivo = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal || undefined;
+
   const analisados = useMemo(() => {
-    return editais
-      .map((ed) => ({ ...ed, _analise: avaliarViabilidade(ed, selectedCompany) }))
-      .sort((a, b) => {
-        const peso: Record<string, number> = { ALTA: 3, MODERADA: 2, BAIXA: 1 };
-        return peso[b._analise.faixa] - peso[a._analise.faixa];
-      });
-  }, [editais, selectedCompany]);
+    const todosAvaliados = editais.map((ed) => ({ ...ed, _analise: avaliarViabilidade(ed, selectedCompany) }));
+    // Filtro estrito por CNAE: cada empresa só visualiza oportunidades aderentes ao seu segmento
+    const apenasCompativeis = cnaeAtivo
+      ? todosAvaliados.filter((ed) => ed._analise.faixa === 'ALTA' || ed._analise.faixa === 'MODERADA')
+      : todosAvaliados;
+
+    return apenasCompativeis.sort((a, b) => {
+      const peso: Record<string, number> = { ALTA: 3, MODERADA: 2, BAIXA: 1 };
+      return peso[b._analise.faixa] - peso[a._analise.faixa];
+    });
+  }, [editais, selectedCompany, cnaeAtivo]);
 
   const altas = analisados.filter((e) => e._analise.faixa === 'ALTA').length;
   const moderadas = analisados.filter((e) => e._analise.faixa === 'MODERADA').length;
@@ -367,11 +373,18 @@ export const ScoreOportunidadesPage: React.FC = () => {
                   <div className="flex shrink-0 flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => navigate(`${FORNECEDOR_ROUTES.lex}?edital=${encodeURIComponent(ed.id || '')}`)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                      onClick={() => navigate(`${FORNECEDOR_ROUTES.analise_viabilidade}/${encodeURIComponent(ed.id || '')}`)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
                     >
                       <Bot className="h-4 w-4 text-[#F97316]" />
-                      Ler Edital com a Luli
+                      Análise de Viabilidade com a Luli
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`${FORNECEDOR_ROUTES.lex}?edital=${encodeURIComponent(ed.id || '')}`)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      Ler Edital Completo
                     </button>
                     {portalUrl && (
                       <a

@@ -39,6 +39,11 @@ export function AnaliseViabilidadeDetalhePage() {
   const [custoEstimadoManual] = useState<string>('');
 
   useEffect(() => {
+    if (!editalParam) {
+      navigate(FORNECEDOR_ROUTES.score_viabilidade, { replace: true });
+      return;
+    }
+
     let active = true;
     setLoading(true);
     setErro(null);
@@ -50,7 +55,11 @@ export function AnaliseViabilidadeDetalhePage() {
       })
       .catch((err) => {
         if (!active) return;
-        setErro(err?.message || 'Não foi possível carregar a análise de viabilidade deste edital.');
+        const msg = String(err?.response?.data?.message || err?.message || '');
+        const cleanMsg = msg.includes('403') || msg.includes('status code 403')
+          ? 'Para analisar a viabilidade deste edital, selecione uma oportunidade compatível no Radar ou cadastre sua proposta.'
+          : msg || 'Não foi possível carregar a análise de viabilidade deste edital.';
+        setErro(cleanMsg);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -59,7 +68,7 @@ export function AnaliseViabilidadeDetalhePage() {
     return () => {
       active = false;
     };
-  }, [editalParam]);
+  }, [editalParam, navigate]);
 
   const handleSalvarCrm = async () => {
     const targetId = data?.editalId || editalParam;
