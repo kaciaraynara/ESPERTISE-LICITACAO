@@ -36,6 +36,12 @@ function formatarMoeda(v: number | null | undefined): string {
   }).format(Number(v));
 }
 
+function matchesWordBoundaryPt(texto: string, termo: string): boolean {
+  const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?:^|[^a-z0-9à-ú])${esc}(?:$|[^a-z0-9à-ú])`, 'i');
+  return re.test(texto);
+}
+
 function avaliarViabilidade(edital: any, empresa: any): {
   faixa: 'ALTA' | 'MODERADA' | 'BAIXA';
   rotulo: string;
@@ -52,29 +58,6 @@ function avaliarViabilidade(edital: any, empresa: any): {
     pontos += 2;
     motivos.push(`Localizado no mesmo estado da empresa (${ufEmpresa})`);
   }
-
-  function matchesWordBoundaryPt(texto: string, termo: string): boolean {
-    const esc = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`(?:^|[^a-z0-9à-ú])${esc}(?:$|[^a-z0-9à-ú])`, 'i');
-    return re.test(texto);
-  }
-
-  function avaliarViabilidade(edital: any, empresa: any): {
-    faixa: 'ALTA' | 'MODERADA' | 'BAIXA';
-    rotulo: string;
-    resumo: string;
-    motivos: string[];
-  } {
-    let pontos = 0;
-    const motivos: string[] = [];
-    const objeto = String(edital.objeto || edital.objetoCompra || '').toLowerCase();
-    const ufEmpresa = String(empresa?.uf || '').toUpperCase();
-    const ufEdital = String(edital.uf || edital.unidadeOrgao?.ufSigla || '').toUpperCase();
-
-    if (ufEmpresa && ufEdital && ufEmpresa === ufEdital) {
-      pontos += 2;
-      motivos.push(`Localizado no mesmo estado da empresa (${ufEmpresa})`);
-    }
 
     const stopWordsCnae = new Set(['comercio', 'comércio', 'varejista', 'atacadista', 'servicos', 'serviços', 'artigos', 'outros', 'produtos', 'geral', 'manutencao', 'manutenção', 'equipamentos']);
     const cnaeDesc = String(empresa?.cnaeDescricao || empresa?.cnaePrincipal || empresa?.cnae_principal || '').toLowerCase();
@@ -129,15 +112,15 @@ function avaliarViabilidade(edital: any, empresa: any): {
         motivos: motivos.length ? motivos : ['Requer leitura do edital para confirmar especificacoes'],
       };
     }
-    return {
-      faixa: 'BAIXA',
-      rotulo: 'Baixa Aderência · Fora do perfil',
-      resumo: 'Baixa aderência ao CNAE ou estado cadastrado. Não indica baixa concorrência.',
-      motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
-    };
-  }
+  return {
+    faixa: 'BAIXA',
+    rotulo: 'Baixa Aderência · Fora do perfil',
+    resumo: 'Baixa aderência ao CNAE ou estado cadastrado. Não indica baixa concorrência.',
+    motivos: motivos.length ? motivos : ['Objeto distante da atividade principal cadastrada'],
+  };
+}
 
-  export const ScoreOportunidadesPage: React.FC = () => {
+export const ScoreOportunidadesPage: React.FC = () => {
     const navigate = useNavigate();
     const { selectedCompany } = useCompany();
     const [editais, setEditais] = useState<any[]>([]);

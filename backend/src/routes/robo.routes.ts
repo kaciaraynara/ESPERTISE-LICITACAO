@@ -18,6 +18,8 @@ const middlewares = [fornecedor, planRobot];
 router.get('/:licitacaoId/config', ...middlewares, handle(controller.getConfig.bind(controller) as RequestHandler));
 router.post('/:licitacaoId/config', ...middlewares, handle(controller.salvarConfig.bind(controller) as RequestHandler));
 router.post('/:licitacaoId/lance', ...middlewares, handle(controller.processarLance.bind(controller) as RequestHandler));
+router.post('/:licitacaoId/stop-all', ...middlewares, handle(controller.stopAll.bind(controller) as RequestHandler));
+router.post('/:licitacaoId/disparo-validado', ...middlewares, handle(controller.disparoValidado.bind(controller) as RequestHandler));
 router.get('/:licitacaoId/logs', ...middlewares, handle(controller.getLogs.bind(controller) as RequestHandler));
 router.patch('/:licitacaoId/toggle', ...middlewares, handle(controller.toggleRobo.bind(controller) as RequestHandler));
 

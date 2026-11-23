@@ -43,6 +43,7 @@
     "bullmq": "^6.5.3",
     "cors": "^2.8.5",
     "dayjs": "^1.11.10",
+    "decimal.js": "^10.6.0",
     "docx": "^9.7.1",
     "docxtemplater": "^3.71.1",
     "dotenv": "^16.6.1",

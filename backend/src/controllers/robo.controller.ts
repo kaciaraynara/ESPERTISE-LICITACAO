@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { roboService, RoboConfigRecord } from '../services/robo.service';
+import { biddingEngine, ItemDisputaEngineConfig } from '../services/trading-engine/bidding-engine.service';
 import { ApiError } from '../shared/errors/ApiError';
 
 function getAuthenticatedUserId(req: AuthRequest) {
@@ -30,6 +31,51 @@ export class RoboController {
       data: config,
       message: 'Sala do robo configurada com sucesso.',
     });
+  }
+
+  public async stopAll(req: AuthRequest, res: Response) {
+    const { licitacaoId } = req.params;
+    const userId = getAuthenticatedUserId(req);
+
+    // Pausa a sessão geral
+    await roboService.salvarConfig(userId, licitacaoId, { ativo: false });
+
+    return res.json({
+      success: true,
+      message: 'PARADA DE EMERGÊNCIA ATIVADA: Todos os robôs e disparos foram interrompidos instantaneamente.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  public async disparoValidado(req: AuthRequest, res: Response) {
+    const { licitacaoId } = req.params;
+    const userId = getAuthenticatedUserId(req);
+    const itemConfig = req.body as ItemDisputaEngineConfig;
+
+    if (!itemConfig || !itemConfig.itemId) {
+      throw new ApiError('Configuração do item de disputa inválida.', 400);
+    }
+
+    try {
+      const decisao = biddingEngine.processarDecisao(itemConfig);
+      return res.json({ success: true, data: decisao });
+    } catch (err: any) {
+      if (err.name === 'StopLossViolationError' || err.code === 'STOP_LOSS_VIOLATION') {
+        return res.status(403).json({
+          success: false,
+          error: 'STOP_LOSS_VIOLATION',
+          message: err.message,
+        });
+      }
+      if (err.name === 'DuplicateBidError' || err.code === 'DUPLICATE_BID_BLOCKED') {
+        return res.status(409).json({
+          success: false,
+          error: 'DUPLICATE_BID_BLOCKED',
+          message: err.message,
+        });
+      }
+      throw err;
+    }
   }
 
   public async processarLance(req: AuthRequest, res: Response) {
