@@ -321,16 +321,34 @@ export default function ResumoEstrategicoModal({
       setAnaliseProfunda(String(texto));
     } catch {
       setAnaliseProfunda(
-        `RESUMO TÉCNICO DO EDITAL (${numeroExibido}):\n\n` +
-          `1. OBJETO INTEGRAL: ${edital.objeto}\n` +
-          `2. ÓRGÃO CONTRATANTE: ${edital.orgao} (CNPJ: ${cnpjFormatado}) — ${localizacaoExibida}\n` +
-          `3. MODALIDADE E REGIME: ${modalidadeExibida} | Modo de Disputa: ${modoDisputaExibido} | Critério: ${criterioExibido}\n` +
-          `4. CRONOGRAMA OFICIAL (HORÁRIO DE BRASÍLIA):\n` +
-          `   - Divulgação no PNCP: ${dataDivulgacao}\n` +
-          `   - Início de Recebimento de Propostas: ${dataInicioPropostas}\n` +
-          `   - Limite de Impugnação e Esclarecimentos: ${prazoImpugnacao}\n` +
-          `   - Encerramento de Propostas / Abertura da Sessão: ${dataEncerramentoSessao}\n` +
-          `5. ORÇAMENTO DE REFERÊNCIA: ${valorTotalRef} (${itensExibidos.length} itens vinculados no PNCP).`
+        `PARECER TÉCNICO-OPERACIONAL E JURÍDICO DE ENGENHARIA LICITATÓRIA (${numeroExibido})\n` +
+          `Amparo Legal: ${amparoExibido}\n\n` +
+          `1. DADOS CADASTRAIS & ENQUADRAMENTO DO CERTAME:\n` +
+          `• Órgão Convocador: ${edital.orgao} (CNPJ: ${cnpjFormatado}) — ${localizacaoExibida}\n` +
+          `• Número do Edital / Processo: ${numeroExibido}\n` +
+          `• Modalidade: ${modalidadeExibida} | Modo de Disputa: ${modoDisputaExibido}\n` +
+          `• Critério de Julgamento: ${criterioExibido}\n\n` +
+          `2. OBJETO REAL & ESCOPO DA CONTRATAÇÃO:\n` +
+          `• Objeto Integral: ${edital.objeto}\n` +
+          `• Orçamento Global de Referência: ${valorTotalRef}\n` +
+          `• Relação de Itens: ${itensExibidos.length} item(ns) oficial(is) sincronizado(s) do PNCP.\n\n` +
+          `3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS (LEI 14.133/2021):\n` +
+          `• Divulgação Oficial: ${dataDivulgacao}\n` +
+          `• Início de Recebimento de Propostas: ${dataInicioPropostas}\n` +
+          `• Limite para Impugnação / Esclarecimentos (Art. 164 - 3 dias úteis antes): ${prazoImpugnacao}\n` +
+          `• Abertura da Sessão de Disputa de Lances: ${dataEncerramentoSessao}\n` +
+          `• Prazo de Proposta Readequada: Mínimo legal de 2 horas após a fase de lances.\n\n` +
+          `4. MATRIZ DE HABILITAÇÃO & CRITÉRIOS DE CONFORMIDADE:\n` +
+          `• Habilitação Jurídica (Art. 66): Contrato Social em vigor e compatibilidade do CNAE.\n` +
+          `• Regularidade Fiscal e Trabalhista (Art. 68): CND Federal/PGFN, FGTS, CNDT, SEFAZ Estadual e Fazenda Municipal.\n` +
+          `• Qualificação Econômico-Financeira (Art. 69): Certidão de Falência e índices de liquidez (LG, SG, LC >= 1,0).\n` +
+          `• Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica (limitados a até 50% conforme Súmula 263 do TCU).\n\n` +
+          `5. CONDIÇÕES DE ENTREGA E PAGAMENTO:\n` +
+          `• Local de Execução/Entrega: Conforme especificado no Termo de Referência em ${localizacaoExibida}.\n` +
+          `• Pagamento: Liquidação mediante nota fiscal e certidões válidas em até 30 dias.\n\n` +
+          `6. PARECER DE RISCO, TÁTICA DE LANCE & PRÓXIMO PASSO:\n` +
+          `• Margem Mínima Segura: Definir piso inegociável na Sala de Disputa para blindagem contra inexequibilidade (Art. 59).\n` +
+          `• Próximo Passo Recomendado: Importar itens para a Proposta Comercial no menu "Propostas" e monitorar prazos no "Radar de Editais".`
       );
     } finally {
       setGerandoAnalise(false);

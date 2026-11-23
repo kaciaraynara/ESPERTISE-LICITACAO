@@ -459,7 +459,7 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
       const result = await this.grounding.runLex(
         {
           pergunta:
-            'Explique este edital em português simples e linguagem comercial para um fornecedor: diga o que o governo quer comprar, como a empresa pode participar, quais prazos e documentos são verificáveis nas fontes e quais riscos ou pontos de atenção podem afetar custo, entrega ou habilitação. Organize a resposta em tópicos claros. Não invente datas, exigências nem riscos; quando a fonte não trouxer um dado, informe que ele precisa ser confirmado no edital oficial.',
+            'Apresente um Parecer Técnico-Operacional e Jurídico completo deste edital para o licitante, em formato executivo profissional e sem estrutura de IA ou preâmbulos genéricos. Estruture obrigatoriamente nos 6 blocos de Engenharia Licitatória: 1. Dados Cadastrais e Enquadramento Legal; 2. Objeto Real e Itens da Contratação (quantidades, especificações e valores de referência); 3. Cronograma Crítico e Prazos Fatais (sessão pública, prazo de impugnação de 3 dias úteis do Art. 164 da Lei 14.133/2021 e prazo de envio de propostas); 4. Matriz de Habilitação (jurídica, fiscal, técnica com atestados e qualificação econômico-financeira); 5. Condições de Pagamento, Entrega e Execução; 6. Parecer de Riscos e Tática de Lances para Vencer. Baseie-se estritamente nas fontes oficiais do PNCP.',
           noticeId,
           purpose: 'lex_resumo_grounded',
           metadata: { endpoint: '/lex/resumo' },

@@ -206,15 +206,40 @@ DA QUALIFICAÇÃO ECONÔMICO-FINANCEIRA:
     setAnaliseConcluida(false);
 
     try {
-      const prompt = `Você é a Luli, assistente especialista e consultor jurídico sênior em licitações públicas sob a Lei 14.133/2021.
-Analise criteriosamente o seguinte edital e estruture um relatório de auditoria e conformidade completo:
+      const prompt = `Elabore um PARECER TÉCNICO-OPERACIONAL E JURÍDICO DE ENGENHARIA LICITATÓRIA completo deste edital para o licitante.
+PROIBIÇÃO ABSOLUTA: Não use introduções de IA, saudações de chatbot nem preâmbulos vazios (como "Olá", "Aqui está o resumo", "Espero ajudar"). Entre direto no parecer técnico estruturado rigorosamente nos 6 blocos executivos:
 
-1. DADOS FUNDAMENTAIS & ENQUADRAMENTO: Órgão, Modalidade, Modo de Disputa, Critério de Julgamento, Regime Legal.
-2. CRONOGRAMA & PRAZOS FATAIS: Data da Sessão, Prazo Limite para Impugnação e Pedido de Esclarecimento (Art. 164 da Lei 14.133/21 - 3 dias úteis anteriores).
-3. AUDITORIA DE CLÁUSULAS RESTRITIVAS / ABUSIVAS: Aponte com precisão exigências que podem violar o princípio da ampla competitividade (ex: exigência de certidões além do Art. 68, certificações dispensáveis antes da assinatura do contrato, atestados restritivos segundo Súmulas e Acórdãos do TCU).
-4. REQUISITOS DE HABILITAÇÃO: Jurídica, Fiscal/Trabalhista, Econômico-Financeira e Técnica.
-5. CHECKLIST DE CONFORMIDADE PARA O LICITANTE: Relação dos documentos obrigatórios indispensáveis para não sofrer inabilitação.
-6. DIRETRIZES PARA A PROPOSTA & PRECIFICAÇÃO: Recomendações estratégicas de preço, prazos de validade e proteção de margem.
+1. DADOS CADASTRAIS & ENQUADRAMENTO DO CERTAME:
+   - Órgão Convocador e Unidade Compradora
+   - Número do Edital e Processo Administrativo
+   - Modalidade, Critério de Julgamento e Modo de Disputa (IN SEGES nº 73/2022)
+   - Amparo Legal (Lei Federal nº 14.133/2021) e se é SRP (Registro de Preços) ou Contratação Imediata
+
+2. OBJETO REAL & ESCOPO PRÁTICO DA CONTRATAÇÃO:
+   - Explicação em linguagem comercial e prática do que o órgão realmente precisa
+   - Relação dos itens com especificações, quantitativos e valores de referência do PNCP
+   - Valor Total Estimado da Contratação
+
+3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS (LEI 14.133/2021):
+   - Data e horário de abertura da sessão de lances (Horário de Brasília)
+   - Prazo fatal para Pedido de Esclarecimentos e Impugnação do Edital (até 3 dias úteis anteriores à abertura, conforme Art. 164)
+   - Prazo limite para envio de proposta comercial e anexos
+   - Prazo para envio da proposta readequada pós-disputa (mínimo de 2 horas)
+
+4. MATRIZ DE HABILITAÇÃO OBRIGATÓRIA (CRITÉRIOS DE NÃO DESCLASSIFICAÇÃO):
+   - Habilitação Jurídica e Regularidade Fiscal/Trabalhista (Arts. 66 e 68)
+   - Qualificação Econômico-Financeira: Balanço patrimonial, índices contábeis (LG, SG, LC >= 1,0) ou Capital Social/Patrimônio Líquido mínimo (até 10%)
+   - Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica exigidos (limitados a até 50% das parcelas relevantes conforme Súmula 263 TCU) e registros profissionais
+
+5. CONDIÇÕES DE ENTREGA, PAGAMENTO E EXECUÇÃO:
+   - Prazo e local de entrega/prestação dos serviços
+   - Prazo de liquidação do empenho e cronograma de pagamento pelo órgão
+   - Exigência de garantia contratual e regras de reajuste/reequilíbrio econômico-financeiro
+
+6. PARECER DE RISCO, TÁTICA DE LANCES & RECOMENDAÇÃO PRÁTICA:
+   - Apontamento de cláusulas abusivas ou restritivas passíveis de impugnação
+   - Estratégia de precificação competitiva e proteção do valor mínimo seguro contra inexequibilidade
+   - Próximo passo executivo recomendado dentro da plataforma.
 
 TEXTO DO EDITAL / DOCUMENTO:
 ${editalTexto.slice(0, 150000)}`;

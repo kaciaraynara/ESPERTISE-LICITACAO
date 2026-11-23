@@ -65,11 +65,40 @@ FORMATO DE SAÍDA OBRIGATÓRIO (JSON puro, sem blocos markdown):
   "justificativaCnae": "string explicando a correlação com a atividade"
 }
 
-[PADRAO OBRIGATORIO DE RESUMO DE EDITAL - ESPECIALISTA 50+ ANOS]
-Sempre que resumir ou analisar um edital, entregue tudo organizado e pratico para o licitante nao perder tempo:
-1. O QUE O ORGAO QUER NA PRATICA: explique em linguagem simples e cite exemplos concretos dos itens reais do edital.
-2. DATAS E PRAZOS FATAIS: destaque data/hora da disputa, prazo de envio de proposta e data limite de impugnacao/esclarecimento (3 dias uteis antes, Art. 164 da Lei 14.133/2021). Se algum prazo nao constar nos dados recebidos, informe "Confirmar no arquivo oficial do edital no PNCP".
-3. EXIGENCIAS DO ORGAO: liste documentos de habilitacao, exigencias tecnicas ou amostras que constem nos dados/anexos lidos (nunca invente clausulas ausentes).
-4. ESTRATEGIA E PRECO COMPETITIVO: aponte os valores de referencia do PNCP, sugestao competitiva (-8%) e cuidados para evitar desclassificacao.
-5. DICAS PRATICAS DE ENTREGA E EXECUCAO: oriente como organizar fornecimento, notas fiscais e logistica sem sofrer glosa ou multa.
+[PADRAO OBRIGATORIO DE RESUMO E ANALISE EXECUTIVA DE EDITAL - ENGENHARIA LICITATORIA]
+Toda análise ou resumo de edital deve assumir o formato de um PARECER TÉCNICO-OPERACIONAL DE ENGENHARIA LICITATÓRIA.
+É TERMINANTEMENTE PROIBIDO usar introduções ou despedidas robóticas de chatbot (ex: "Olá, sou a IA...", "Aqui está o resumo que você pediu...", "Espero ter ajudado!").
+Entre direto no parecer, estruturado nos seguintes 6 blocos obrigatórios e objetivos:
+
+1. DADOS CADASTRAIS & ENQUADRAMENTO DO CERTAME:
+   - Órgão Convocador e Unidade Compradora
+   - Número do Edital e Processo Administrativo
+   - Modalidade, Critério de Julgamento e Modo de Disputa (IN SEGES nº 73/2022)
+   - Amparo Legal (Lei nº 14.133/2021) e se é Sistema de Registro de Preços (SRP) ou Contratação Direta/Imediata
+
+2. OBJETO REAL & ESCOPO PRÁTICO DA CONTRATAÇÃO:
+   - O que o órgão quer comprar na prática (explique em linguagem comercial direta, sem juridiquês vazio)
+   - Relação de itens principais com quantidades, unidades de medida e valores unitários/totais de referência do PNCP
+   - Valor Total Estimado da Contratação (ou menção expressa a Orçamento Sigiloso quando aplicável)
+
+3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS (LEI 14.133/2021):
+   - Data e horário da sessão pública de disputa (Horário de Brasília)
+   - Prazo limite para Pedidos de Esclarecimento e Impugnação do Edital (até 3 dias úteis antes da abertura, conforme Art. 164)
+   - Prazo para envio de proposta e documentos de habilitação no portal
+   - Prazo para envio da proposta readequada e planilha de custos após a fase de lances (mínimo de 2 horas)
+
+4. MATRIZ DE HABILITAÇÃO & CRITÉRIOS DE NÃO DESCLASSIFICAÇÃO:
+   - Habilitação Jurídica e Regularidade Fiscal/Trabalhista (Arts. 66 e 68)
+   - Qualificação Econômico-Financeira: Balanço patrimonial, índices de liquidez (LG, SG, LC >= 1,0) ou Capital Social/Patrimônio Líquido mínimo (até 10%)
+   - Qualificação Técnica (Art. 67): Exigência de Atestados de Capacidade Técnica (quantitativo máximo legal de até 50% conforme Súmula 263 do TCU) e registros em conselhos profissionais quando aplicável
+
+5. CONDIÇÕES DE ENTREGA, PAGAMENTO E EXECUÇÃO:
+   - Prazo e local de entrega/prestação do serviço
+   - Prazo de liquidação do empenho e pagamento pelo órgão
+   - Exigência de garantia contratual (se aplicável, limitada ao Art. 98) e penalidades por atraso
+
+6. PARECER DE RISCO, TÁTICA DE LANCE & RECOMENDAÇÃO PRÁTICA:
+   - Pontos de atenção ou cláusulas com potencial de restrição à competitividade
+   - Sugestão de lance competitivo seguro (com proteção de margem mínima e sem risco de inexequibilidade do Art. 59)
+   - Próximo passo executivo recomendado dentro da plataforma Expertise Licitatória.
 `.trim();

@@ -58,7 +58,7 @@ export function LexFloatingWidget() {
     try {
       const salva = localStorage.getItem('luli_pos_coords');
       if (salva) return JSON.parse(salva);
-    } catch {}
+    } catch { }
     return { x: 0, y: 0 };
   });
 
@@ -221,7 +221,7 @@ export function LexFloatingWidget() {
       setPosicao(nova);
       try {
         localStorage.setItem('luli_pos_coords', JSON.stringify(nova));
-      } catch {}
+      } catch { }
     } else {
       isDraggingRef.current = false;
     }
@@ -332,9 +332,8 @@ export function LexFloatingWidget() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className={`fixed bottom-28 right-6 z-50 flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all ${
-              expandido ? 'h-[80vh] w-[92vw] max-w-2xl' : 'h-[520px] w-[92vw] max-w-sm'
-            }`}
+            className={`fixed bottom-28 right-6 z-50 flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all ${expandido ? 'h-[80vh] w-[92vw] max-w-2xl' : 'h-[520px] w-[92vw] max-w-sm'
+              }`}
           >
             {/* Header com a Luli 3D em miniatura e controles */}
             <div className="flex items-center justify-between bg-gradient-to-r from-[#0B192C] via-[#0D2444] to-[#0B192C] px-4 py-3 text-white shadow-md">
@@ -398,11 +397,10 @@ export function LexFloatingWidget() {
                     className={`flex flex-col ${ehUsuario ? 'items-end' : 'items-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${
-                        ehUsuario
-                          ? 'bg-[#0070C0] text-white'
-                          : 'border border-slate-200 bg-white text-[#081C3A]'
-                      }`}
+                      className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs ${ehUsuario
+                        ? 'bg-[#0070C0] text-white'
+                        : 'border border-slate-200 bg-white text-[#081C3A]'
+                        }`}
                     >
                       {ehUsuario ? (
                         msg.texto
