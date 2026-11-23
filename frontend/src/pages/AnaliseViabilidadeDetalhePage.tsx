@@ -36,6 +36,7 @@ export function AnaliseViabilidadeDetalhePage() {
   const [salvandoCrm, setSalvandoCrm] = useState(false);
   const [salvoNoCrm, setSalvoNoCrm] = useState(false);
   const [analisandoLex, setAnalisandoLex] = useState(false);
+  const [custoEstimadoManual] = useState<string>('');
 
   useEffect(() => {
     let active = true;
@@ -89,15 +90,25 @@ export function AnaliseViabilidadeDetalhePage() {
 
     try {
       setAnalisandoLex(true);
-      const res = await lexApi.analise({ noticeId: targetId });
+      const custoBase =
+        Number(custoEstimadoManual) > 0
+          ? Number(custoEstimadoManual)
+          : data?.precos?.custoProduto && data.precos.custoProduto > 0
+            ? data.precos.custoProduto
+            : data?.precos?.estimativaEdital && data.precos.estimativaEdital > 0
+              ? Number((data.precos.estimativaEdital * 0.72).toFixed(2))
+              : 1000;
+      const res = await lexApi.analise({
+        noticeId: targetId,
+        custoProduto: custoBase,
+      } as any);
       if (res.data?.success && res.data?.data) {
         setData(res.data.data);
-        toast.success('Análise de viabilidade concluída.');
+        toast.success('Análise de viabilidade concluída pela Luli.');
       } else {
         toast.error(res.data?.message || 'Não foi possível concluir a análise.');
       }
     } catch (err: any) {
-      console.error('[AnaliseViabilidade] Erro LEX:', err);
       toast.error(err?.response?.data?.message || 'Não foi possível concluir a análise. Tente novamente.');
     } finally {
       setAnalisandoLex(false);
@@ -210,8 +221,8 @@ export function AnaliseViabilidadeDetalhePage() {
               {analisandoLex
                 ? 'Analisando...'
                 : (data.lexAnalysis || data.lex)
-                ? 'Reanalisar com LEX'
-                : 'Analisar oportunidade'}
+                ? 'Reanalisar com a Luli'
+                : 'Analisar com a Luli'}
             </span>
           </button>
 

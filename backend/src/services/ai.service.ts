@@ -78,41 +78,68 @@ export function buildDeterministicLegalDossierFromPrompt(fullPrompt: string): st
     });
   }
 
-  // Extrai trechos relevantes do prompt (objeto, órgão, pergunta do usuário)
-  const userMessageMatch = promptText.match(/\[CONVERSA \/ SOLICITAÇÃO\]\s*([\s\S]*)$/i);
-  const rawQuestion = userMessageMatch ? userMessageMatch[1].trim() : promptText.slice(-1200).trim();
-
-  const orgaoMatch = promptText.match(/Órgão(?:\s+Licitante)?:\s*([^\n|]+)/i);
-  const objetoMatch = promptText.match(/Objeto(?:\s+da\s+Contratação)?:\s*([^\n]+)/i);
-  const modalidadeMatch = promptText.match(/Modalidade:\s*([^\n|]+)/i);
-  const valorMatch = promptText.match(/Valor(?:\s+Total)?\s+Estimado:\s*([^\n]+)/i);
+  const orgaoMatch = promptText.match(/(?:Órgão(?:\s+Licitante)?|ÓRGÃO):\s*([^\n|]+)/i);
+  const objetoMatch = promptText.match(/(?:Objeto(?:\s+da\s+Contratação)?|OBJETO(?:\s+DA\s+CONTRATAÇÃO)?):\s*([^\n]+)/i);
+  const modalidadeMatch = promptText.match(/(?:Modalidade|MODALIDADE):\s*([^\n|]+)/i) || promptText.match(/(PREGÃO ELETRÔNICO|CONCORRÊNCIA ELETRÔNICA|DISPENSA ELETRÔNICA|CREDENCIAMENTO)\s*(?:Nº\s*[\d/]+)?/i);
+  const valorMatch = promptText.match(/(?:Valor(?:\s+Total|\s+Estimado|\s+Global)?(?:\s+Estimado|\s+Total)?|VALOR\s+ESTIMADO(?:\s+TOTAL|\s+GLOBAL)?):\s*(R\$\s*[\d.,]+|[^\n]+)/i);
+  const sessaoMatch = promptText.match(/(?:Data\s+da\s+Sessão(?:\s+Pública)?|DATA\s+DA\s+SESSÃO(?:\s+PÚBLICA)?|Abertura(?:\s+de\s+Propostas)?):\s*([^\n]+)/i);
 
   const orgao = orgaoMatch ? orgaoMatch[1].trim() : 'Órgão Público Licitante';
   const objeto = objetoMatch ? objetoMatch[1].trim() : 'Contratação pública regida pela Lei Federal nº 14.133/2021';
-  const modalidade = modalidadeMatch ? modalidadeMatch[1].trim() : 'Pregão Eletrônico / Concorrência (Lei 14.133/2021)';
-  const valor = valorMatch ? valorMatch[1].trim() : 'Conforme itens do Termo de Referência';
+  const modalidade = modalidadeMatch ? modalidadeMatch[1].trim() : 'Pregão Eletrônico (Lei Federal nº 14.133/2021)';
+  const valor = valorMatch ? valorMatch[1].trim() : 'Conforme planilha de itens do Termo de Referência';
+  const sessao = sessaoMatch ? sessaoMatch[1].trim() : 'Conforme cronograma oficial publicado no portal';
 
-  const isContratacaoDireta = /dispensa|inexigibilidade|credenciamento/i.test(modalidade);
-  const blocoRito = isContratacaoDireta
-    ? `- **Rito Legal (Contratação Direta — Lei 14.133/2021, Arts. 72 a 79 e IN SEGES/ME nº 67/2021)**: Não se aplica o rito de impugnação de 3 dias úteis do Pregão (Art. 164) nem disputa em modo Aberto-Fechado. A seleção ocorre por aviso de dispensa eletrônica com envio de proposta e lances na janela definida no aviso oficial.
-- **Habilitação Simplificada (Art. 70, III c/c Art. 68)**: Confira previamente CND Federal/PGFN, CRF/FGTS, CNDT e compatibilidade estrita do CNAE com o objeto antes de registrar o lance.`
-    : `- **Prazos Legais (Lei 14.133/2021)**: Impugnação e pedidos de esclarecimento até **3 (três) dias úteis** antes da data de abertura (Art. 164). Intenção de recurso imediata após a fase de julgamento/habilitação, com **3 (três) dias úteis** para razões recursais (Art. 165, I).
-- **Empate Ficto ME/EPP (LC 123/2006, Art. 44, § 2º)**: No pregão/concorrência, propostas de ME/EPP até **5% (cinco por cento)** superiores ao melhor preço de empresa de médio/grande porte têm direito de cobrir o lance em até **5 (cinco) minutos** após o encerramento da disputa.
-- **Estratégia Operacional e Rito de Negociação (Art. 61 da Lei 14.133/2021 e IN SEGES/ME nº 73/2022)**: Preserve sua margem mínima sustentável na disputa e, ao ser convocado no chat (Art. 61), envie a proposta readequada dentro do prazo do edital.`;
+  const alertasDetectados: string[] = [];
+  if (/iso\s*\d+|cmmi/i.test(promptText)) {
+    alertasDetectados.push(
+      'Alerta de Cláusula Restritiva (Certificação ISO / CMMI na Habilitação): O texto menciona exigência de certificação ISO ou CMMI na fase de habilitação/entrega de propostas. Conforme jurisprudência consolidada do TCU (Acórdão 1214/2013-Plenário e Acórdão 1085/2011-Plenário) e Art. 67 da Lei 14.133/2021, certificações de qualidade não constam no rol taxativo de habilitação e só podem ser pontuadas como técnica ou exigidas na execução contratual quando devidamente justificadas. Cabe Impugnação ao Edital (Art. 164).',
+    );
+  }
+  if (/(?:atestado|capacidade\s+t[eé]cnica)[\s\S]{0,120}(?:60%|70%|75%|80%|90%|100%)/i.test(promptText)) {
+    alertasDetectados.push(
+      'Alerta de Quantitativo Abusivo em Atestado Técnico (> 50%): O Art. 67, § 2º da Lei 14.133/2021 e a Súmula 263 do TCU vedam exigir atestados com quantitativos superiores a 50% das parcelas de maior relevância e valor significativo (>= 4% do valor total). Cabe Impugnação imediata.',
+    );
+  }
+  if (/visita\s+t[eé]cnica\s+obrigat[oó]ria|vistoria\s+obrigat[oó]ria/i.test(promptText)) {
+    alertasDetectados.push(
+      'Alerta sobre Vistoria Prévia (Art. 63, §§ 2º e 3º da Lei 14.133/2021): O edital deve sempre assegurar ao licitante o direito de substituir a vistoria presencial por declaração formal assinada pelo responsável técnico acerca do conhecimento das condições locais.',
+    );
+  }
+  if (alertasDetectados.length === 0) {
+    alertasDetectados.push(
+      'Atestados de Capacidade Técnica (Art. 67, §§ 1º e 2º da Lei 14.133/2021 e Súmula 263/TCU): Confira se as exigências de atestados respeitam o teto máximo de 50% dos quantitativos apenas nas parcelas de maior relevância (>= 4% do valor estimado).',
+      'Exequibilidade e Diligência Obrigatória (Art. 59, §§ 2º e 4º da Lei 14.133/2021 e Súmula 262/TCU): Qualquer presunção de inexequibilidade é relativa, sendo obrigatório ao Pregoeiro abrir diligência para comprovação da estrutura de custos antes de desclassificar.',
+      'Formalismo Moderado na Habilitação (Art. 64 da Lei 14.133/2021 e Acórdão 1211/2021-TCU-Plenário): Documentos que atestem condição preexistente à abertura da sessão devem ser admitidos em diligência complementar.',
+    );
+  }
 
-  return `Análise técnica preliminar sobre os dados oficiais do certame:
-- **Órgão Licitante**: ${orgao}
-- **Modalidade / Regime**: ${modalidade}
-- **Objeto**: ${objeto}
-- **Valor Estimado de Referência**: ${valor}
-
-${blocoRito}
-- **Piso de Exequibilidade e Diligência (Art. 59, §§ 2º e 4º c/c Súmula 262/TCU)**: Presunção relativa de inexequibilidade; o licitante tem direito de demonstrar a viabilidade da sua estrutura de custos antes de qualquer desclassificação.
-- **Qualificação Técnica (Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU)**: Eventuais exigências de atestados devem restringir-se às parcelas de maior relevância (valor significativo >= 4% do total) e limitadas a no máximo **50% (cinquenta por cento)** dos quantitativos licitados.
-- **Formalismo Moderado (Art. 64 e Acórdão 1211/2021-TCU-Plenário)**: Falha meramente formal ou ausência de documento preexistente deve ser suprida por diligência.
-
-**Próximo passo:**
-Monte sua composição real na **Planilha de Formação de Custos**, valide as certidões no **Cofre de Documentos** e confira o anexo integral do Termo de Referência.`;
+  return [
+    '1. DADOS FUNDAMENTAIS E ENQUADRAMENTO DO EDITAL',
+    `• Órgão Promotor: ${orgao}`,
+    `• Modalidade e Regime: ${modalidade} (Lei Federal nº 14.133/2021)`,
+    `• Objeto da Contratação: ${objeto}`,
+    `• Valor Estimado de Referência: ${valor}`,
+    `• Data da Sessão Pública: ${sessao}`,
+    '',
+    '2. CRONOGRAMA E PRAZOS FATAIS (LEI 14.133/2021)',
+    '• Impugnação e Esclarecimentos (Art. 164): Protocolo em até 3 (três) dias úteis antes da data de abertura do certame, com resposta obrigatória do órgão em até 3 dias úteis.',
+    '• Fase Recursal Unificada (Art. 165, I e § 4º): Manifestação imediata de intenção de recurso após o julgamento/habilitação e prazo de 3 (três) dias úteis para razões recursais e 3 (três) dias úteis para contrarrazões, com efeito suspensivo automático (Art. 168).',
+    '• Envio da Proposta Readequada (IN SEGES 73/2022): Prazo mínimo de 2 (duas) horas após convocação no chat de negociação (Art. 61), prorrogável mediante solicitação fundamentada antes do vencimento.',
+    '',
+    '3. AUDITORIA DE CLÁUSULAS E PONTOS DE ATENÇÃO JURÍDICA',
+    ...alertasDetectados.map((a) => `• ${a}`),
+    '',
+    '4. REQUISITOS DE HABILITAÇÃO (ARTS. 62 A 70 DA LEI 14.133/2021)',
+    '• Habilitação Jurídica (Art. 66): Contrato Social ou Estatuto consolidado, Cartão CNPJ ativo com CNAE compatível e documento do representante legal.',
+    '• Regularidade Fiscal, Social e Trabalhista (Art. 68): CND Federal Conjunta (RFB/PGFN), CRF do FGTS, CNDT Trabalhista, CND Estadual e CND Municipal.',
+    '• Qualificação Econômico-Financeira (Art. 69): Balanço Patrimonial, Índices de Liquidez (LG, SG e LC >= 1,0 conforme Súmula 289/TCU) e Certidão Negativa de Falência.',
+    '• Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica compatíveis em características e quantidades com o objeto.',
+    '',
+    '5. PRÓXIMOS PASSOS RECOMENDADOS PARA VENCER',
+    '• Passo 1: Caso exista cláusula restritiva apontada acima, clique em Montar Peça de Impugnação para gerar o documento em PDF Timbrado.',
+    '• Passo 2: Acesse Gerar Proposta para carregar todos os itens do edital, responder ao Questionário Estratégico, baixar a Planilha Excel e emitir a Carta-Proposta com Anexo de Ficha Técnica.',
+  ].join('\n');
 }
 
 function buildPromptFromMessages(messages: GroundingAIMessage[]): string {
@@ -154,12 +181,7 @@ export async function streamChatWithProvider(
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey || apiKey === 'unconfigured') {
-    const fallbackContent = buildDeterministicLegalDossierFromPrompt(fullPrompt);
-    await onChunk(fallbackContent);
-    return {
-      content: fallbackContent,
-      provider: 'lex-deterministic-contingency',
-    };
+    throw new MissingApiKeyError();
   }
 
   const envModel = sanitizeModelName(process.env.GEMINI_MODEL);
@@ -170,7 +192,7 @@ export async function streamChatWithProvider(
     new Set([initialModel, ...VALID_GEMINI_MODELS]),
   );
 
-  const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 20000;
+  const timeoutMs = options?.timeoutMs && options.timeoutMs > 0 ? options.timeoutMs : 45000;
   const genAI = new GoogleGenerativeAI(apiKey);
 
   let lastError: unknown = null;
@@ -230,13 +252,13 @@ export async function streamChatWithProvider(
   }
 
   const errorCode = getProviderErrorCode(lastError);
-  console.warn('[AI Service] Acionando contingência determinística do Lex.', { code: errorCode });
-  const fallbackContent = buildDeterministicLegalDossierFromPrompt(fullPrompt);
-  await onChunk(fallbackContent);
-  return {
-    content: fallbackContent,
-    provider: 'lex-deterministic-contingency',
-  };
+  console.error('[AI Service] Todos os modelos Gemini falharam.', { code: errorCode });
+  if (lastError instanceof AiTimeoutError) {
+    throw lastError;
+  }
+  throw new ProviderUnavailableError(
+    `O provedor de IA falhou ao processar sua solicitação (${errorCode}). Tente novamente em instantes.`,
+  );
 }
 
 /**
@@ -246,7 +268,7 @@ export async function chatWithProvider(
   messages: GroundingAIMessage[],
   options?: ChatProviderOptions,
 ): Promise<{ content: string; provider: string }> {
-  return streamChatWithProvider(messages, options?.onChunk ?? (() => {}), options);
+  return streamChatWithProvider(messages, options?.onChunk ?? (() => { }), options);
 }
 
 function isModelUnavailable(error: unknown): boolean {

@@ -1,32 +1,33 @@
-name: QA Bots Multi-CNAE
+name: QA Bots Multi-CNAE (Continuidade e Regressao)
 
 on:
-  workflow_dispatch:
-    inputs:
-      total_bots:
-        description: 'Quantidade de empresas persona'
-        required: false
-        default: '10'
   schedule:
     - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
-  run-bots:
+  qa-bots-multi-cnae:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Executar Bots Persona Multi-CNAE
+
+      - name: Execute Multi-CNAE Persona Bots Swarm
         env:
-          TOTAL_BOTS: ${{ github.event.inputs.total_bots || '10' }}
+          API_URL: ${{ secrets.PRODUCTION_API_URL || 'https://www.expertiselicitatoria.com.br/api/v1' }}
+          TOTAL_BOTS: '10'
           CONCURRENCY: '5'
-          API_URL: 'https://www.expertiselicitatoria.com.br/api/v1'
-        run: node ./scripts/bots-persona-qa.mjs
-      - name: Publicar Relatorio QA
-        uses: actions/upload-artifact@v4
+        run: node scripts/bots-persona-qa.mjs
+
+      - name: Upload QA Report Artifact
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: relatorio-bots-qa
           path: relatorio-bots-qa.md

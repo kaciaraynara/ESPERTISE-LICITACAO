@@ -70,7 +70,8 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
           <Link to="/" className="flex items-center gap-2.5">
             <img
               src="/logo.png"
-              alt="Expertise Licitatória"
+              alt=""
+              aria-hidden="true"
               className="h-10 w-auto object-contain"
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -84,7 +85,7 @@ function AccountLayout({ signup, children }: { signup?: boolean; children: React
             </Link>
             <Link
               to="/register"
-              className="rounded-xl bg-[#FF6600] px-4 py-2 text-xs font-bold text-white hover:bg-[#e55b00]"
+              className="rounded-xl bg-[#C2410C] px-4 py-2 text-xs font-bold text-white hover:bg-[#9A3412]"
             >
               Criar conta
             </Link>
@@ -235,7 +236,7 @@ export function LoginPage() {
               setErro('');
               setMensagem('');
             }}
-            className="text-xs font-semibold text-[#FF6600] hover:underline"
+            className="text-xs font-semibold text-[#C2410C] hover:underline"
           >
             {reset ? 'Voltar para entrar' : 'Esqueci minha senha'}
           </button>
@@ -244,7 +245,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FF6600] text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00] disabled:opacity-60"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#C2410C] text-sm font-bold text-white shadow-sm transition hover:bg-[#9A3412] disabled:opacity-60"
         >
           {loading ? 'Entrando...' : reset ? 'Enviar recuperação' : 'Entrar'}
           <ArrowRight className="h-4 w-4" />
@@ -398,7 +399,7 @@ export function RegisterPage() {
 
   return (
     <AccountLayout signup>
-      <ol className="mb-6 grid grid-cols-3 border-b border-slate-100 pb-4 text-center text-xs text-slate-400">
+      <ol className="mb-6 grid grid-cols-3 border-b border-slate-100 pb-4 text-center text-xs text-slate-600">
         {[
           { num: 1, label: 'Seus dados' },
           { num: 2, label: 'Empresa' },
@@ -409,15 +410,15 @@ export function RegisterPage() {
           return (
             <li
               key={step.num}
-              className={atual ? 'font-bold text-[#FF6600]' : feito ? 'font-bold text-[#0070C0]' : ''}
+              className={atual ? 'font-bold text-[#C2410C]' : feito ? 'font-bold text-[#0070C0]' : ''}
             >
               <span
                 className={`mx-auto mb-1.5 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
                   atual
-                    ? 'bg-[#FF6600] text-white'
+                    ? 'bg-[#C2410C] text-white'
                     : feito
                     ? 'bg-[#0070C0] text-white'
-                    : 'bg-slate-100 text-slate-500'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {step.num}
@@ -473,7 +474,7 @@ export function RegisterPage() {
 
           <button
             type="submit"
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FF6600] text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00]"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#C2410C] text-sm font-bold text-white shadow-sm transition hover:bg-[#9A3412]"
           >
             Continuar para Dados da Empresa
             <ArrowRight className="h-4 w-4" />
@@ -579,7 +580,7 @@ export function RegisterPage() {
             </button>
             <button
               type="submit"
-              className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF6600] text-sm font-bold text-white shadow-sm transition hover:bg-[#e55b00]"
+              className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#C2410C] text-sm font-bold text-white shadow-sm transition hover:bg-[#9A3412]"
             >
               Continuar para Confirmação
               <ArrowRight className="h-4 w-4" />

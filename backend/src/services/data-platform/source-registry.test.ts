@@ -10,6 +10,7 @@ describe('data platform source registry', () => {
       'compras_gov',
       'pncp',
       'portal_transparencia',
+      'querido_diario',
       'receita_federal',
       'tcu',
     ]);

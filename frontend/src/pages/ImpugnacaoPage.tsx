@@ -1,14 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldAlert, Gavel, Scale, Loader2, CheckCircle, Copy } from 'lucide-react';
+import { ShieldAlert, Gavel, Scale, Loader2, CheckCircle, Copy, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EditalSelector, EditalOption } from '@components/EditalSelector';
 import KanbanImpugnacao from '@components/juridico/KanbanImpugnacao';
 import RecursoFraudeWizard from '@components/juridico/RecursoFraudeWizard';
 import { streamAiChat } from '@/services/aiStream.service';
 import { ChatMessage } from '@/components/ChatMessage';
+import { useCompany } from '@/contexts/CompanyContext';
+import {
+  exportarPecaJuridicaPdf,
+  PROMPT_PADRAO_IMPUGNACAO_COMPLETA,
+} from '@/utils/legalPdfGenerator';
 
 export default function ImpugnacaoPage() {
+  const { selectedCompany } = useCompany();
   const [searchParams] = useSearchParams();
   const urlEditalId =
     searchParams.get('edital') ||
@@ -38,8 +44,7 @@ export default function ImpugnacaoPage() {
       await streamAiChat({
         endpoint: '/lex/impugnacao',
         noticeId: edital.id,
-        pergunta:
-          'Analise minuciosamente as cláusulas e o escopo do edital para identificar exigências ilegais, restritivas ou desproporcionais passíveis de impugnação sob a Lei 14.133/2021. Verifique o prazo tempestivo (3 dias úteis antes da abertura) e elabore fundamentos jurídicos sólidos.',
+        pergunta: PROMPT_PADRAO_IMPUGNACAO_COMPLETA,
         onChunk: (_chunk, accumulated) => {
           setStreamingAuditText(accumulated);
         },
@@ -79,6 +84,21 @@ export default function ImpugnacaoPage() {
     if (!streamingAuditText) return;
     navigator.clipboard.writeText(streamingAuditText);
     toast.success('Minuta de impugnação copiada para a área de transferência!');
+  };
+
+  const baixarImpugnacaoPdfTimbrado = () => {
+    if (!streamingAuditText) return;
+    exportarPecaJuridicaPdf({
+      tipoPeca: 'IMPUGNAÇÃO AO EDITAL',
+      orgao: editalSelecionado?.orgao || 'Órgão Público Licitante',
+      numeroEdital: editalSelecionado?.numeroEdital || editalSelecionado?.id || 'Edital Oficial',
+      objeto: editalSelecionado?.objeto || 'Conforme instrumento convocatório',
+      empresaNome: selectedCompany?.razaoSocial || 'Empresa Licitante',
+      empresaCnpj: selectedCompany?.cnpj || '',
+      empresaEndereco: selectedCompany?.endereco || [selectedCompany?.municipio, selectedCompany?.uf].filter(Boolean).join('/'),
+      conteudo: streamingAuditText,
+    });
+    toast.success('Peça de Impugnação exportada em PDF Timbrado!');
   };
 
   return (
@@ -148,14 +168,25 @@ export default function ImpugnacaoPage() {
                   </span>
                 )}
                 {streamingAuditText && (
-                  <button
-                    type="button"
-                    onClick={copiarTexto}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
-                    title="Copiar texto fundamentado"
-                  >
-                    <Copy size={14} />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={baixarImpugnacaoPdfTimbrado}
+                      className="inline-flex items-center gap-1 rounded-lg bg-orange-600 hover:bg-orange-500 px-2.5 py-1 text-[11px] font-bold text-white transition cursor-pointer"
+                      title="Exportar Impugnação em PDF Timbrado"
+                    >
+                      <Download size={13} />
+                      PDF Timbrado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copiarTexto}
+                      className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition"
+                      title="Copiar texto fundamentado"
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </>
                 )}
               </div>
             </div>

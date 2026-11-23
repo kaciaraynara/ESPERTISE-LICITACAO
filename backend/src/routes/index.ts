@@ -1294,6 +1294,26 @@ router.post(
   ),
 );
 
+router.get(
+  '/integracoes/sicaf/:cnpj',
+  fornecedor,
+  handle(
+    integracoes.consultarSicaf.bind(
+      integracoes,
+    ) as RequestHandler,
+  ),
+);
+
+router.get(
+  '/integracoes/indices-economicos',
+  fornecedor,
+  handle(
+    integracoes.indicesEconomicos.bind(
+      integracoes,
+    ) as RequestHandler,
+  ),
+);
+
 // ==========================================
 // DOCUMENTOS / EMPRESAS / CATÁLOGO
 // ==========================================

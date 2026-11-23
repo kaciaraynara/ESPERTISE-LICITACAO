@@ -17,17 +17,17 @@ const FUNDAMENTOS_ESTATUTARIOS_PADRAO: CitacaoJuridica[] = [
     aplicabilidadeContrarrazao: 'Derruba alegações de erros materiais inócuos ou omissões formais sanáveis na proposta técnica.',
   },
   {
-    fonte: 'Jurisprudência Consolidada',
-    artigoOuNorma: 'Súmula TCU nº 289 e Acórdão 1211/2021-Plenário',
+    fonte: 'Jurisprudência Consolidada e Lei nº 14.133/2021',
+    artigoOuNorma: 'Art. 64 da Lei nº 14.133/2021 e Acórdão nº 1.211/2021-TCU-Plenário',
     autoridade: 'Tribunal de Contas da União (TCU)',
-    ementaOuTeor: 'No curso de licitação, o saneamento de falhas, a complementação de informações ou a juntada de documentos confirmatórios de situação preexistente não configuram inserção indevida de documento novo.',
+    ementaOuTeor: 'No curso de licitação, a diligência para saneamento de falhas, complementação de informações ou juntada de documento comprobatório de condição preexistente não configura inclusão ilícita de documento novo.',
     aplicabilidadeContrarrazao: 'Garante a legalidade de esclarecimentos e diligências promovidas pelo Pregoeiro/Agente de Contratação.',
   },
   {
     fonte: 'Lei nº 14.133/2021',
-    artigoOuNorma: 'Art. 165, § 1º, alínea "b"',
+    artigoOuNorma: 'Art. 165, § 4º da Lei nº 14.133/2021',
     autoridade: 'Legislativo Federal',
-    ementaOuTeor: 'Do direito de petição e contrarrazões: É assegurado ao licitante o prazo de 3 (três) dias úteis para apresentar contrarrazões ao recurso interposto por concorrente, contados da data de intimação.',
+    ementaOuTeor: 'Do direito de petição e contrarrazões: É assegurado aos demais licitantes o prazo de 3 (três) dias úteis para apresentar contrarrazões ao recurso interposto por concorrente, contado da data de intimação ou de divulgação da interposição do recurso.',
     aplicabilidadeContrarrazao: 'Demonstra tempestividade e direito ao contraditório e ampla defesa.',
   },
   {
@@ -152,8 +152,8 @@ Sua missão é redigir uma CONTRARRAZÃO RECURSAL técnica, assertiva e impecáv
 
 DIRETRIZES FUNDAMENTAIS:
 1. Refute ponto a ponto as teses levantadas pelo licitante recorrente no PDF.
-2. Aplique com veemência o Princípio do Formalismo Moderado (Art. 12, III da Lei 14.133) e a jurisprudência do TCU (Súmula 289 e vedação ao excesso de rigor formal).
-3. Fundamente a tempestividade das contrarrazões (Art. 165, § 1º, II) e a busca da proposta mais vantajosa para o erário.
+2. Aplique com veemência o Princípio do Formalismo Moderado (Art. 12, III e Art. 64 da Lei 14.133/2021) e a jurisprudência do TCU (Acórdão nº 1.211/2021-Plenário e vedação ao excesso de rigor formal).
+3. Fundamente a tempestividade das contrarrazões (Art. 165, § 4º da Lei nº 14.133/2021) e a busca da proposta mais vantajosa para o erário.
 4. Responda em formato Markdown estruturado, dividido em:
    - I. DA TEMPESTIVIDADE E CABIMENTO
    - II. BREVE SÍNTESE DO RECURSO DA REVISORA (Identificando o que o concorrente alega)
@@ -163,7 +163,7 @@ DIRETRIZES FUNDAMENTAIS:
 
   const userPrompt = `DOCUMENTO DO RECURSO CONCORRENTE EXTRAÍDO DO PDF:
 ---
-${rawText.slice(0, 8000)}
+${rawText.slice(0, 60000)}
 ---
 
 BASE JURÍDICA E CITAÇÕES PRIORITÁRIAS MAPEADAS (PGVECTOR):
@@ -218,8 +218,8 @@ Gere agora a minuta oficial das Contrarrazões Recursais completa em Markdown.`;
       },
       {
         alegacaoAdversaria: 'Pretensa juntada indevida de documento novo',
-        fundamentoDefesa: 'Súmula TCU nº 289 autoriza a confirmação e esclarecimento de situação preexistente.',
-        dispositivoLegal: 'Súmula TCU nº 289 / Acórdão 1211/2021-Plenário',
+        fundamentoDefesa: 'Art. 64 da Lei 14.133/2021 e Acórdão nº 1.211/2021-TCU-Plenário autorizam diligência para confirmação de condição preexistente.',
+        dispositivoLegal: 'Art. 64 da Lei 14.133/2021 / Acórdão nº 1.211/2021-TCU-Plenário',
       },
     ],
     conclusaoEstrategica:
@@ -252,7 +252,7 @@ function gerarMinutaContrarrazaoFallback(
 ---
 
 ### I. DA TEMPESTIVIDADE E DO CABIMENTO
-Nos termos do **Art. 165, § 1º, alínea "b" da Lei nº 14.133/2021**, é assegurado aos demais licitantes o prazo de 3 (três) dias úteis para apresentação de contrarrazões, contados da data de intimação formal do recurso.
+Nos termos do **Art. 165, § 4º da Lei nº 14.133/2021**, é assegurado aos demais licitantes o prazo de 3 (três) dias úteis para apresentação de contrarrazões, contados da data de intimação ou de divulgação da interposição do recurso.
 
 A presente peça é tempestiva e adequada, visando a salvaguardar a legalidade do ato que legitimamente acolheu a proposta da Recorrida.
 
@@ -271,7 +271,7 @@ O procedimento licitatório não constitui um fim em si mesmo, mas um instrument
 O **Art. 12, inciso III da Nova Lei de Licitações** cristalizou o Princípio do Formalismo Moderado:
 > *"O desatendimento de exigências meramente formais que não comprometam a aferição da qualificação do licitante ou a exata compreensão da proposta não importará a inabilitação nem a desclassificação."*
 
-Eventual imprecisão de digitação ou omissão sanável não possui o condão de anular o ato da comissão julgadora, porquanto a higidez da contratação e a vantajosisade econômica foram plenamente comprovadas.
+Eventual imprecisão de digitação ou omissão sanável não possui o condão de anular o ato da comissão julgadora, porquanto a higidez da contratação e a vantajosidade econômica foram plenamente comprovadas.
 
 ---
 
@@ -280,7 +280,7 @@ O Tribunal de Contas da União veda expressamente o descarte de propostas mais v
 
 ${citacoes.map((c) => `- **${c.autoridade} (${c.artigoOuNorma}):** ${c.ementaOuTeor}`).join('\n\n')}
 
-A jurisprudência assentada na **Súmula TCU nº 289** preconiza que a complementação de dados pré-existentes não consubstancia documento novo, convalidando a higidez do certame.
+A jurisprudência assentada no **Acórdão nº 1.211/2021-TCU-Plenário** e no **Art. 64 da Lei nº 14.133/2021** preconiza que a complementação de informações e documentos comprobatórios de condição preexistente à abertura da sessão não consubstancia inclusão ilícita de documento novo, convalidando a higidez do certame.
 
 ---
 

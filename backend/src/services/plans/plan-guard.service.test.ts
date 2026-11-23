@@ -1,4 +1,4 @@
-import { PlanGuardService, PlanLimitError } from './plan-guard.service';
+import { PlanGuardService, PlanLimitError, invalidateUserPlanCache } from './plan-guard.service';
 import { prisma } from '../../database/prisma';
 
 jest.mock('../../database/prisma', () => ({
@@ -148,5 +148,23 @@ describe('PlanGuardService', () => {
     });
 
     await expect(service.assertFeature('user-1', 'bid.robot')).resolves.toBeUndefined();
+  });
+
+  it('reutiliza cache de plano quando habilitado e invalida após invalidateUserPlanCache', async () => {
+    const cachedService = new PlanGuardService(true);
+    invalidateUserPlanCache();
+
+    mockUserFindUnique.mockResolvedValueOnce({ id: 'user-cached', trialEndsAt: new Date(Date.now() + 86_400_000) });
+    mockSubscriptionFindFirst.mockResolvedValueOnce(null);
+
+    await expect(cachedService.resolveUserPlan('user-cached')).resolves.toBe('master');
+    await expect(cachedService.resolveUserPlan('user-cached')).resolves.toBe('master');
+    expect(mockUserFindUnique).toHaveBeenCalledTimes(1);
+
+    invalidateUserPlanCache('user-cached');
+    mockUserFindUnique.mockResolvedValueOnce({ id: 'user-cached' });
+    mockSubscriptionFindFirst.mockResolvedValueOnce(null);
+    await expect(cachedService.resolveUserPlan('user-cached')).resolves.toBe('free');
+    expect(mockUserFindUnique).toHaveBeenCalledTimes(2);
   });
 });

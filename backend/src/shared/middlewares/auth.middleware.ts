@@ -30,20 +30,47 @@ export interface AuthRequest extends Request {
  * ou companyId explícito apenas se pertencer ao userId autenticado (proteção contra IDOR).
  */
 export async function resolveAuthorizedCompany(userId: string, preferredCompanyId?: string | null) {
-  if (preferredCompanyId && typeof preferredCompanyId === 'string' && preferredCompanyId.trim()) {
-    const requested = await prisma.company.findFirst({
-      where: {
-        id: preferredCompanyId.trim(),
-        userId,
-      },
-    });
-    return requested;
+  const cleanPreferred =
+    preferredCompanyId && typeof preferredCompanyId === 'string' && preferredCompanyId.trim()
+      ? preferredCompanyId.trim()
+      : null;
+  const cacheEnabled = process.env.NODE_ENV !== 'test';
+  const cacheKey = `${userId}:${cleanPreferred || '__default__'}`;
+
+  if (cacheEnabled) {
+    const cached = authorizedCompanyCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.company;
+    }
+    if (cached) {
+      authorizedCompanyCache.delete(cacheKey);
+    }
   }
 
-  return prisma.company.findFirst({
-    where: { userId },
-    orderBy: { createdAt: 'asc' },
-  });
+  const company = cleanPreferred
+    ? await prisma.company.findFirst({
+        where: {
+          id: cleanPreferred,
+          userId,
+        },
+      })
+    : await prisma.company.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+  if (cacheEnabled) {
+    if (authorizedCompanyCache.size >= COMPANY_CTX_CACHE_MAX) {
+      const oldest = authorizedCompanyCache.keys().next().value;
+      if (oldest) authorizedCompanyCache.delete(oldest);
+    }
+    authorizedCompanyCache.set(cacheKey, {
+      company,
+      expiresAt: Date.now() + COMPANY_CTX_CACHE_TTL_MS,
+    });
+  }
+
+  return company;
 }
 
 function getExplicitCompanyValues(req: AuthRequest): unknown[] {
@@ -64,6 +91,30 @@ function getExplicitCompanyIds(values: unknown[]) {
   return values
     .filter((value): value is string => typeof value === 'string')
     .map((value) => value.trim());
+}
+
+const COMPANY_CTX_CACHE_TTL_MS = 30_000;
+const COMPANY_CTX_CACHE_MAX = 5000;
+const companyContextCache = new Map<string, { companyId: string | null; company?: any; expiresAt: number }>();
+const authorizedCompanyCache = new Map<string, { company: any; expiresAt: number }>();
+
+export function invalidateCompanyContextCache(userId?: string) {
+  if (!userId) {
+    companyContextCache.clear();
+    authorizedCompanyCache.clear();
+    return;
+  }
+  const prefix = `${userId}:`;
+  for (const key of companyContextCache.keys()) {
+    if (key.startsWith(prefix)) {
+      companyContextCache.delete(key);
+    }
+  }
+  for (const key of authorizedCompanyCache.keys()) {
+    if (key.startsWith(prefix)) {
+      authorizedCompanyCache.delete(key);
+    }
+  }
 }
 
 export async function companyContextMiddleware(
@@ -100,6 +151,26 @@ export async function companyContextMiddleware(
 
   const requestedCompanyId =
     uniqueCompanyIds[0] || req.user.companyId || undefined;
+  const cacheEnabled = process.env.NODE_ENV !== 'test';
+  const cacheKey = `${req.user.id}:${req.user.tenantId}:${requestedCompanyId || '__default__'}`;
+
+  if (cacheEnabled) {
+    const cached = companyContextCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (requestedCompanyId && !cached.companyId) {
+        return res.status(403).json({
+          success: false,
+          code: 'COMPANY_ACCESS_DENIED',
+          message: 'A empresa selecionada não está disponível para este usuário.',
+        });
+      }
+      req.companyId = cached.companyId ?? undefined;
+      return next();
+    }
+    if (cached) {
+      companyContextCache.delete(cacheKey);
+    }
+  }
 
   try {
     const company = requestedCompanyId
@@ -117,6 +188,17 @@ export async function companyContextMiddleware(
           },
           orderBy: { createdAt: 'asc' },
         });
+
+    if (cacheEnabled) {
+      if (companyContextCache.size >= COMPANY_CTX_CACHE_MAX) {
+        const oldestKey = companyContextCache.keys().next().value;
+        if (oldestKey) companyContextCache.delete(oldestKey);
+      }
+      companyContextCache.set(cacheKey, {
+        companyId: company?.id ?? null,
+        expiresAt: Date.now() + COMPANY_CTX_CACHE_TTL_MS,
+      });
+    }
 
     if (requestedCompanyId && !company) {
       return res.status(403).json({

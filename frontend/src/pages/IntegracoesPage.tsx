@@ -129,6 +129,15 @@ export default function IntegracoesPage() {
     refetchInterval: 30_000,
   });
 
+  const indicesBcb = useQuery({
+    queryKey: ['integracoes', 'indices-economicos'],
+    queryFn: async () => {
+      const response = await integracoesApi.indicesEconomicos();
+      return response.data?.data ?? null;
+    },
+    staleTime: 5 * 60_000,
+  });
+
   const handleSincronizarPNCP = async () => {
     setSincronizando(true);
     const toastId = toast.loading('Sincronizando PNCP (todas modalidades), Compras.gov e Diários Oficiais...', {
@@ -226,6 +235,78 @@ export default function IntegracoesPage() {
             {telemetria.isLoading ? '...' : formatDateTimePt(telemetria.data?.resumo.ultimaSincronizacao)}
           </p>
           <p className="mt-1 text-xs text-slate-500">Ciclo automático a cada 30 min</p>
+        </div>
+      </div>
+
+      {/* ÍNDICES ECONÔMICOS OFICIAIS (BANCO CENTRAL - SGS) */}
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="font-bold text-[#081C3A] text-base">
+              Índices Econômicos Oficiais (Banco Central — Reajuste Art. 135 Lei 14.133/2021)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Séries temporais diretas do Banco Central do Brasil para balizar aditivos de reajuste e equilíbrio econômico-financeiro.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void indicesBcb.refetch()}
+            disabled={indicesBcb.isFetching}
+            className="text-xs font-bold text-[#081C3A] border border-slate-200 hover:border-[#0070C0] px-3 py-1.5 rounded-full self-start sm:self-auto cursor-pointer"
+          >
+            {indicesBcb.isFetching ? 'Atualizando...' : 'Atualizar Índices BCB'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
+            <p className="text-[11px] font-bold uppercase text-slate-500">IPCA Acumulado (12 meses)</p>
+            <p className="text-2xl font-black text-[#081C3A] mt-1">
+              {indicesBcb.isLoading
+                ? '...'
+                : indicesBcb.data?.ipca?.acumulado12m !== null && indicesBcb.data?.ipca?.acumulado12m !== undefined
+                  ? `${indicesBcb.data.ipca.acumulado12m.toFixed(2)}%`
+                  : 'Indisponível'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Último mês ({indicesBcb.data?.ipca?.ultimoMes?.data || '—'}):{' '}
+              <strong>
+                {indicesBcb.data?.ipca?.ultimoMes ? `${indicesBcb.data.ipca.ultimoMes.valor}%` : '—'}
+              </strong>
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
+            <p className="text-[11px] font-bold uppercase text-slate-500">IGP-M Acumulado (12 meses)</p>
+            <p className="text-2xl font-black text-[#081C3A] mt-1">
+              {indicesBcb.isLoading
+                ? '...'
+                : indicesBcb.data?.igpm?.acumulado12m !== null && indicesBcb.data?.igpm?.acumulado12m !== undefined
+                  ? `${indicesBcb.data.igpm.acumulado12m.toFixed(2)}%`
+                  : 'Indisponível'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Último mês ({indicesBcb.data?.igpm?.ultimoMes?.data || '—'}):{' '}
+              <strong>
+                {indicesBcb.data?.igpm?.ultimoMes ? `${indicesBcb.data.igpm.ultimoMes.valor}%` : '—'}
+              </strong>
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50">
+            <p className="text-[11px] font-bold uppercase text-[#0070C0]">Taxa SELIC Meta Anual</p>
+            <p className="text-2xl font-black text-[#081C3A] mt-1">
+              {indicesBcb.isLoading
+                ? '...'
+                : indicesBcb.data?.selic?.metaAnual !== null && indicesBcb.data?.selic?.metaAnual !== undefined
+                  ? `${indicesBcb.data.selic.metaAnual.toFixed(2)}% a.a.`
+                  : 'Indisponível'}
+            </p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Referência BCB: {indicesBcb.data?.selic?.dataReferencia || '—'}
+            </p>
+          </div>
         </div>
       </div>
 

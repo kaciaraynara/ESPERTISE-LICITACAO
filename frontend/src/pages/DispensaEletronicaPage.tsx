@@ -41,9 +41,9 @@ export const DispensaEletronicaPage: React.FC = () => {
   const [ufSelecionada, setUfSelecionada] = useState('TODOS');
   const [limiteValor, setLimiteValor] = useState<'TODOS' | 'COMPRAS' | 'ENGENHARIA'>('TODOS');
 
-  // Valores limites atualizados pelo Decreto Federal (Art. 75, I e II da Lei 14.133/21)
-  const LIMITE_COMPRAS = 59906.02;
-  const LIMITE_ENGENHARIA = 119812.02;
+  // Valores limites atualizados pelo Decreto Federal nº 12.807/2025 (Art. 75, I e II da Lei 14.133/21 — exercício 2026)
+  const LIMITE_COMPRAS = 65492.11;
+  const LIMITE_ENGENHARIA = 130984.20;
 
   const carregarDispensas = async (sync = false) => {
     setLoading(true);
@@ -230,14 +230,14 @@ export const DispensaEletronicaPage: React.FC = () => {
                 className={`px-3 py-1.5 rounded-lg transition-all ${limiteValor === 'COMPRAS' ? 'bg-white text-slate-900 shadow-xs' : 'hover:text-slate-900'
                   }`}
               >
-                Até R$ 59,9k (Compras)
+                Até R$ 65,4k (Compras)
               </button>
               <button
                 onClick={() => setLimiteValor('ENGENHARIA')}
                 className={`px-3 py-1.5 rounded-lg transition-all ${limiteValor === 'ENGENHARIA' ? 'bg-white text-slate-900 shadow-xs' : 'hover:text-slate-900'
                   }`}
               >
-                Até R$ 119,8k (Obras)
+                Até R$ 130,9k (Obras)
               </button>
             </div>
 
@@ -246,14 +246,34 @@ export const DispensaEletronicaPage: React.FC = () => {
               onChange={(e) => setUfSelecionada(e.target.value)}
               className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
             >
-              <option value="TODOS">Todas as UFs</option>
-              <option value="SP">São Paulo (SP)</option>
-              <option value="RJ">Rio de Janeiro (RJ)</option>
-              <option value="MG">Minas Gerais (MG)</option>
-              <option value="DF">Distrito Federal (DF)</option>
-              <option value="PR">Paraná (PR)</option>
-              <option value="RS">Rio Grande do Sul (RS)</option>
+              <option value="TODOS">Todas as UFs (Brasil)</option>
+              <option value="AC">Acre (AC)</option>
+              <option value="AL">Alagoas (AL)</option>
+              <option value="AP">Amapá (AP)</option>
+              <option value="AM">Amazonas (AM)</option>
               <option value="BA">Bahia (BA)</option>
+              <option value="CE">Ceará (CE)</option>
+              <option value="DF">Distrito Federal (DF)</option>
+              <option value="ES">Espírito Santo (ES)</option>
+              <option value="GO">Goiás (GO)</option>
+              <option value="MA">Maranhão (MA)</option>
+              <option value="MT">Mato Grosso (MT)</option>
+              <option value="MS">Mato Grosso do Sul (MS)</option>
+              <option value="MG">Minas Gerais (MG)</option>
+              <option value="PA">Pará (PA)</option>
+              <option value="PB">Paraíba (PB)</option>
+              <option value="PR">Paraná (PR)</option>
+              <option value="PE">Pernambuco (PE)</option>
+              <option value="PI">Piauí (PI)</option>
+              <option value="RJ">Rio de Janeiro (RJ)</option>
+              <option value="RN">Rio Grande do Norte (RN)</option>
+              <option value="RS">Rio Grande do Sul (RS)</option>
+              <option value="RO">Rondônia (RO)</option>
+              <option value="RR">Roraima (RR)</option>
+              <option value="SC">Santa Catarina (SC)</option>
+              <option value="SP">São Paulo (SP)</option>
+              <option value="SE">Sergipe (SE)</option>
+              <option value="TO">Tocantins (TO)</option>
             </select>
             <button
               type="button"

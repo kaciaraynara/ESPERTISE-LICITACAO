@@ -11,7 +11,9 @@ jest.mock('@google/generative-ai', () => ({
 
 import {
   FALLBACK_MODELS,
-  buildDeterministicLegalDossierFromPrompt,
+  MissingApiKeyError,
+  ProviderUnavailableError,
+  AiTimeoutError,
   streamChatWithProvider,
 } from './ai.service';
 
@@ -36,8 +38,7 @@ describe('streamChatWithProvider', () => {
     expect(FALLBACK_MODELS).toEqual([
       'gemini-2.5-flash',
       'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      'gemini-flash-latest',
     ]);
 
     mockGenerateContentStream.mockResolvedValue({
@@ -101,23 +102,42 @@ describe('streamChatWithProvider', () => {
     ]);
   });
 
-  it('aciona buildDeterministicLegalDossierFromPrompt como contingência automática em falha de quota/rede', async () => {
+  it('lança MissingApiKeyError quando GEMINI_API_KEY está ausente ou não configurada', async () => {
+    delete process.env.GEMINI_API_KEY;
+    await expect(
+      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => {}),
+    ).rejects.toThrow(MissingApiKeyError);
+
+    process.env.GEMINI_API_KEY = 'unconfigured';
+    await expect(
+      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => {}),
+    ).rejects.toThrow(MissingApiKeyError);
+  });
+
+  it('lança ProviderUnavailableError (sem fallback genérico falso) quando todos os modelos falham', async () => {
     mockGenerateContentStream.mockRejectedValue({
       status: 429,
       message: 'Rate limit exceeded',
     });
 
     const chunks: string[] = [];
-    const result = await streamChatWithProvider(
-      [{ role: 'user', content: 'Analise este edital.' }],
-      (c) => {
-        chunks.push(c);
-      },
-    );
+    await expect(
+      streamChatWithProvider(
+        [{ role: 'user', content: 'Analise este edital.' }],
+        (c) => {
+          chunks.push(c);
+        },
+      ),
+    ).rejects.toThrow(ProviderUnavailableError);
 
-    expect(result.provider).toBe('lex-deterministic-contingency');
-    expect(result.content).toContain('[Fato da fonte]');
-    expect(chunks.length).toBe(1);
-    expect(buildDeterministicLegalDossierFromPrompt('Analise este edital.')).toContain('Lei 14.133/2021');
+    expect(chunks).toHaveLength(0);
+  });
+
+  it('propaga AiTimeoutError quando a última tentativa falha por timeout', async () => {
+    mockGenerateContentStream.mockRejectedValue(new AiTimeoutError(45000));
+
+    await expect(
+      streamChatWithProvider([{ role: 'user', content: 'Pergunta.' }], () => {}),
+    ).rejects.toThrow(AiTimeoutError);
   });
 });

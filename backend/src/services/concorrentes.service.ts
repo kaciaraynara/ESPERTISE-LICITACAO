@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { consultarComprasGovContratos } from './intelligence.service';
 
-type FonteDossie = 'pncp' | 'portal_transparencia';
+type FonteDossie = 'pncp' | 'portal_transparencia' | 'comprasgov';
 type FonteStatus = 'success' | 'partial' | 'failed';
 type FailureReason = 'timeout' | 'network' | 'http' | 'unknown';
 
@@ -66,7 +67,7 @@ interface SourceResult {
   statusCode?: number;
 }
 
-const DEFAULT_YEARS_BACK = 5;
+const DEFAULT_YEARS_BACK = 1;
 const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 5;
 
@@ -88,14 +89,16 @@ export class ConcorrentesService {
     }
 
     const periodo = buildPeriod();
-    const [pncpResult, transparenciaResult] = await Promise.all([
+    const [pncpResult, transparenciaResult, comprasGovResult] = await Promise.all([
       this.consultarPncp(cnpjLimpo, periodo),
       this.consultarPortalTransparencia(cnpjLimpo, userId),
+      this.consultarComprasGov(cnpjLimpo),
     ]);
 
     const contratos = dedupeContratos([
       ...pncpResult.contratos,
       ...transparenciaResult.contratos,
+      ...comprasGovResult.contratos,
     ]);
     const estatisticas = buildEstatisticas(contratos);
     const historico = contratos
@@ -109,7 +112,7 @@ export class ConcorrentesService {
       estatisticas,
       historico,
       contratos: historico,
-      fontes: [pncpResult, transparenciaResult].map((result) => ({
+      fontes: [pncpResult, transparenciaResult, comprasGovResult].map((result) => ({
         fonte: result.fonte,
         status: result.status,
         totalRegistros: result.contratos.length,
@@ -119,6 +122,45 @@ export class ConcorrentesService {
       })),
       geradoEm: new Date().toISOString(),
     };
+  }
+
+  private async consultarComprasGov(cnpj: string): Promise<SourceResult> {
+    try {
+      const lista = await consultarComprasGovContratos(cnpj);
+      const contratos: ContratoConcorrente[] = lista.map((item) => ({
+        id: `comprasgov:${item.id}`,
+        fonte: 'comprasgov',
+        numeroContrato: item.id,
+        numeroControlePncp: null,
+        objeto: item.objeto,
+        orgao: item.orgao,
+        cnpjOrgao: null,
+        modalidade: item.modalidade,
+        categoria: null,
+        valor: roundMoney(Number(item.valor || 0)),
+        dataAssinatura: normalizeDateString(item.dataAssinatura),
+        dataPublicacao: normalizeDateString(item.dataAssinatura),
+        vigenciaInicio: null,
+        vigenciaFim: null,
+        situacao: 'Homologado (Compras.gov)',
+        url: null,
+      }));
+      return {
+        fonte: 'comprasgov',
+        status: 'success',
+        contratos,
+      };
+    } catch (error) {
+      const failure = classifyExternalError(error);
+      return {
+        fonte: 'comprasgov',
+        status: 'failed',
+        contratos: [],
+        message: 'Falha ao consultar resultados homologados no Compras.gov.br.',
+        failureReason: failure.reason,
+        statusCode: failure.statusCode,
+      };
+    }
   }
 
   private async consultarPncp(cnpj: string, periodo: DossieConcorrente['periodo']): Promise<SourceResult> {

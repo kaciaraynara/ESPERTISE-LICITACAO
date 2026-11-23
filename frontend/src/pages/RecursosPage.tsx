@@ -12,9 +12,14 @@ import {
   Check,
   RefreshCw,
   Sparkles,
+  Download,
 } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
 import { lexApi } from '../services/api';
+import {
+  exportarPecaJuridicaPdf,
+  PROMPT_PADRAO_CONTRARRAZOES_RECURSO,
+} from '../utils/legalPdfGenerator';
 
 export default function RecursosPage() {
   const { selectedCompany } = useCompany();
@@ -64,16 +69,22 @@ export default function RecursosPage() {
     setGerandoIa(true);
 
     const empresa = selectedCompany?.razaoSocial || 'Empresa Licitante Proponente';
-    const cnpj = selectedCompany?.cnpj || 'CNPJ não informado';
+    const cnpj = selectedCompany?.cnpj || 'CNPJ conforme cadastro oficial';
     const compAny = selectedCompany as any;
-    const endereco = compAny?.cidade ? `${compAny.cidade}/${compAny.estado || 'UF'}` : 'Sede da Empresa';
-    const representante = compAny?.nome || compAny?.representanteLegal || 'Representante Legal';
+    const endereco =
+      compAny?.endereco ||
+      [compAny?.logradouro, compAny?.bairro, compAny?.municipio || compAny?.cidade, compAny?.uf || compAny?.estado]
+        .filter(Boolean)
+        .join(', ') ||
+      'endereço registrado no Contrato Social e no SICAF';
+    const representante = compAny?.nome || compAny?.representanteLegal || 'Representante Legal Constituído';
 
     let analiseIaPersonalizada = '';
 
     try {
       // Chama inteligência jurídica conectada ao backend com jurisprudência da Lei 14.133/2021
       const contextoCompleto = [
+        PROMPT_PADRAO_CONTRARRAZOES_RECURSO,
         `Empresa: ${empresa} (CNPJ: ${cnpj})`,
         `Órgão: ${orgao || 'Administração Licitante'}`,
         `Processo: ${numeroProcesso || 'Edital Oficial'}`,
@@ -105,8 +116,8 @@ export default function RecursosPage() {
       ? analiseIaPersonalizada
       : [
           'A decisão combatida diverge da jurisprudência pacífica e consolidada do Tribunal de Contas da União (TCU) e da doutrina administrativista especializada:',
-          'a) Atestados de Qualificação Técnica: Conforme estabelece a Súmula nº 275 do TCU e o Artigo 67, § 2º da Lei 14.133/2021, é expressamente vedada a exigência de atestados com quantitativos superiores a 50% da parcela de maior relevância, configurando restrição indevida à ampla concorrência;',
-          'b) Demonstrações Contábeis e Índices de Liquidez: Na esteira da Súmula nº 263 do TCU e do Artigo 69 da Lei 14.133/2021, a comprovação da saúde financeira da licitante deve ater-se a índices usuais e razoáveis (Liquidez Geral, Liquidez Corrente e Solvência Geral maiores que 1,0), sendo vedada a fixação de exigências desproporcionais;',
+          'a) Atestados de Qualificação Técnica: Conforme estabelece a Súmula nº 263 do TCU e o Artigo 67, § 2º da Lei 14.133/2021, é expressamente vedada a exigência de atestados com quantitativos superiores a 50% da parcela de maior relevância, configurando restrição indevida à ampla concorrência;',
+          'b) Demonstrações Contábeis e Índices de Liquidez: Na esteira da Súmula nº 289 do TCU e do Artigo 69, § 5º da Lei 14.133/2021, a comprovação da saúde financeira da licitante deve ater-se a índices usuais e justificados no processo, sendo vedada a fixação de valores desproporcionais ou não usualmente adotados;',
           'c) Princípio da Razoabilidade e Seleção da Proposta Mais Vantajosa: A jurisprudência do TCU (Acórdãos 1.211/2021-Plenário e 2.443/2021-Plenário) condena o formalismo exacerbado em desfavor da proposta mais vantajosa para o erário público.',
         ].join('\n');
 
@@ -157,6 +168,22 @@ export default function RecursosPage() {
     navigator.clipboard.writeText(minutaGerada);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const handleExportarPdfTimbrado = () => {
+    if (!minutaGerada) return;
+    exportarPecaJuridicaPdf({
+      tipoPeca: 'RECURSO ADMINISTRATIVO',
+      orgao: orgao || 'Administração Pública Licitante',
+      modalidade: modalidade || 'Pregão Eletrônico',
+      numeroEdital: numeroProcesso || 'Edital Oficial',
+      objeto: objeto || 'Conforme instrumento convocatório',
+      empresaNome: selectedCompany?.razaoSocial || 'Empresa Licitante Proponente',
+      empresaCnpj: selectedCompany?.cnpj || '',
+      empresaEndereco: selectedCompany?.endereco || [selectedCompany?.municipio, selectedCompany?.uf].filter(Boolean).join('/'),
+      conteudo: minutaGerada,
+    });
+    toast.success('Peça Recursal exportada em PDF Timbrado!');
   };
 
   return (
@@ -354,14 +381,24 @@ export default function RecursosPage() {
                 <h3 className="text-base font-extrabold text-[#081C3A]">Síntese e Minuta</h3>
               </div>
               {minutaGerada && (
-                <button
-                  type="button"
-                  onClick={handleCopiar}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:bg-slate-200"
-                >
-                  {copiado ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copiado ? 'Copiado' : 'Copiar texto'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportarPdfTimbrado}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#081C3A] px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5 text-[#FF6600]" />
+                    Baixar PDF Timbrado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopiar}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:bg-slate-200 cursor-pointer"
+                  >
+                    {copiado ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiado ? 'Copiado' : 'Copiar texto'}
+                  </button>
+                </div>
               )}
             </div>
             <pre className="mt-4 whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 font-sans text-xs leading-relaxed text-slate-700">

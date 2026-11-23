@@ -19,6 +19,20 @@ interface UserPlanSource {
   plano?: string | null;
   plan?: string | null;
   planType?: string | null;
+  trialEndsAt?: Date | string | null;
+  createdAt?: Date | string | null;
+}
+
+const USER_PLAN_CACHE_TTL_MS = 30_000;
+const USER_PLAN_CACHE_MAX = 5000;
+const userPlanCache = new Map<string, { planId: PlanId; expiresAt: number }>();
+
+export function invalidateUserPlanCache(userId?: string) {
+  if (!userId) {
+    userPlanCache.clear();
+    return;
+  }
+  userPlanCache.delete(userId);
 }
 
 interface SubscriptionPlanSource {
@@ -43,9 +57,20 @@ export class PlanLimitError extends AppError {
 }
 
 export class PlanGuardService {
-  async resolveUserPlan(userId: string): Promise<PlanId> {
-    const now = new Date();
+  constructor(private readonly enableCache = process.env.NODE_ENV !== 'test') {}
 
+  async resolveUserPlan(userId: string): Promise<PlanId> {
+    if (this.enableCache) {
+      const cached = userPlanCache.get(userId);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.planId;
+      }
+      if (cached) {
+        userPlanCache.delete(userId);
+      }
+    }
+
+    const now = new Date();
     const user = await this.loadUserPlanSource(userId);
 
     if (!user) {
@@ -59,27 +84,32 @@ export class PlanGuardService {
     const activeSubscription = await this.loadActiveSubscription(userId, now);
     const subscriptionPlan = this.getPlanValue(activeSubscription);
 
+    let resolvedPlan: PlanId = 'free';
     if (subscriptionPlan) {
-      return normalizePlanId(subscriptionPlan);
+      resolvedPlan = normalizePlanId(subscriptionPlan);
+    } else {
+      const effectiveTrialEndsAt =
+        user.trialEndsAt ??
+        (user.createdAt
+          ? new Date(new Date(user.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
+          : null);
+      if (effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now) {
+        resolvedPlan = 'master';
+      }
     }
 
-    // Se o usuário possui trialEndsAt ativo ou conta criada há menos de 15 dias, concede plano 'master'
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { trialEndsAt: true, createdAt: true },
-    });
-    const effectiveTrialEndsAt =
-      dbUser?.trialEndsAt ??
-      (dbUser?.createdAt
-        ? new Date(new Date(dbUser.createdAt).getTime() + 15 * 24 * 60 * 60 * 1000)
-        : null);
-    if (effectiveTrialEndsAt && new Date(effectiveTrialEndsAt) > now) {
-      return 'master';
+    if (this.enableCache) {
+      if (userPlanCache.size >= USER_PLAN_CACHE_MAX) {
+        const oldestKey = userPlanCache.keys().next().value;
+        if (oldestKey) userPlanCache.delete(oldestKey);
+      }
+      userPlanCache.set(userId, {
+        planId: resolvedPlan,
+        expiresAt: Date.now() + USER_PLAN_CACHE_TTL_MS,
+      });
     }
 
-    // Se não há assinatura ativa válida (ou se expirou/cancelou), o plano é estritamente 'free'.
-    // Nunca confia em valor herdado ou manipulado diretamente em User.plano para conceder planos pagos.
-    return 'free';
+    return resolvedPlan;
   }
 
   async assertFeature(userId: string, feature: PlanFeature | string): Promise<void> {
@@ -146,7 +176,7 @@ export class PlanGuardService {
   private async loadUserPlanSource(userId: string): Promise<UserPlanSource | null> {
     return prisma.user.findUnique({
       where: { id: userId },
-      select: { plano: true },
+      select: { plano: true, trialEndsAt: true, createdAt: true },
     }) as Promise<UserPlanSource | null>;
   }
 

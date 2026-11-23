@@ -8,6 +8,18 @@ import { RedisStore } from 'rate-limit-redis';
  * Gerenciamento Singleton da conexão Redis dedicada à camada de Segurança e Rate Limiting.
  */
 let securityRedisClient: Redis | null = null;
+let lastRedisErrorLogAt = 0;
+
+function buildRedisClientOptions() {
+  return {
+    maxRetriesPerRequest: 2,
+    enableReadyCheck: true,
+    lazyConnect: false,
+    enableOfflineQueue: false,
+    connectTimeout: 5000,
+    retryStrategy: (times: number) => Math.min(times * 1000, 30_000),
+  };
+}
 
 export function getSecurityRedisClient(): Redis | null {
   if (securityRedisClient) {
@@ -21,24 +33,23 @@ export function getSecurityRedisClient(): Redis | null {
     return null;
   }
 
+  const baseOptions = buildRedisClientOptions();
   const client = redisUrl
-    ? new Redis(redisUrl, {
-        maxRetriesPerRequest: 2,
-        enableReadyCheck: true,
-        lazyConnect: false,
-      })
+    ? new Redis(redisUrl, baseOptions)
     : new Redis({
         host: redisHost,
         port: Number(process.env.REDIS_PORT) || 6379,
         password: process.env.REDIS_PASSWORD?.trim() || undefined,
         tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
-        maxRetriesPerRequest: 2,
-        enableReadyCheck: true,
-        lazyConnect: false,
+        ...baseOptions,
       });
 
   client.on('error', (err) => {
-    console.error('[SECURITY_REDIS_ERROR] Falha na conexão Redis de Rate Limit:', err.message);
+    const now = Date.now();
+    if (now - lastRedisErrorLogAt >= 60_000) {
+      lastRedisErrorLogAt = now;
+      console.error('[SECURITY_REDIS_ERROR] Falha na conexão Redis de Rate Limit:', err.message);
+    }
   });
 
   securityRedisClient = client;
@@ -115,8 +126,12 @@ function buildRedisRateLimitStore(prefix: string): RedisStore | undefined {
 
   return new RedisStore({
     prefix,
-    sendCommand: (...args: string[]) =>
-      client.call(args[0], ...args.slice(1)) as Promise<any>,
+    sendCommand: async (...args: string[]) => {
+      if (client.status !== 'ready') {
+        throw new Error('REDIS_NOT_READY');
+      }
+      return (await client.call(args[0], ...args.slice(1))) as any;
+    },
   });
 }
 

@@ -27,6 +27,7 @@ interface WorkerEnv {
   DATA_PLATFORM_TCU_LIMIT?: string;
   DATA_PLATFORM_PNCP_FILTERS?: string;
   DATA_PLATFORM_COMPRASGOV_FILTERS?: string;
+  DATA_PLATFORM_INITIAL_SYNC_ENABLED?: string;
 }
 
 interface CronScheduler {
@@ -87,7 +88,11 @@ export class DataPlatformWorkerService {
 
     dataPlatformLog('info', 'DATA_PLATFORM_WORKERS_CONFIGURED', { scheduled });
 
-    void this.runInitialSynchronization();
+    if (this.isEnabled('DATA_PLATFORM_INITIAL_SYNC_ENABLED', true)) {
+      void this.runInitialSynchronization().catch((error) => {
+        dataPlatformLog('error', 'DATA_PLATFORM_INITIAL_SYNC_FAILED', { error: errorMessage(error) });
+      });
+    }
 
     return scheduled;
   }
@@ -197,7 +202,15 @@ export class DataPlatformWorkerService {
       expression,
       async () => {
         dataPlatformLog('info', 'DATA_PLATFORM_WORKER_TICK', { name, expression });
-        await run();
+        try {
+          await run();
+        } catch (error) {
+          dataPlatformLog('error', 'DATA_PLATFORM_WORKER_TICK_FAILED', {
+            name,
+            expression,
+            error: errorMessage(error),
+          });
+        }
       },
       { timezone },
     );

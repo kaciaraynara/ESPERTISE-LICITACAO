@@ -16,7 +16,7 @@ async function saveDocumentChunks(
   const chunkSize = 1800;
   const chunkOverlap = 200;
   const chunks: string[] = [];
-  for (let i = 0; i < text.length && chunks.length < 45; i += (chunkSize - chunkOverlap)) {
+  for (let i = 0; i < text.length && chunks.length < 80; i += (chunkSize - chunkOverlap)) {
     const part = text.slice(i, i + chunkSize).trim();
     if (part) chunks.push(part);
   }
@@ -203,7 +203,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
         sourceId: { in: lookupIds },
       },
       orderBy: { chunkIndex: 'asc' },
-      take: 45,
+      take: 80,
       select: { content: true },
     });
 
@@ -336,19 +336,20 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       return await buildAndPersistFallback();
     }
 
-    // 5. Seleciona ate 3 anexos prioritarios (Edital, Termo de Referencia, Minuta) e extrai PDF, DOCX e ZIP
+    // 5. Seleciona ate 5 anexos prioritarios (Edital, Termo de Referencia, ETP, Minuta) e extrai PDF, DOCX e ZIP
     const scoreArquivo = (a: any) => {
       const txt = `${a.tipoDocumentoNome || a.tipo_documento_nome || ''} ${a.titulo || a.nome || ''}`.toLowerCase();
-      if (txt.includes('edital')) return 3;
-      if (txt.includes('termo de refer') || txt.includes('projeto b')) return 2;
-      if (txt.includes('minuta') || txt.includes('anexo')) return 1;
+      if (txt.includes('edital')) return 4;
+      if (txt.includes('termo de refer') || txt.includes('projeto b')) return 3;
+      if (txt.includes('estudo t') || txt.includes('etp')) return 2;
+      if (txt.includes('minuta') || txt.includes('planilha') || txt.includes('anexo')) return 1;
       return 0;
     };
 
     const candidatos = [...arquivos]
       .filter((a: any) => a.statusAtivo !== false)
       .sort((a: any, b: any) => scoreArquivo(b) - scoreArquivo(a))
-      .slice(0, 3);
+      .slice(0, 5);
     if (candidatos.length === 0 && arquivos[0]) candidatos.push(arquivos[0]);
 
     const parsePdfBuffer = async (buf: Buffer): Promise<string> => {
@@ -387,7 +388,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
               const innerBuf = entry.asNodeBuffer();
               const innerTxt = await extrairBuffer(innerBuf, entryName, depth + 1);
               if (innerTxt.length >= 30) parts.push(`[${entryName}]\n${innerTxt}`);
-              if (parts.join('\n').length > 100000) break;
+              if (parts.join('\n').length > 150000) break;
             }
           }
           return parts.join('\n\n');
@@ -418,7 +419,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       }
     }
 
-    const extractedText = textosAnexos.join('\n\n').slice(0, 120000);
+    const extractedText = textosAnexos.join('\n\n').slice(0, 150000);
     if (!extractedText || extractedText.length < 50) {
       console.warn('[PNCP Parser] Anexos sem texto extraível (PDF imagem/vazio). Aplicando escopo estruturado.');
       return await buildAndPersistFallback();
@@ -451,12 +452,12 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
           fileName: editalArquivo.titulo || 'Edital.pdf',
           fileUrl: urlArquivoPDF,
           mimeType: 'application/pdf',
-          extractedText: extractedText.slice(0, 120000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 120000)).digest('hex'),
+          extractedText: extractedText.slice(0, 150000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 150000)).digest('hex'),
         },
         update: {
-          extractedText: extractedText.slice(0, 120000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 120000)).digest('hex'),
+          extractedText: extractedText.slice(0, 150000),
+          contentHash: createHash('sha256').update(extractedText.slice(0, 150000)).digest('hex'),
         },
       });
     }

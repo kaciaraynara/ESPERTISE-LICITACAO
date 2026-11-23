@@ -1,6 +1,20 @@
 import jwt from 'jsonwebtoken';
-import { authMiddleware, AuthRequest } from './auth.middleware';
+import {
+  authMiddleware,
+  AuthRequest,
+  companyContextMiddleware,
+  invalidateCompanyContextCache,
+} from './auth.middleware';
 import { requireRole } from './role.middleware';
+import { prisma } from '../../database/prisma';
+
+jest.mock('../../database/prisma', () => ({
+  prisma: {
+    company: {
+      findFirst: jest.fn(),
+    },
+  },
+}));
 
 function mockRes() {
   const res: any = {};
@@ -69,5 +83,60 @@ describe('requireRole', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+});
+
+describe('companyContextMiddleware (cache + anti-IDOR)', () => {
+  const mockFindFirst = prisma.company.findFirst as jest.Mock;
+  const originalEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    invalidateCompanyContextCache();
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+    invalidateCompanyContextCache();
+  });
+
+  test('reutiliza cache multi-tenant e preserva bloqueio 403 anti-IDOR', async () => {
+    process.env.NODE_ENV = 'production';
+    mockFindFirst.mockResolvedValueOnce({ id: 'comp-ok' });
+
+    const req1 = {
+      headers: { 'x-company-id': 'comp-ok' },
+      query: {},
+      user: { id: 'u1', tenantId: 't1', email: 'u1@test.com', plano: 'pro' },
+    } as unknown as AuthRequest;
+    const next1 = jest.fn();
+    await companyContextMiddleware(req1, mockRes(), next1);
+    expect(next1).toHaveBeenCalledTimes(1);
+    expect(req1.companyId).toBe('comp-ok');
+
+    // Segunda chamada usa cache (0 queries adicionais)
+    const req2 = {
+      headers: { 'x-company-id': 'comp-ok' },
+      query: {},
+      user: { id: 'u1', tenantId: 't1', email: 'u1@test.com', plano: 'pro' },
+    } as unknown as AuthRequest;
+    const next2 = jest.fn();
+    await companyContextMiddleware(req2, mockRes(), next2);
+    expect(next2).toHaveBeenCalledTimes(1);
+    expect(req2.companyId).toBe('comp-ok');
+    expect(mockFindFirst).toHaveBeenCalledTimes(1);
+
+    // Tentativa IDOR de outro usuário para comp-ok é bloqueada com 403
+    mockFindFirst.mockResolvedValueOnce(null);
+    const reqIdor = {
+      headers: { 'x-company-id': 'comp-ok' },
+      query: {},
+      user: { id: 'u-attacker', tenantId: 't-attacker', email: 'att@test.com', plano: 'pro' },
+    } as unknown as AuthRequest;
+    const resIdor = mockRes();
+    const nextIdor = jest.fn();
+    await companyContextMiddleware(reqIdor, resIdor, nextIdor);
+    expect(nextIdor).not.toHaveBeenCalled();
+    expect(resIdor.status).toHaveBeenCalledWith(403);
   });
 });

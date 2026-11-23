@@ -7,7 +7,7 @@ describe('AIController', () => {
       await input.options.onChunk('Resposta parcial.');
       return {
         content: 'Resposta grounded.',
-        provider: 'gemini (gemini-3.8-flash)',
+        provider: 'gemini (gemini-2.5-flash)',
         citations: [{ sourceId: 'source-1' }],
         confidence: 0.8,
       };

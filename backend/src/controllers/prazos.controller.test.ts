@@ -1,8 +1,11 @@
 const mockCompanyFindFirst = jest.fn();
 const mockDeadlineFindMany = jest.fn();
+const mockDeadlineFindFirst = jest.fn();
 const mockDeadlineFindUnique = jest.fn();
 const mockDeadlineCreate = jest.fn();
 const mockDeadlineUpdate = jest.fn();
+const mockMonitoredFindMany = jest.fn();
+const mockPipelineFindMany = jest.fn();
 
 jest.mock('../database/prisma', () => ({
   prisma: {
@@ -11,9 +14,16 @@ jest.mock('../database/prisma', () => ({
     },
     deadline: {
       findMany: mockDeadlineFindMany,
+      findFirst: mockDeadlineFindFirst,
       findUnique: mockDeadlineFindUnique,
       create: mockDeadlineCreate,
       update: mockDeadlineUpdate,
+    },
+    companyMonitoredNotice: {
+      findMany: mockMonitoredFindMany,
+    },
+    biddingPipeline: {
+      findMany: mockPipelineFindMany,
     },
   },
 }));
@@ -300,6 +310,43 @@ describe('PrazosController — ACH-02: Validação de Datas e Regras de Negócio
           orderBy: [{ dueAt: 'asc' }, { date: 'asc' }],
         }),
       );
+    });
+  });
+
+  describe('sincronizarMonitorados (Importação automática de editais e impugnações)', () => {
+    test('cria prazos de SESSAO_PUBLICA e IMPUGNACAO sem duplicar existentes', async () => {
+      const req: any = { user: { id: userId } };
+      const res = mockResponse();
+
+      mockCompanyFindFirst.mockResolvedValueOnce({ id: companyId, userId });
+      const dataFutura = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
+      mockMonitoredFindMany.mockResolvedValueOnce([
+        {
+          procurementNotice: {
+            id: 'notice-100',
+            noticeNumber: 'PE 99/2026',
+            buyerName: 'Prefeitura Modelo',
+            object: 'Aquisição de Equipamentos',
+            openingAt: dataFutura,
+          },
+        },
+      ]);
+      mockPipelineFindMany.mockResolvedValueOnce([]);
+      mockDeadlineFindFirst.mockResolvedValue(null);
+      mockDeadlineCreate.mockResolvedValue({ id: 'created-id' });
+
+      await controller.sincronizarMonitorados(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.payload).toMatchObject({
+        success: true,
+        data: {
+          criados: 2,
+          ignorados: 0,
+          totalAnalisados: 1,
+        },
+      });
+      expect(mockDeadlineCreate).toHaveBeenCalledTimes(2);
     });
   });
 });

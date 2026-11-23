@@ -1,11 +1,8 @@
-import { SignOut, X } from '@phosphor-icons/react';
 import { useEffect, useState, Suspense } from 'react';
-import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useLogout } from '../../hooks';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth.store';
 import Sidebar, { hasActivePaidPlan, isUserTrialActive } from './Sidebar';
 import Header from './Header';
-import { resolveProfileNavigation } from './profile-navigation';
 import { useCompany } from '../../contexts/CompanyContext';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { GlobalCertificateAlertBanner } from '../common/GlobalCertificateAlertBanner';
@@ -17,11 +14,9 @@ export default function DashboardLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { switchingCompany, selectedCompany, isLoading } = useCompany();
-  const logout = useLogout();
   const user = useAuthStore((state) => state.user);
   const planAccessLoaded = useAuthStore((state) => state.planAccessLoaded);
   const activePlanId = useAuthStore((state) => state.activePlanId);
-  const groups = resolveProfileNavigation(user?.role, user);
 
   const isTrialActive = isUserTrialActive(user);
   const hasPaidPlan = hasActivePaidPlan(user, activePlanId);
@@ -47,85 +42,16 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-screen w-full max-w-full overflow-hidden bg-brand-light text-slate-800">
-      <Sidebar />
+      <Sidebar
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+      />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           onToggleMobileMenu={() => setMobileMenuOpen((open) => !open)}
           mobileMenuOpen={mobileMenuOpen}
         />
-
-        {mobileMenuOpen ? (
-          <div className="fixed inset-0 z-50 flex md:hidden">
-            <div
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-[1px]"
-              onClick={() => setMobileMenuOpen(false)}
-              aria-hidden="true"
-            />
-            <div
-              id="mobile-navigation"
-              className="relative z-10 flex h-full w-[82vw] max-w-[290px] flex-col bg-brand-dark text-white shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3.5">
-                <span className="text-sm font-black tracking-wider text-white">EXPERTISE</span>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  aria-label="Fechar menu"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-slate-300 hover:bg-white/10 hover:text-white"
-                >
-                  <X className="h-5 w-5" weight="bold" />
-                </button>
-              </div>
-              <nav aria-label="Navegação móvel" className="flex-1 overflow-y-auto p-4">
-                {groups.map((group) => (
-                  <section key={group.label} className="mb-5 last:mb-0">
-                    <h2 className="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      {group.label}
-                    </h2>
-                    <div className="mt-2 space-y-1">
-                      {group.items.map((item) => {
-                        const active = item.exact
-                          ? location.pathname === item.path
-                          : location.pathname.startsWith(item.path);
-                        const Icon = item.icon;
-                        return (
-                          <Link
-                            key={item.path}
-                            to={item.path}
-                            onClick={() => setMobileMenuOpen(false)}
-                            aria-current={active ? 'page' : undefined}
-                            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold ${active
-                              ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/30'
-                              : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                              }`}
-                          >
-                            <Icon
-                              className={`h-5 w-5 shrink-0 ${active ? 'text-brand-orange' : 'text-slate-400'}`}
-                              weight={active ? 'fill' : 'bold'}
-                            />
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </section>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    void logout();
-                  }}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/[0.06] px-4 py-3 text-sm font-bold text-red-200"
-                >
-                  <SignOut className="h-5 w-5" weight="bold" />
-                  Encerrar sessão
-                </button>
-              </nav>
-            </div>
-          </div>
-        ) : null}
 
         <GlobalCertificateAlertBanner />
 
@@ -134,7 +60,7 @@ export default function DashboardLayout() {
           tabIndex={0}
           style={{ overflowY: 'auto' }}
           aria-busy={switchingCompany}
-          className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden bg-brand-light"
+          className="flex-1 w-full min-w-0 overflow-y-auto overflow-x-hidden bg-brand-light pb-24"
         >
           <ErrorBoundary
             key={location.pathname}

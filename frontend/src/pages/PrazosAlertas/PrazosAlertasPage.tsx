@@ -70,6 +70,25 @@ export const PrazosAlertasPage: React.FC = () => {
     onError: () => toast.error('Nossos servidores estão processando a solicitação. Tente novamente.')
   });
 
+  // Mutação para importar automaticamente prazos de editais monitorados e funil CRM
+  const sincronizarMutation = useMutation({
+    mutationFn: () => prazosApi.sincronizarMonitorados(),
+    onSuccess: (res: any) => {
+      const stats = res?.data?.data || {};
+      const criados = Number(stats.criados || 0);
+      toast.success(
+        criados > 0
+          ? `${criados} prazo(s) de sessão e impugnação importados dos seus editais!`
+          : 'Todos os prazos dos seus editais monitorados já estão atualizados.',
+      );
+      queryClient.invalidateQueries({ queryKey: ['prazos_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'metrics'] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Não foi possível importar os prazos dos editais.');
+    },
+  });
+
   // Mutação para criação manual de prazo
   const criarMutation = useMutation({
     mutationFn: () => {
@@ -196,15 +215,27 @@ export const PrazosAlertasPage: React.FC = () => {
           </p>
         </div>
 
-        <button 
-          id="btn-novo-prazo"
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#EA580C] hover:bg-orange-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0"
-        >
-          <Plus size={16} />
-          <span>Novo Prazo</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => sincronizarMutation.mutate()}
+            disabled={sincronizarMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#0A2540] hover:bg-slate-800 disabled:opacity-60 text-white font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+          >
+            {sincronizarMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Calendar size={15} />}
+            <span>{sincronizarMutation.isPending ? 'Importando...' : 'Importar Prazos dos Meus Editais'}</span>
+          </button>
+
+          <button 
+            id="btn-novo-prazo"
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#EA580C] hover:bg-orange-600 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0"
+          >
+            <Plus size={16} />
+            <span>Novo Prazo</span>
+          </button>
+        </div>
       </header>
 
       {/* CARDS DE RESUMO ESTRATÉGICO */}

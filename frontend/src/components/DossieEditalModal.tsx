@@ -623,7 +623,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 print:border-slate-400 print:text-slate-900">
                   <FileText className="w-3.5 h-3.5" />
-                  {titulo || 'Resumo Estratégico do Edital'}
+                  {titulo || 'Dossiê Estratégico do Edital'}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                   Lei 14.133/2021
@@ -660,7 +660,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                 className="btn-baixar-dossie-pdf inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-brand-blue" />
-                <span>Baixar Resumo em PDF</span>
+                <span>Baixar Dossiê em PDF</span>
               </button>
 
               <a
@@ -1095,7 +1095,7 @@ Entregue: 1) Vale a pena disputar e por quê; 2) Tática de lances recomendada p
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-full shadow-2xs transition-all cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-brand-blue" />
-                  <span>Baixar Resumo em PDF</span>
+                  <span>Baixar Dossiê em PDF</span>
                 </button>
                 <a
                   href={urlOficialPncp}

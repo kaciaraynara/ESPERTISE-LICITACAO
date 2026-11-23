@@ -43,6 +43,12 @@ const HEADER_TITLES: Record<string, string> = {
   '/fornecedor/empresa': 'Minha Empresa',
   '/fornecedor/planos': 'Planos e Assinatura',
   '/fornecedor/configuracoes': 'Configurações',
+  '/fornecedor/pca': 'Planos de Contratações Anuais (PCA)',
+  '/fornecedor/dispensa-eletronica': 'Dispensa Eletrônica',
+  '/fornecedor/sicaf-credenciamento': 'SICAF e Certificação',
+  '/fornecedor/integracoes': 'Integrações Oficiais',
+  '/fornecedor/propostas/criar': 'Nova Proposta Comercial',
+  '/fornecedor/expertise-intelligence': 'Inteligência & Malha Fina',
 };
 
 export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {

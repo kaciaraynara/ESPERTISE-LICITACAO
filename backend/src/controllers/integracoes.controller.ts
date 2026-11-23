@@ -6,7 +6,10 @@ import { PncpServiceError } from '../services/pncp.service';
 import { syncPncpPropostasAbertas, syncPncpAtualizacoes } from '../jobs/radar.cron';
 import { syncComprasGovRecentes } from '../services/comprasgov.service';
 import { syncQueridoDiarioEditais } from '../services/querido-diario.service';
+import { consultarSicafConsolidado } from '../services/sicaf.service';
+import { obterIndicesEconomicosBcb } from '../services/indices-economicos.service';
 import { prisma } from '../database/prisma';
+import { scaleSingleflight } from '../services/scale-cache.service';
 
 const QD_HTTPS_AGENT = new https.Agent({ minVersion: 'TLSv1.2' });
 
@@ -120,6 +123,33 @@ export class IntegracoesController {
     }
   }
 
+  async consultarSicaf(req: Request, res: Response) {
+    const cnpjLimpo = normalizarCnpj(req.params.cnpj ?? '');
+    if (cnpjLimpo.length !== 14) {
+      return res.status(400).json({
+        success: false,
+        code: 'CNPJ_INVALID',
+        message: 'Informe um CNPJ válido com 14 dígitos.',
+      });
+    }
+
+    try {
+      const data = await consultarSicafConsolidado(cnpjLimpo);
+      return res.json({ success: true, data });
+    } catch (error) {
+      return res.status(503).json({
+        success: false,
+        code: 'SICAF_CONSULTA_UNAVAILABLE',
+        message: error instanceof Error ? error.message : 'Falha ao consultar fontes oficiais do SICAF.',
+      });
+    }
+  }
+
+  async indicesEconomicos(_req: Request, res: Response) {
+    const data = await obterIndicesEconomicosBcb();
+    return res.json({ success: data.ok, data });
+  }
+
   async catalogo(_req: Request, res: Response) {
     const fontes = [
       {
@@ -127,17 +157,26 @@ export class IntegracoesController {
         nome: 'Portal Nacional de Contratações Públicas (PNCP)',
         orgao: 'Ministério da Gestão e da Inovação em Serviços Públicos',
         tipo: 'API REST Oficial',
-        descricao: 'Base central obrigatória da Nova Lei de Licitações (Lei 14.133/2021) com editais, itens, atas de registro de preços e contratos de todas as esferas.',
+        descricao: 'Base central obrigatória da Nova Lei de Licitações (Lei 14.133/2021) com editais, PCAs, itens, atas de registro de preços e contratos de todas as esferas.',
         documentacaoUrl: 'https://pncp.gov.br/api/consulta/swagger-ui/index.html',
         integradoNoApp: true,
       },
       {
         id: 'comprasgov',
-        nome: 'Compras.gov.br — Dados Abertos',
+        nome: 'Compras.gov.br — Dados Abertos (CATMAT, CATSER, Preços e SICAF)',
         orgao: 'Governo Federal (SIASG / Comprasnet)',
         tipo: 'API REST Oficial',
-        descricao: 'Histórico de pregões eletrônicos, dispensas, catálogo CATMAT/CATSERV e preços praticados para formação de preço de referência.',
+        descricao: 'Histórico de pregões eletrônicos, dispensas, catálogos CATMAT/CATSER, pesquisa de preços praticados e consulta aberta de fornecedores do SICAF.',
         documentacaoUrl: 'https://dadosabertos.compras.gov.br/swagger-ui/index.html',
+        integradoNoApp: true,
+      },
+      {
+        id: 'tcu_apf',
+        nome: 'TCU — Certidão Consolidada de Pessoa Jurídica (APF)',
+        orgao: 'Tribunal de Contas da União / CNJ / CGU',
+        tipo: 'API REST Oficial',
+        descricao: 'Consulta unificada gratuita de Licitantes Inidôneos (TCU), Condenações Cíveis/Improbidade (CNJ), CEIS e CNEP (CGU) para habilitação e malha fina.',
+        documentacaoUrl: 'https://certidoes-apf.apps.tcu.gov.br/',
         integradoNoApp: true,
       },
       {
@@ -151,10 +190,10 @@ export class IntegracoesController {
       },
       {
         id: 'transparencia',
-        nome: 'Portal da Transparência — CEIS / CNEP / CEPIM e Contratos',
+        nome: 'Portal da Transparência — CEIS / CNEP / CEPIM / Leniência e Contratos',
         orgao: 'Controladoria-Geral da União (CGU)',
         tipo: 'API REST Oficial',
-        descricao: 'Consulta de sanções administrativas (CEIS, CNEP, CEPIM), contratos federais, impedimentos de licitar e dossiê de concorrentes. Editais vigentes são ingeridos via PNCP, Compras.gov.br e Diários Oficiais.',
+        descricao: 'Consulta de sanções administrativas (CEIS, CNEP, CEPIM), acordos de leniência, contratos federais e dossiê de concorrentes.',
         documentacaoUrl: 'https://api.portaldatransparencia.gov.br/swagger-ui.html',
         integradoNoApp: true,
       },
@@ -165,6 +204,15 @@ export class IntegracoesController {
         tipo: 'API REST Pública',
         descricao: 'Enriquecimento cadastral automático de empresas e concorrentes (CNAEs, quadro societário, porte, capital social e situação cadastral).',
         documentacaoUrl: 'https://brasilapi.com.br/docs#tag/CNPJ',
+        integradoNoApp: true,
+      },
+      {
+        id: 'bcb_sgs',
+        nome: 'Banco Central do Brasil (SGS — IPCA / IGP-M / SELIC)',
+        orgao: 'Banco Central do Brasil (BACEN)',
+        tipo: 'API REST Oficial',
+        descricao: 'Séries temporais oficiais de IPCA, IGP-M e Taxa SELIC para reajuste e equilíbrio econômico-financeiro de contratos (Art. 135 Lei 14.133/2021).',
+        documentacaoUrl: 'https://dadosabertos.bcb.gov.br/',
         integradoNoApp: true,
       },
     ];
@@ -220,8 +268,19 @@ export class IntegracoesController {
         `${comprasGovBase}/modulo-contratacoes/1_consultarContratacoes_PNCP_14133?pagina=1&tamanhoPagina=10&dataPublicacaoPncpInicial=${iso(ontem)}&dataPublicacaoPncpFinal=${iso(hoje)}&codigoModalidade=5&contratacaoExcluida=false`,
         { timeout: 10000 },
       ),
+      this.probeUrl(
+        'CATMAT / CATSER',
+        `${comprasGovBase}/modulo-servico/6_consultarItemServico?pagina=1&tamanhoPagina=10&statusServico=true`,
+        { timeout: 10000 },
+      ),
+      this.probeUrl(
+        'TCU (APF / INIDÔNEOS)',
+        'https://certidoes-apf.apps.tcu.gov.br/api/rest/publico/certidoes/00000000000191',
+        { timeout: 10000 },
+      ),
       checkQueridoDiario(),
       this.probeUrl('RECEITA / CNPJ', 'https://brasilapi.com.br/api/cnpj/v1/00000000000191', { timeout: 10000 }),
+      this.probeUrl('BANCO CENTRAL (SGS)', 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/1?formato=json', { timeout: 10000 }),
       this.probeTransparencia(),
     ]);
 
@@ -233,89 +292,88 @@ export class IntegracoesController {
 
   async telemetria(_req: Request, res: Response) {
     try {
-      let fontesRaw: any[] = [];
-      let cursorsRaw: any[] = [];
-      let jobsRaw: any[] = [];
+      const payload = await scaleSingleflight('integracoes:telemetria', 25, async () => {
+        let fontesRaw: any[] = [];
+        let cursorsRaw: any[] = [];
+        let jobsRaw: any[] = [];
 
-      if (typeof (prisma as any)?.$queryRawUnsafe === 'function') {
-        const [fRes, cRes, jRes] = await Promise.all([
-          (prisma as any).$queryRawUnsafe(`
-            SELECT
-              source,
-              count(*)::int AS total,
-              count(*) FILTER (
-                WHERE NOT (COALESCE(status, '') ~* '(suspens|revogad|anulad|cancelad|encerrad|desert|fracassad|homologad)')
-                  AND (
-                    closing_at > NOW()
-                    OR (source = 'querido_diario' AND closing_at IS NULL AND published_at >= NOW() - INTERVAL '15 days')
-                    OR (modality ILIKE '%Credenciamento%' AND closing_at IS NULL AND published_at >= NOW() - INTERVAL '60 days')
-                  )
-              )::int AS abertos,
-              count(*) FILTER (WHERE published_at >= NOW() - INTERVAL '24 hours')::int AS novos_24h,
-              max(published_at) AS ultima_publicacao,
-              max(updated_at) AS ultima_atualizacao
-            FROM procurement_notices
-            GROUP BY source
-            ORDER BY total DESC
-          `).catch(() => []),
-          (prisma as any).$queryRawUnsafe(`
-            SELECT source, cursor_key, cursor_value, last_synced_at, updated_at
-            FROM data_source_cursors
-            ORDER BY updated_at DESC
-            LIMIT 25
-          `).catch(() => []),
-          (prisma as any).$queryRawUnsafe(`
-            SELECT id, source, connector, status, records_seen, records_accepted, records_duplicated, records_failed, error_message, started_at, finished_at
-            FROM data_ingestion_jobs
-            ORDER BY created_at DESC
-            LIMIT 12
-          `).catch(() => []),
-        ]);
-        fontesRaw = Array.isArray(fRes) ? fRes : [];
-        cursorsRaw = Array.isArray(cRes) ? cRes : [];
-        jobsRaw = Array.isArray(jRes) ? jRes : [];
-      }
+        if (typeof (prisma as any)?.$queryRawUnsafe === 'function') {
+          const [fRes, cRes, jRes] = await Promise.all([
+            (prisma as any).$queryRawUnsafe(`
+              SELECT
+                source,
+                count(*)::int AS total,
+                count(*) FILTER (
+                  WHERE NOT (COALESCE(status, '') ~* '(suspens|revogad|anulad|cancelad|encerrad|desert|fracassad|homologad)')
+                    AND (
+                      closing_at > NOW()
+                      OR (source = 'querido_diario' AND closing_at IS NULL AND published_at >= NOW() - INTERVAL '15 days')
+                      OR (modality ILIKE '%Credenciamento%' AND closing_at IS NULL AND published_at >= NOW() - INTERVAL '60 days')
+                    )
+                )::int AS abertos,
+                count(*) FILTER (WHERE published_at >= NOW() - INTERVAL '24 hours')::int AS novos_24h,
+                max(published_at) AS ultima_publicacao,
+                max(updated_at) AS ultima_atualizacao
+              FROM procurement_notices
+              GROUP BY source
+              ORDER BY total DESC
+            `).catch(() => []),
+            (prisma as any).$queryRawUnsafe(`
+              SELECT source, cursor_key, cursor_value, last_synced_at, updated_at
+              FROM data_source_cursors
+              ORDER BY updated_at DESC
+              LIMIT 25
+            `).catch(() => []),
+            (prisma as any).$queryRawUnsafe(`
+              SELECT id, source, connector, status, records_seen, records_accepted, records_duplicated, records_failed, error_message, started_at, finished_at
+              FROM data_ingestion_jobs
+              ORDER BY created_at DESC
+              LIMIT 12
+            `).catch(() => []),
+          ]);
+          fontesRaw = Array.isArray(fRes) ? fRes : [];
+          cursorsRaw = Array.isArray(cRes) ? cRes : [];
+          jobsRaw = Array.isArray(jRes) ? jRes : [];
+        }
 
-      const fontes = fontesRaw.map((row) => ({
-        source: String(row.source || 'PNCP'),
-        total: Number(row.total ?? 0),
-        abertos: Number(row.abertos ?? 0),
-        novos24h: Number(row.novos_24h ?? 0),
-        ultimaPublicacao: row.ultima_publicacao ? new Date(row.ultima_publicacao).toISOString() : null,
-        ultimaAtualizacao: row.ultima_atualizacao ? new Date(row.ultima_atualizacao).toISOString() : null,
-      }));
+        const fontes = fontesRaw.map((row) => ({
+          source: String(row.source || 'PNCP'),
+          total: Number(row.total ?? 0),
+          abertos: Number(row.abertos ?? 0),
+          novos24h: Number(row.novos_24h ?? 0),
+          ultimaPublicacao: row.ultima_publicacao ? new Date(row.ultima_publicacao).toISOString() : null,
+          ultimaAtualizacao: row.ultima_atualizacao ? new Date(row.ultima_atualizacao).toISOString() : null,
+        }));
 
-      const totalEditais = fontes.reduce((acc, f) => acc + f.total, 0);
-      const totalAbertos = fontes.reduce((acc, f) => acc + f.abertos, 0);
-      const novos24h = fontes.reduce((acc, f) => acc + f.novos24h, 0);
-      const ultimaSincronizacao = fontes.reduce<string | null>((latest, f) => {
-        if (!f.ultimaAtualizacao) return latest;
-        if (!latest || f.ultimaAtualizacao > latest) return f.ultimaAtualizacao;
-        return latest;
-      }, null);
+        const totalEditais = fontes.reduce((acc, f) => acc + f.total, 0);
+        const totalAbertos = fontes.reduce((acc, f) => acc + f.abertos, 0);
+        const novos24h = fontes.reduce((acc, f) => acc + f.novos24h, 0);
+        const ultimaSincronizacao = fontes.reduce<string | null>((latest, f) => {
+          if (!f.ultimaAtualizacao) return latest;
+          if (!latest || f.ultimaAtualizacao > latest) return f.ultimaAtualizacao;
+          return latest;
+        }, null);
 
-      const cursores = cursorsRaw.map((c) => ({
-        source: String(c.source || ''),
-        cursorKey: String(c.cursor_key || ''),
-        cursorValue: c.cursor_value && typeof c.cursor_value === 'object' ? c.cursor_value : null,
-        lastSyncedAt: c.last_synced_at ? new Date(c.last_synced_at).toISOString() : null,
-      }));
+        const cursores = cursorsRaw.map((c) => ({
+          source: String(c.source || ''),
+          cursorKey: String(c.cursor_key || ''),
+          cursorValue: c.cursor_value && typeof c.cursor_value === 'object' ? c.cursor_value : null,
+          lastSyncedAt: c.last_synced_at ? new Date(c.last_synced_at).toISOString() : null,
+        }));
 
-      const jobs = jobsRaw.map((j) => ({
-        id: String(j.id || ''),
-        source: String(j.source || ''),
-        connector: String(j.connector || ''),
-        status: String(j.status || 'completed'),
-        recordsSeen: Number(j.records_seen ?? 0),
-        recordsAccepted: Number(j.records_accepted ?? 0),
-        recordsFailed: Number(j.records_failed ?? 0),
-        errorMessage: j.error_message ? String(j.error_message) : null,
-        finishedAt: j.finished_at ? new Date(j.finished_at).toISOString() : null,
-      }));
+        const jobs = jobsRaw.map((j) => ({
+          id: String(j.id || ''),
+          source: String(j.source || ''),
+          connector: String(j.connector || ''),
+          status: String(j.status || 'completed'),
+          recordsSeen: Number(j.records_seen ?? 0),
+          recordsAccepted: Number(j.records_accepted ?? 0),
+          recordsFailed: Number(j.records_failed ?? 0),
+          errorMessage: j.error_message ? String(j.error_message) : null,
+          finishedAt: j.finished_at ? new Date(j.finished_at).toISOString() : null,
+        }));
 
-      return res.json({
-        success: true,
-        data: {
+        return {
           resumo: {
             totalEditais,
             totalAbertos,
@@ -325,7 +383,12 @@ export class IntegracoesController {
           fontes,
           cursores,
           jobs,
-        },
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: payload,
       });
     } catch (error) {
       return res.status(500).json({

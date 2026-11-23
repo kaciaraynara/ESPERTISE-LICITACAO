@@ -69,6 +69,28 @@ export async function streamAiChat(params: StreamChatParams): Promise<{ fullText
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  let activeCompanyId: string | null = null;
+  if (typeof window !== 'undefined') {
+    const storedCompany = window.localStorage.getItem('@Expertise:selectedCompany');
+    if (storedCompany) {
+      try {
+        const company = JSON.parse(storedCompany);
+        if (company && (company.id || company.companyId)) {
+          activeCompanyId = String(company.id || company.companyId);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  if (!activeCompanyId) {
+    const authUser = useAuthStore.getState().user;
+    activeCompanyId = authUser?.company?.id || authUser?.company_id || null;
+  }
+  if (activeCompanyId) {
+    headers['x-company-id'] = activeCompanyId;
+  }
+
   const requestBody = {
     stream: true,
     ...(messages ? { messages } : {}),

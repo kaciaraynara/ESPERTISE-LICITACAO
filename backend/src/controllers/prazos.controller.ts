@@ -3,6 +3,8 @@ import { DeadlineType } from '@prisma/client';
 import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { ApiError } from '../shared/errors/ApiError';
+import { calcularPrazoDecadencialImpugnacao } from '../utils/prazos.util';
+import { scaleCacheInvalidatePrefix, scaleSingleflight } from '../services/scale-cache.service';
 
 const DEADLINE_TYPE_MAP: Record<string, DeadlineType> = {
   SESSAO_PUBLICA: DeadlineType.SESSAO_PUBLICA,
@@ -87,26 +89,32 @@ export class PrazosController {
     }
     if (!company) throw new ApiError('Empresa não encontrada', 404);
 
-    const prazos = await prisma.deadline.findMany({
-      where: {
-        OR: [
-          { companyId: company.id },
-          { userId },
-          { responsibleUserId: userId },
-        ],
-      },
-      include: { procurementNotice: true },
-      orderBy: [
-        { dueAt: 'asc' },
-        { date: 'asc' },
-      ],
-    });
+    const formatted = await scaleSingleflight(
+      `prazos:list:${userId}:${company.id}`,
+      15,
+      async () => {
+        const prazos = await prisma.deadline.findMany({
+          where: {
+            OR: [
+              { companyId: company!.id },
+              { userId },
+              { responsibleUserId: userId },
+            ],
+          },
+          include: { procurementNotice: true },
+          orderBy: [
+            { dueAt: 'asc' },
+            { date: 'asc' },
+          ],
+        });
 
-    const formatted = prazos.map((p) => ({
-      ...p,
-      date: p.date || p.dueAt,
-      dueAt: p.dueAt || p.date,
-    }));
+        return prazos.map((p) => ({
+          ...p,
+          date: p.date || p.dueAt,
+          dueAt: p.dueAt || p.date,
+        }));
+      },
+    );
 
     return res.json({ success: true, data: formatted });
   }
@@ -133,6 +141,8 @@ export class PrazosController {
         completedAt: new Date(),
       },
     });
+    scaleCacheInvalidatePrefix(`prazos:list:${userId}:`);
+    scaleCacheInvalidatePrefix(`dashboard:metrics:${userId}:`);
 
     return res.json({
       success: true,
@@ -236,6 +246,130 @@ export class PrazosController {
         ...prazo,
         date: prazo.date || prazo.dueAt,
         dueAt: prazo.dueAt || prazo.date,
+      },
+    });
+  }
+
+  public async sincronizarMonitorados(req: AuthRequest, res: Response) {
+    const userId = req.user?.id;
+    if (!userId) throw new ApiError('Não autenticado', 401);
+
+    const company = await resolveAuthorizedCompany(userId, req.companyId)
+      || await prisma.company.findFirst({ where: { userId } });
+    if (!company) throw new ApiError('Empresa não encontrada', 404);
+
+    const [monitored, pipeline] = await Promise.all([
+      prisma.companyMonitoredNotice.findMany({
+        where: { companyId: company.id },
+        include: { procurementNotice: true },
+      }).catch(() => []),
+      prisma.biddingPipeline.findMany({
+        where: { userId },
+        include: { notice: true },
+      }).catch(() => []),
+    ]);
+
+    const noticesMap = new Map<string, any>();
+    for (const m of monitored as any[]) {
+      if (m?.procurementNotice?.id) noticesMap.set(m.procurementNotice.id, m.procurementNotice);
+    }
+    for (const p of pipeline as any[]) {
+      if (p?.notice?.id) noticesMap.set(p.notice.id, p.notice);
+    }
+
+    let criados = 0;
+    let ignorados = 0;
+    const limitePassado = Date.now() - 24 * 60 * 60 * 1000;
+
+    for (const notice of noticesMap.values()) {
+      const rawDate = notice.openingAt || notice.closingAt;
+      if (!rawDate) {
+        ignorados += 1;
+        continue;
+      }
+
+      const sessaoDate = new Date(rawDate);
+      if (isNaN(sessaoDate.getTime()) || sessaoDate.getTime() < limitePassado) {
+        ignorados += 1;
+        continue;
+      }
+
+      const editalRef = notice.noticeNumber || notice.externalId || notice.buyerName || 'Edital';
+      const existeSessao = await prisma.deadline.findFirst({
+        where: {
+          companyId: company.id,
+          procurementNoticeId: notice.id,
+          type: DeadlineType.SESSAO_PUBLICA,
+        },
+      });
+
+      if (!existeSessao) {
+        await prisma.deadline.create({
+          data: {
+            companyId: company.id,
+            procurementNoticeId: notice.id,
+            responsibleUserId: userId,
+            userId,
+            title: `Sessão Pública — ${editalRef}`,
+            description: String(notice.object || '').slice(0, 300) || null,
+            type: DeadlineType.SESSAO_PUBLICA,
+            status: 'OPEN',
+            dueAt: sessaoDate,
+            date: sessaoDate,
+            source: 'auto_monitoramento',
+          } as any,
+        });
+        criados += 1;
+      } else {
+        ignorados += 1;
+      }
+
+      try {
+        const ymd = sessaoDate.toISOString().slice(0, 10);
+        const impugInfo = calcularPrazoDecadencialImpugnacao(ymd);
+        const impugDate = new Date(`${impugInfo.prazoDecadencial}T17:00:00Z`);
+        if (!isNaN(impugDate.getTime()) && impugDate.getTime() > Date.now()) {
+          const existeImpug = await prisma.deadline.findFirst({
+            where: {
+              companyId: company.id,
+              procurementNoticeId: notice.id,
+              type: DeadlineType.IMPUGNACAO,
+            },
+          });
+          if (!existeImpug) {
+            await prisma.deadline.create({
+              data: {
+                companyId: company.id,
+                procurementNoticeId: notice.id,
+                responsibleUserId: userId,
+                userId,
+                title: `Limite Impugnação (Art. 164) — ${editalRef}`,
+                description: `3 dias úteis antes da abertura de ${notice.buyerName || 'Órgão Público'}.`,
+                type: DeadlineType.IMPUGNACAO,
+                status: 'OPEN',
+                dueAt: impugDate,
+                date: impugDate,
+                fundamentoLegal: 'Art. 164, caput da Lei 14.133/2021',
+                diasUteisAntecedencia: impugInfo.diasUteisAntes,
+                diasCorridosAtePrazo: impugInfo.diasCorridosAtePrazo,
+                tempestivoHoje: impugInfo.tempestivoHoje,
+                source: 'auto_monitoramento',
+              } as any,
+            });
+            criados += 1;
+          }
+        }
+      } catch {
+        // Data fora do intervalo válido de cálculo não interrompe os demais editais
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        criados,
+        ignorados,
+        totalAnalisados: noticesMap.size,
       },
     });
   }

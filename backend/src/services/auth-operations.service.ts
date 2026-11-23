@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import axios from 'axios';
 import { getJwtSecret } from '../shared/runtime-config';
 import { getCommercialPlanConfig } from '../config/plan-features';
@@ -8,10 +8,12 @@ import { consultarCnpjOficial } from './cnpj.service';
 import { isValidPasswordHash, logAuthEvent, normalizeAuthEmail } from './auth.service';
 import { prisma } from '../database/prisma';
 import { ApiError } from '../shared/errors/ApiError';
+import { invalidateCompanyContextCache } from '../shared/middlewares/auth.middleware';
+import { invalidateUserPlanCache } from './plans/plan-guard.service';
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
-const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
+const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
 const LGPD_TERMS_VERSION = process.env.LGPD_TERMS_VERSION?.trim() || '1.0';
 
 export type AuthUser = {
@@ -356,69 +358,68 @@ export class AuthOperationsService {
         },
       });
 
-      await tx.auditEvent.create({
-        data: {
-          userId: user.id,
-          scope: 'privacy',
-          action: 'LGPD_TERMS_ACCEPTED',
-          outcome: 'success',
-          entityType: 'user',
-          entityId: user.id,
-          metadata: {
-            termsVersion: LGPD_TERMS_VERSION,
-            acceptedAt: new Date().toISOString(),
+      const [, createdCompany] = await Promise.all([
+        tx.auditEvent.create({
+          data: {
+            userId: user.id,
+            scope: 'privacy',
+            action: 'LGPD_TERMS_ACCEPTED',
+            outcome: 'success',
+            entityType: 'user',
+            entityId: user.id,
+            metadata: {
+              termsVersion: LGPD_TERMS_VERSION,
+              acceptedAt: new Date().toISOString(),
+            },
           },
-        },
-      });
-
-      const createdCompany = await tx.company.create({
-        data: {
-          tenantId: tenant.id,
-          userId: user.id,
-          cnpj: cleanCnpj,
-          razaoSocial: empresaOficial.razao_social.trim(),
-          nomeFantasia: empresaOficial.nome_fantasia?.trim() || null,
-          cnaePrincipal: empresaOficial.cnae_principal,
-          nicho: empresaOficial.nicho,
-          municipio: empresaOficial.municipio,
-          uf: empresaOficial.uf,
-          cep: validatedData.cep?.trim() || null,
-          logradouro: validatedData.logradouro?.trim() || null,
-          bairro: validatedData.bairro?.trim() || null,
-          telefone: telefone?.trim() || null,
-          email: emailNormalized,
-          porte: validatedData.porte?.trim() || null,
-          status: empresaOficial.status,
-          trialEndsAt,
-        },
-      });
-
-      // Registrar assinatura inicial em status trialing
-      await tx.subscription.create({
-        data: {
-          userId: user.id,
-          email: emailNormalized,
-          plano: 'master',
-          planType: 'MASTER',
-          categoria: 'plataforma',
-          status: 'trialing',
-          periodoInicio: new Date(),
-          periodoFim: trialEndsAt,
-        },
-      });
-
-      await tx.notification.create({
-        data: {
-          userId: user.id,
-          tipo: 'empresa_configurada',
-          titulo: 'Empresa vinculada com sucesso',
-          mensagem: `${empresaOficial.razao_social.trim()} foi vinculada à conta.`,
-          link: '/fornecedor/dashboard',
-          status: 'enviada',
-          enviadaEm: new Date(),
-          lida: false,
-        },
-      });
+        }),
+        tx.company.create({
+          data: {
+            tenantId: tenant.id,
+            userId: user.id,
+            cnpj: cleanCnpj,
+            razaoSocial: empresaOficial.razao_social.trim(),
+            nomeFantasia: empresaOficial.nome_fantasia?.trim() || null,
+            cnaePrincipal: empresaOficial.cnae_principal,
+            nicho: empresaOficial.nicho,
+            municipio: empresaOficial.municipio,
+            uf: empresaOficial.uf,
+            cep: validatedData.cep?.trim() || null,
+            logradouro: validatedData.logradouro?.trim() || null,
+            bairro: validatedData.bairro?.trim() || null,
+            telefone: telefone?.trim() || null,
+            email: emailNormalized,
+            porte: validatedData.porte?.trim() || null,
+            status: empresaOficial.status,
+            trialEndsAt,
+          },
+        }),
+        // Registrar assinatura inicial em status trialing
+        tx.subscription.create({
+          data: {
+            userId: user.id,
+            email: emailNormalized,
+            plano: 'master',
+            planType: 'MASTER',
+            categoria: 'plataforma',
+            status: 'trialing',
+            periodoInicio: new Date(),
+            periodoFim: trialEndsAt,
+          },
+        }),
+        tx.notification.create({
+          data: {
+            userId: user.id,
+            tipo: 'empresa_configurada',
+            titulo: 'Empresa vinculada com sucesso',
+            mensagem: `${empresaOficial.razao_social.trim()} foi vinculada à conta.`,
+            link: '/fornecedor/dashboard',
+            status: 'enviada',
+            enviadaEm: new Date(),
+            lida: false,
+          },
+        }),
+      ]);
 
       const publicUser = this.buildPublicUser(user, createdCompany);
       const tokens = this.issueTokens(publicUser);
@@ -564,16 +565,39 @@ export class AuthOperationsService {
   }
 
   async deleteUserAccount(userId: string) {
-    // Soft Delete para manter integridade, auditoria e futura anonimização (LGPD job)
-    await prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: new Date() },
+    const now = new Date();
+    const anonymousEmail = `anon-${userId}@privacy.invalid`;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: now,
+          anonymizedAt: now,
+          email: anonymousEmail,
+          emailNormalized: anonymousEmail,
+          nome: null,
+          apelido: null,
+          telefone: null,
+          passwordHash: `ANONYMIZED:${randomBytes(32).toString('hex')}`,
+          emailVerificado: false,
+          aceiteLgpd: false,
+          oabNumero: null,
+          oabUf: null,
+          crcNumero: null,
+          crcUf: null,
+          resetToken: null,
+          resetTokenExp: null,
+        },
+      });
+
+      await tx.refreshToken.deleteMany({
+        where: { userId },
+      });
     });
 
-    // Remove all refresh tokens to force immediate logout
-    await prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
+    invalidateCompanyContextCache(userId);
+    invalidateUserPlanCache(userId);
   }
 }
 

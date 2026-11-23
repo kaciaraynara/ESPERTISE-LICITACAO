@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { AuthRequest, invalidateCompanyContextCache } from '../shared/middlewares/auth.middleware';
 import { empresasService } from '../services/empresas.service';
 import { ApiError } from '../shared/errors/ApiError';
 import { incrementPlanUsage } from '../shared/middlewares/plan-limits.middleware';
@@ -37,6 +37,7 @@ export class EmpresasController {
 
     const body = req.body as Record<string, unknown>;
     const empresa = await empresasService.criar(userId, body);
+    invalidateCompanyContextCache(userId);
     void incrementPlanUsage(userId, 'cnpjs');
 
     return res.status(201).json({ success: true, data: empresa });
@@ -52,6 +53,7 @@ export class EmpresasController {
 
     const body = req.body as Record<string, unknown>;
     const empresa = await empresasService.atualizar(userId, id, body);
+    invalidateCompanyContextCache(userId);
 
     return res.json({ success: true, data: empresa });
   }

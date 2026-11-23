@@ -12,6 +12,7 @@ const handle = (handler: RequestHandler): RequestHandler => (req, res, next) => 
 const fornecedorOuContador = requireRole('fornecedor') as RequestHandler;
 
 router.get('/', fornecedorOuContador, handle(controller.listar.bind(controller) as RequestHandler));
+router.post('/sincronizar-monitorados', fornecedorOuContador, handle(controller.sincronizarMonitorados.bind(controller) as RequestHandler));
 router.post('/', fornecedorOuContador, handle(controller.criar.bind(controller) as RequestHandler));
 router.patch('/:id/concluir', fornecedorOuContador, handle(controller.concluir.bind(controller) as RequestHandler));
 

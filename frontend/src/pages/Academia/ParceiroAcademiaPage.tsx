@@ -70,33 +70,43 @@ export const ParceiroAcademiaPage: React.FC = () => {
 
   const criarCurso = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErro('');
     setMsg('');
-    const resp = await api.post(
-      '/academia/parceiro/cursos',
-      { title: courseTitle, category: courseCategory, description: courseDesc },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    setCourseTitle('');
-    setCourseDesc('');
-    setSelectedCourseId(resp.data?.data?.id || '');
-    setMsg('Curso publicado com sucesso na Academia!');
-    await carregarCursos();
+    try {
+      const resp = await api.post(
+        '/academia/parceiro/cursos',
+        { title: courseTitle, category: courseCategory, description: courseDesc },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCourseTitle('');
+      setCourseDesc('');
+      setSelectedCourseId(resp.data?.data?.id || '');
+      setMsg('Curso publicado com sucesso na Academia!');
+      await carregarCursos();
+    } catch (err: any) {
+      setErro(err?.response?.data?.message || 'Não foi possível publicar o curso.');
+    }
   };
 
   const adicionarAula = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourseId) return;
+    setErro('');
     setMsg('');
-    await api.post(
-      `/academia/parceiro/cursos/${selectedCourseId}/aulas`,
-      { title: lessonTitle, lessonType, videoUrl, activityPrompt, durationMinutes },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    setLessonTitle('');
-    setVideoUrl('');
-    setActivityPrompt('');
-    setMsg('Aula e atividade publicadas com sucesso!');
-    await carregarCursos();
+    try {
+      await api.post(
+        `/academia/parceiro/cursos/${selectedCourseId}/aulas`,
+        { title: lessonTitle, lessonType, videoUrl, activityPrompt, durationMinutes },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setLessonTitle('');
+      setVideoUrl('');
+      setActivityPrompt('');
+      setMsg('Aula e atividade publicadas com sucesso!');
+      await carregarCursos();
+    } catch (err: any) {
+      setErro(err?.response?.data?.message || 'Não foi possível publicar a aula.');
+    }
   };
 
   const sair = () => {
@@ -152,6 +162,11 @@ export const ParceiroAcademiaPage: React.FC = () => {
           </form>
         ) : (
           <div className="space-y-6">
+            {erro && (
+              <p className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-semibold text-red-700">
+                {erro}
+              </p>
+            )}
             {msg && (
               <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-bold text-emerald-800">
                 <CheckCircle2 className="h-4 w-4" /> {msg}

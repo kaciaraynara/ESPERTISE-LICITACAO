@@ -166,23 +166,40 @@ export function valorPorExtensoBRL(valor: number): string {
 
   let resultado = '';
   if (inteiro > 0) {
+    let textoPartes = '';
+    if (partesInteiro.length >= 2 && centenas > 0 && (centenas < 100 || centenas % 100 === 0)) {
+      const prefixo = partesInteiro.slice(0, -1).join(', ');
+      const ultimo = partesInteiro[partesInteiro.length - 1];
+      textoPartes = `${prefixo} e ${ultimo}`;
+    } else {
+      textoPartes = partesInteiro.join(', ');
+    }
+
     const sufixoReal =
       inteiro === 1
         ? 'real'
         : centenas === 0 && milhares === 0 && (milhoes > 0 || bilhoes > 0)
           ? 'de reais'
           : 'reais';
-    resultado = `${partesInteiro.join(', ')} ${sufixoReal}`;
+    resultado = `${textoPartes} ${sufixoReal}`;
   }
 
   if (centavos > 0) {
-    const extCentavos = `${converterBlocoAte999(centavos)} ${
-      centavos === 1 ? 'centavo' : 'centavos'
-    }`;
+    const extCentavos = `${converterBlocoAte999(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'
+      }`;
     resultado = resultado ? `${resultado} e ${extCentavos}` : extCentavos;
   }
 
   return resultado;
+}
+
+function formatarCnpjDocumento(raw?: string | null): string {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length !== 14) {
+    const trimmed = String(raw || '').trim();
+    return trimmed || 'CNPJ não informado — completar em Dados da Empresa';
+  }
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 }
 
 export function formatarMoedaBRL(valor: number): string {
@@ -222,10 +239,9 @@ export class PropostaDocumentoService {
       overridePayload?.empresa?.razaoSocial ||
       companyRecord?.razaoSocial ||
       'Empresa Licitante Credenciada';
-    const cnpj =
-      overridePayload?.empresa?.cnpj ||
-      companyRecord?.cnpj ||
-      '00.000.000/0001-00';
+    const cnpj = formatarCnpjDocumento(
+      overridePayload?.empresa?.cnpj || companyRecord?.cnpj
+    );
     const enderecoCompleto =
       overridePayload?.empresa?.enderecoCompleto ||
       [
@@ -245,7 +261,7 @@ export class PropostaDocumentoService {
       'Contato comercial oficial registrado no processo';
     const dadosBancarios =
       overridePayload?.empresa?.dadosBancarios ||
-      'Banco do Brasil / Caixa Econômica Federal — Conta Corrente PJ vinculada ao CNPJ da Proponente';
+      'Dados bancários conforme cadastro da proponente no SICAF / Contrato Social';
     const representanteLegal =
       overridePayload?.empresa?.representanteLegal ||
       companyRecord?.representanteLegal ||
@@ -295,26 +311,31 @@ export class PropostaDocumentoService {
 
     const itens: ItemDocumentoProposta[] = rawItems.map((it: any, index: number) => {
       const qtd = Math.max(0.01, Number(it.quantidade ?? it.quantity ?? 1) || 1);
-      const unitario = Math.max(
+      const unitarioRaw = Math.max(
         0,
         Number(
           it.precoUnitarioProposto ??
-            it.valorUnitarioProposto ??
-            it.valorUnitario ??
-            it.valorUnitarioEstimado ??
-            0
+          it.valorUnitarioProposto ??
+          it.valorUnitario ??
+          it.valorUnitarioEstimado ??
+          0
         ) || 0
       );
-      const total = Number(
-        (
-          it.precoTotalProposto !== undefined && it.precoTotalProposto !== null
-            ? Number(it.precoTotalProposto)
-            : qtd * unitario
-        ).toFixed(2)
-      );
+      const valorUnitario = Number(unitarioRaw.toFixed(2));
+      const totalCalculadoLinha = Number((qtd * valorUnitario).toFixed(2));
+      const totalOverride =
+        it.precoTotalProposto !== undefined && it.precoTotalProposto !== null
+          ? Number(Number(it.precoTotalProposto).toFixed(2))
+          : null;
+      const total =
+        totalOverride !== null &&
+          Number.isFinite(totalOverride) &&
+          Math.abs(totalOverride - totalCalculadoLinha) <= 0.02
+          ? totalOverride
+          : totalCalculadoLinha;
       const marcaModelo =
         [it.marca, it.modelo, it.marcaModelo].filter(Boolean).join(' / ') ||
-        'Padrão Oficial / Primeira Linha';
+        'Conforme especificação técnica do Termo de Referência';
 
       return {
         numero: String(it.numero ?? it.numeroItem ?? index + 1),
@@ -322,7 +343,7 @@ export class PropostaDocumentoService {
         marcaFabricante: marcaModelo,
         quantidade: qtd,
         unidade: String(it.unidade || it.unidadeMedida || 'UN'),
-        valorUnitario: Number(unitario.toFixed(2)),
+        valorUnitario,
         valorTotal: total,
       };
     });
@@ -340,13 +361,13 @@ export class PropostaDocumentoService {
     );
     const condicoesPagamento = String(
       overridePayload?.condicoesPagamento ??
-        dbProposal?.condicoesPagamento ??
-        'Em até 30 (trinta) dias corridos após o ateste definitivo da Nota Fiscal, em conformidade com o Art. 141 da Lei Federal nº 14.133/2021.'
+      dbProposal?.condicoesPagamento ??
+      'Em até 30 (trinta) dias corridos após o ateste definitivo da Nota Fiscal, em conformidade com o Art. 141 da Lei Federal nº 14.133/2021.'
     );
     const garantia = String(
       overridePayload?.garantia ??
-        dbProposal?.garantia ??
-        '12 (doze) meses de garantia integral contra defeitos de fabricação ou vícios ocultos, sem ônus adicional para a Administração Pública.'
+      dbProposal?.garantia ??
+      '12 (doze) meses de garantia integral contra defeitos de fabricação ou vícios ocultos, sem ônus adicional para a Administração Pública.'
     );
 
     const dataFormatada = new Date().toLocaleDateString('pt-BR', {
@@ -685,7 +706,7 @@ export class PropostaDocumentoService {
               children: [
                 new TextRun({ text: '• Validade da Proposta: ', bold: true, size: 20, font: 'Calibri' }),
                 new TextRun({
-                  text: `${dados.condicoesComerciais.validadeDias} (sessenta ou conforme edital) dias corridos, a contar da data de sua apresentação, nos termos do Art. 90, § 3º da Lei nº 14.133/2021.`,
+                  text: `${dados.condicoesComerciais.validadeDias} dias corridos, a contar da data de sua apresentação, nos termos do Art. 90, § 3º da Lei nº 14.133/2021.`,
                   size: 20,
                   font: 'Calibri',
                 }),
@@ -718,7 +739,7 @@ export class PropostaDocumentoService {
               children: [
                 new TextRun({ text: '• Garantia e Custos Inclusos: ', bold: true, size: 20, font: 'Calibri' }),
                 new TextRun({
-                  text: `${dados.condicoesComerciais.garantia} Nos preços propostos estão inclusos todos os custos diretos e indiretos, tributos, encargos trabalhistas, previdenciários, fretes e seguros (Art. 59, III da Lei nº 14.133/2021).`,
+                  text: `${dados.condicoesComerciais.garantia} Nos preços propostos estão inclusos todos os custos diretos e indiretos, tributos, encargos trabalhistas, previdenciários, fretes e seguros (Art. 63, § 1º da Lei nº 14.133/2021).`,
                   size: 20,
                   font: 'Calibri',
                 }),

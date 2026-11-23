@@ -138,10 +138,12 @@ export async function consultarCguCompleto(cnpj: string): Promise<{
   const headers = { 'chave-api-dados': token };
   const opts = { headers, signal: AbortSignal.timeout(5000) };
 
+  let consultasOk = 0;
   const getCount = async (url: string) => {
     try {
       const r = await fetch(url, opts);
       if (!r.ok) return 0;
+      consultasOk += 1;
       const j = await r.json();
       return Array.isArray(j) ? j.length : 0;
     } catch {
@@ -155,6 +157,17 @@ export async function consultarCguCompleto(cnpj: string): Promise<{
     getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/cepim?codigoSancionado=${limpo}&pagina=1`),
     getCount(`https://api.portaldatransparencia.gov.br/api-de-dados/acordos-leniencia?cnpjSancionado=${limpo}&pagina=1`),
   ]);
+
+  if (consultasOk === 0) {
+    return {
+      ceis: 0,
+      cnep: 0,
+      cepim: 0,
+      leniencia: 0,
+      alerta: false,
+      resumo: 'Falha temporária na consulta CGU',
+    };
+  }
 
   const total = ceis + cnep + cepim + leniencia;
   return {
@@ -180,15 +193,28 @@ export async function consultarComprasGovPrecoCatmat(codigoItem?: string): Promi
   const cod = String(codigoItem || '').replace(/\D/g, '');
   if (!cod) return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
   try {
+    let lista: any[] = [];
     const r = await fetch(
-      `https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?codigoItemCatalogo=${cod}&pagina=1&tamanhoPagina=20`,
+      `https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?tipo=ITEM&codigo=${cod}&pagina=1&tamanhoPagina=20`,
       { signal: AbortSignal.timeout(5000) }
     );
-    if (!r.ok) return { consultado: false, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
-    const json: any = await r.json();
-    const precos = (Array.isArray(json?.resultado) ? json.resultado : [])
-      .map((x: any) => Number(x.precoUnitario || 0))
-      .filter((v: number) => v > 0);
+    if (r.ok) {
+      const json: any = await r.json();
+      lista = Array.isArray(json?.resultado) ? json.resultado : [];
+    }
+    if (lista.length === 0) {
+      const fallback = await fetch(
+        `https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/2_consultarMaterialDetalhe?codigoItemCatalogo=${cod}&pagina=1&tamanhoPagina=20`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (fallback.ok) {
+        const fallbackJson: any = await fallback.json();
+        lista = Array.isArray(fallbackJson?.resultado) ? fallbackJson.resultado : [];
+      }
+    }
+    const precos = lista
+      .map((x: any) => Number(x.precoUnitario ?? x.valorUnitario ?? 0))
+      .filter((v: number) => Number.isFinite(v) && v > 0);
     if (precos.length === 0) return { consultado: true, amostras: 0, precoMedio: null, menorPreco: null, maiorPreco: null };
     const soma = precos.reduce((a: number, b: number) => a + b, 0);
     return {

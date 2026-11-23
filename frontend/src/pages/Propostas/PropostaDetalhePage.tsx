@@ -132,8 +132,8 @@ export const PropostaDetalhePage: React.FC = () => {
       ).length;
       toast.success(
         itensComPreco > 0
-          ? `LEX vinculou os itens e encontrou preço cadastrado para ${itensComPreco} item(ns). Revise os dados antes de emitir.`
-          : 'LEX extraiu os itens do edital. Informe os custos e preços antes de emitir a proposta.',
+          ? `A Luli vinculou os itens e encontrou preço cadastrado para ${itensComPreco} item(ns). Revise os dados antes de emitir.`
+          : 'A Luli extraiu os itens do edital. Informe os custos e preços antes de emitir a proposta.',
       );
       setModalSelecionarEditalLex(false);
     } catch (err: any) {
@@ -1104,11 +1104,10 @@ export const PropostaDetalhePage: React.FC = () => {
                                 onBlur={() => void handleSalvarItem(it.id)}
                                 placeholder="Informe o valor"
                                 aria-label={`Valor unitário ofertado para ${it.descricao}`}
-                                className={`w-full rounded-lg border bg-white py-1.5 pl-7 pr-2 text-right text-xs font-black outline-none focus:ring-2 ${
-                                  isItemInexequivel
-                                    ? 'border-red-400 text-red-900 focus:ring-red-500'
-                                    : 'border-slate-300 text-slate-900 focus:ring-[#0A2540]'
-                                }`}
+                                className={`w-full rounded-lg border bg-white py-1.5 pl-7 pr-2 text-right text-xs font-black outline-none focus:ring-2 ${isItemInexequivel
+                                  ? 'border-red-400 text-red-900 focus:ring-red-500'
+                                  : 'border-slate-300 text-slate-900 focus:ring-[#0A2540]'
+                                  }`}
                               />
                             </div>
                             {it.catalogoPrecoReferencia != null && (
@@ -1244,11 +1243,10 @@ export const PropostaDetalhePage: React.FC = () => {
               </p>
             </div>
 
-            <span className={`inline-flex items-center gap-1 text-xs font-black border px-3 py-1.5 rounded-xl ${
-              compliance?.isCompliant
-                ? 'text-emerald-800 bg-emerald-100 border-emerald-200'
-                : 'text-amber-800 bg-amber-100 border-amber-200'
-            }`}>
+            <span className={`inline-flex items-center gap-1 text-xs font-black border px-3 py-1.5 rounded-xl ${compliance?.isCompliant
+              ? 'text-emerald-800 bg-emerald-100 border-emerald-200'
+              : 'text-amber-800 bg-amber-100 border-amber-200'
+              }`}>
               {compliance?.isCompliant ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
               {compliance?.isCompliant ? 'Validação atual aprovada' : 'Revise e confirme os dados obrigatórios'}
             </span>

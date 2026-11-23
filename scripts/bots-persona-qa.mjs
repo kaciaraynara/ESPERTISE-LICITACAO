@@ -124,12 +124,15 @@ async function rodarBot(idx) {
   registrar('radar_cnae_uf', radarCnae, (j) => j?.meta?.totalRegistros ?? j?.data?.length ?? 0);
   registrar('radar_menor_porte', radarMenorPorte, (j) => j?.meta?.totalRegistros ?? j?.data?.length ?? 0);
   registrar('pca_2026', pca, (j) => j?.total ?? j?.data?.length ?? 0);
-  registrar('concorrentes_cnae', concorrentes, (j) => j?.data?.length ?? j?.concorrentes?.length ?? 0);
+  registrar('concorrentes_cnae', concorrentes, (j) => (j?.data?.concorrentesCnae?.length ?? 0) + (j?.data?.vencedoresOrgao?.length ?? 0));
   registrar('academia_netflix', academia, (j) => j?.data?.length ?? 0);
   registrar('certidoes', certidoes, (j) => j?.data?.length ?? 0);
   registrar('cofre', cofre, (j) => j?.data?.length ?? 0);
   registrar('prazos', prazos, (j) => j?.data?.length ?? 0);
   registrar('planos', planos, (j) => j?.data?.length ?? 0);
+
+  // Limpa a conta temporária de QA para não acumular usuários fictícios em produção
+  await req('/auth/account', { method: 'DELETE', token, companyId });
 
   return rel;
 }

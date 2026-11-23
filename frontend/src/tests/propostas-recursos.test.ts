@@ -96,7 +96,7 @@ describe('STEP 3: Fábrica de Propostas Comerciais e Peças Jurídicas Fundament
     expect(recursosContent).toContain('dias úteis');
 
     // Súmulas do TCU de controle de abusividades
-    expect(recursosContent).toContain('Súmula nº 275 do TCU');
+    expect(recursosContent).toContain('Súmula nº 289 do TCU');
     expect(recursosContent).toContain('Súmula nº 263 do TCU');
 
     // Pedidos formais de Efeito Suspensivo e Juízo de Retratação

@@ -85,9 +85,9 @@ async function fetchPncpLinkContext(texto: string): Promise<string> {
     const baseArqs = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/arquivos`;
 
     const [compraRes, itensRes, arqsRes] = await Promise.allSettled([
-      fetch(baseCompra, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
-      fetch(baseItens, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
-      fetch(baseArqs, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }),
+      fetch(baseCompra, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
+      fetch(baseItens, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
+      fetch(baseArqs, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
     ]);
 
     if (compraRes.status !== 'fulfilled' || !compraRes.value.ok) return '';
@@ -246,7 +246,7 @@ export class LexController {
       }
 
       const resolvedId = noticeId || licitacaoId || edital_id;
-      const documentText = (contextoEdital || contexto || '').trim().slice(0, 45000);
+      const documentText = (contextoEdital || contexto || '').trim().slice(0, 150000);
       const conversationContext = (messages || [])
         .slice(-8)
         .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
@@ -335,7 +335,7 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
     try {
       const noticeId = resolveNoticeId(req);
       const textoEditalInformado = typeof req.body?.texto_edital === 'string'
-        ? req.body.texto_edital.trim().slice(0, 45000)
+        ? req.body.texto_edital.trim().slice(0, 150000)
         : '';
       if (!noticeId && !textoEditalInformado) {
         return res.status(400).json({
@@ -690,7 +690,7 @@ Não declare que houve crime, dolo ou ilegalidade consumada. Aponte princípios 
       }
 
       const prompt = `
-Você é o LEX, assistente de inteligência jurídica especialista em licitações públicas sob a égide da Lei Federal nº 14.133/2021.
+Você é a Luli, assistente de inteligência jurídica especialista em licitações públicas sob a égide da Lei Federal nº 14.133/2021.
 Analise as informações do edital a seguir e extraia os dados necessários para formulação da Proposta Comercial Oficial.
 
 Retorne EXCLUSIVAMENTE um objeto JSON válido (sem tags markdown, sem explicações adicionais, apenas o JSON puro) com a seguinte estrutura:
@@ -1390,6 +1390,14 @@ function tenantVisibilityWhere(tenantId?: string | null) {
 }
 
 export function handleLexError(res: Response, err: any) {
+  if (err?.message === 'PERGUNTA_OBRIGATORIA') {
+    return res.status(400).json({
+      success: false,
+      code: 'PERGUNTA_OBRIGATORIA',
+      message: 'Informe uma pergunta ou comando válido para análise.',
+    });
+  }
+
   if (err instanceof MissingApiKeyError || err?.code === 'MISSING_API_KEY') {
     return res.status(503).json({
       success: false,
@@ -1414,11 +1422,11 @@ export function handleLexError(res: Response, err: any) {
     });
   }
 
-  console.error('[LEX Controller] Erro interno:', String(err?.message || err));
+  console.error('[Luli Controller] Erro interno:', String(err?.message || err));
   return res.status(500).json({
     success: false,
     code: 'LEX_INTERNAL_ERROR',
-    message: 'O LEX está temporariamente indisponível. Tente novamente mais tarde.',
+    message: 'A Luli está temporariamente indisponível. Tente novamente em instantes.',
   });
 }
 

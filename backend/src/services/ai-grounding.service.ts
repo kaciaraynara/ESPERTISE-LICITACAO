@@ -107,10 +107,11 @@ interface RetrievalResult {
 }
 
 const MAX_NOTICES = 3;
-const MAX_CHUNKS = 8;
+const MAX_CHUNKS = 60;
 const MAX_RULES = 8;
 const MAX_CITATIONS = 10;
 const QUERY_LIMIT = 12000;
+const DOCUMENT_TEXT_LIMIT = 150000;
 const CONTEXT_QUERY_LIMIT = 1200;
 const EXCERPT_LIMIT = 600;
 
@@ -124,7 +125,7 @@ export class AiGroundingService {
   constructor(
     private readonly client: any = prisma as any,
     private readonly providerRunner?: ProviderRunner,
-  ) {}
+  ) { }
 
   /**
    * Executa o fluxo completo do LEX em 7 etapas conceituais:
@@ -197,7 +198,7 @@ export class AiGroundingService {
       retrievalSessionId = retrievalSession.id;
 
       const retrieval = await this.retrieve(input, context, intentClassification);
-      const providedDocumentText = safeString(input.providedDocumentText, QUERY_LIMIT);
+      const providedDocumentText = safeString(input.providedDocumentText, DOCUMENT_TEXT_LIMIT);
       if (providedDocumentText) {
         const sourceId = `user-provided-${createHash('sha256')
           .update(providedDocumentText)
@@ -502,12 +503,12 @@ export class AiGroundingService {
 
     let notices: any[] = requestedNoticeWhere
       ? await this.client.procurementNotice.findMany({
-          where: {
-            AND: [tenantVisibilityWhere(tenantId), requestedNoticeWhere],
-          },
-          take: 1,
-          select: retrievalNoticeSelect(),
-        })
+        where: {
+          AND: [tenantVisibilityWhere(tenantId), requestedNoticeWhere],
+        },
+        take: 1,
+        select: retrievalNoticeSelect(),
+      })
       : await this.findNoticesByQuery(keywords, tenantId);
 
     let chunks: any[] = notices.length
@@ -1226,11 +1227,11 @@ function buildGroundedPrompt(
   const conversation = safeString(conversationContext, 10000);
   const calculosText = calculos.length
     ? calculos
-        .map(
-          (c) =>
-            `[CÁLCULO DETERMINÍSTICO VERIFICADO: ${c.tipo}]\nResultado: ${JSON.stringify(c.resultado)}\nFórmula: ${c.formula}\nFundamento: ${c.fundamentacaoLegal || 'Sistema'}`,
-        )
-        .join('\n\n')
+      .map(
+        (c) =>
+          `[CÁLCULO DETERMINÍSTICO VERIFICADO: ${c.tipo}]\nResultado: ${JSON.stringify(c.resultado)}\nFórmula: ${c.formula}\nFundamento: ${c.fundamentacaoLegal || 'Sistema'}`,
+      )
+      .join('\n\n')
     : 'Nenhum cálculo determinístico aplicável.';
 
   return [
@@ -1239,17 +1240,17 @@ function buildGroundedPrompt(
     '',
     ...(providedDocumentText
       ? [
-          '[DOCUMENTO ANEXO FORNECIDO PELO USUÁRIO (TEXTO INTEGRAL/PARCIAL DO EDITAL OU TR)]',
-          LexMinimizationService.sanitizeForPrompt(providedDocumentText),
-          '',
-        ]
+        '[DOCUMENTO ANEXO FORNECIDO PELO USUÁRIO (TEXTO INTEGRAL/PARCIAL DO EDITAL OU TR)]',
+        LexMinimizationService.sanitizeForPrompt(providedDocumentText),
+        '',
+      ]
       : []),
     ...(conversation
       ? [
-          '[HISTÓRICO DA CONVERSA (CONTEXTO INFORMADO PELO CLIENTE)]',
-          LexMinimizationService.sanitizeForPrompt(conversation),
-          '',
-        ]
+        '[HISTÓRICO DA CONVERSA (CONTEXTO INFORMADO PELO CLIENTE)]',
+        LexMinimizationService.sanitizeForPrompt(conversation),
+        '',
+      ]
       : []),
     '[CÁLCULOS DETERMINÍSTICOS DO SISTEMA (NÃO ALTERAR)]',
     calculosText,

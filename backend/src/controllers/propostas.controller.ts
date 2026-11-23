@@ -12,6 +12,7 @@ import {
   updateProposalSchema,
 } from '../shared/validations/proposal.validation';
 import { incrementPlanUsage } from '../shared/middlewares/plan-limits.middleware';
+import { scaleCacheInvalidatePrefix, scaleSingleflight } from '../services/scale-cache.service';
 
 export class PropostasController {
   async listar(req: AuthRequest, res: Response) {
@@ -26,7 +27,11 @@ export class PropostasController {
 
     try {
       const companyId = (req.query.companyId as string | undefined) || req.companyId;
-      const propostas = await proposalService.list(userId, { companyId });
+      const propostas = await scaleSingleflight(
+        `propostas:list:${userId}:${companyId || 'default'}`,
+        15,
+        () => proposalService.list(userId, { companyId }),
+      );
 
       return res.json({
         success: true,
@@ -63,6 +68,8 @@ export class PropostasController {
       };
       const input = createProposalDraftSchema.parse(payload);
       const proposta = await proposalService.createDraft(userId, input);
+      scaleCacheInvalidatePrefix(`propostas:list:${userId}:`);
+      scaleCacheInvalidatePrefix(`dashboard:metrics:${userId}:`);
       void incrementPlanUsage(userId, 'proposals');
 
       return res.status(201).json({

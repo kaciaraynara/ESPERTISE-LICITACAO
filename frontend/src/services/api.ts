@@ -165,6 +165,15 @@ api.interceptors.response.use(
 
     if (error.response?.status === 403) {
       const data = error.response?.data as any;
+      if (data?.code === 'COMPANY_ACCESS_DENIED' && !(original as any)._companyRetried) {
+        (original as any)._companyRetried = true;
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('@Expertise:selectedCompany');
+          window.dispatchEvent(new Event('companyChanged'));
+        }
+        delete original.headers['x-company-id'];
+        return api(original);
+      }
       if (
         data?.code === 'FEATURE_NOT_IN_PLAN' ||
         data?.code === 'PLAN_LIMIT_EXCEEDED' ||
@@ -294,7 +303,12 @@ export const empresasApi = {
 export const catalogoApi = {
   listar: () => api.get('/catalogo'),
   listarMercado: () => api.get('/catalogo/mercado'),
-  referenciaMercado: (termo: string) => api.get('/catalogo/referencia-mercado', { params: { termo } }),
+  buscarCatmatCatser: (params: { q?: string; codigo?: string; tipo?: string; uf?: string }) =>
+    api.get('/catalogo/catmat-catser', { params }),
+  referenciaMercado: (
+    termo: string,
+    extraParams?: { codigo?: string; tipo?: string; uf?: string },
+  ) => api.get('/catalogo/referencia-mercado', { params: { termo, ...extraParams } }),
   criar: (body: Record<string, unknown>) => api.post('/catalogo', body),
   atualizar: (id: string, body: Record<string, unknown>) => api.patch(`/catalogo/${encodeURIComponent(id)}`, body),
   remover: (id: string) => api.delete(`/catalogo/${encodeURIComponent(id)}`),
@@ -303,6 +317,7 @@ export const catalogoApi = {
 export const prazosApi = {
   listar: () => api.get('/prazos'),
   concluir: (id: string) => api.patch(`/prazos/${encodeURIComponent(id)}/concluir`),
+  sincronizarMonitorados: () => api.post('/prazos/sincronizar-monitorados', {}),
   criar: (body: {
     title: string;
     type: string;
@@ -357,6 +372,8 @@ export const integracoesApi = {
   telemetria: () => api.get('/integracoes/telemetria'),
   cnpj: (cnpj: string) => api.get(`/integracoes/cnpj/${encodeURIComponent(cnpj)}`),
   cnpjPublico: (cnpj: string) => api.get(`/public/cnpj/${encodeURIComponent(cnpj)}`),
+  consultarSicaf: (cnpj: string) => api.get(`/integracoes/sicaf/${encodeURIComponent(cnpj)}`),
+  indicesEconomicos: () => api.get('/integracoes/indices-economicos'),
   sincronizarPncp: () => api.post('/integracoes/sincronizar/pncp'),
 };
 

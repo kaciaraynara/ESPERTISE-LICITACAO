@@ -187,7 +187,12 @@ export default function RedeFornecedoresPage() {
           setFornecedores((atuais) => {
             const existentesCnpjs = new Set(atuais.map((f) => f.cnpj.replace(/\D/g, '')));
             const novosDoServidor: Fornecedor[] = itensServidor
-              .filter((item: any) => !existentesCnpjs.has(String(item.cnpj).replace(/\D/g, '')))
+              .filter((item: any) => {
+                const c = String(item.cnpj || '').replace(/\D/g, '');
+                const n = String(item.razaoSocial || item.nomeFantasia || '').toLowerCase();
+                if (c === '11222333000181' || n.includes('fortaleza uniformes atacado')) return false;
+                return !existentesCnpjs.has(c);
+              })
               .map((item: any) => ({
                 id: item.id || String(Date.now()),
                 cnpj: formatarCnpj(item.cnpj || ''),
@@ -216,7 +221,7 @@ export default function RedeFornecedoresPage() {
           });
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [storageKey]);
 
   const pararCamera = () => {
@@ -308,7 +313,7 @@ export default function RedeFornecedoresPage() {
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch(() => { });
         }
       }, 100);
 
@@ -683,11 +688,10 @@ export default function RedeFornecedoresPage() {
                       key={f.id}
                       type="button"
                       onClick={() => setSelecionadoId(f.id)}
-                      className={`grid w-full grid-cols-12 items-center px-5 py-4 text-left text-sm transition ${
-                        ativo
-                          ? 'bg-orange-50/40 ring-2 ring-inset ring-[#FF6600] rounded-2xl'
-                          : 'hover:bg-slate-50'
-                      }`}
+                      className={`grid w-full grid-cols-12 items-center px-5 py-4 text-left text-sm transition ${ativo
+                        ? 'bg-orange-50/40 ring-2 ring-inset ring-[#FF6600] rounded-2xl'
+                        : 'hover:bg-slate-50'
+                        }`}
                     >
                       <div className="col-span-5 flex items-center gap-3 pr-2">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#081C3A]">
@@ -760,11 +764,10 @@ export default function RedeFornecedoresPage() {
                       key={tab.id}
                       type="button"
                       onClick={() => setAbaAtiva(tab.id as any)}
-                      className={`border-b-2 pb-2.5 transition ${
-                        abaAtiva === tab.id
-                          ? 'border-[#0070C0] text-[#0070C0]'
-                          : 'border-transparent text-slate-400 hover:text-slate-600'
-                      }`}
+                      className={`border-b-2 pb-2.5 transition ${abaAtiva === tab.id
+                        ? 'border-[#0070C0] text-[#0070C0]'
+                        : 'border-transparent text-slate-400 hover:text-slate-600'
+                        }`}
                     >
                       {tab.label}
                     </button>
@@ -1118,11 +1121,10 @@ export default function RedeFornecedoresPage() {
                 <button
                   type="button"
                   onClick={cameraAtiva ? pararCamera : iniciarCameraQr}
-                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${
-                    cameraAtiva || notaOrigem === 'qrcode'
-                      ? 'border-[#FF6600] bg-orange-50 text-[#FF6600]'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${cameraAtiva || notaOrigem === 'qrcode'
+                    ? 'border-[#FF6600] bg-orange-50 text-[#FF6600]'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
                 >
                   {cameraAtiva ? <StopCircle className="h-5 w-5" /> : <QrCode className="h-5 w-5" />}
                   {cameraAtiva ? 'Fechar Câmera' : 'Ler QR Code'}
@@ -1140,11 +1142,10 @@ export default function RedeFornecedoresPage() {
                 <button
                   type="button"
                   onClick={() => inputGaleriaRef.current?.click()}
-                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${
-                    notaOrigem === 'galeria'
-                      ? 'border-[#0070C0] bg-blue-50 text-[#0070C0]'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${notaOrigem === 'galeria'
+                    ? 'border-[#0070C0] bg-blue-50 text-[#0070C0]'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
                 >
                   <Upload className="h-5 w-5" />
                   Galeria
@@ -1153,11 +1154,10 @@ export default function RedeFornecedoresPage() {
                 <button
                   type="button"
                   onClick={() => inputPdfRef.current?.click()}
-                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${
-                    notaOrigem === 'pdf'
-                      ? 'border-[#0070C0] bg-blue-50 text-[#0070C0]'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className={`flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-center text-[11px] font-bold transition ${notaOrigem === 'pdf'
+                    ? 'border-[#0070C0] bg-blue-50 text-[#0070C0]'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
                 >
                   <FileText className="h-5 w-5" />
                   PDF

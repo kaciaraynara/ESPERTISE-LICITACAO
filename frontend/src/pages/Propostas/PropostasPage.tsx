@@ -16,9 +16,14 @@ import { crmApi, propostasApi, licitacoesApi } from '../../services/api';
 import { useCompany } from '../../contexts/CompanyContext';
 import { useAuthStore } from '../../store/auth.store';
 import * as pdfGen from '../../utils/pdfGenerator';
+import {
+  PropostaDiagnosticoPanel,
+  type PropostaDiagnosticoAnswers,
+} from '../../components/propostas/PropostaDiagnosticoPanel';
 
 interface ItemProposta {
   id: string;
+  lote?: string;
   numero: number;
   descricao: string;
   unidade: string;
@@ -75,6 +80,76 @@ export function PropostasPage() {
   const [garantia, setGarantia] = useState('12 meses contra defeitos de fabricação');
   const [declaracoesAceitas, setDeclaracoesAceitas] = useState(true);
   const [geradoMsg, setGeradoMsg] = useState<string | null>(null);
+
+  const [diagnostico, setDiagnostico] = useState<PropostaDiagnosticoAnswers>({
+    momentoEnvio: 'READEQUADA_VENCEDORA',
+    criterioJulgamento: 'MENOR_PRECO_ITEM',
+    exigeProspectoTecnico: true,
+    declararMeEpp: true,
+    validadeDias: 60,
+    prazoEntrega: '10 (dez) dias úteis a contar do recebimento da Nota de Empenho',
+    garantia: '12 (doze) meses a contar do recebimento definitivo do objeto',
+    banco: '',
+    agencia: '',
+    contaCorrente: '',
+    inscricaoEstadual: '',
+    encarregadoNome: authUser?.nome || '',
+    encarregadoCpf: '',
+    encarregadoRg: '',
+    encarregadoEstadoCivil: '',
+    encarregadoProfissao: 'Sócio-Administrador / Representante Legal',
+    encarregadoTelefone: selectedCompany?.telefone || authUser?.telefone || '',
+    encarregadoEndereco: selectedCompany?.endereco || '',
+    valorLanceVencedorReadequar: '',
+  });
+
+  const atualizarDiagnostico = (patch: Partial<PropostaDiagnosticoAnswers>) => {
+    setDiagnostico((prev) => {
+      const next = { ...prev, ...patch };
+      if (patch.validadeDias !== undefined) setValidadeDias(patch.validadeDias);
+      if (patch.prazoEntrega !== undefined) setPrazoEntrega(patch.prazoEntrega);
+      if (patch.garantia !== undefined) setGarantia(patch.garantia);
+      return next;
+    });
+  };
+
+  const readequarItensAoLanceVencedor = (valorAlvo: number) => {
+    if (!valorAlvo || valorAlvo <= 0 || totalGeral <= 0) return;
+    const fator = valorAlvo / totalGeral;
+    setItens((prev) =>
+      prev.map((it) => ({
+        ...it,
+        valorUnitario: Number((it.valorUnitario * fator).toFixed(2)),
+      }))
+    );
+    toast.success('Preços unitários readequados proporcionalmente ao lance vencedor!');
+  };
+
+  const exportarPlanilhaExcelCsv = () => {
+    const header =
+      'Lote;Item;Descricao_Tecnica;Unidade;Quantidade;Marca_Modelo;Custo_Unitario;Impostos_Despesas_Pct;Margem_Pct;Preco_Unitario_Proposto;Preco_Total_Proposto\n';
+    const rows = itens
+      .map((it) => {
+        const sub = (it.quantidade * it.valorUnitario).toFixed(2);
+        return `"${it.lote || '01'}";"${it.numero}";"${(it.descricao || '').replace(/"/g, '""')}";"${it.unidade}";${it.quantidade};"${(it.marcaModelo || '').replace(/"/g, '""')}";${it.custoUnitario.toFixed(2)};${despesasPercentual};${margemPercentual};${it.valorUnitario.toFixed(2)};${sub}`;
+      })
+      .join('\n');
+    const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Planilha_Proposta_${(numeroProcesso || 'Oficial').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
+    link.click();
+    toast.success('Planilha Excel (.CSV) exportada com sucesso!');
+  };
+
+  const itensSemMarcaCount = useMemo(
+    () =>
+      itens.filter((i) => {
+        const m = (i.marcaModelo || '').trim().toLowerCase();
+        return !m || m.includes('conforme') || m.includes('padrão') || m.includes('primeira linha');
+      }).length,
+    [itens]
+  );
 
   useEffect(() => {
     crmApi
@@ -234,12 +309,14 @@ export function PropostasPage() {
         numeroProcesso,
         modalidade,
         objeto,
-        enquadramento: emp?.porte || emp?.enquadramento || 'Ampla Concorrência',
+        enquadramento: diagnostico.declararMeEpp ? 'ME / EPP (LC 123/2006)' : (emp?.porte || emp?.enquadramento || 'Ampla Concorrência'),
         totalCalculado: Number(totalGeral.toFixed(2)),
-        validadeDias,
-        prazoEntrega,
-        garantia,
+        validadeDias: diagnostico.validadeDias || validadeDias,
+        prazoEntrega: diagnostico.prazoEntrega || prazoEntrega,
+        garantia: diagnostico.garantia || garantia,
+        diagnostico,
         itens: itens.map((i) => ({
+          lote: i.lote || '01',
           numero: i.numero,
           descricao: i.descricao || 'Item conforme termo de referência',
           unidade: i.unidade,
@@ -325,6 +402,14 @@ export function PropostasPage() {
             </div>
           </div>
         </div>
+
+        <PropostaDiagnosticoPanel
+          answers={diagnostico}
+          onChange={atualizarDiagnostico}
+          itensSemMarcaCount={itensSemMarcaCount}
+          onReadequarLanceVencedor={readequarItensAoLanceVencedor}
+          onExportarExcel={exportarPlanilhaExcelCsv}
+        />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-8">

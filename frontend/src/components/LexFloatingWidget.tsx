@@ -1,8 +1,9 @@
-﻿import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Bot, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
 import { lexApi } from '../services/api';
+import { ChatMessage, cleanHumanAiText } from './ChatMessage';
 
 interface Mensagem {
   id: string;
@@ -282,7 +283,7 @@ export function LexFloatingWidget() {
                     : 'border border-slate-200 bg-white text-[#081C3A]'
                 }`}
               >
-                {msg.texto}
+                {ehUsuario ? msg.texto : <ChatMessage role="assistant" content={cleanHumanAiText(msg.texto)} />}
               </div>
               {msg.horario && (
                 <span className="mt-1 px-1 text-[10px] text-slate-400">

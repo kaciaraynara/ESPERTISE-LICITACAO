@@ -37,7 +37,7 @@ interface RecordPipelineEventInput {
 }
 
 export class DataPlatformRepository {
-  constructor(private readonly client: any = prisma as any) {}
+  constructor(private readonly client: any = prisma as any) { }
 
   async createIngestionJob(input: CreateIngestionJobInput) {
     return this.client.dataIngestionJob.create({
@@ -209,6 +209,38 @@ export class DataPlatformRepository {
   private async upsertProcurementNotice(record: NormalizedDataRecord) {
     const data = mapProcurementNoticeData(record);
     const { dedupeKey: _dedupeKey, numeroControlePncp: _ncp, ...updateData } = data;
+    const canLookupExisting =
+      typeof this.client.procurementNotice.findFirst === 'function' &&
+      typeof this.client.procurementNotice.update === 'function';
+
+    const updateByExistingMatch = async () => {
+      if (!canLookupExisting) return null;
+      const filters: Array<Record<string, unknown>> = [{ dedupeKey: record.dedupeKey }];
+      if (data.numeroControlePncp) {
+        filters.push({ numeroControlePncp: data.numeroControlePncp });
+      }
+      if (record.externalId) {
+        filters.push({ externalId: record.externalId });
+      }
+
+      const existing = await this.client.procurementNotice.findFirst({
+        where: { OR: filters },
+        select: { id: true },
+      });
+      if (!existing?.id) return null;
+
+      const { source: _source, ...conflictUpdateData } = updateData;
+      return this.client.procurementNotice.update({
+        where: { id: existing.id },
+        data: conflictUpdateData,
+      });
+    };
+
+    if (canLookupExisting && (data.numeroControlePncp || record.externalId)) {
+      const updated = await updateByExistingMatch();
+      if (updated) return updated;
+    }
+
     try {
       return await this.client.procurementNotice.upsert({
         where: { dedupeKey: record.dedupeKey },
@@ -216,27 +248,9 @@ export class DataPlatformRepository {
         update: updateData,
       });
     } catch (err: any) {
-      if (
-        err?.code === 'P2002'
-        && record.externalId
-        && typeof this.client.procurementNotice.findFirst === 'function'
-      ) {
-        const existing = await this.client.procurementNotice.findFirst({
-          where: {
-            OR: [
-              { numeroControlePncp: record.externalId },
-              { externalId: record.externalId },
-            ],
-          },
-          select: { id: true },
-        });
-        if (existing?.id && typeof this.client.procurementNotice.update === 'function') {
-          const { source: _source, ...conflictUpdateData } = updateData;
-          return this.client.procurementNotice.update({
-            where: { id: existing.id },
-            data: conflictUpdateData,
-          });
-        }
+      if (err?.code === 'P2002') {
+        const recovered = await updateByExistingMatch();
+        if (recovered) return recovered;
       }
       throw err;
     }

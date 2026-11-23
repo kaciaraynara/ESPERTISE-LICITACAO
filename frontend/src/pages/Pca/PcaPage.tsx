@@ -4,11 +4,42 @@ import toast from 'react-hot-toast';
 import { licitacoesApi, prazosApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 
+const UFS_BRASIL = [
+  { sigla: '', nome: 'Todas as UFs (Brasil)' },
+  { sigla: 'AC', nome: 'Acre (AC)' },
+  { sigla: 'AL', nome: 'Alagoas (AL)' },
+  { sigla: 'AP', nome: 'Amapá (AP)' },
+  { sigla: 'AM', nome: 'Amazonas (AM)' },
+  { sigla: 'BA', nome: 'Bahia (BA)' },
+  { sigla: 'CE', nome: 'Ceará (CE)' },
+  { sigla: 'DF', nome: 'Distrito Federal (DF)' },
+  { sigla: 'ES', nome: 'Espírito Santo (ES)' },
+  { sigla: 'GO', nome: 'Goiás (GO)' },
+  { sigla: 'MA', nome: 'Maranhão (MA)' },
+  { sigla: 'MT', nome: 'Mato Grosso (MT)' },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul (MS)' },
+  { sigla: 'MG', nome: 'Minas Gerais (MG)' },
+  { sigla: 'PA', nome: 'Pará (PA)' },
+  { sigla: 'PB', nome: 'Paraíba (PB)' },
+  { sigla: 'PR', nome: 'Paraná (PR)' },
+  { sigla: 'PE', nome: 'Pernambuco (PE)' },
+  { sigla: 'PI', nome: 'Piauí (PI)' },
+  { sigla: 'RJ', nome: 'Rio de Janeiro (RJ)' },
+  { sigla: 'RN', nome: 'Rio Grande do Norte (RN)' },
+  { sigla: 'RS', nome: 'Rio Grande do Sul (RS)' },
+  { sigla: 'RO', nome: 'Rondônia (RO)' },
+  { sigla: 'RR', nome: 'Roraima (RR)' },
+  { sigla: 'SC', nome: 'Santa Catarina (SC)' },
+  { sigla: 'SP', nome: 'São Paulo (SP)' },
+  { sigla: 'SE', nome: 'Sergipe (SE)' },
+  { sigla: 'TO', nome: 'Tocantins (TO)' },
+] as const;
+
 export const PcaPage: React.FC = () => {
   const { selectedCompany } = useCompany();
   const [termo, setTermo] = useState('');
   const [uf, setUf] = useState('');
-  const [ano, setAno] = useState<string>('2026');
+  const [ano, setAno] = useState<string>('');
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(1);
@@ -23,6 +54,7 @@ export const PcaPage: React.FC = () => {
     cnaeOverride?: string,
     paginaAlvo = 1,
     forceRefresh = false,
+    overrides?: { uf?: string; ano?: string },
   ) => {
     setCarregando(true);
     setErroBusca(null);
@@ -30,11 +62,14 @@ export const PcaPage: React.FC = () => {
     try {
       const qVal = (termoOverride !== undefined ? termoOverride : termo).trim();
       const cnaeVal = cnaeOverride !== undefined ? cnaeOverride : cnaeFiltroAtivo;
+      const ufVal = (overrides?.uf !== undefined ? overrides.uf : uf).trim().toUpperCase();
+      const anoVal = overrides?.ano !== undefined ? overrides.ano : ano;
+
       const resp = await licitacoesApi.listarPca({
         q: qVal || undefined,
         cnae: cnaeVal || undefined,
-        uf: uf.trim().toUpperCase() || undefined,
-        ano: ano ? Number(ano) : undefined,
+        uf: ufVal || undefined,
+        ano: anoVal ? Number(anoVal) : undefined,
         pagina: paginaAlvo,
         tamanhoPagina: 20,
         refresh: forceRefresh || undefined,
@@ -75,7 +110,7 @@ export const PcaPage: React.FC = () => {
 
   const filtrarPorCnae = () => {
     const emp = selectedCompany as any;
-    const rawCnae = String(emp?.cnaeDescricao || emp?.cnaePrincipal || emp?.nicho || '');
+    const rawCnae = String(emp?.cnaePrincipal || emp?.cnaeDescricao || emp?.nicho || '');
     const palavra = extrairPalavraRealCnae(rawCnae);
     setCnaeFiltroAtivo(rawCnae);
     setTermo(palavra);
@@ -85,16 +120,18 @@ export const PcaPage: React.FC = () => {
   const limparFiltros = () => {
     setTermo('');
     setUf('');
-    setAno('2026');
+    setAno('');
     setCnaeFiltroAtivo('');
-    void buscarPcas('', '', 1);
+    void buscarPcas('', '', 1, false, { uf: '', ano: '' });
   };
 
   const criarAlertaPca = async (item: any, idx: number) => {
     const key = `${item.idPcaPncp}-${idx}`;
     setCriandoAlertaId(key);
     try {
-      const dataAlvo = item.dataDesejada || new Date(Date.now() + 30 * 86400000).toISOString();
+      const dataDesejadaMs = item.dataDesejada ? new Date(item.dataDesejada).getTime() : 0;
+      const futureFallback = new Date(Date.now() + 30 * 86400000).toISOString();
+      const dataAlvo = dataDesejadaMs > Date.now() ? item.dataDesejada : futureFallback;
       await prazosApi.criar({
         title: `PCA ${item.anoPca} — ${item.orgaoNome}`,
         type: 'PCA_FUTURA_CONTRATACAO',
@@ -116,19 +153,48 @@ export const PcaPage: React.FC = () => {
   const estrategicos = pcas.filter((p) => p.janelaTatica === 'ESTRATEGICA').length;
   const valorTotal = pcas.reduce((s, p) => s + Number(p.valorTotalEstimado || 0), 0);
 
+  const renderBadgeJanela = (janela?: string) => {
+    if (janela === 'IMEDIATA') {
+      return (
+        <span className="rounded-full bg-rose-100 px-3 py-1 text-[11px] font-bold text-rose-800">
+          Antecipação Imediata (&le;30d)
+        </span>
+      );
+    }
+    if (janela === 'ESTRATEGICA') {
+      return (
+        <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-800">
+          Janela Estratégica (31–90d)
+        </span>
+      );
+    }
+    if (janela === 'PREVISTA_ANTERIOR') {
+      return (
+        <span className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-bold text-slate-700">
+          Data Prevista Atingida — Ver no Radar
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-bold text-blue-800">
+        Planejamento Futuro
+      </span>
+    );
+  };
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="mx-auto max-w-7xl space-y-5 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316]">
+            <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316]">
               <Compass className="h-6 w-6" />
             </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-[#081C3A]">
-                Planos de Contratações Anuais (PCA)
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-extrabold text-[#081C3A]">
+                Planos de Contratações Anuais (PCA 2026 / 2027)
               </h1>
-              <p className="mt-1 text-xs text-slate-600 max-w-3xl">
+              <p className="mt-1 text-xs text-slate-600 max-w-3xl leading-relaxed">
                 Previsto no <strong>Art. 12, VII da Lei 14.133/2021</strong>, o PCA revela o que os órgãos públicos planejam licitar nos próximos meses <strong>antes mesmo de o edital ser publicado</strong> — permitindo cotar fornecedores e preparar atestados antes da concorrência.
               </p>
             </div>
@@ -137,7 +203,7 @@ export const PcaPage: React.FC = () => {
             <button
               type="button"
               onClick={filtrarPorCnae}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
+              className="inline-flex w-full md:w-auto shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
               Filtrar pelo meu CNAE
@@ -152,7 +218,7 @@ export const PcaPage: React.FC = () => {
           setCnaeFiltroAtivo('');
           void buscarPcas(termo, '', 1);
         }}
-        className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-6"
+        className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-6"
       >
         <input
           type="text"
@@ -162,25 +228,38 @@ export const PcaPage: React.FC = () => {
             if (!e.target.value) setCnaeFiltroAtivo('');
           }}
           placeholder="Objeto ou item previsto (ex: software, uniforme, limpeza)..."
-          className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A] md:col-span-2"
+          className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A] sm:col-span-2"
         />
         <select
           value={ano}
-          onChange={(e) => setAno(e.target.value)}
-          className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
+          onChange={(e) => {
+            const novoAno = e.target.value;
+            setAno(novoAno);
+            void buscarPcas(undefined, undefined, 1, false, { ano: novoAno });
+          }}
+          aria-label="Ano do PCA"
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
         >
+          <option value="">Todos os anos (2026–2027)</option>
           <option value="2026">PCA 2026</option>
           <option value="2027">PCA 2027</option>
-          <option value="">Todos os anos</option>
         </select>
-        <input
-          type="text"
-          maxLength={2}
+        <select
           value={uf}
-          onChange={(e) => setUf(e.target.value.toUpperCase())}
-          placeholder="UF (ex: CE, SP)"
-          className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
-        />
+          onChange={(e) => {
+            const novaUf = e.target.value;
+            setUf(novaUf);
+            void buscarPcas(undefined, undefined, 1, false, { uf: novaUf });
+          }}
+          aria-label="Filtrar por UF"
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#081C3A]"
+        >
+          {UFS_BRASIL.map((item) => (
+            <option key={item.sigla || 'ALL'} value={item.sigla}>
+              {item.nome}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           disabled={carregando}
@@ -199,22 +278,22 @@ export const PcaPage: React.FC = () => {
         </button>
       </form>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-semibold text-slate-500">Itens de PCA Mapeados</span>
-          <div className="mt-1 text-2xl font-extrabold text-[#081C3A]">{total.toLocaleString('pt-BR')}</div>
+          <div className="mt-1 text-xl sm:text-2xl font-extrabold text-[#081C3A]">{total.toLocaleString('pt-BR')}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-semibold text-slate-500">Janela Imediata (&le;30 dias)</span>
-          <div className="mt-1 text-2xl font-extrabold text-rose-600">{imediatos}</div>
+          <div className="mt-1 text-xl sm:text-2xl font-extrabold text-rose-600">{imediatos}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-semibold text-slate-500">Preparação (31–90 dias)</span>
-          <div className="mt-1 text-2xl font-extrabold text-amber-600">{estrategicos}</div>
+          <div className="mt-1 text-xl sm:text-2xl font-extrabold text-amber-600">{estrategicos}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-semibold text-slate-500">Demanda Futura Estimada</span>
-          <div className="mt-1 text-lg font-extrabold text-emerald-700">{formatarMoeda(valorTotal)}</div>
+          <div className="mt-1 text-base sm:text-lg font-extrabold text-emerald-700 break-words">{formatarMoeda(valorTotal)}</div>
         </div>
       </div>
 
@@ -226,7 +305,7 @@ export const PcaPage: React.FC = () => {
             ))}
           </div>
         ) : pcas.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center space-y-3">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 sm:p-10 text-center space-y-3">
             <p className="text-sm font-bold text-[#081C3A]">
               {erroBusca || 'Nenhum item de PCA encontrado para os filtros informados.'}
             </p>
@@ -243,69 +322,65 @@ export const PcaPage: React.FC = () => {
           </div>
         ) : (
           pcas.map((item, idx) => (
-          <div key={`${item.idPcaPncp}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-[#081C3A] px-3 py-1 text-[11px] font-bold text-white">
-                  PCA {item.anoPca}
-                </span>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                  item.janelaTatica === 'IMEDIATA'
-                    ? 'bg-rose-100 text-rose-800'
-                    : item.janelaTatica === 'ESTRATEGICA'
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {item.janelaTatica === 'IMEDIATA' ? 'Antecipação Imediata' : item.janelaTatica === 'ESTRATEGICA' ? 'Janela Estratégica' : 'Planejamento Futuro'}
-                </span>
-                {item.uf && <span className="text-xs font-bold text-slate-500">{item.municipio ? `${item.municipio} - ${item.uf}` : item.uf}</span>}
+            <div key={`${item.idPcaPncp}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[#081C3A] px-3 py-1 text-[11px] font-bold text-white">
+                    PCA {item.anoPca}
+                  </span>
+                  {renderBadgeJanela(item.janelaTatica)}
+                  {item.uf && (
+                    <span className="text-xs font-bold text-slate-500">
+                      {item.municipio ? `${item.municipio} - ${item.uf}` : item.uf}
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm font-extrabold text-emerald-700">{formatarMoeda(item.valorTotalEstimado)}</span>
               </div>
-              <span className="text-sm font-extrabold text-emerald-700">{formatarMoeda(item.valorTotalEstimado)}</span>
-            </div>
 
-            <div>
-              <h3 className="text-sm font-extrabold text-[#081C3A]">{item.descricaoItem}</h3>
-              <p className="text-xs font-semibold text-slate-600 mt-0.5">
-                {item.orgaoNome} • Categoria: {item.categoria}
-                {item.dataAtualizacao && ` • Atualizado em ${new Date(item.dataAtualizacao).toLocaleDateString('pt-BR')}`}
-              </p>
-            </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-[#081C3A] break-words">{item.descricaoItem}</h3>
+                <p className="text-xs font-semibold text-slate-600 mt-0.5 break-words">
+                  {item.orgaoNome} • Categoria: {item.categoria || 'Geral'}
+                  {item.dataAtualizacao && ` • Atualizado em ${new Date(item.dataAtualizacao).toLocaleDateString('pt-BR')}`}
+                </p>
+              </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-700">
-              <strong className="text-[#081C3A]">Como agir estrategicamente:</strong> {item.insightEstrategico}
-              {item.dataDesejada && (
-                <span className="block mt-1 text-slate-500">
-                  <CalendarClock className="inline h-3.5 w-3.5 mr-1" />
-                  Previsão informada pelo órgão: <strong>{new Date(item.dataDesejada).toLocaleDateString('pt-BR')}</strong>
-                </span>
-              )}
-            </div>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-700">
+                <strong className="text-[#081C3A]">Como agir estrategicamente:</strong> {item.insightEstrategico}
+                {item.dataDesejada && (
+                  <span className="block mt-1 text-slate-500">
+                    <CalendarClock className="inline h-3.5 w-3.5 mr-1" />
+                    Previsão informada pelo órgão: <strong>{new Date(item.dataDesejada).toLocaleDateString('pt-BR')}</strong>
+                  </span>
+                )}
+              </div>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                disabled={criandoAlertaId === `${item.idPcaPncp}-${idx}`}
-                onClick={() => criarAlertaPca(item, idx)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#F97316] px-3.5 py-2 text-xs font-bold text-white hover:bg-orange-600 cursor-pointer"
-              >
-                <BellPlus className="h-3.5 w-3.5" />
-                Criar Alerta de Prazo
-              </button>
-              <a
-                href={item.linkPcaPncp}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-[#081C3A] hover:border-[#0070C0]"
-              >
-                Ver no PNCP <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={criandoAlertaId === `${item.idPcaPncp}-${idx}`}
+                  onClick={() => criarAlertaPca(item, idx)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#F97316] px-3.5 py-2.5 sm:py-2 text-xs font-bold text-white hover:bg-orange-600 cursor-pointer"
+                >
+                  <BellPlus className="h-3.5 w-3.5" />
+                  Criar Alerta de Prazo
+                </button>
+                <a
+                  href={item.linkPcaPncp}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 sm:py-2 text-xs font-bold text-[#081C3A] hover:border-[#0070C0]"
+                >
+                  Ver no PNCP <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
             </div>
-          </div>
           ))
         )}
 
         {totalPaginas > 1 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 sm:px-5 py-3.5 shadow-sm">
             <span className="text-xs font-semibold text-slate-600">
               Página <strong className="text-[#081C3A]">{pagina}</strong> de <strong className="text-[#081C3A]">{totalPaginas}</strong> ({total} itens encontrados)
             </span>
@@ -314,7 +389,7 @@ export const PcaPage: React.FC = () => {
                 type="button"
                 disabled={pagina <= 1 || carregando}
                 onClick={() => void buscarPcas(undefined, undefined, pagina - 1)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-bold text-[#081C3A] hover:border-[#0070C0] disabled:opacity-40 cursor-pointer"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-[#081C3A] hover:border-[#0070C0] disabled:opacity-40 cursor-pointer"
               >
                 Anterior
               </button>
@@ -322,7 +397,7 @@ export const PcaPage: React.FC = () => {
                 type="button"
                 disabled={pagina >= totalPaginas || carregando}
                 onClick={() => void buscarPcas(undefined, undefined, pagina + 1)}
-                className="rounded-xl bg-[#081C3A] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0f2b56] disabled:opacity-40 cursor-pointer"
+                className="rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-[#0f2b56] disabled:opacity-40 cursor-pointer"
               >
                 Próxima
               </button>

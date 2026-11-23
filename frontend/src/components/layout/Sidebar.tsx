@@ -22,6 +22,13 @@ import {
   Gear,
   SignOut,
   CaretDown,
+  Calculator,
+  Tag,
+  Buildings,
+  PlugsConnected,
+  Lightning,
+  Compass,
+  X,
   type Icon,
 } from '@phosphor-icons/react';
 import { Pin, PinOff } from 'lucide-react';
@@ -45,10 +52,12 @@ export const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.dashboard]: () => import('@/pages/DashboardPage'),
   [FORNECEDOR_ROUTES.radar]: () => import('@/pages/RadarPage'),
+  [FORNECEDOR_ROUTES.dispensa_eletronica]: () => import('@/pages/DispensaEletronicaPage'),
   [FORNECEDOR_ROUTES.historico_concorrentes]: () => import('@/pages/HistoricoConcorrentesPage'),
   [FORNECEDOR_ROUTES.disputa_ao_vivo]: () => import('@/pages/DisputaAoVivoPage'),
   [FORNECEDOR_ROUTES.disputas]: () => import('@/pages/CrmKanbanPage'),
   [FORNECEDOR_ROUTES.robo_lances]: () => import('@/pages/RoboPage'),
+  [FORNECEDOR_ROUTES.precificacao_estrategica]: () => import('@/pages/Precificacao/PrecificacaoPage'),
   [FORNECEDOR_ROUTES.propostas]: () => import('@/pages/Propostas/PropostasPage'),
   [FORNECEDOR_ROUTES.catalogo]: () => import('@/pages/Catalogo/CatalogoPage'),
   [FORNECEDOR_ROUTES.prazos_alertas]: () => import('@/pages/PrazosAlertas/PrazosAlertasPage'),
@@ -67,6 +76,8 @@ const ROUTE_PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
   [FORNECEDOR_ROUTES.habilitacao]: () => import('@/pages/HabilitacaoPage'),
   [FORNECEDOR_ROUTES.srp]: () => import('@/pages/Srp/SrpPage'),
   [FORNECEDOR_ROUTES.relatorios_estrategicos]: () => import('@/pages/Relatorios/RelatoriosPage'),
+  [FORNECEDOR_ROUTES.empresa]: () => import('@/pages/EmpresaPage'),
+  [FORNECEDOR_ROUTES.integracoes]: () => import('@/pages/IntegracoesPage'),
   [FORNECEDOR_ROUTES.planos]: () => import('@/pages/PlanosPage'),
   [FORNECEDOR_ROUTES.configuracoes]: () => import('@/pages/Configuracoes/ConfiguracoesPage'),
 };
@@ -235,7 +246,7 @@ export interface StrategicHubConfig {
   items: StrategicSubItem[];
 }
 
-const STRATEGIC_HUBS: StrategicHubConfig[] = [
+export const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
     id: 'radar',
     label: 'Radar & Oportunidades',
@@ -243,7 +254,8 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Licitações', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Crosshair, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensa Eletrônica', icon: Lightning, requiredFeature: 'radar_editais' },
+      { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Compass, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
       { path: FORNECEDOR_ROUTES.investigacao_concorrencial, label: 'Inteligência Competitiva', icon: ChartLineUp, requiredFeature: 'inteligencia_concorrentes' },
@@ -258,6 +270,8 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
     items: [
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
+      { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: Calculator },
+      { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Preços', icon: Tag, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
       { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
@@ -298,9 +312,10 @@ const STRATEGIC_HUBS: StrategicHubConfig[] = [
 interface NavigationSubLinkProps {
   item: StrategicSubItem;
   isCollapsed: boolean;
+  onNavigate?: () => void;
 }
 
-function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
+function NavigationSubLink({ item, isCollapsed, onNavigate }: NavigationSubLinkProps) {
   const location = useLocation();
   const active = item.exact
     ? location.pathname === item.path
@@ -311,7 +326,8 @@ function NavigationSubLink({ item, isCollapsed }: NavigationSubLinkProps) {
   return (
     <Link
       to={item.path}
-      
+      onClick={onNavigate}
+      onMouseEnter={() => prefetchRoute(item.path)}
       aria-current={active ? 'page' : undefined}
       title={isCollapsed ? item.label : undefined}
       className={`group relative flex items-center ${isCollapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2 gap-2.5'
@@ -340,9 +356,10 @@ interface StrategicHubNodeProps {
   isCollapsed: boolean;
   isExpanded: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }
 
-function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicHubNodeProps) {
+function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle, onNavigate }: StrategicHubNodeProps) {
   const location = useLocation();
   const Icon = hub.icon;
 
@@ -355,7 +372,6 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
       <button
         type="button"
         onClick={onToggle}
-        
         title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
         className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
@@ -414,6 +430,7 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
                 key={subItem.path}
                 item={subItem}
                 isCollapsed={isCollapsed}
+                onNavigate={onNavigate}
               />
             ))}
           </motion.div>
@@ -423,7 +440,12 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle }: StrategicH
   );
 }
 
-export default function Sidebar() {
+export interface SidebarProps {
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const isTrialActive = isUserTrialActive(user);
@@ -474,6 +496,17 @@ export default function Sidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen || !onCloseMobile) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseMobile();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileOpen, onCloseMobile]);
+
   const togglePin = () => {
     setIsPinned((prev) => {
       const next = !prev;
@@ -506,84 +539,83 @@ export default function Sidebar() {
     location.pathname === FORNECEDOR_ROUTES.dashboard ||
     location.pathname === '/dashboard';
 
-  return (
-    <>
-      <div
-        className={`hidden md:block shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
-          }`}
-        aria-hidden="true"
-      />
+  const footerItems = useMemo(
+    () => [
+      { path: FORNECEDOR_ROUTES.empresa, label: 'Dados da Empresa', icon: Buildings },
+      { path: FORNECEDOR_ROUTES.integracoes, label: 'Integrações & Portais', icon: PlugsConnected },
+      { path: FORNECEDOR_ROUTES.planos, label: 'Planos & Assinatura', icon: CreditCard },
+      { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear },
+    ],
+    [],
+  );
 
-      <aside
-        data-tour="sidebar-menu"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        
-        
-        onFocus={handleMouseEnter}
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget)) {
-            handleMouseLeave();
-          }
-        }}
-        aria-label="Menu Principal da Plataforma"
-        style={{
-          transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
-        }}
-        className={`fixed left-0 top-0 bottom-0 z-40 hidden md:flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
-          }`}
-      >
+  const renderSidebarContent = (collapsedView: boolean, isMobileMode: boolean) => {
+    const closeIfMobile = isMobileMode ? onCloseMobile : undefined;
+
+    return (
+      <>
         <div
-          className={`border-b border-white/10 py-3.5 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+          className={`border-b border-white/10 py-3.5 transition-all duration-300 ${collapsedView ? 'px-2.5 flex justify-center' : 'px-4'
             }`}
         >
-          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className={`flex items-center ${collapsedView ? 'justify-center' : 'justify-between'}`}>
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
-              
-              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${isCollapsed ? 'justify-center' : 'gap-2.5'
+              onClick={closeIfMobile}
+              className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${collapsedView ? 'justify-center' : 'gap-2.5'
                 }`}
               aria-label="EXPERTISE Licitatória — Página Inicial"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-md">
                 <BrandLogo imageClassName="h-full w-full object-contain" />
               </div>
-              {!isCollapsed && (
+              {!collapsedView && (
                 <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
                   <span className="block text-sm font-black tracking-wider text-white">EXPERTISE</span>
                 </div>
               )}
             </Link>
 
-            {!isCollapsed && (
+            {isMobileMode && onCloseMobile ? (
               <button
                 type="button"
-                onClick={togglePin}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isPinned
-                    ? 'bg-brand-orange text-white shadow-xs'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                title={isPinned ? 'Desafixar menu (recolher automaticamente)' : 'Fixar menu aberto'}
-                aria-label={isPinned ? 'Desafixar menu' : 'Fixar menu'}
+                onClick={onCloseMobile}
+                aria-label="Fechar menu"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer"
               >
-                {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                <X className="h-5 w-5" weight="bold" />
               </button>
+            ) : (
+              !collapsedView && (
+                <button
+                  type="button"
+                  onClick={togglePin}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isPinned
+                      ? 'bg-brand-orange text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  title={isPinned ? 'Desafixar menu (recolher automaticamente)' : 'Fixar menu aberto'}
+                  aria-label={isPinned ? 'Desafixar menu' : 'Fixar menu'}
+                >
+                  {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                </button>
+              )
             )}
           </div>
         </div>
 
         <div
-          className={`border-b border-white/10 py-3 transition-all duration-300 ${isCollapsed ? 'px-2.5 flex justify-center' : 'px-4'
+          className={`border-b border-white/10 py-3 transition-all duration-300 ${collapsedView ? 'px-2.5 flex justify-center' : 'px-4'
             }`}
         >
-          <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
+          <div className={`flex min-w-0 items-center ${collapsedView ? 'justify-center' : 'gap-2.5'}`}>
             <span
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange text-xs font-black text-white shadow-sm"
-              title={isCollapsed ? displayName : undefined}
+              title={collapsedView ? displayName : undefined}
             >
               {displayName.charAt(0).toUpperCase() || 'E'}
             </span>
-            {!isCollapsed && (
+            {!collapsedView && (
               <div className="min-w-0 overflow-hidden whitespace-nowrap transition-opacity duration-300">
                 <p className="truncate text-xs font-black text-white">{displayName}</p>
                 <p className="truncate text-[10px] font-bold text-brand-orange">
@@ -598,22 +630,23 @@ export default function Sidebar() {
 
         <nav
           data-tour="strategic-hubs"
-          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${isCollapsed ? 'px-1.5' : 'px-3'
+          aria-label={isMobileMode ? 'Navegação móvel' : 'Navegação principal'}
+          className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${collapsedView ? 'px-1.5' : 'px-3'
             }`}
         >
           <div className="mb-2">
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
-              
-              title={isCollapsed ? 'Página Inicial' : undefined}
-              className={`group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
+              onClick={closeIfMobile}
+              title={collapsedView ? 'Página Inicial' : undefined}
+              className={`group relative flex items-center ${collapsedView ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
                 } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
                   ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
                   : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                 }`}
             >
               <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
-              {!isCollapsed && (
+              {!collapsedView && (
                 <div className="min-w-0 flex-1 transition-opacity duration-300">
                   <span className="block text-xs font-black tracking-tight">Página Inicial</span>
                 </div>
@@ -621,7 +654,7 @@ export default function Sidebar() {
             </Link>
           </div>
 
-          {!isCollapsed && (
+          {!collapsedView && (
             <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
               Centrais Estratégicas
             </p>
@@ -632,9 +665,10 @@ export default function Sidebar() {
               <StrategicHubNode
                 key={hub.id}
                 hub={hub}
-                isCollapsed={isCollapsed}
+                isCollapsed={collapsedView}
                 isExpanded={Boolean(expandedHubs[hub.id])}
                 onToggle={() => toggleHub(hub.id)}
+                onNavigate={closeIfMobile}
               />
             ))}
           </div>
@@ -642,50 +676,106 @@ export default function Sidebar() {
           <div className="my-2.5 border-t border-white/10" />
 
           <div className="space-y-1">
-            <Link
-              to={FORNECEDOR_ROUTES.planos}
-              
-              title={isCollapsed ? 'Planos & Assinatura' : undefined}
-              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-            >
-              <CreditCard className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-              {!isCollapsed && <span className="transition-opacity duration-300">Planos & Assinatura</span>}
-            </Link>
-
-            <Link
-              to={FORNECEDOR_ROUTES.configuracoes}
-              
-              title={isCollapsed ? 'Configurações' : undefined}
-              className={`flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
-                } rounded-lg text-xs font-semibold text-slate-300 hover:bg-white/[0.06] hover:text-white transition`}
-            >
-              <Gear className="h-4.5 w-4.5 shrink-0 text-slate-400" />
-              {!isCollapsed && <span className="transition-opacity duration-300">Configurações</span>}
-            </Link>
+            {footerItems.map((item) => {
+              const Icon = item.icon;
+              const active = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={closeIfMobile}
+                  onMouseEnter={() => prefetchRoute(item.path)}
+                  aria-current={active ? 'page' : undefined}
+                  title={collapsedView ? item.label : undefined}
+                  className={`flex items-center ${collapsedView ? 'justify-center p-2.5' : 'px-3 py-2 gap-2.5'
+                    } rounded-lg text-xs font-semibold transition ${active
+                      ? 'bg-brand-orange/15 text-white font-bold border-l-2 border-brand-orange'
+                      : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    }`}
+                >
+                  <Icon
+                    className={`h-4.5 w-4.5 shrink-0 ${active ? 'text-brand-orange' : 'text-slate-400'}`}
+                    weight={active ? 'fill' : 'regular'}
+                  />
+                  {!collapsedView && <span className="truncate transition-opacity duration-300">{item.label}</span>}
+                </Link>
+              );
+            })}
           </div>
         </nav>
 
         <div
-          className={`border-t border-white/10 p-3 transition-all duration-300 ${isCollapsed ? 'flex justify-center' : ''
+          className={`border-t border-white/10 p-3 transition-all duration-300 ${collapsedView ? 'flex justify-center' : ''
             }`}
         >
           <button
             type="button"
-            onClick={() => void logout()}
-            title={isCollapsed ? 'Encerrar sessão' : undefined}
-            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${isCollapsed ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
+            onClick={() => {
+              if (closeIfMobile) closeIfMobile();
+              void logout();
+            }}
+            title={collapsedView ? 'Encerrar sessão' : undefined}
+            className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${collapsedView ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
               }`}
           >
             <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
-            {!isCollapsed && (
+            {!collapsedView && (
               <span className="overflow-hidden whitespace-nowrap transition-opacity duration-300">
                 Encerrar sessão
               </span>
             )}
           </button>
         </div>
+      </>
+    );
+  };
+
+  return (
+    <>
+      <div
+        className={`hidden md:block shrink-0 transition-[width] duration-[380ms] ${isPinned ? 'w-68' : 'w-16'
+          }`}
+        aria-hidden="true"
+      />
+
+      {/* Sidebar Desktop */}
+      <aside
+        data-tour="sidebar-menu"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onFocus={handleMouseEnter}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) {
+            handleMouseLeave();
+          }
+        }}
+        aria-label="Menu Principal da Plataforma"
+        style={{
+          transition: 'width 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms ease',
+        }}
+        className={`fixed left-0 top-0 bottom-0 z-40 hidden md:flex h-screen flex-col border-r border-white/10 bg-brand-dark text-white select-none ${isOpen ? 'w-68 shadow-2xl shadow-black/50' : 'w-16 shadow-md'
+          }`}
+      >
+        {renderSidebarContent(isCollapsed, false)}
       </aside>
+
+      {/* Drawer Mobile Unificado (espelha 100% os mesmos hubs, links e ações do desktop) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-[1px]"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+          <aside
+            id="mobile-navigation"
+            aria-label="Menu Principal Mobile da Plataforma"
+            className="relative z-10 flex h-full w-[85vw] max-w-[300px] flex-col border-r border-white/10 bg-brand-dark text-white shadow-2xl select-none"
+          >
+            {renderSidebarContent(false, true)}
+          </aside>
+        </div>
+      )}
     </>
   );
 }

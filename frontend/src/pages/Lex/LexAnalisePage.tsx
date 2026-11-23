@@ -17,6 +17,7 @@ import {
 import toast from 'react-hot-toast';
 import { lexApi } from '../../services/api';
 import { EditalOption, EditalSelector } from '../../components/EditalSelector';
+import { ChatMessage, cleanHumanAiText } from '../../components/ChatMessage';
 
 interface MensagemChat {
   id: string;
@@ -29,22 +30,22 @@ const ACOES_RAPIDAS = [
   {
     titulo: 'Investigar CNPJ',
     icon: Building2,
-    prompt: 'Investigue este CNPJ (sócios, endereco, CNAE e possíveis vínculos entre empresas): ',
+    prompt: 'Investigue este CNPJ (sócios, endereço, CNAE e possíveis vínculos entre empresas): ',
   },
   {
     titulo: 'Proposta (-8%)',
     icon: Calculator,
-    prompt: 'Com base nos itens e valores de referencia deste edital/link do PNCP, monte uma proposta competitiva aplicando -8% e destacando margem de seguranca: ',
+    prompt: 'Com base nos itens e valores de referência deste edital ou link do PNCP, monte uma proposta competitiva aplicando -8% e destacando margem de segurança: ',
   },
   {
     titulo: 'Riscos e Irregularidades',
     icon: ShieldAlert,
-    prompt: 'Faça uma varredura investigativa neste edital buscando clausulas restritivas, exigências atipicas ou indicios de direcionamento, com linhas de defesa: ',
+    prompt: 'Faça uma varredura investigativa neste edital buscando cláusulas restritivas, exigências atípicas ou indícios de direcionamento, com linhas de defesa: ',
   },
   {
     titulo: 'Resumo Executivo',
     icon: FileText,
-    prompt: 'Faca um resumo executivo direto e visual deste edital (objeto, valor estimado, data da sessao, habilitação e pontos de atencao): ',
+    prompt: 'Faça um resumo executivo direto e visual deste edital (objeto, valor estimado, data da sessão, habilitação e pontos de atenção): ',
   },
 ];
 
@@ -170,14 +171,14 @@ export const LexAnalisePage: React.FC = () => {
       const msgErro =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
-        'A análise demorou mais que o esperado. Tente novamente com um trecho menor ou um link especifico do PNCP.';
+        'A análise demorou mais que o esperado. Tente novamente com um trecho menor ou um link específico do PNCP.';
       toast.error(msgErro);
       setMensagens((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: `Nao consegui concluir essa consulta agora: ${msgErro}`,
+          content: `Não consegui concluir essa consulta agora: ${msgErro}`,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -214,9 +215,8 @@ export const LexAnalisePage: React.FC = () => {
     const blocosHtml = msgsParaImprimir
       .map(
         (m) => `
-        <div style="margin-bottom:16px;padding:14px;border-radius:8px;border:1px solid ${
-          m.role === 'user' ? '#cbd5e1' : '#bfdbfe'
-        };background:${m.role === 'user' ? '#f8fafc' : '#eff6ff'};">
+        <div style="margin-bottom:16px;padding:14px;border-radius:8px;border:1px solid ${m.role === 'user' ? '#cbd5e1' : '#bfdbfe'
+          };background:${m.role === 'user' ? '#f8fafc' : '#eff6ff'};">
           <div style="font-size:11px;font-weight:700;color:#081C3A;margin-bottom:6px;text-transform:uppercase;">
             ${m.role === 'user' ? 'Consulta do Licitante' : 'Parecer Luli - Expertise Licitatória'} (${escapeHtml(m.timestamp)})
           </div>
@@ -307,17 +307,18 @@ export const LexAnalisePage: React.FC = () => {
             return (
               <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[92%] sm:max-w-[82%] rounded-2xl px-4 py-3.5 text-sm leading-relaxed ${
-                    isUser
+                  className={`max-w-[92%] sm:max-w-[82%] rounded-2xl px-4 py-3.5 text-sm leading-relaxed ${isUser
                       ? 'bg-[#081C3A] text-white'
                       : 'border border-slate-200 bg-slate-50 text-slate-800'
-                  }`}
+                    }`}
                 >
                   <div className="mb-1.5 flex items-center justify-between gap-4 text-[11px] font-bold opacity-75">
-                    <span>{isUser ? 'Voce' : 'Luli Especialista'}</span>
+                    <span>{isUser ? 'Você' : 'Luli Especialista'}</span>
                     <span>{msg.timestamp}</span>
                   </div>
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                  <div className="whitespace-pre-wrap break-words">
+                    {isUser ? msg.content : <ChatMessage role="assistant" content={cleanHumanAiText(msg.content)} />}
+                  </div>
                 </div>
               </div>
             );

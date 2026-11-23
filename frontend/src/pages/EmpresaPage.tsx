@@ -92,10 +92,12 @@ export default function EmpresaPage() {
     };
   }, []);
 
+  const [userEditedCnpj, setUserEditedCnpj] = useState(false);
+
   const {
     isLoading: loading,
     error: brasilApiError,
-  } = useBrasilApiCnpj(cnpj, {
+  } = useBrasilApiCnpj(userEditedCnpj ? cnpj : '', {
     onSuccess: (dados) => {
       setErro('');
       setErroSalvar('');
@@ -239,6 +241,7 @@ export default function EmpresaPage() {
                   value={cnpj}
                   onChange={(e) => {
                     const masked = formatCnpjMask(e.target.value);
+                    setUserEditedCnpj(true);
                     setCnpj(masked);
                     if (sanitizeCnpj(masked).length === 0) {
                       setErro('');

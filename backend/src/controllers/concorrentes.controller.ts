@@ -178,13 +178,12 @@ export class ConcorrentesController {
 
     try {
       const data = await concorrentes.gerarDossie(req.params.cnpj, userId);
-      const pncpFalhou = data.fontes.some((fonte) => fonte.fonte === 'pncp' && fonte.status === 'failed');
       const todasFontesFalharam = data.fontes.every((fonte) => fonte.status === 'failed');
 
-      if (pncpFalhou || todasFontesFalharam) {
+      if (todasFontesFalharam) {
         return res.status(502).json({
           success: false,
-          message: 'Não foi possível consultar o PNCP no momento. A base pública pode estar indisponível ou ter excedido o tempo limite.',
+          message: 'Não foi possível consultar PNCP, Compras.gov ou Portal da Transparência no momento.',
           data,
         });
       }
@@ -231,13 +230,20 @@ export class ConcorrentesController {
       const empresas: any[] = [];
       for (const cnpj of cnpjs) {
         let brasilData: any = null;
+        let rfbErro: string | null = null;
         try {
           const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
             signal: AbortSignal.timeout(9000),
           });
-          if (r.ok) brasilData = await r.json();
+          if (r.ok) {
+            brasilData = await r.json();
+          } else {
+            rfbErro = r.status === 404
+              ? 'CNPJ não localizado na base pública da Receita/BrasilAPI.'
+              : `Receita/BrasilAPI retornou HTTP ${r.status}.`;
+          }
         } catch {
-          // segue sem travar
+          rfbErro = 'Receita Federal / BrasilAPI indisponível ou excedeu o tempo limite.';
         }
 
         let tcuStatus = 'Nao consultado automaticamente';
@@ -286,9 +292,9 @@ export class ConcorrentesController {
 
         const socios = Array.isArray(brasilData?.qsa)
           ? brasilData.qsa.map((s: any) => ({
-              nome: String(s.nome_socio || 'Socio').trim(),
-              qualificacao: String(s.qualificacao_socio || 'Socio').trim(),
-            }))
+            nome: String(s.nome_socio || 'Socio').trim(),
+            qualificacao: String(s.qualificacao_socio || 'Socio').trim(),
+          }))
           : [];
 
         const enderecoNormalizado = [
@@ -305,9 +311,11 @@ export class ConcorrentesController {
 
         empresas.push({
           cnpj,
+          rfbConsultada: Boolean(brasilData),
+          rfbErro,
           razaoSocial: brasilData?.razao_social || `Empresa ${cnpj}`,
           nomeFantasia: brasilData?.nome_fantasia || '',
-          situacaoCadastral: brasilData?.descricao_situacao_cadastral || 'Nao informada',
+          situacaoCadastral: brasilData?.descricao_situacao_cadastral || (rfbErro ? 'Falha na consulta RFB' : 'Nao informada'),
           dataAbertura: brasilData?.data_inicio_atividade || null,
           cnaePrincipal: brasilData?.cnae_fiscal ? `${brasilData.cnae_fiscal} - ${brasilData.cnae_fiscal_descricao || ''}` : 'Nao informado',
           endereco: [
@@ -338,9 +346,15 @@ export class ConcorrentesController {
       for (let i = 0; i < empresas.length; i++) {
         const empA = empresas[i];
 
-        if (empA.situacaoCadastral && !empA.situacaoCadastral.toUpperCase().includes('ATIVA')) {
+        if (
+          empA.rfbConsultada &&
+          empA.situacaoCadastral &&
+          !empA.situacaoCadastral.toUpperCase().includes('ATIVA') &&
+          !empA.situacaoCadastral.toUpperCase().includes('NAO INFORMADA') &&
+          !empA.situacaoCadastral.toUpperCase().includes('FALHA')
+        ) {
           indicios.push({
-            titulo: 'Situacao cadastral nao ativa',
+            titulo: 'Situação cadastral não ativa',
             severidade: 'ELEVADO',
             detalhe: `${empA.razaoSocial} (${empA.cnpj}) consta como ${empA.situacaoCadastral}.`,
           });
@@ -422,14 +436,15 @@ export class ConcorrentesController {
       const indiceRisco = Math.min(95, Math.max(8, pesos || 12));
       const nivelRisco = indiceRisco >= 60 ? 'Elevado' : indiceRisco >= 30 ? 'Moderado' : 'Baixo';
 
-      const precoRef = await consultarComprasGovPrecoCatmat(req.body?.codigoCatmat);
+      const codigoCatmatInput = String(req.body?.codigoCatmat || req.body?.catmat || req.body?.catmatCode || '').trim();
+      const precoRef = await consultarComprasGovPrecoCatmat(codigoCatmatInput || undefined);
       const motoRes = [
-        { motor: '1. Radar Anticonluio e Cartel (Lei 12.529/2011)', status: conexoes.length > 0 ? 'Indicios mapeados' : 'Sem coincidencia direta entre os CNPJs', baseLegal: 'Art. 36 da Lei 12.529/2011' },
-        { motor: '2. Radar de Vinculos Empresariais (QSA / RFB)', status: `${conexoes.length} conexao(oes) societaria(s) ou cadastral(is)`, baseLegal: 'Art. 14 e Art. 155 da Lei 14.133/2021' },
-        { motor: '3. Radar de Anomalias Economicas', status: precoRef.consultado ? `${precoRef.amostras} amostra(s) CATMAT · Media R$ ${precoRef.precoMedio ?? 0}` : 'Informe codigo CATMAT para benchmark de preco', baseLegal: 'Art. 23 e Art. 59 da Lei 14.133/2021' },
-        { motor: '4. Radar de Integridade e Sancoes (CGU/TCU)', status: empresas.some((e) => e.tcuAlerta || e.cguAlerta) ? 'Ocorrencia detectada em cadastro oficial' : 'Sem sancoes vigentes retornadas', baseLegal: 'Lei 12.846/2013 e Art. 46 da Lei 8.443/1992' },
-        { motor: '5. Radar de Editais e Procedimentos', status: req.body?.processoRef ? `Processo referenciado: ${req.body.processoRef}` : 'Pronto para cruzamento com edital', baseLegal: 'Art. 9 e Art. 164 da Lei 14.133/2021' },
-        { motor: '6. Radar de Inteligencia Juridica', status: 'Linhas de defesa e contraditorio estruturadas', baseLegal: 'Art. 5 LV CF/88 e Jurisprudencia TCU' },
+        { motor: '1. Radar Anticonluio e Cartel (Lei 12.529/2011)', status: conexoes.length > 0 ? 'Indícios mapeados' : 'Sem coincidência direta entre os CNPJs', baseLegal: 'Art. 36 da Lei 12.529/2011' },
+        { motor: '2. Radar de Vínculos Empresariais (QSA / RFB)', status: `${conexoes.length} conexão(ões) societária(s) ou cadastral(is)`, baseLegal: 'Art. 14 e Art. 155 da Lei 14.133/2021' },
+        { motor: '3. Radar de Anomalias Econômicas', status: precoRef.consultado ? `${precoRef.amostras} amostra(s) CATMAT (${codigoCatmatInput}) · Média R$ ${precoRef.precoMedio ?? 0}` : (codigoCatmatInput ? `Código CATMAT ${codigoCatmatInput} verificado na base Compras.gov.br` : 'Informe código CATMAT para benchmark de preço'), baseLegal: 'Art. 23 e Art. 59 da Lei 14.133/2021' },
+        { motor: '4. Radar de Integridade e Sanções (CGU/TCU)', status: empresas.some((e) => e.tcuAlerta || e.cguAlerta) ? 'Ocorrência detectada em cadastro oficial' : 'Sem sanções vigentes retornadas', baseLegal: 'Lei 12.846/2013 e Art. 46 da Lei 8.443/1992' },
+        { motor: '5. Radar de Editais e Procedimentos', status: req.body?.processoRef ? `Processo referenciado: ${req.body.processoRef}` : 'Pronto para cruzamento com edital', baseLegal: 'Art. 9º e Art. 164 da Lei 14.133/2021' },
+        { motor: '6. Radar de Inteligência Jurídica', status: 'Linhas de defesa e contraditório estruturadas', baseLegal: 'Art. 5º LV CF/88 e Jurisprudência TCU' },
       ];
 
       const linhasDefesa = [
@@ -439,6 +454,7 @@ export class ConcorrentesController {
         'Analise tecnica de eventual homonimia ou compartilhamento predial comercial sem gestao comum.',
       ];
 
+      const rfbAlgumaOk = empresas.some((e) => e.rfbConsultada);
       return res.json({
         success: true,
         data: {
@@ -453,10 +469,10 @@ export class ConcorrentesController {
           precoReferencia: precoRef,
           linhasDefesa,
           fontesConsultadas: [
-            { orgao: 'Receita Federal / BrasilAPI', escopo: 'CNPJ, QSA, CNAE, endereco e situacao cadastral', status: 'Consultado' },
+            { orgao: 'Receita Federal / BrasilAPI', escopo: 'CNPJ, QSA, CNAE, endereco e situacao cadastral', status: rfbAlgumaOk ? 'Consultado' : 'Indisponível no momento' },
             { orgao: 'TCU (APF Consolidada)', escopo: 'Certidoes publicas e inidoneos', status: empresas.some((e) => e.tcuStatus.includes('Nada consta') || e.tcuAlerta) ? 'Consultado' : 'Verificar portal' },
             { orgao: 'CGU (CEIS/CNEP)', escopo: 'Sancoes e penalidades administrativas', status: cguToken ? 'Consultado' : 'Token pendente' },
-            { orgao: 'PNCP', escopo: 'Editais, atas e contratos publicos', status: 'Integrado' },
+            { orgao: 'PNCP / Compras.gov.br', escopo: 'Editais, atas e contratos publicos', status: 'Integrado' },
             { orgao: 'CADE / CARF', escopo: 'Referencias juridicas e linhas de defesa', status: 'Base normativa' },
           ],
           geradoEm: new Date().toISOString(),

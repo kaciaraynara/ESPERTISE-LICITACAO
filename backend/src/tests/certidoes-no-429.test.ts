@@ -144,20 +144,26 @@ describe('Isolamento Estrito de Rate Limit e Proteção de Rotas Internas (/api/
     );
     expect(hasAuthRouterLevelRateLimit).toBe(false);
 
-    // Verifica que POST /login possui o rate limiter acoplado especificamente
+    // Verifica que endpoints públicos sensíveis (/login e /register) possuem rate limiter acoplado,
+    // enquanto rotas de sessão interna como POST /refresh permanecem livres.
     const loginRouteLayer = (authRoutes as any).stack.find(
       (layer: any) => layer.route && layer.route.path === '/login',
     );
     expect(loginRouteLayer).toBeDefined();
     expect((loginRouteLayer as any)?.route?.methods?.post).toBe(true);
+    expect((loginRouteLayer as any)?.route?.stack?.length).toBeGreaterThanOrEqual(2);
 
-    // /login possui rate limiter + handler (2 middlewares), enquanto /register possui apenas 1 middleware
     const registerRouteLayer = (authRoutes as any).stack.find(
       (layer: any) => layer.route && layer.route.path === '/register',
     );
-    expect((loginRouteLayer as any)?.route?.stack?.length).toBeGreaterThan(
-      (registerRouteLayer as any)?.route?.stack?.length,
+    expect(registerRouteLayer).toBeDefined();
+    expect((registerRouteLayer as any)?.route?.stack?.length).toBeGreaterThanOrEqual(2);
+
+    const refreshRouteLayer = (authRoutes as any).stack.find(
+      (layer: any) => layer.route && layer.route.path === '/refresh',
     );
+    expect(refreshRouteLayer).toBeDefined();
+    expect((refreshRouteLayer as any)?.route?.stack?.length).toBe(1);
   });
 
   it('deve executar 50 requisições GET consecutivas para /certidoes sem NUNCA retornar erro 429', async () => {

@@ -64,8 +64,8 @@ export function formatarMoeda(val: number | null | undefined): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val) || 0);
 }
 
-function valorPorExtenso(valor: number): string {
-  const num = Number(valor) || 0;
+export function valorPorExtenso(valor: number): string {
+  const num = Math.max(0, Number.isFinite(Number(valor)) ? Number(Number(valor).toFixed(2)) : 0);
   if (num === 0) return 'zero reais';
 
   const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
@@ -94,18 +94,32 @@ function valorPorExtenso(valor: number): string {
   const inteiro = Math.floor(num);
   const centavos = Math.round((num - inteiro) * 100);
 
-  const milhoes = Math.floor(inteiro / 1000000);
-  const milhares = Math.floor((inteiro % 1000000) / 1000);
-  const restoInt = inteiro % 1000;
+  const bilhoes = Math.floor(inteiro / 1_000_000_000);
+  const milhoes = Math.floor((inteiro % 1_000_000_000) / 1_000_000);
+  const milhares = Math.floor((inteiro % 1_000_000) / 1_000);
+  const restoInt = inteiro % 1_000;
 
   const grupos: string[] = [];
+  if (bilhoes > 0) grupos.push(`${converterGrupo(bilhoes)} ${bilhoes === 1 ? 'bilhão' : 'bilhões'}`);
   if (milhoes > 0) grupos.push(`${converterGrupo(milhoes)} ${milhoes === 1 ? 'milhão' : 'milhões'}`);
   if (milhares > 0) grupos.push(`${milhares === 1 ? 'mil' : `${converterGrupo(milhares)} mil`}`);
   if (restoInt > 0) grupos.push(converterGrupo(restoInt));
 
-  let textoInteiro = grupos.join(', ');
+  let textoInteiro = '';
   if (inteiro > 0) {
-    textoInteiro += inteiro === 1 ? ' real' : ' reais';
+    let textoGrupos = '';
+    if (grupos.length >= 2 && restoInt > 0 && (restoInt < 100 || restoInt % 100 === 0)) {
+      textoGrupos = `${grupos.slice(0, -1).join(', ')} e ${grupos[grupos.length - 1]}`;
+    } else {
+      textoGrupos = grupos.join(', ');
+    }
+    const sufixoReal =
+      inteiro === 1
+        ? 'real'
+        : restoInt === 0 && milhares === 0 && (milhoes > 0 || bilhoes > 0)
+          ? 'de reais'
+          : 'reais';
+    textoInteiro = `${textoGrupos} ${sufixoReal}`;
   }
 
   if (centavos > 0) {
@@ -222,25 +236,47 @@ export function montarTextoPlanoProposta(dados: DadosDocumentoProposta): string 
 export function construirHtmlPdfProposta(dados: any): string {
   const { proposta, orgaoLicitante, numeroEdital, objetoLicitacao, modalidadeEdital, itens, totalCalculado } = dados;
 
+  const diagnostico = (dados as any).diagnostico || {};
+  const momentoEnvio = diagnostico.momentoEnvio || 'READEQUADA_VENCEDORA';
+  const isDesidentificada = momentoEnvio === 'INICIAL_DESIDENTIFICADA';
+
   const emp = (dados as any).empresa || proposta?.company;
-  const razaoSocial = emp?.razaoSocial || proposta?.company?.razaoSocial || 'EMPRESA PROPONENTE';
-  const nomeFantasia = emp?.nomeFantasia || proposta?.company?.nomeFantasia || razaoSocial;
+  const razaoSocial = isDesidentificada
+    ? 'LICITANTE PROPONENTE (IDENTIFICAÇÃO VEDADA NA FASE INICIAL)'
+    : (emp?.razaoSocial || proposta?.company?.razaoSocial || 'EMPRESA PROPONENTE');
+  const nomeFantasia = isDesidentificada
+    ? 'PROPOSTA INICIAL DESIDENTIFICADA'
+    : (emp?.nomeFantasia || proposta?.company?.nomeFantasia || razaoSocial);
   const cnpjRaw = String(emp?.cnpj || proposta?.company?.cnpj || '').replace(/\D/g, '');
-  const cnpj = cnpjRaw.length === 14 ? cnpjRaw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (emp?.cnpj || proposta?.company?.cnpj || 'Não informado');
-  const email = emp?.email || proposta?.company?.email || 'Não informado';
-  const telefone = emp?.telefone || proposta?.company?.telefone || 'Não informado';
-  const endereco = emp?.endereco || proposta?.company?.endereco || '';
-  const cidadeUf = emp?.cidadeUf || [emp?.cidade, emp?.uf].filter(Boolean).join(' - ') || 'Brasil';
+  const cnpj = isDesidentificada
+    ? 'Oculto conforme vedação legal de identificação prévia'
+    : (cnpjRaw.length === 14 ? cnpjRaw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (emp?.cnpj || proposta?.company?.cnpj || 'Não informado'));
+  const inscricaoEstadual = diagnostico.inscricaoEstadual || emp?.inscricaoEstadual || 'Conforme cadastro estadual';
+  const email = isDesidentificada ? '—' : (emp?.email || proposta?.company?.email || 'Não informado');
+  const telefone = isDesidentificada ? '—' : (emp?.telefone || proposta?.company?.telefone || 'Não informado');
+  const endereco = isDesidentificada ? '' : (emp?.endereco || proposta?.company?.endereco || '');
+  const cidadeUf = emp?.cidadeUf || [emp?.cidade || emp?.municipio, emp?.uf].filter(Boolean).join(' - ') || 'Brasil';
+
+  const banco = diagnostico.banco || emp?.banco || 'Conforme cadastro bancário da empresa';
+  const agencia = diagnostico.agencia || emp?.agencia || '—';
+  const contaCorrente = diagnostico.contaCorrente || emp?.contaCorrente || '—';
+
+  const encarregadoNome = diagnostico.encarregadoNome || emp?.representanteLegal || 'Representante Legal Constituído';
+  const encarregadoCpf = diagnostico.encarregadoCpf || 'Conforme Contrato Social / Procuração';
+  const encarregadoRg = diagnostico.encarregadoRg || 'Conforme documento oficial anexo';
+  const encarregadoEstadoCivil = diagnostico.encarregadoEstadoCivil || 'Conforme qualificação contratual';
+  const encarregadoProfissao = diagnostico.encarregadoProfissao || 'Sócio-Administrador / Representante Legal';
+  const encarregadoTelefone = diagnostico.encarregadoTelefone || telefone;
+  const encarregadoEndereco = diagnostico.encarregadoEndereco || [endereco, cidadeUf].filter(Boolean).join(' - ') || 'Conforme Contrato Social';
 
   const orgao = orgaoLicitante || (dados as any).orgao || 'Órgão Licitante Promotor';
   const obj = objetoLicitacao || (dados as any).objeto || 'Objeto da contratação pública conforme Edital';
   const num = numeroEdital || (dados as any).numeroProcesso || 'S/N';
   const mod = modalidadeEdital || (dados as any).modalidade || 'Pregão Eletrônico (Lei nº 14.133/2021)';
-  const criterio = proposta?.criterioJulgamento?.replace(/_/g, ' ') || 'Menor Preço';
-  const validade = (dados as any).validadeDias || proposta?.validadeDias || 60;
-  const entrega = (dados as any).prazoEntrega || proposta?.prazoEntregaDias || 15;
-  const garantia = (dados as any).garantia || proposta?.garantia || 'Garantia legal e contratual mínima de 12 (doze) meses contra vícios, defeitos de fabricação ou falhas de execução.';
-  const pagamento = proposta?.condicoesPagamento || 'Em até 30 (trinta) dias corridos após o recebimento definitivo e atesto da Nota Fiscal em conta vinculada ao CNPJ da proponente.';
+  const criterio = (diagnostico.criterioJulgamento || proposta?.criterioJulgamento || 'Menor Preço').replace(/_/g, ' ');
+  const validade = diagnostico.validadeDias || (dados as any).validadeDias || proposta?.validadeDias || 60;
+  const entrega = diagnostico.prazoEntrega || (dados as any).prazoEntrega || proposta?.prazoEntregaDias || 15;
+  const garantia = diagnostico.garantia || (dados as any).garantia || proposta?.garantia || '12 (doze) meses a contar do recebimento definitivo do objeto.';
 
   const dataExtenso = new Date().toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -266,13 +302,21 @@ export function construirHtmlPdfProposta(dados: any): string {
     }, 0);
   const diferencaBruta = Math.max(0, totalFinalCalculado - somaCustosDiretos);
 
+  // Agrupamento por Lote para o Anexo VI - Ficha Técnica Descritiva do Objeto
+  const lotesMap = new Map<string, any[]>();
+  rawItens.forEach((it, idx) => {
+    const loteKey = String(it.lote || '01').padStart(2, '0');
+    if (!lotesMap.has(loteKey)) lotesMap.set(loteKey, []);
+    lotesMap.get(loteKey)!.push({ ...it, _idx: idx });
+  });
+
   const rowsItensHtml = rawItens
     .map((it, idx) => {
       const marcaModelo =
         it.marca ||
         it.marcaModelo ||
         [it.marca, it.modelo].filter(Boolean).join(' / ') ||
-        'Conforme Edital';
+        'Conforme especificação técnica do Termo de Referência';
       const custo = Number(it.custoDireto ?? it.custoUnitario ?? 0);
       const encargos = Number(it.encargosPercentual ?? it.despesasPercentual ?? 0);
       const margem = Number(it.margemLucroPercentual ?? it.margemPercentual ?? 0);
@@ -284,9 +328,10 @@ export function construirHtmlPdfProposta(dados: any): string {
         <td style="text-align:center; font-weight:bold;">${it.numero || idx + 1}</td>
         <td>
           <strong>${escapeHtml(it.descricao)}</strong><br/>
-          <span style="font-size:8pt; color:#475569;">Marca/Modelo: ${escapeHtml(marcaModelo)}</span>
+          <span style="font-size:8pt; color:#475569;">Marca / Modelo: ${escapeHtml(marcaModelo)}</span>
         </td>
-        <td style="text-align:center;">${it.quantidade} ${escapeHtml(it.unidade)}</td>
+        <td style="text-align:center;">${escapeHtml(String(it.unidade || 'UN'))}</td>
+        <td style="text-align:center;">${it.quantidade}</td>
         <td style="text-align:right;">${formatarMoeda(custo)}</td>
         <td style="text-align:right;">${encargos}%</td>
         <td style="text-align:right;">${margem}%</td>
@@ -296,8 +341,69 @@ export function construirHtmlPdfProposta(dados: any): string {
     })
     .join('');
 
-  const isMeEpp = /\b(me|epp|micro|pequeno)\b/i.test(String((dados as any).enquadramento || emp?.porte || emp?.enquadramento || ''));
-  const prazoEntregaTexto = /^\d+$/.test(String(entrega).trim()) ? (String(entrega).trim() + ' dias corridos após o recebimento da Nota de Empenho ou Ordem de Fornecimento.') : String(entrega);
+  const tabelasAnexoViPorLoteHtml = Array.from(lotesMap.entries())
+    .map(([loteNum, itensDoLote]) => {
+      const subtotalLote = itensDoLote.reduce((acc, it) => {
+        const unitario = Number(it.precoUnitarioProposto ?? it.valorUnitario ?? 0);
+        const totalItem = Number(it.precoTotalProposto ?? it.valorTotal ?? (Number(it.quantidade || 1) * unitario));
+        return acc + totalItem;
+      }, 0);
+
+      const linhasLote = itensDoLote
+        .map((it) => {
+          const marcaModelo =
+            it.marca ||
+            it.marcaModelo ||
+            [it.marca, it.modelo].filter(Boolean).join(' / ') ||
+            'Conforme Termo de Referência';
+          const unitario = Number(it.precoUnitarioProposto ?? it.valorUnitario ?? 0);
+          const totalItem = Number(it.precoTotalProposto ?? it.valorTotal ?? (Number(it.quantidade || 1) * unitario));
+          return `
+          <tr>
+            <td style="text-align:center; font-weight:bold;">${it.numero || it._idx + 1}</td>
+            <td>${escapeHtml(it.descricao)}</td>
+            <td style="text-align:center;">${escapeHtml(String(it.unidade || 'UN'))}</td>
+            <td style="text-align:center;">${it.quantidade}</td>
+            <td style="text-align:center; font-weight:bold;">${escapeHtml(marcaModelo)}</td>
+            <td style="text-align:right;">${formatarMoeda(unitario)}</td>
+            <td style="text-align:right; font-weight:bold;">${formatarMoeda(totalItem)}</td>
+          </tr>`;
+        })
+        .join('');
+
+      return `
+      <div style="margin-top: 12px; page-break-inside: avoid;">
+        <div style="background:#081C3A; color:#FFFFFF; font-family:Arial,sans-serif; font-size:9pt; font-weight:bold; padding:5px 10px; text-transform:uppercase;">
+          LOTE ${escapeHtml(loteNum)}
+        </div>
+        <table class="table-itens" style="margin-top:0;">
+          <thead>
+            <tr>
+              <th style="width: 6%;">ITEM</th>
+              <th style="width: 38%;">OBJETO / ESPECIFICAÇÃO TÉCNICA</th>
+              <th style="width: 7%;">UN</th>
+              <th style="width: 7%;">QTD</th>
+              <th style="width: 18%;">MARCA / MODELO</th>
+              <th style="width: 12%;">PREÇO UNITÁRIO</th>
+              <th style="width: 12%;">PREÇO TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasLote}
+          </tbody>
+        </table>
+        <div style="background:#F1F5F9; border:1px solid #081C3A; padding:6px 10px; text-align:right; font-size:9pt; font-weight:bold;">
+          VALOR TOTAL DO LOTE ${escapeHtml(loteNum)}: ${formatarMoeda(subtotalLote)} (${escapeHtml(valorPorExtenso(subtotalLote))})
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  const isMeEpp =
+    diagnostico.declararMeEpp !== undefined
+      ? Boolean(diagnostico.declararMeEpp)
+      : /\b(me|epp|micro|pequeno)\b/i.test(String((dados as any).enquadramento || emp?.porte || emp?.enquadramento || ''));
+  const prazoEntregaTexto = /^\d+$/.test(String(entrega).trim()) ? (String(entrega).trim() + ' dias úteis a contar do recebimento da Nota de Empenho ou Ordem de Fornecimento.') : String(entrega);
   const declaracoesHtml = DECLARACOES_OBRIGATORIAS_14133.filter((dec) => isMeEpp || !/ME\/EPP|123\/2006/i.test(dec.titulo + ' ' + dec.amparoLegal))
     .map(
       (dec) => `
@@ -461,12 +567,37 @@ export function construirHtmlPdfProposta(dados: any): string {
         </style>
       </head>
       <body>
+        ${!isDesidentificada ? `
+        <div class="header" style="display:flex; justify-content:space-between; align-items:center; text-align:left;">
+          <div>
+            <h1 style="font-size:14pt;">${escapeHtml(razaoSocial)}</h1>
+            <h2>CNPJ: ${escapeHtml(cnpj)} | Inscrição Estadual: ${escapeHtml(inscricaoEstadual)}</h2>
+            <div style="font-size:8.5pt; color:#334155; margin-top:3px;">
+              ${escapeHtml([endereco, cidadeUf].filter(Boolean).join(' — '))} | Fone: ${escapeHtml(telefone)} | E-mail: ${escapeHtml(email)}
+            </div>
+          </div>
+          <div style="text-align:right; font-family:Arial,sans-serif;">
+            <div style="background:#081C3A; color:#FFFFFF; padding:5px 10px; border-radius:4px; font-size:8.5pt; font-weight:bold;">
+              CARTA-PROPOSTA COMERCIAL
+            </div>
+            <div style="font-size:8pt; color:#475569; margin-top:3px;">Lei Federal nº 14.133/2021</div>
+          </div>
+        </div>
+        ` : `
         <div class="header">
-          <h1>Proposta Comercial Oficial e Demonstrativo de Formação de Preços</h1>
-          <h2>Instrumento Fundamentado na Lei Federal nº 14.133/2021 e Jurisprudência do TCU</h2>
+          <h1>Ficha Técnica Descritiva e Proposta Inicial de Preços</h1>
+          <h2>Observação Legal: Por força da legislação vigente, é vedada a identificação do licitante</h2>
+        </div>
+        `}
+
+        <div style="margin-bottom:10px; font-size:9.5pt;">
+          <strong>À ${escapeHtml(orgao)}</strong><br/>
+          <strong>Ref.: ${escapeHtml(mod)} Nº ${escapeHtml(num)}</strong><br/>
+          <span>Apresentamos nossa proposta comercial de preços e especificações técnicas em estrita conformidade com o Edital e Termo de Referência.</span>
         </div>
 
-        <div class="section-title">1. Identificação Completa da Empresa Proponente</div>
+        ${!isDesidentificada ? `
+        <div class="section-title">1. Identificação do Licitante, Dados Bancários e Encarregado do Contrato</div>
         <table class="grid-info">
           <tr>
             <td style="width: 55%;"><strong>Razão Social:</strong> ${escapeHtml(razaoSocial)}</td>
@@ -474,15 +605,33 @@ export function construirHtmlPdfProposta(dados: any): string {
           </tr>
           <tr>
             <td><strong>Nome Fantasia:</strong> ${escapeHtml(nomeFantasia)}</td>
-            <td><strong>Enquadramento Legal:</strong> ${proposta?.declaracaoMeEpp ? 'ME / EPP (LC nº 123/2006)' : 'Ampla Concorrência'}</td>
+            <td><strong>Enquadramento Legal:</strong> ${isMeEpp ? 'ME / EPP (Art. 3º LC nº 123/2006)' : 'Ampla Concorrência'}</td>
           </tr>
           <tr>
-            <td><strong>Endereço / Sede:</strong> ${escapeHtml([endereco, cidadeUf].filter(Boolean).join(' - ') || 'Brasil')}</td>
-            <td><strong>Contatos:</strong> ${escapeHtml([telefone, email].filter(Boolean).join(' | ') || 'Não informado')}</td>
+            <td><strong>Endereço Completo:</strong> ${escapeHtml([endereco, cidadeUf].filter(Boolean).join(' - ') || 'Brasil')}</td>
+            <td><strong>Telefone / E-mail:</strong> ${escapeHtml([telefone, email].filter(Boolean).join(' | '))}</td>
+          </tr>
+          <tr>
+            <td><strong>Estabelecimento Bancário:</strong> ${escapeHtml(banco)}</td>
+            <td><strong>Agência:</strong> ${escapeHtml(agencia)} | <strong>Conta Corrente:</strong> ${escapeHtml(contaCorrente)}</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="background:#F8FAFC;">
+              <strong>DADOS DA PROPOSTA:</strong> Validade: <strong>${validade} dias</strong> | Prazo de Entrega: <strong>${escapeHtml(prazoEntregaTexto)}</strong> | Prazo de Garantia: <strong>${escapeHtml(garantia)}</strong>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <strong>IDENTIFICAÇÃO DO ENCARREGADO PARA ASSINATURA DA ATA E DO CONTRATO:</strong><br/>
+              <strong>Nome Completo:</strong> ${escapeHtml(encarregadoNome)} | <strong>CPF/MF:</strong> ${escapeHtml(encarregadoCpf)} | <strong>RG:</strong> ${escapeHtml(encarregadoRg)}<br/>
+              <strong>Estado Civil:</strong> ${escapeHtml(encarregadoEstadoCivil)} | <strong>Profissão:</strong> ${escapeHtml(encarregadoProfissao)} | <strong>Telefone:</strong> ${escapeHtml(encarregadoTelefone)}<br/>
+              <strong>Endereço Residencial:</strong> ${escapeHtml(encarregadoEndereco)}
+            </td>
           </tr>
         </table>
+        ` : ''}
 
-        <div class="section-title">2. Identificação do Órgão Licitante e Dados do Certame</div>
+        <div class="section-title">2. Condições Gerais e Preço (${momentoEnvio === 'READEQUADA_VENCEDORA' ? 'Readequado ao Lance Vencedor' : 'Proposta Inicial'})</div>
         <table class="grid-info">
           <tr>
             <td style="width: 60%;"><strong>Órgão / Entidade Promotora:</strong> ${escapeHtml(orgao)}</td>
@@ -497,17 +646,23 @@ export function construirHtmlPdfProposta(dados: any): string {
           </tr>
         </table>
 
+        <div class="box-texto">
+          <strong>2.1.</strong> A proponente propõe-se a fornecer/executar o objeto licitado pelo valor global total de <strong>${formatarMoeda(totalFinalCalculado)} (${escapeHtml(valorPorExtenso(totalFinalCalculado))})</strong>, conforme preços unitários e totais constantes da Ficha Técnica Descritiva.<br/>
+          <strong>2.2.</strong> O preço proposto inclui todas as despesas com impostos, encargos sociais, tributários, trabalhistas, previdenciários, fiscais e comerciais, fretes, seguros, embalagens e quaisquer outros custos diretos ou indiretos incidentes sobre o objeto (Art. 63, § 1º da Lei nº 14.133/2021).
+        </div>
+
         <div class="section-title">3. Planilha Orçamentária Detalhada e Formação de Preços</div>
         <table class="table-itens">
           <thead>
             <tr>
               <th style="width: 5%;">Item</th>
-              <th style="width: 35%;">Descrição, Especificação e Marca/Modelo</th>
-              <th style="width: 10%;">Qtd / Un</th>
+              <th style="width: 33%;">Descrição, Especificação e Marca/Modelo</th>
+              <th style="width: 6%;">Un</th>
+              <th style="width: 6%;">Qtd</th>
               <th style="width: 10%;">Custo Direto</th>
-              <th style="width: 9%;">Encargos (%)</th>
-              <th style="width: 8%;">Margem (%)</th>
-              <th style="width: 11%;">Unitário</th>
+              <th style="width: 8%;">Encargos</th>
+              <th style="width: 8%;">Margem</th>
+              <th style="width: 12%;">Unitário</th>
               <th style="width: 12%;">Total</th>
             </tr>
           </thead>
@@ -521,26 +676,18 @@ export function construirHtmlPdfProposta(dados: any): string {
           <span style="font-size:8.5pt; font-weight:normal; color:#334155;">(${escapeHtml(valorPorExtenso(totalFinalCalculado))})</span>
         </div>
 
-        <div class="section-title">4. Demonstração de Exequibilidade e Integralidade dos Custos (Art. 59 e Art. 63, § 1º)</div>
-        <div class="box-texto">
-          Em estrita observância ao <strong>Art. 59, inciso III e § 4º</strong>, e ao <strong>Art. 63, § 1º da Lei Federal nº 14.133/2021</strong>, bem como à <strong>Súmula nº 262 do Tribunal de Contas da União (TCU)</strong>, demonstramos que o valor global ofertado de <strong>${formatarMoeda(totalFinalCalculado)}</strong> frente ao custo direto base apurado de <strong>${formatarMoeda(somaCustosDiretos)}</strong> (margem bruta de cobertura de <strong>${formatarMoeda(diferencaBruta)}</strong>) garante plena exequibilidade contratual e compreende integralmente:
-          <ul>
-            <li>Todos os custos diretos de aquisição, insumos, materiais, equipamentos e mão de obra necessária à execução do objeto;</li>
-            <li>Todos os encargos trabalhistas, previdenciários, sociais, fundiários e direitos previstos em convenções coletivas de trabalho aplicáveis;</li>
-            <li>Todos os tributos federais, estaduais e municipais incidentes sobre a operação e o faturamento;</li>
-            <li>Despesas operacionais, frete até o local de entrega designado pelo Órgão, seguros, embalagens, taxas administrativas e lucro líquido sustentável.</li>
-          </ul>
+        <div class="section-title">4. Anexo — Ficha Técnica Descritiva do Objeto por Lote e Item</div>
+        ${tabelasAnexoViPorLoteHtml}
+
+        <div class="box-texto" style="margin-top:10px;">
+          <strong>Declaração de atendimento às condições do Edital:</strong> Declaramos que os produtos e serviços cotados atendem integralmente a todas as especificações técnicas, prazos e condições exigidas no Edital e no Termo de Referência.<br/>
+          ${isMeEpp ? '<strong>Declaração de condição de ME-EPP:</strong> Declaramos, sob as penas da lei, que cumprimos os requisitos legais para qualificação como Microempresa ou Empresa de Pequeno Porte, nos termos do Art. 3º da Lei Complementar nº 123/2006 e Art. 4º da Lei nº 14.133/2021.<br/>' : ''}
+          <strong>Observação:</strong> Por força da legislação vigente, na fase de proposta inicial desidentificada é vedada qualquer identificação prévia do licitante no sistema eletrônico.
         </div>
 
-        <div class="section-title">5. Condições Comerciais, Entrega, Garantia e Pagamento (Arts. 90 e 92)</div>
+        <div class="section-title">5. Demonstração de Exequibilidade e Integralidade dos Custos (Art. 59 e Art. 63, § 1º)</div>
         <div class="box-texto">
-          <ul>
-            <li><strong>Validade da Proposta:</strong> ${validade} (sessenta) dias corridos a contar da abertura da sessão pública (Art. 90, § 3º da Lei nº 14.133/2021).</li>
-            <li><strong>Prazo de Entrega / Execução:</strong> ${escapeHtml(prazoEntregaTexto)}</li>
-            <li><strong>Garantia e Substituição:</strong> ${escapeHtml(garantia)}</li>
-            <li><strong>Condições de Pagamento:</strong> ${escapeHtml(pagamento)}</li>
-            <li><strong>Submissão ao Edital:</strong> Declaramos integral concordância com todas as regras do Edital, Termo de Referência e Minuta do Contrato.</li>
-          </ul>
+          Em estrita observância ao <strong>Art. 59, inciso III e § 4º</strong>, e ao <strong>Art. 63, § 1º da Lei Federal nº 14.133/2021</strong>, bem como à <strong>Súmula nº 262 do Tribunal de Contas da União (TCU)</strong>, demonstramos que o valor global ofertado de <strong>${formatarMoeda(totalFinalCalculado)}</strong> frente ao custo direto base apurado de <strong>${formatarMoeda(somaCustosDiretos)}</strong> (margem bruta de cobertura de <strong>${formatarMoeda(diferencaBruta)}</strong>) garante plena exequibilidade contratual.
         </div>
 
         <div class="section-title">6. Declarações Obrigatórias da Lei Federal nº 14.133/2021</div>
@@ -548,13 +695,16 @@ export function construirHtmlPdfProposta(dados: any): string {
           ${declaracoesHtml}
         </div>
 
+        ${!isDesidentificada ? `
         <div class="assinatura">
-          <p style="margin-bottom: 24px;">${dataExtenso}.</p>
+          <p style="margin-bottom: 24px;">${escapeHtml(cidadeUf)}, ${dataExtenso}.</p>
           <div class="linha-assinatura"></div>
           <strong>${escapeHtml(razaoSocial)}</strong><br />
           <span>CNPJ / MF: ${escapeHtml(cnpj)}</span><br />
-          <span style="font-size: 8.5pt; color: #475569;">Representante Legal Autorizado</span>
+          <span style="font-size: 8.5pt; color: #0F172A; font-weight: bold;">${escapeHtml(encarregadoNome)} — CPF: ${escapeHtml(encarregadoCpf)}</span><br />
+          <span style="font-size: 8pt; color: #475569;">Assinatura Digital Qualificada (Padrão ICP-Brasil / Gov.br)</span>
         </div>
+        ` : ''}
       </body>
     </html>
   `;

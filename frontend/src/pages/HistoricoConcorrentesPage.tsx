@@ -28,12 +28,15 @@ import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 interface DossieItem {
   cnpj: string;
+  razaoSocial?: string;
   estatisticas: {
     totalContratos: number;
     valorTotalContratado: number;
     ticketMedio: number;
     maiorContrato: number;
-    órgãosContratantes: number;
+    orgaosContratantes?: number;
+    órgãosContratantes?: number;
+    porOrgao?: Array<{ orgao: string; total: number; valorTotal: number }>;
     porÓrgão?: Array<{ orgao: string; total: number; valorTotal: number }>;
     porModalidade?: Record<string, number>;
   };
@@ -124,11 +127,14 @@ export const HistoricoConcorrentesPage: React.FC = () => {
 
   const totalContratos = dossies.reduce((s, d) => s + (d.estatisticas?.totalContratos || 0), 0);
   const valorGlobal = dossies.reduce((s, d) => s + (d.estatisticas?.valorTotalContratado || 0), 0);
-  const totalÓrgãos = dossies.reduce((s, d) => s + (d.estatisticas?.órgãosContratantes || 0), 0);
+  const totalÓrgãos = dossies.reduce(
+    (s, d) => s + (d.estatisticas?.orgaosContratantes ?? d.estatisticas?.órgãosContratantes ?? 0),
+    0
+  );
   const ticketMedioGeral = totalContratos > 0 ? valorGlobal / totalContratos : 0;
 
   const dadosGraficoÓrgãos = dossies
-    .flatMap((d) => d.estatisticas?.porÓrgão || [])
+    .flatMap((d) => d.estatisticas?.porOrgao || d.estatisticas?.porÓrgão || [])
     .slice(0, 6)
     .map((o) => ({
       nome: o.orgao.length > 22 ? o.orgao.slice(0, 22) + '...' : o.orgao,

@@ -1,6 +1,6 @@
 import { queryPcaFromDb } from '../services/pca-sync.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
-import { scaleCacheGet, scaleCacheSet } from '../services/scale-cache.service';
+import { scaleCacheGet, scaleCacheSet, scaleSingleflight } from '../services/scale-cache.service';
 const __radarFastCache = new Map<string, { ts: number; body: any }>();
 import { Response } from 'express';
 
@@ -167,7 +167,10 @@ export class LicitacoesController {
       // sync movido para cron em background
       const filtros = buildFiltros(req.query as Record<string, unknown>);
       const userId = req.user?.id;
-      const resultado = await listarLicitacoes(filtros, userId, req.user?.tenantId);
+      const cacheKey = `radar:list:${userId || 'anon'}:${req.user?.tenantId || 'global'}:${JSON.stringify(filtros)}`;
+      const resultado = await scaleSingleflight(cacheKey, 20, () =>
+        listarLicitacoes(filtros, userId, req.user?.tenantId),
+      );
 
       return res.json({
         success: true,
@@ -746,7 +749,8 @@ export class LicitacoesController {
   };
   listarPcas = async (req: AuthRequest, res: Response) => {
     try {
-      const ano = req.query.ano ? Number(req.query.ano) : undefined;
+      const rawAno = req.query.ano ?? req.query.anoPca;
+      const ano = rawAno ? Number(rawAno) : undefined;
       const pagina = req.query.pagina ? Number(req.query.pagina) : 1;
       const tamanhoPagina = req.query.tamanhoPagina ? Number(req.query.tamanhoPagina) : 20;
       const q = stringParam(req.query.q) ?? stringParam(req.query.termo);
@@ -754,7 +758,7 @@ export class LicitacoesController {
       const cnae = stringParam(req.query.cnae);
       const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
 
-      const resultado = await queryPcaFromDb({
+      const pcaArgs = {
         anoPca: ano,
         pagina,
         tamanhoPagina,
@@ -762,7 +766,10 @@ export class LicitacoesController {
         uf,
         cnae,
         forceRefresh,
-      });
+      };
+      const resultado = forceRefresh
+        ? await queryPcaFromDb(pcaArgs)
+        : await scaleSingleflight(`pca:list:${JSON.stringify(pcaArgs)}`, 30, () => queryPcaFromDb(pcaArgs));
 
       return res.json({
         success: true,

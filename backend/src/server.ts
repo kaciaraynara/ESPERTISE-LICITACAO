@@ -6,7 +6,7 @@ import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './config/openapi';
 import { assertProductionConfig, getBooleanEnv } from './config/env';
-import { prisma } from './database/prisma';
+import { disconnectPrisma, prisma } from './database/prisma';
 import routes from './routes/index';
 import authRoutes from './routes/auth.routes';
 import adminRoutes from './routes/admin.routes';
@@ -14,7 +14,7 @@ import { errorHandler } from './shared/middlewares/error-handler.middleware';
 import { isOriginAllowed } from './shared/runtime-config';
 import setupSockets from './websocket';
 import { correlationIdMiddleware } from './shared/middlewares/correlation-id.middleware';
-import { securityHeadersMiddleware } from './middlewares/security';
+import { closeSecurityRedisClient, securityHeadersMiddleware } from './middlewares/security';
 
 const app = express();
 
@@ -92,10 +92,12 @@ const readinessHandler = async (_req: express.Request, res: express.Response) =>
 app.get('/health', healthHandler);
 app.get('/health/readiness', readinessHandler);
 
-// 3. Documentação Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
-  customSiteTitle: 'EXPERTISE API',
-}));
+// 3. Documentação Swagger (restrita fora de produção, salvo flag explícita)
+if (process.env.NODE_ENV !== 'production' || getBooleanEnv('ENABLE_SWAGGER_DOCS', false)) {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customSiteTitle: 'EXPERTISE API',
+  }));
+}
 
 // 4. Parser de Body (DEVE vir antes do registro das rotas)
 app.use(express.json({
@@ -119,13 +121,17 @@ app.use(errorHandler);
 // 8. Inicialização do Servidor HTTP / WebSockets
 const port = Number(process.env.PORT) || 3001;
 const server = http.createServer(app);
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 if (bidRobotEnabled) {
   setupSockets(server);
 }
 
 server.listen(port, () => {
-  try { setupCronJobs(); } catch (e) { console.warn('[Cron] Aviso:', e); }
+  if (getBooleanEnv('ENABLE_BACKGROUND_CRONS', true)) {
+    try { setupCronJobs(); } catch (e) { console.warn('[Cron] Aviso:', e); }
+  }
   void ensureDatabaseIndexes();
   console.info(JSON.stringify({
     event: 'EXPERTISE_API_STARTED',
@@ -172,6 +178,34 @@ server.on('error', (error: NodeJS.ErrnoException) => {
     console.error(`[EXPERTISE_API_START_FAILED] A porta ${port} está ocupada e o serviço existente não respondeu ao health check.`);
     process.exit(1);
   });
+});
+
+let shuttingDown = false;
+const gracefulShutdown = (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.info(JSON.stringify({ event: 'EXPERTISE_SHUTDOWN_STARTED', signal }));
+  server.close(async () => {
+    await Promise.allSettled([closeSecurityRedisClient(), disconnectPrisma()]);
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10_000).unref();
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => {
+  console.error(JSON.stringify({
+    event: 'UNHANDLED_REJECTION',
+    error: reason instanceof Error ? reason.message : String(reason),
+  }));
+});
+process.on('uncaughtException', (error) => {
+  console.error(JSON.stringify({
+    event: 'UNCAUGHT_EXCEPTION',
+    error: error.message,
+    stack: error.stack,
+  }));
 });
 
 export default app;

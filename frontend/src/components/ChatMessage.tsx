@@ -10,6 +10,16 @@ export interface ChatMessageProps {
   className?: string;
 }
 
+export function cleanHumanAiText(raw: string): string {
+  return (raw || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\[(?:Fato da fonte|Cálculo reproduzível|Indício|Hipótese|Inconclusivo)\]/gi, '')
+    .replace(/\s*[—–]\s*/g, ': ')
+    .replace(/\*{3,}/g, '**')
+    .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,;:!?])/g, '$1$2')
+    .replace(/^\s*[-*]\s+/gm, '• ');
+}
+
 export const ChatMessage: React.FC<ChatMessageProps> = ({
   sender,
   role,
@@ -19,8 +29,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const isUser = sender === 'user' || role === 'user';
 
-  // Pré-processamento leve para garantir que listas com hífen e quebras de linha sejam interpretadas de forma fluida pelo markdown
-  const sanitizedContent = (content || '').replace(/\r\n/g, '\n');
+  // Pré-processamento humano: remove excesso de asteriscos (*), travessões (—) e tags técnicas
+  const sanitizedContent = isUser ? (content || '').replace(/\r\n/g, '\n') : cleanHumanAiText(content || '');
 
   return (
     <div

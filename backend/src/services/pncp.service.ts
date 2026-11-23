@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { classificarJanelaTaticaPca } from './pca-sync.service';
 
 import {
   FiltrosBusca,
@@ -1127,7 +1128,7 @@ export interface PcaOportunidade {
   dataAtualizacao: string | null;
   dataDesejada: string | null;
   diasAtePrevisao: number | null;
-  janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO';
+  janelaTatica: 'PREVISTA_ANTERIOR' | 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO';
   categoria: string;
   classificacaoSuperiorNome?: string | null;
   unidadeRequisitante?: string | null;
@@ -1360,22 +1361,7 @@ async function fetchPcaPoolFromPncp(baseUrl: string): Promise<{ items: PcaOportu
 
       const dataDesRaw = it?.dataDesejada || reg?.dataDesejada || null;
       const dataDesejada = dataDesRaw ? normalizePncpIsoDate(dataDesRaw) : null;
-      const diasAtePrevisao = dataDesejada
-        ? Math.ceil((new Date(dataDesejada).getTime() - Date.now()) / 86400000)
-        : null;
-      const janelaTatica: 'IMEDIATA' | 'ESTRATEGICA' | 'PLANEJAMENTO' =
-        diasAtePrevisao !== null && diasAtePrevisao <= 30
-          ? 'IMEDIATA'
-          : diasAtePrevisao !== null && diasAtePrevisao <= 90
-            ? 'ESTRATEGICA'
-            : 'PLANEJAMENTO';
-
-      const insightEstrategico =
-        janelaTatica === 'IMEDIATA'
-          ? 'Janela crítica (<=30 dias): o edital pode sair a qualquer momento. Feche cotações com fornecedores e valide certidões no Cofre agora.'
-          : janelaTatica === 'ESTRATEGICA'
-            ? 'Janela ideal de preparação (31 a 90 dias): antecipe atestados técnicos, estude contratações anteriores do órgão e monte sua planilha base.'
-            : 'Planejamento antecipado (>90 dias): monitore o órgão no Radar para ser avisado assim que o Termo de Referência for publicado.';
+      const { diasAtePrevisao, janelaTatica, insightEstrategico } = classificarJanelaTaticaPca(dataDesejada);
 
       const ufItem = ufInferida || inferirUfPca(String(it?.unidadeRequisitante || ''));
 

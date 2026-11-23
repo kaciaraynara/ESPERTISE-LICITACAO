@@ -38,7 +38,7 @@ export default function CompanySelector() {
             const company = options.find((option) => option.id === event.target.value);
             if (company) setSelectedCompany(company);
           }}
-          className="w-full min-w-24 max-w-56 appearance-none truncate bg-transparent py-0.5 pr-6 text-xs font-bold text-brand-blue outline-none disabled:cursor-wait disabled:opacity-60 sm:max-w-72"
+          className="w-full min-w-20 max-w-36 appearance-none truncate bg-transparent py-0.5 pr-6 text-xs font-bold text-brand-blue outline-none disabled:cursor-wait disabled:opacity-60 sm:max-w-72"
         >
           {options.length === 0 ? (
             <option value="">{loadingCompanies ? 'Carregando empresas...' : 'Nenhuma empresa'}</option>

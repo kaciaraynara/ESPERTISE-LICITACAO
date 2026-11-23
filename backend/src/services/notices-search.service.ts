@@ -534,7 +534,7 @@ export class NoticesSearchService {
     const id = requiredId(noticeId);
 
     try {
-      const notice = await this.ensureNoticeHydrated(id, context.tenantId);
+      const notice = await this.ensureNoticeHydrated(id, context.tenantId, true);
 
       if (!notice) {
         await this.auditNoticeAction('NOTICE_SUMMARY_NOT_FOUND', 'failure', context, {

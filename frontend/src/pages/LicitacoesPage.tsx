@@ -1573,6 +1573,25 @@ export default function LicitacoesPage({
             )}
           </div>
         )}
+
+        {/* Rodapé Transparente de Fontes Governamentais e Aviso Legal */}
+        <footer className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-xs text-slate-600 shadow-xs">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-black uppercase tracking-wider text-[#081C3A]">Fontes Oficiais Integradas:</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold text-[#081C3A]">PNCP (Lei 14.133/2021)</span>
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 font-bold text-[#0070C0]">Compras.gov.br (SIASG)</span>
+              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-bold text-indigo-700">Querido Diário (Diários Oficiais Municipais)</span>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700">Portal da Transparência (CGU)</span>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-500">
+              Sincronização contínua multiportal
+            </span>
+          </div>
+          <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-relaxed text-slate-500">
+            <strong>Aviso Legal de Conferência Obrigatória:</strong> Os dados exibidos são consolidados automaticamente das bases públicas oficiais (PNCP, Compras.gov.br, CGU e Diários Oficiais). Antes de enviar proposta ou participar da sessão pública, confira sempre a íntegra do edital, anexos, retificações e prazos diretamente no portal oficial do órgão promotor.
+          </p>
+        </footer>
       </div>
 
       {/* Modal de Perfil Inteligente / Ramos & Alertas */}

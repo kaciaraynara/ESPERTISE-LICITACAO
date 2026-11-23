@@ -4,11 +4,44 @@ import {
 } from './proposta-documento.service';
 
 describe('PropostaDocumentoService (STEP 5/5 — Word & PDF Lei 14.133/2021)', () => {
-  test('converte valores em reais por extenso corretamente', () => {
+  test('converte valores em reais por extenso corretamente com regras de ligacao e milhao exato', () => {
     expect(valorPorExtensoBRL(12450)).toBe(
       'doze mil, quatrocentos e cinquenta reais',
     );
     expect(valorPorExtensoBRL(1.5)).toBe('um real e cinquenta centavos');
+    expect(valorPorExtensoBRL(1000000)).toBe('um milhão de reais');
+    expect(valorPorExtensoBRL(1050)).toBe('mil e cinquenta reais');
+  });
+
+  test('nao injeta CNPJ 00.000.000/0001-00 nem contradicao sessenta e garante exatidao matematica dos itens', async () => {
+    const dados = await propostaDocumentoService.montarDadosEstruturados(
+      undefined,
+      'preview',
+      {
+        titulo: 'Proposta Teste Zero-Erro',
+        validadeDias: 90,
+        itens: [
+          {
+            numero: '1',
+            descricao: 'Item Teste Arredondamento',
+            quantidade: 3,
+            unidade: 'UN',
+            valorUnitarioProposto: 10.335,
+            precoTotalProposto: 9999.99, // divergente: deve ser recalculado para 3 * 10.34 = 31.02
+          },
+        ],
+      },
+    );
+
+    expect(dados.empresa.cnpj).not.toBe('00.000.000/0001-00');
+    expect(dados.empresa.dadosBancarios).not.toContain('Banco do Brasil / Caixa');
+    expect(dados.itens[0].valorUnitario).toBe(10.34);
+    expect(dados.itens[0].valorTotal).toBe(31.02);
+    expect(dados.valorGlobalTotal).toBe(31.02);
+    expect(dados.condicoesComerciais.validadeDias).toBe(90);
+
+    const docxBuffer = await propostaDocumentoService.gerarDocxBuffer(dados);
+    expect(docxBuffer.subarray(0, 2).toString('ascii')).toBe('PK');
   });
 
   test('gera buffers binarios validos de Word (.docx) e PDF (.pdf) com os 5 blocos oficiais', async () => {

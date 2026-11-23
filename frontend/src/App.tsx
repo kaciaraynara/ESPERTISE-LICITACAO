@@ -426,6 +426,10 @@ export default function App() {
               element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)}
             />
             <Route
+              path="/fornecedor/propostas/nova"
+              element={<Navigate to={FORNECEDOR_ROUTES.proposta_criar} replace />}
+            />
+            <Route
               path={FORNECEDOR_ROUTES.proposta_detalhe}
               element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostaDetalhePage />)}
             />
@@ -435,6 +439,13 @@ export default function App() {
             {/* Rotas Diretas Operacionais Desobstruídas */}
             <Route path="/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
             <Route path="/fornecedor/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
+            <Route path="/fornecedor/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-modalidades" tituloCustomizado="Tipos de Contratação" />)} />
+            <Route path="/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="modalidades" tituloCustomizado="Tipos de Contratação" />)} />
+            <Route path="/fornecedor/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
+            <Route path="/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
+            <Route path="/fornecedor/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+            <Route path="/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+            <Route path="/fornecedor/inteligencia" element={protectFeature('inteligencia_concorrentes', 'Inteligência Competitiva', <InvestigacaoConcorrencialPage />)} />
             <Route path="/oportunidades" element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
             <Route path="/propostas" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)} />
             <Route path="/propostas/criar" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)} />

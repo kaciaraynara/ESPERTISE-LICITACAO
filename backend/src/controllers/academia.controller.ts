@@ -1,12 +1,14 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../database/prisma';
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
+import { getJwtSecret } from '../shared/runtime-config';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'expertise-licitatoria-secret-dev';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function hashPassword(pwd: string): string {
+function legacySha256(pwd: string): string {
   return crypto.createHash('sha256').update(String(pwd)).digest('hex');
 }
 
@@ -99,7 +101,15 @@ export class AcademiaController {
       );
       const doneSet = new Set(progress.filter((p) => p.completed).map((p) => String(p.lessonId)));
 
-      const data = courses.map((c) => {
+      const seenTitles = new Set<string>();
+      const uniqueCourses = courses.filter((c) => {
+        const key = String(c.title || '').trim().toLowerCase();
+        if (!key || seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      });
+
+      const data = uniqueCourses.map((c) => {
         const courseLessons = lessons
           .filter((l) => String(l.courseId) === String(c.id))
           .map((l) => ({ ...l, completed: doneSet.has(String(l.id)) }));
@@ -118,8 +128,9 @@ export class AcademiaController {
   alternarConclusaoAula = async (req: AuthRequest, res: Response) => {
     try {
       const userId = String(req.user?.id || '');
-      const { lessonId } = req.params;
+      const lessonId = String(req.params.lessonId || '').trim();
       if (!userId) return res.status(401).json({ success: false, message: 'Não autenticado' });
+      if (!UUID_RE.test(lessonId)) return res.status(400).json({ success: false, message: 'Identificador de aula inválido.' });
 
       const lessonRows: any[] = await prisma.$queryRawUnsafe(
         `SELECT id, course_id AS "courseId" FROM academy_lessons WHERE id = $1::uuid`,
@@ -163,12 +174,13 @@ export class AcademiaController {
       if (exists.length > 0) {
         return res.status(409).json({ success: false, message: 'Já existe um parceiro cadastrado com este e-mail.' });
       }
+      const passwordHash = await bcrypt.hash(String(password), 10);
       const rows: any[] = await prisma.$queryRawUnsafe(
         `INSERT INTO academy_partners (name, email, password_hash, specialty, bio) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, specialty, bio, status`,
-        String(name).trim(), cleanEmail, hashPassword(password), specialty || 'Especialista em Licitações', bio || ''
+        String(name).trim(), cleanEmail, passwordHash, specialty || 'Especialista em Licitações', bio || ''
       );
       const partner = rows[0];
-      const token = jwt.sign({ partnerId: partner.id, email: partner.email, name: partner.name, role: 'ACADEMY_PARTNER' }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ partnerId: partner.id, email: partner.email, name: partner.name, role: 'ACADEMY_PARTNER' }, getJwtSecret(), { expiresIn: '7d' });
       return res.status(201).json({ success: true, token, partner });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err?.message || 'Erro ao cadastrar parceiro' });
@@ -183,11 +195,15 @@ export class AcademiaController {
         `SELECT id, name, email, password_hash AS "passwordHash", specialty, bio, status FROM academy_partners WHERE email = $1`,
         cleanEmail
       );
-      if (!rows.length || rows[0].passwordHash !== hashPassword(String(password || ''))) {
+      const storedHash = String(rows[0]?.passwordHash || '');
+      const rawPwd = String(password || '');
+      const isBcrypt = /^\$2[aby]\$/.test(storedHash);
+      const valid = rows.length > 0 && (isBcrypt ? await bcrypt.compare(rawPwd, storedHash) : storedHash === legacySha256(rawPwd));
+      if (!valid) {
         return res.status(401).json({ success: false, message: 'E-mail ou senha de parceiro inválidos.' });
       }
       const partner = rows[0];
-      const token = jwt.sign({ partnerId: partner.id, email: partner.email, name: partner.name, role: 'ACADEMY_PARTNER' }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ partnerId: partner.id, email: partner.email, name: partner.name, role: 'ACADEMY_PARTNER' }, getJwtSecret(), { expiresIn: '7d' });
       return res.json({ success: true, token, partner: { id: partner.id, name: partner.name, email: partner.email, specialty: partner.specialty, bio: partner.bio } });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err?.message || 'Erro no login do parceiro' });
@@ -199,7 +215,7 @@ export class AcademiaController {
     const rawToken = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!rawToken) return null;
     try {
-      const decoded: any = jwt.verify(rawToken, JWT_SECRET);
+      const decoded: any = jwt.verify(rawToken, getJwtSecret());
       if (decoded?.partnerId) return { partnerId: decoded.partnerId, name: decoded.name || 'Professor Parceiro' };
       return null;
     } catch {
@@ -251,8 +267,9 @@ export class AcademiaController {
     try {
       const partner = this.resolvePartner(req);
       if (!partner) return res.status(401).json({ success: false, message: 'Token de parceiro inválido.' });
-      const { courseId } = req.params;
+      const courseId = String(req.params.courseId || '').trim();
       const { title, description, lessonType, videoUrl, materialUrl, activityPrompt, durationMinutes } = req.body || {};
+      if (!UUID_RE.test(courseId)) return res.status(400).json({ success: false, message: 'Identificador de curso inválido.' });
       if (!title) return res.status(400).json({ success: false, message: 'Título da aula é obrigatório.' });
 
       const own: any[] = await prisma.$queryRawUnsafe(

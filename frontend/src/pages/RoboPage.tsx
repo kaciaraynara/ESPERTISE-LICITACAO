@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Bot,
   ExternalLink,
@@ -7,9 +8,14 @@ import {
   Download,
   Globe,
   Table2,
+  Zap,
+  RefreshCw,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { EditalOption, EditalSelector } from '@/components/EditalSelector';
 import { buildOfficialPncpPortalUrl } from '@/utils/pncp';
+import { propostasApi } from '@/services/api';
+import { FORNECEDOR_ROUTES } from '@/routes';
 
 interface LinhaPlanilha {
   id: string;
@@ -42,6 +48,47 @@ export const RobôPage: React.FC = () => {
   const [reducaoPadrao, setReducaoPadrao] = useState(8);
   const [margemSeguranca, setMargemSeguranca] = useState(15);
   const [linhas, setLinhas] = useState<LinhaPlanilha[]>([]);
+  const [propostasSalvas, setPropostasSalvas] = useState<any[]>([]);
+
+  useEffect(() => {
+    propostasApi
+      .listar()
+      .then((res) => {
+        const list = res?.data?.data || (res?.data as any)?.items || [];
+        if (Array.isArray(list) && list.length > 0) {
+          setPropostasSalvas(list);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const sincronizarDaUltimaProposta = () => {
+    if (propostasSalvas.length === 0) {
+      toast('Crie ou salve uma proposta comercial para importar os lotes e pisos mínimos automaticamente.');
+      return;
+    }
+    const prop = propostasSalvas[0];
+    const items = Array.isArray(prop?.items) ? prop.items : [];
+    if (items.length > 0) {
+      setLinhas(
+        items.map((it: any, idx: number) => {
+          const ref = Number(it.precoUnitarioProposto || it.valorUnitario || it.custoDireto || 100);
+          const custo = Number(it.custoDireto || ref * 0.78);
+          return {
+            id: String(it.id || idx + 1),
+            item: String(it.numero || idx + 1),
+            descricao: String(it.descricao || `Item ${idx + 1}`),
+            quantidade: Number(it.quantidade || 1),
+            valorReferencia: ref,
+            lanceInicial: ref,
+            lanceAlvo: Number((ref * (1 - reducaoPadrao / 100)).toFixed(2)),
+            pisoMinimo: Number((custo * 1.08).toFixed(2)),
+          };
+        })
+      );
+      toast.success(`Itens e pisos mínimos sincronizados da proposta "${prop.titulo || 'Ativa'}"!`);
+    }
+  };
 
   useEffect(() => {
     if (!edital) return;
@@ -157,8 +204,25 @@ export const RobôPage: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="w-full md:w-80">
-          <EditalSelector onSelectEdital={(e) => setEdital(e)} />
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="w-full md:w-72">
+            <EditalSelector onSelectEdital={(e) => setEdital(e)} />
+          </div>
+          <button
+            type="button"
+            onClick={sincronizarDaUltimaProposta}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#081C3A] bg-white px-3 py-2 text-xs font-bold text-[#081C3A] hover:bg-slate-50 cursor-pointer"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-[#0070C0]" />
+            Importar da Minha Proposta
+          </button>
+          <Link
+            to={edital?.id ? `${FORNECEDOR_ROUTES.disputa_ao_vivo}?id=${edital.id}` : FORNECEDOR_ROUTES.disputa_ao_vivo}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#F97316] hover:bg-orange-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Mesa de Disputa em Tempo Real
+          </Link>
         </div>
       </div>
 

@@ -39,18 +39,34 @@ export const PrecificacaoPage: React.FC = () => {
   const navigate = useNavigate();
   const { selectedCompany } = useCompany();
   const [gerandoProposta, setGerandoProposta] = useState(false);
-  const [termoRef, setTermoRef] = useState('');
+  const [termoRef, setTermoRef] = useState(() => searchParams.get('refNome') || '');
+  const [codigoRef, setCodigoRef] = useState(() => searchParams.get('refCodigo') || '');
+  const [tipoRef, setTipoRef] = useState<'TODOS' | 'MATERIAL' | 'SERVICO'>('TODOS');
   const [buscandoRef, setBuscandoRef] = useState(false);
   const [refMercado, setRefMercado] = useState<any>(null);
+
+  useEffect(() => {
+    const refValor = Number(searchParams.get('refValor') || 0);
+    if (Number.isFinite(refValor) && refValor > 0) {
+      setValorMaximoEdital((prev) => (prev > 0 ? prev : refValor));
+    }
+  }, [searchParams]);
+
   const buscarReferenciaMercado = async () => {
-    if (termoRef.trim().length < 2) { toast.error('Digite ao menos 2 letras do produto ou serviço.'); return; }
+    if (termoRef.trim().length < 2 && !codigoRef.replace(/\D/g, '')) {
+      toast.error('Digite ao menos 2 letras ou um código CATMAT/CATSER.');
+      return;
+    }
     setBuscandoRef(true);
     try {
-      const r = await catalogoApi.referenciaMercado(termoRef.trim());
+      const r = await catalogoApi.referenciaMercado(termoRef.trim() || codigoRef.trim(), {
+        codigo: codigoRef.replace(/\D/g, '') || undefined,
+        tipo: tipoRef,
+      });
       setRefMercado(r.data?.data || null);
-    } catch { toast.error('Falha ao consultar referências de mercado.'); } finally { setBuscandoRef(false); }
+    } catch { toast.error('Falha ao consultar referências CATMAT/CATSER e PNCP.'); } finally { setBuscandoRef(false); }
   };
-const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
+  const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') || searchParams.get('licitacaoId') || searchParams.get('id') || '';
 
   const { data: editalData } = useQuery({
     queryKey: ['precificacao-edital', noticeId],
@@ -252,7 +268,7 @@ const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') ||
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Simulador de margem de lucro, teto de disputa e formação de preço tático para pregão eletrônico.
+            Simulador para formação de preço segura, com margem segura e teto estratégico para pregão eletrônico.
           </p>
         </div>
 
@@ -360,45 +376,78 @@ const noticeId = searchParams.get('noticeId') || searchParams.get('editalId') ||
         </div>
       )}
 
-      {/* BANCO DE PREÇOS PRATICADOS NO GOVERNO */}
-      <div className="mb-6 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      {/* BANCO DE PREÇOS PRATICADOS NO GOVERNO (CATMAT / CATSER + PNCP) */}
+      <div className="mb-6 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-3">
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-slate-900">Catálogo de Preços Praticados no Governo (PNCP)</h3>
-            <p className="text-xs text-slate-500">Pesquise itens reais para não montar sua planilha às cegas.</p>
+            <h3 className="text-sm font-bold text-slate-900">Catálogo de Preços CATMAT / CATSER & PNCP</h3>
+            <p className="text-xs text-slate-500">Pesquise preços homologados no Compras.gov.br e PNCP para guiar sua proposta.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex items-center gap-2 w-full lg:w-auto">
             <input
               type="text"
               value={termoRef}
               onChange={(e) => setTermoRef(e.target.value)}
-              placeholder="Ex.: software, notebook, limpeza..."
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 w-56"
+              placeholder="Termo (ex: limpeza, notebook)..."
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 sm:w-48"
             />
+            <input
+              type="text"
+              value={codigoRef}
+              onChange={(e) => setCodigoRef(e.target.value)}
+              placeholder="Cód. CATMAT/SER"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 sm:w-32"
+            />
+            <select
+              value={tipoRef}
+              onChange={(e) => setTipoRef(e.target.value as any)}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+            >
+              <option value="TODOS">Todos</option>
+              <option value="MATERIAL">CATMAT</option>
+              <option value="SERVICO">CATSER</option>
+            </select>
             <button
               type="button"
               onClick={buscarReferenciaMercado}
               disabled={buscandoRef}
-              className="rounded-lg bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+              className="rounded-lg bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               {buscandoRef ? 'Buscando...' : 'Consultar Preços'}
             </button>
           </div>
         </div>
         {refMercado && (
-          <div className="pt-3 border-t border-slate-100 space-y-2">
-            <div className="flex flex-wrap gap-4 text-xs">
-              <span><strong>Amostras:</strong> {refMercado.totalAmostras}</span>
-              <span><strong>Mínimo:</strong> {formatarMoeda(refMercado.estatisticas?.minimo || 0)}</span>
-              <span className="text-emerald-700"><strong>Mediana:</strong> {formatarMoeda(refMercado.estatisticas?.mediana || 0)}</span>
-              <span><strong>Média:</strong> {formatarMoeda(refMercado.estatisticas?.media || 0)}</span>
-              <span><strong>Máximo:</strong> {formatarMoeda(refMercado.estatisticas?.maximo || 0)}</span>
+          <div className="pt-3 border-t border-slate-100 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-3 sm:gap-4 text-xs">
+                <span><strong>Amostras:</strong> {refMercado.totalAmostras}</span>
+                <span><strong>Mínimo:</strong> {formatarMoeda(refMercado.estatisticas?.minimo || 0)}</span>
+                <span className="text-emerald-700"><strong>Mediana:</strong> {formatarMoeda(refMercado.estatisticas?.mediana || 0)}</span>
+                <span><strong>Média:</strong> {formatarMoeda(refMercado.estatisticas?.media || 0)}</span>
+                <span><strong>Máximo:</strong> {formatarMoeda(refMercado.estatisticas?.maximo || 0)}</span>
+              </div>
+              {Number(refMercado.estatisticas?.mediana) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValorMaximoEdital(Number(refMercado.estatisticas.mediana));
+                    toast.success('Mediana aplicada como referência máxima do certame!');
+                  }}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-[11px] font-bold cursor-pointer"
+                >
+                  Aplicar Mediana como Referência
+                </button>
+              )}
             </div>
             {Array.isArray(refMercado.amostras) && refMercado.amostras.length > 0 && (
               <div className="max-h-40 overflow-y-auto text-xs divide-y divide-slate-100">
-                {refMercado.amostras.slice(0, 5).map((a: any) => (
+                {refMercado.amostras.slice(0, 6).map((a: any) => (
                   <div key={a.id} className="py-1.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-slate-700">{a.descricao} — <em>{a.orgao} ({a.uf})</em></span>
+                    <span className="truncate text-slate-700">
+                      <strong className="text-[10px] text-slate-500 mr-1">[{a.fonte}]</strong>
+                      {a.descricao} — <em>{a.orgao} ({a.uf || 'BR'})</em>
+                    </span>
                     <span className="font-bold text-slate-900 shrink-0">{formatarMoeda(a.valorUnitario)}/{a.unidade}</span>
                   </div>
                 ))}

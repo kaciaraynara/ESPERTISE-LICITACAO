@@ -373,15 +373,20 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
   useEffect(() => {
     if (!editalAtivo?.id) return;
 
-    // Usa a mesma origem resolvida pelo cliente HTTP. Em produção, o fallback
-    // precisa apontar para o Render; a Vercel não faz proxy de WebSocket.
-    const socketUrl = BASE_URL.replace(/\/api\/v1\/?$/, '');
+    // Conecta WebSocket somente quando houver URL absoluta configurada (VITE_SOCKET_URL ou BASE_URL absoluta);
+    // quando BASE_URL for relativa (/api/v1 via proxy sem WS), evita loop de 404 em /socket.io/.
+    const envSocketUrl = (import.meta.env.VITE_SOCKET_URL || '').trim();
+    const candidateBase = envSocketUrl || (/^https?:\/\//i.test(BASE_URL) ? BASE_URL.replace(/\/api\/v1\/?$/, '') : '');
+    if (!candidateBase) {
+      setIsConnected(false);
+      return;
+    }
 
-    const socket = io(socketUrl, {
+    const socket = io(candidateBase, {
       auth: { token: accessToken || 'anon-dev' },
       transports: ['polling', 'websocket'], // Polling primeiro para handshake seguro no Render
-      reconnectionAttempts: 4,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 1500,
     });
 
     socketRef.current = socket;
@@ -389,6 +394,11 @@ export const MesaOperacionalDisputa: React.FC<MesaOperacionalDisputaProps> = ({ 
     socket.on('connect', () => {
       setIsConnected(true);
       socket.emit('join_war_room', editalAtivo.id);
+    });
+
+    socket.on('connect_error', () => {
+      setIsConnected(false);
+      socket.disconnect();
     });
 
     socket.on('disconnect', () => {

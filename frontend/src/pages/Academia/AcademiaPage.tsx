@@ -135,7 +135,7 @@ export const AcademiaPage: React.FC = () => {
             <p className="text-sm sm:text-base text-slate-200 leading-relaxed">
               {cursoDestaque
                 ? cursoDestaque.description
-                : 'Treinamento direto ao ponto para vencer pregões, evitar inabilitações e proteger a margem da sua empresa.'}
+                : 'Treinamento direto ao ponto para vencer pregões, evitar inabilitações e dominar estratégias de Proteção de Margem da sua empresa.'}
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
               {cursoDestaque && (

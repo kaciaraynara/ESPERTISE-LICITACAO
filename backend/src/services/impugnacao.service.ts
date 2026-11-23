@@ -125,11 +125,11 @@ export function gerarEsqueletoImpugnacao(input: DadosEditalImpugnacao): PecaImpu
     `5. A divulgação da resposta em sítio eletrônico oficial, observando-se o art. 164, parágrafo único, da Lei nº 14.133/2021.`,
     ...(blocoFraude.length > 0
       ? [
-        `6. A juntada da Malha Fina societária aos autos e a apuração específica dos vínculos societários comuns entre concorrentes, inclusive para eventual adoção das medidas cabíveis e preservação do regime recursal previsto no art. 166 da Lei nº 14.133/2021.`,
+        `6. A juntada da Malha Fina societária aos autos e a apuração específica dos vínculos societários comuns entre concorrentes, inclusive para eventual adoção das medidas cabíveis e preservação do regime recursal previsto no art. 165 da Lei nº 14.133/2021.`,
       ]
       : []),
     '',
-    `[LOCAL], [DATA_DO_PROTOCOLO].`,
+    `[LOCAL], ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
     '',
     `${dados.representanteLegal}`,
     `${dados.nomeEmpresa}`,
@@ -166,7 +166,7 @@ function montarBlocoFraude(dadosFraude?: DadosFraudeImpugnacao): string[] {
   return [
     `## V. DA MALHA FINA SOCIETÁRIA E DOS INDÍCIOS DE CONLUIO`,
     '',
-    `A análise objetiva da malha societária dos concorrentes indicou risco ${dadosFraude.risco} de vínculo econômico ou societário relevante entre participantes do certame, com identificação de sócios ou administradores em comum. Tais elementos recomendam a apuração pela Administração antes da prática de novos atos decisórios, especialmente para preservar a competitividade, a isonomia e a rastreabilidade do procedimento, sem prejuízo da instrução de eventual recurso administrativo na forma do art. 166 da Lei nº 14.133/2021, quando cabível.`,
+    `A análise objetiva da malha societária dos concorrentes indicou risco ${dadosFraude.risco} de vínculo econômico ou societário relevante entre participantes do certame, com identificação de sócios ou administradores em comum. Tais elementos recomendam a apuração pela Administração antes da prática de novos atos decisórios, especialmente para preservar a competitividade, a isonomia e a rastreabilidade do procedimento, sem prejuízo da instrução de eventual recurso administrativo na forma do art. 165 da Lei nº 14.133/2021, quando cabível.`,
     '',
     `Vínculos societários identificados:`,
     '',

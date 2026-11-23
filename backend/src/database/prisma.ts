@@ -22,9 +22,9 @@ export function getPrismaClient() {
     const connectionString = process.env.DATABASE_URL as string;
 
     // Dimensionamento do Pool e Timeouts para Concorrência em Produção (PgBouncer)
-    const maxConnections = Number(process.env.DB_POOL_MAX) || (isProduction() ? 25 : 10);
+    const maxConnections = Number(process.env.DB_POOL_MAX) || 25;
     const idleTimeoutMillis = Number(process.env.DB_POOL_IDLE_TIMEOUT_MS) || 30000;
-    const connectionTimeoutMillis = Number(process.env.DB_POOL_CONN_TIMEOUT_MS) || 10000;
+    const connectionTimeoutMillis = Number(process.env.DB_POOL_CONN_TIMEOUT_MS) || 30000;
 
     const pool = new Pool({
       connectionString,
