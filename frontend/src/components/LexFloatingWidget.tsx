@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Bot, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
+import { MessageSquareText, Scale, Maximize2, Minimize2, Send, Trash2, X } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
 import { lexApi } from '../services/api';
 import { ChatMessage, cleanHumanAiText } from './ChatMessage';
@@ -49,7 +49,6 @@ export function LexFloatingWidget() {
   const [expandido, setExpandido] = useState(false);
   const [entrada, setEntrada] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [imgErro, setImgErro] = useState(false);
   const [mensagens, setMensagens] = useState<Mensagem[]>([MENSAGEM_INICIAL]);
 
   const fimListaRef = useRef<HTMLDivElement | null>(null);
@@ -193,49 +192,37 @@ export function LexFloatingWidget() {
       <button
         type="button"
         onClick={() => setAberto(true)}
-        aria-label="Conversar com a Luli"
-        className="group fixed bottom-5 right-5 z-50 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-xl ring-2 ring-[#0070C0]/25 transition-transform duration-300 hover:scale-105"
+        aria-label="Abrir Consultor Licitatório Luli"
+        title="Consultor Licitatório (Luli)"
+        className="group fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0B192C] text-white shadow-2xl ring-4 ring-emerald-500/20 transition-all duration-300 hover:scale-105 hover:bg-[#081524] cursor-pointer"
       >
-        {!imgErro ? (
-          <img
-            src="/assets/mascote-3d.png"
-            alt="Luli"
-            onError={() => setImgErro(true)}
-            className="h-14 w-14 rounded-full object-cover"
-          />
-        ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#081C3A] text-white">
-            <Bot className="h-6 w-6" />
-          </div>
-        )}
+        <div className="relative flex items-center justify-center">
+          <MessageSquareText className="h-6 w-6 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+          <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+          </span>
+        </div>
       </button>
     );
   }
 
   return (
     <div
-      className={`fixed bottom-5 right-5 z-50 flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all ${
-        expandido ? 'h-[80vh] w-[92vw] max-w-2xl' : 'h-[520px] w-[92vw] max-w-sm'
-      }`}
+      className={`fixed bottom-5 right-5 z-50 flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all ${expandido ? 'h-[80vh] w-[92vw] max-w-2xl' : 'h-[520px] w-[92vw] max-w-sm'
+        }`}
     >
-      <div className="flex items-center justify-between bg-[#081C3A] px-4 py-3.5 text-white">
+      <div className="flex items-center justify-between bg-[#0B192C] px-4 py-3.5 text-white">
         <div className="flex items-center gap-3">
-          {!imgErro ? (
-            <img
-              src="/assets/mascote-3d.png"
-              alt="Luli"
-              onError={() => setImgErro(true)}
-              className="h-10 w-10 rounded-full bg-white object-cover"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0070C0]">
-              <Bot className="h-5 w-5" />
-            </div>
-          )}
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600/30 border border-emerald-400/40 text-emerald-300">
+            <Scale className="h-5 w-5" />
+          </div>
           <div>
-            <h3 className="text-sm font-extrabold leading-tight" style={{ color: "#FFFFFF" }}>Luli</h3>
+            <h3 className="text-sm font-extrabold leading-tight text-white">
+              Luli — Consultor Licitatório
+            </h3>
             <p className="text-[11px] text-slate-300">
-              Licitações, Disputas, Contabilidade e Jurídico
+              Especialista em Licitações Públicas (Lei 14.133/2021)
             </p>
           </div>
         </div>
@@ -277,11 +264,10 @@ export function LexFloatingWidget() {
               className={`flex flex-col ${ehUsuario ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                  ehUsuario
-                    ? 'bg-[#0070C0] text-white'
-                    : 'border border-slate-200 bg-white text-[#081C3A]'
-                }`}
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${ehUsuario
+                  ? 'bg-[#0070C0] text-white'
+                  : 'border border-slate-200 bg-white text-[#081C3A]'
+                  }`}
               >
                 {ehUsuario ? msg.texto : <ChatMessage role="assistant" content={cleanHumanAiText(msg.texto)} />}
               </div>

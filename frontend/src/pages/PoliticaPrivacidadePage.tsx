@@ -36,7 +36,7 @@ export default function PoliticaPrivacidadePage() {
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">1. O Papel da Expertise Licitatória (SaaS B2G)</h2>
           <p>
-            O Expertise atua no processamento de editais licitatórios, gestão de contratos (CRM), e na geração de minutas utilizando inteligência artificial. Conforme a <strong>LGPD (Lei nº 13.709/2018)</strong>, atuamos predominantemente como <strong>Operadores</strong> dos dados inseridos ativamente por Você na plataforma para a finalidade de gestão de suas licitações, e como <strong>Controladores</strong> apenas no que se refere aos seus dados básicos de cadastro (Nome, E-mail, Telefone) necessários para a manutenção de sua conta e faturamento.
+            A Expertise Licitatória atua no processamento técnico de editais licitatórios, gestão de contratos (CRM) e na automação de minutas documentais. Conforme a <strong>LGPD (Lei nº 13.709/2018)</strong>, atuamos predominantemente como <strong>Operadores</strong> dos dados inseridos ativamente por Você na plataforma para a finalidade de gestão de suas licitações, e como <strong>Controladores</strong> apenas no que se refere aos seus dados básicos de cadastro (Nome, E-mail, Telefone) necessários para a manutenção de sua conta e faturamento.
           </p>
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">2. Quais Dados Coletamos?</h2>
@@ -46,12 +46,12 @@ export default function PoliticaPrivacidadePage() {
             <li><strong>Dados de Integração:</strong> Certificados digitais ou tokens de APIs inseridos por você para o módulo Cofre ficam estritamente armazenados através de criptografia simétrica de ponta-a-ponta (KMS).</li>
           </ul>
 
-          <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">3. Uso da Inteligência Artificial e Sigilo</h2>
+          <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">3. Processamento Automatizado e Sigilo Documental</h2>
           <p>
-            Alguns recursos usam inteligência artificial para ajudar a consultar decisões e materiais do TCU e da CGU e revisar documentos. É importante destacar:
+            Nossos módulos utilizam processamento automatizado para ajudar a consultar decisões do TCU e CGU e auditar documentos licitatórios. É importante destacar:
           </p>
           <ul className="list-disc pl-6 space-y-2">
-            <li>Os dados informados ao <strong>Assistente de Editais</strong> para preparar uma proposta não são utilizados para treinar modelos abertos ao público.</li>
+            <li>Os dados informados ao <strong>Módulo de Análise Técnica</strong> para preparar uma proposta são estritamente confidenciais.</li>
             <li>Os dados e as informações de cada empresa são separados, e o acesso é limitado às pessoas autorizadas na respectiva conta.</li>
           </ul>
 

@@ -15,7 +15,7 @@ import {
   Zap,
   Award,
   X,
-  Sparkles,
+  Target,
   LayoutList,
   LayoutGrid,
   Sliders,
@@ -760,7 +760,7 @@ export default function LicitacoesPage({
                   : 'border-slate-200 bg-white text-[#081C3A] hover:border-[#0070C0]'
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <Target className="h-3.5 w-3.5" />
               {perfilAtivo ? 'Meu Perfil ativo' : 'Filtrar pelo Meu Perfil'}
             </button>
 
@@ -770,7 +770,7 @@ export default function LicitacoesPage({
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-[#081C3A] shadow-xs transition hover:border-[#FF6600] hover:text-[#FF6600] cursor-pointer"
             >
               <Sliders className="h-3.5 w-3.5" />
-              Escolher ramo / Alertas IA
+              Configurar Ramos & Alertas
             </button>
 
             <button

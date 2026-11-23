@@ -6,7 +6,6 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
-  Sparkles,
   X,
 } from 'lucide-react';
 import { FORNECEDOR_ROUTES } from '@/routes';
@@ -82,7 +81,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
         {/* Selo do Plano */}
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#EA580C] text-[11px] font-black uppercase tracking-wider">
-            <Sparkles size={12} className="text-amber-500" />
+            <ShieldCheck size={12} className="text-emerald-500" />
             {moduleName} • Acesso por plano
           </div>
 

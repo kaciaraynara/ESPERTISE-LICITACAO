@@ -7,7 +7,6 @@ import {
   ExternalLink,
   Paperclip,
   Check,
-  Sparkles,
   Building2,
   MapPin,
   RefreshCw,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
 import { habilitacaoApi } from '@/services/api';
+import { abrirDocumentoSeguro } from '@/utils/abrirDocumentoSeguro';
 
 export interface ItemDocumento {
   codigo: number;
@@ -134,7 +134,11 @@ export const HabilitacaoPage: React.FC = () => {
     try {
       setBaixando(true);
       const url = habilitacaoApi.baixarPastaCompletaUrl(selectedCompany?.id);
-      window.open(url, '_blank');
+      await abrirDocumentoSeguro(
+        url,
+        `Pasta_Habilitacao_${selectedCompany?.cnpj || 'documentos'}.zip`,
+        'baixar'
+      );
       setMensagemSucesso('A pasta completa organizada com seus documentos está sendo transferida para o seu aparelho.');
     } catch {
       setMensagemAviso('Não foi possível gerar a pasta completa no momento. Verifique seus arquivos salvos e tente novamente.');
@@ -282,7 +286,7 @@ export const HabilitacaoPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    <FileCheck className="h-4 w-4 text-emerald-400" />
                     <span>Emitir documentos gratuitos agora</span>
                   </>
                 )}
@@ -504,22 +508,26 @@ export const HabilitacaoPage: React.FC = () => {
                           {item.automatico && (
                             <div className="flex gap-2">
                               {item.arquivoUrl ? (
-                                <a
-                                  href={item.arquivoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-bold transition shadow-xs"
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void abrirDocumentoSeguro(
+                                      item.arquivoUrl,
+                                      item.arquivoNome || `${item.nome}.pdf`
+                                    )
+                                  }
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
                                   <span>Visualizar documento</span>
-                                </a>
+                                </button>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={handleEmitirGratuitos}
-                                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B192C] hover:bg-slate-800 text-white px-3 py-2 text-xs font-bold transition shadow-xs"
+                                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B192C] hover:bg-slate-800 text-white px-3 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
                                 >
-                                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                                  <FileCheck className="h-3.5 w-3.5 text-emerald-400" />
                                   <span>Emitir agora pelo sistema</span>
                                 </button>
                               )}
@@ -532,14 +540,18 @@ export const HabilitacaoPage: React.FC = () => {
                               <span className="text-slate-500 truncate max-w-[150px]">
                                 {item.arquivoNome || 'Arquivo salvo'}
                               </span>
-                              <a
-                                href={item.arquivoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline"
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void abrirDocumentoSeguro(
+                                    item.arquivoUrl,
+                                    item.arquivoNome || `${item.nome}.pdf`
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline cursor-pointer"
                               >
                                 Visualizar
-                              </a>
+                              </button>
                             </div>
                           )}
                         </div>

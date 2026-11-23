@@ -69,7 +69,7 @@ export default function TermosDeUsoPage() {
 
           <h2 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-6 mt-10">5. Recursos de Análise Assistida</h2>
           <p>
-            Alguns recursos utilizam inteligência artificial para ajudar na leitura e organização de informações. Os resultados podem conter imprecisões; confira o edital e as fontes oficiais antes de tomar decisões.
+            Alguns recursos utilizam automação analítica para ajudar na leitura e organização de informações. Os resultados devem ser sempre conferidos com o edital e as fontes oficiais antes de tomar decisões.
             Todo documento gerado (impugnações, defesas, recursos) deve ser lido, validado e assinado pelo representante legal ou advogado do Contratante antes da submissão a órgãos públicos.
           </p>
 

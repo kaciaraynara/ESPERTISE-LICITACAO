@@ -790,6 +790,7 @@ export const pagamentosApi = {
   minhaAssinatura: () => api.get<{ success: boolean; data: MinhaAssinaturaResponse }>('/pagamentos/assinatura'),
 };
 
+export { api };
 export default api;
 
 

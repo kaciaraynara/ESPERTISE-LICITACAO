@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Sparkles, Plus, Loader2, MapPin, Check, Bell } from 'lucide-react';
+import { X, Search, Plus, Loader2, MapPin, Check, Bell } from 'lucide-react';
 import { empresasApi, licitacoesApi } from '../../services/api';
 import { useCompany, type Company } from '../../contexts/CompanyContext';
 import toast from 'react-hot-toast';
@@ -249,8 +249,8 @@ export function RadarPerfilModal({
         <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50/70 px-6 py-4">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-[#0070C0]">
-              <Sparkles className="h-3.5 w-3.5" />
-              Busca inteligente e alertas do Radar
+              <Search className="h-3.5 w-3.5" />
+              Busca personalizada e alertas do Radar
             </div>
             <h2 id="radar-perfil-modal-title" className="mt-1 text-lg font-extrabold text-[#081C3A]">
               Configurar ramos, palavras e estados
@@ -268,10 +268,10 @@ export function RadarPerfilModal({
 
         {/* Corpo */}
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-          {/* Descrição livre + Sugestor IA */}
+          {/* Descrição livre + Sugestor */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <label htmlFor="radar-ia-descricao" className="block text-xs font-bold text-[#081C3A]">
-              Descreva o que sua empresa vende ou presta (IA sugere ramos e palavras)
+              Descreva o que sua empresa vende ou presta (Sugestão automática de ramos e palavras)
             </label>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
@@ -294,8 +294,8 @@ export function RadarPerfilModal({
                 disabled={sugerindo}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#081C3A] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0f2b56] disabled:opacity-60 cursor-pointer"
               >
-                {sugerindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-[#FF6600]" />}
-                Sugerir com IA
+                {sugerindo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-emerald-400" />}
+                Sugerir Termos
               </button>
             </div>
             <div className="mt-2.5 flex flex-wrap gap-1.5">

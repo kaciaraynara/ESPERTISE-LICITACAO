@@ -5,7 +5,7 @@ import {
   Calendar,
   FolderOpen,
   FileCheck2,
-  Bot,
+  FileText,
   ShieldAlert,
   TrendingUp,
   Cpu,
@@ -90,10 +90,10 @@ export const DashboardPage: React.FC = () => {
   const ferramentas = [
     { titulo: 'Catálogo CATMAT / Preços', icon: Package, rota: FORNECEDOR_ROUTES.catalogo },
     { titulo: 'SICAF & Certidões', icon: ShieldCheck, rota: FORNECEDOR_ROUTES.sicaf_credenciamento },
-    { titulo: 'Leitor de Edital (Luli)', icon: Bot, rota: FORNECEDOR_ROUTES.lex },
+    { titulo: 'Análise Técnica de Edital', icon: FileText, rota: FORNECEDOR_ROUTES.lex },
     { titulo: 'Precificação Estratégica', icon: Calculator, rota: FORNECEDOR_ROUTES.precificacao_estrategica },
     { titulo: 'Análise de Irregularidades', icon: ShieldAlert, rota: FORNECEDOR_ROUTES.radar_nulidades },
-    { titulo: 'Robô & Sala de Disputa', icon: Cpu, rota: FORNECEDOR_ROUTES.disputa_ao_vivo },
+    { titulo: 'Sala de Disputa & Lances', icon: Cpu, rota: FORNECEDOR_ROUTES.disputa_ao_vivo },
     { titulo: 'Histórico Concorrentes', icon: Briefcase, rota: FORNECEDOR_ROUTES.historico_concorrentes },
     { titulo: 'Análise de Viabilidade', icon: TrendingUp, rota: FORNECEDOR_ROUTES.score_viabilidade },
   ];

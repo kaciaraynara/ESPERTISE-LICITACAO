@@ -1,5 +1,4 @@
 import {
-  Brain,
   Briefcase,
   Calculator,
   CheckCircle,
@@ -59,7 +58,7 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
         { path: FORNECEDOR_ROUTES.disputas, label: 'Gestão de Disputas', icon: ListChecks },
         { path: '/fornecedor/precificacao', label: 'Planilha & Precificação', icon: Calculator },
         { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta PDF', icon: FileText },
-        { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô', icon: Gavel },
+        { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Mesa de Lances', icon: Gavel },
         { path: FORNECEDOR_ROUTES.srp, label: 'SRP e Carona (Art. 86)', icon: Stack },
         { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos', icon: ListBullets },
         { path: FORNECEDOR_ROUTES.rede_fornecedores, label: 'Rede de Fornecedores', icon: Storefront },
@@ -68,7 +67,7 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
     {
       label: 'Jurídico & Habilitação',
       items: [
-        { path: FORNECEDOR_ROUTES.lex, label: 'Análise com a Luli', icon: Brain },
+        { path: FORNECEDOR_ROUTES.lex, label: 'Análise Técnica do Edital', icon: Scales },
         { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Editais', icon: Scales },
         { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos Administrativos', icon: FileText },
         { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: ShieldCheck },

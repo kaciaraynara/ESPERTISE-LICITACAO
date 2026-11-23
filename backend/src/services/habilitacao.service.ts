@@ -822,13 +822,13 @@ export class HabilitacaoService {
     // 1. Emissão do Comprovante do CNPJ (com proteção isolada por try/catch)
     try {
       const cnpjBuffer = await this.gerarBufferPdfCnpj(empresa);
-      const storageKey = `habilitacao/${empresa.id}/01_comprovante_cnpj.pdf`;
 
-      await storageService.uploadFile({
+      const uploadCnpj = await storageService.uploadFile({
         buffer: cnpjBuffer,
         originalName: '01 - Comprovante CNPJ.pdf',
         mimeType: 'application/pdf',
         userId,
+        folder: `habilitacao/${empresa.id}`,
       });
 
       // Validade de 90 dias para comprovação cadastral
@@ -845,7 +845,8 @@ export class HabilitacaoService {
           where: { id: docExistente.id },
           data: {
             validade: validadeCnpj,
-            storageKey,
+            storageKey: uploadCnpj.storageKey,
+            url: uploadCnpj.url,
             arquivoNome: '01 - Comprovante CNPJ.pdf',
             fileMimeType: 'application/pdf',
             fileSize: cnpjBuffer.length,
@@ -860,7 +861,8 @@ export class HabilitacaoService {
             tipo: 'c01_cnpj',
             nome: 'Comprovante do CNPJ',
             validade: validadeCnpj,
-            storageKey,
+            storageKey: uploadCnpj.storageKey,
+            url: uploadCnpj.url,
             arquivoNome: '01 - Comprovante CNPJ.pdf',
             fileMimeType: 'application/pdf',
             fileSize: cnpjBuffer.length,
@@ -875,13 +877,13 @@ export class HabilitacaoService {
     // 2. Emissão das Declarações da Lei 14.133/2021 (com proteção isolada por try/catch)
     try {
       const declBuffer = await this.gerarBufferPdfDeclaracoesLei14133(empresa);
-      const storageKey = `habilitacao/${empresa.id}/12_declaracoes_obrigatorias_lei14133.pdf`;
 
-      await storageService.uploadFile({
+      const uploadDecl = await storageService.uploadFile({
         buffer: declBuffer,
         originalName: '12 - Declarações Obrigatórias Lei 14.133.pdf',
         mimeType: 'application/pdf',
         userId,
+        folder: `habilitacao/${empresa.id}`,
       });
 
       // Validade de 180 dias para declarações
@@ -897,7 +899,8 @@ export class HabilitacaoService {
           where: { id: docExistente.id },
           data: {
             validade: validadeDecl,
-            storageKey,
+            storageKey: uploadDecl.storageKey,
+            url: uploadDecl.url,
             arquivoNome: '12 - Declarações Obrigatórias Lei 14.133.pdf',
             fileMimeType: 'application/pdf',
             fileSize: declBuffer.length,
@@ -912,7 +915,8 @@ export class HabilitacaoService {
             tipo: 'c12_declaracoes_obrigatorias',
             nome: 'Declarações Obrigatórias da Lei 14.133/2021',
             validade: validadeDecl,
-            storageKey,
+            storageKey: uploadDecl.storageKey,
+            url: uploadDecl.url,
             arquivoNome: '12 - Declarações Obrigatórias Lei 14.133.pdf',
             fileMimeType: 'application/pdf',
             fileSize: declBuffer.length,

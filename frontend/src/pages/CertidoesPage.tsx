@@ -7,11 +7,13 @@ import {
   Building2,
   ShieldCheck,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { certidoesApi } from '@/services/api';
 import { useCompany, type Company } from '@/contexts/CompanyContext';
+import { abrirDocumentoSeguro } from '@/utils/abrirDocumentoSeguro';
 
 export interface CertidaoItem {
   id: string;
@@ -233,18 +235,19 @@ export const CertidoesPage: React.FC = () => {
                   <th className="py-3 px-4">Esfera</th>
                   <th className="py-3 px-4">Validade</th>
                   <th className="py-3 px-4">Situação</th>
+                  <th className="py-3 px-4 text-center">Arquivo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {carregando ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                    <td colSpan={6} className="py-8 text-center text-slate-500">
                       Carregando certidões da empresa...
                     </td>
                   </tr>
                 ) : erroCarregamento ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-red-700">
+                    <td colSpan={6} className="py-8 text-center text-red-700">
                       {erroCarregamento}{' '}
                       <button type="button" onClick={() => void carregarCertidoes(selectedCompany)} className="font-bold underline">
                         Tentar novamente
@@ -253,13 +256,13 @@ export const CertidoesPage: React.FC = () => {
                   </tr>
                 ) : !empresa ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-600">
+                    <td colSpan={6} className="py-8 text-center text-slate-600">
                       Selecione uma empresa para acompanhar as certidões.
                     </td>
                   </tr>
                 ) : certidoes.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-600">
+                    <td colSpan={6} className="py-8 text-center text-slate-600">
                       Nenhuma certidão cadastrada para esta empresa. Clique em Atualizar Certidões acima.
                     </td>
                   </tr>
@@ -278,6 +281,25 @@ export const CertidoesPage: React.FC = () => {
                     <td className="py-4 px-4">
                       {getStatusBadge(c.status, c.diasParaVencer)}
                       {getRegularityBadge(c.regularidade)}
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      {c.arquivoUrl || c.temArquivo ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void abrirDocumentoSeguro(
+                              c.arquivoUrl || `/api/v1/certidoes/${c.id}/download`,
+                              `${c.nome}.pdf`
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Visualizar</span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

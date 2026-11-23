@@ -232,9 +232,18 @@ function readCookie(req: Request, name: string) {
 function getAccessToken(req: Request) {
   const [scheme, credential] = req.headers.authorization?.trim().split(/\s+/, 2) ?? [];
   const bearerToken = scheme?.toLowerCase() === 'bearer' ? credential : undefined;
+  const query = req.query as Record<string, unknown> | undefined;
+  const queryToken =
+    typeof query?.token === 'string' && query.token.trim()
+      ? query.token.trim()
+      : typeof query?.access_token === 'string' && query.access_token.trim()
+      ? query.access_token.trim()
+      : undefined;
+
   return (
     readCookie(req, 'admin_session_jwt') ||
     bearerToken ||
+    queryToken ||
     readCookie(req, 'expertise_access_token')
   );
 }

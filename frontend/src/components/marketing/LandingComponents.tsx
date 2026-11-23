@@ -4,7 +4,6 @@ import {
   ShieldCheck,
   CheckCircle,
   LockKey,
-  Robot,
   FileText,
   Calculator,
   CaretDown,
@@ -89,7 +88,7 @@ const FULL_FEATURES = [
   { icon: Calculator, title: "Análise de Rentabilidade", desc: "Consulte custos e margens para apoiar uma decisão de preço mais segura." },
   { icon: Gavel, title: "Apoio Jurídico", desc: "Acesse conteúdos e recursos para avaliar exigências do edital." },
   { icon: Briefcase, title: "Gestão de Empresas", desc: "Organize informações de diferentes empresas na mesma conta." },
-  { icon: Robot, title: "Gerador de Propostas", desc: "Prepare propostas comerciais com menos preenchimento repetitivo." },
+  { icon: FileText, title: "Gerador de Propostas", desc: "Prepare propostas comerciais com menos preenchimento repetitivo." },
 ];
 
 function Accordion({ question, answer }: { question: string, answer: string }) {

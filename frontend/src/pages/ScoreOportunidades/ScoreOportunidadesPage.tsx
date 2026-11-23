@@ -6,7 +6,7 @@ import {
   AlertTriangle,
   XCircle,
   Loader2,
-  Bot,
+  Scale,
   ExternalLink,
   Building2,
   FileCheck2,
@@ -408,8 +408,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
                       onClick={() => navigate(`${FORNECEDOR_ROUTES.analise_viabilidade}/${encodeURIComponent(ed.id || '')}`)}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
                     >
-                      <Bot className="h-4 w-4 text-[#F97316]" />
-                      Análise de Viabilidade com a Luli
+                      <Scale className="h-4 w-4 text-emerald-400" />
+                      Análise Técnica de Viabilidade
                     </button>
                     <button
                       type="button"

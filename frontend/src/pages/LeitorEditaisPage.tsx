@@ -304,7 +304,7 @@ ${editalTexto.slice(0, 150000)}`;
         toast.success('Auditoria do edital concluída com sucesso!');
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Falha ao conectar com o motor de inteligência artificial.');
+      toast.error(err?.message || 'O serviço de análise técnica encontrou uma instabilidade temporária. Tente novamente em instantes.');
     } finally {
       setAnalisando(false);
     }
@@ -681,7 +681,7 @@ ${editalTexto.slice(0, 150000)}`;
                   ) : (
                     <>
                       <ShieldCheck size={18} />
-                      Auditar Cláusulas com IA
+                      Auditar Cláusulas do Edital
                     </>
                   )}
                 </button>
@@ -734,7 +734,7 @@ ${editalTexto.slice(0, 150000)}`;
                     Aguardando análise de cláusulas
                   </h4>
                   <p className="text-xs text-slate-500 max-w-sm">
-                    Clique em &quot;Auditar Cláusulas com IA&quot; para executar a checagem detalhada de conformidade sob a Lei 14.133/2021.
+                    Clique em &quot;Auditar Cláusulas do Edital&quot; para executar a checagem detalhada de conformidade sob a Lei 14.133/2021.
                   </p>
                 </div>
               )}

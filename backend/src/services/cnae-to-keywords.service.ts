@@ -65,13 +65,13 @@ export function keywordsForCnae(cnae: string | null | undefined): string[] {
     return [];
   }
 
-    const dictTerms = expandirTermosCnae(cnae);
-  if (dictTerms && dictTerms.length > 0) return dictTerms;
-
   const division = extractDivision(cnae);
   const mapping = division === null
     ? undefined
     : CNAE_DIVISION_KEYWORDS.find(({ min, max }) => division >= min && division <= max);
+
+  const dictTerms = expandirTermosCnae(cnae) || [];
+
   const descriptionTerms = cnae
     .replace(/^\s*\d[\d./\-\s]*/, '')
     .toLowerCase()
@@ -80,7 +80,7 @@ export function keywordsForCnae(cnae: string | null | undefined): string[] {
     .split(/[^a-z0-9]+/)
     .filter((term) => term.length > 3 && !STOPWORDS.has(term));
 
-  return [...new Set([...(mapping?.keywords ?? []), ...descriptionTerms])];
+  return [...new Set([...(mapping?.keywords ?? []), ...dictTerms, ...descriptionTerms])];
 }
 
 export async function getTenantRadarProfile(tenantId: string): Promise<TenantRadarProfile> {

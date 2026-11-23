@@ -278,15 +278,15 @@ export default function SourcingPage() {
 
   const handleCopiarPrompt = async () => {
     if (!promptQuery.data) {
-      toast.error('Prompt ainda nao carregado');
+      toast.error('Instruções ainda não carregadas');
       return;
     }
 
     try {
       await navigator.clipboard.writeText(promptQuery.data);
-      toast.success('Prompt copiado para sua area de transferencia');
+      toast.success('Instruções copiadas para a área de transferência');
     } catch {
-      toast.error('Nao consegui copiar o prompt automaticamente');
+      toast.error('Não consegui copiar as instruções automaticamente');
     }
   };
 
@@ -659,25 +659,25 @@ export default function SourcingPage() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-brand-blue" />
-                <h2 className="text-sm font-bold text-brand-blue">Prompt operacional do marketplace</h2>
+                <h2 className="text-sm font-bold text-brand-blue">Instruções operacionais do catálogo</h2>
               </div>
               <button
                 type="button"
                 onClick={handleCopiarPrompt}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-xs font-bold text-brand-blue/70 transition hover:border-brand-blue/20 hover:text-brand-blue"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-xs font-bold text-brand-blue/70 transition hover:border-brand-blue/20 hover:text-brand-blue cursor-pointer"
               >
                 <Copy className="h-3.5 w-3.5" />
-                Copiar prompt
+                Copiar instruções
               </button>
             </div>
 
             <p className="mt-3 text-sm leading-7 text-brand-blue/70">
-              Use este prompt quando quiser processar planilhas externas e alimentar a base comercial com mais velocidade.
+              Utilize estas instruções para processar planilhas externas e alimentar a base comercial com rapidez.
             </p>
 
             <div className="mt-4 rounded-[28px] border border-gray-100 bg-brand-blue p-4 text-sm leading-7 text-brand-blue/70">
               <pre className="max-h-[340px] overflow-auto whitespace-pre-wrap font-mono text-[12px] leading-6">
-                {promptQuery.data || 'Carregando prompt...'}
+                {promptQuery.data || 'Carregando instruções...'}
               </pre>
             </div>
 

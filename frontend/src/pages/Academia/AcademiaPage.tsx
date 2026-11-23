@@ -10,7 +10,6 @@ import {
   Clock,
   ExternalLink,
   X,
-  Sparkles,
   GraduationCap,
 } from 'lucide-react';
 import api from '@/services/api';
@@ -53,7 +52,7 @@ function getEmbedUrl(url?: string | null): string | null {
 }
 
 const CATEGORIAS = [
-  { id: 'Todos', label: 'Todos os Cursos', icon: Sparkles },
+  { id: 'Todos', label: 'Todos os Cursos', icon: BookOpen },
   { id: 'Cursos Online', label: 'Cursos Online', icon: PlayCircle },
   { id: 'Cursos de Extensão', label: 'Cursos de Extensão', icon: GraduationCap },
   { id: 'Aulas ao Vivo', label: 'Aulas ao Vivo', icon: Video },

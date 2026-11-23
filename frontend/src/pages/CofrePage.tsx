@@ -19,6 +19,7 @@ import {
   XCircle,
 } from '@components/icons/phosphor-compat';
 import { documentosApi, empresasApi } from '@services/api';
+import { abrirDocumentoSeguro } from '@/utils/abrirDocumentoSeguro';
 
 const DOCUMENT_TYPES = [
   'CND Federal',
@@ -633,14 +634,13 @@ export default function CofrePage() {
 
                 <div className="mt-3 pt-2 border-t border-slate-200/60">
                   {c.documento ? (
-                    <a
-                      href={c.documento.url || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] font-bold text-brand-blue hover:underline inline-flex items-center gap-1"
+                    <button
+                      type="button"
+                      onClick={() => void abrirDocumentoSeguro(c.documento?.url, `${c.nome}.pdf`)}
+                      className="text-[10px] font-bold text-brand-blue hover:underline inline-flex items-center gap-1 cursor-pointer"
                     >
                       Ver comprovante <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   ) : (
                     <button
                       type="button"
@@ -901,15 +901,19 @@ export default function CofrePage() {
 
                     <div className="mt-5 flex gap-3">
                       {documento.url ? (
-                        <a
-                          href={documento.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-bold text-white"
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void abrirDocumentoSeguro(
+                              documento.url,
+                              documento.arquivo_nome || `${documento.nome}.pdf`
+                            )
+                          }
+                          className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-bold text-white cursor-pointer hover:bg-slate-800 transition"
                         >
                           Abrir arquivo
                           <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                        </a>
+                        </button>
                       ) : (
                         <span className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl bg-slate-100 px-4 py-2.5 text-center text-xs font-semibold text-slate-500">
                           Arquivo indisponível

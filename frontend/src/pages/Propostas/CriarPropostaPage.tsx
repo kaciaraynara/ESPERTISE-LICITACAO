@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FileText,
-  Sparkles,
+  FileCheck,
   Edit3,
   Plus,
   Trash2,
@@ -785,7 +785,7 @@ export const CriarPropostaPage: React.FC = () => {
                   : 'text-slate-600 hover:text-[#0B192C]'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#F97316]" />
+              <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
               Modo Automático
             </button>
             <button

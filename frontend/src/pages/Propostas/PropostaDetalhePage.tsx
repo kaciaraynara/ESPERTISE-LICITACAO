@@ -17,7 +17,7 @@ import {
   Scale,
   Printer,
   Trash2,
-  Sparkles,
+  FileCheck,
   X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -602,7 +602,7 @@ export const PropostaDetalhePage: React.FC = () => {
                   className="px-5 py-3 rounded-xl bg-[#0A2540] hover:bg-slate-800 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
                   title="Extrai Termo de Referência e cruza com Catálogo de Produtos da empresa automaticamente"
                 >
-                  <Sparkles size={16} className="text-[#EA580C]" />
+                  <FileCheck size={16} className="text-emerald-400" />
                   {preenchendoLex ? 'Preenchendo itens automaticamente...' : 'Preenchimento Automático'}
                 </button>
 
@@ -857,7 +857,7 @@ export const PropostaDetalhePage: React.FC = () => {
                 disabled={preenchendoLex}
                 className="text-xs bg-[#0A2540] hover:bg-slate-800 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >
-                <Sparkles size={15} className="text-[#EA580C]" />
+                <FileCheck size={15} className="text-emerald-400" />
                 {preenchendoLex ? 'Preenchendo...' : 'Preenchimento Automático'}
               </button>
               <button
@@ -925,7 +925,7 @@ export const PropostaDetalhePage: React.FC = () => {
                   onClick={() => handlePreencherViaLex()}
                   className="text-xs bg-[#0A2540] hover:bg-slate-800 text-white font-black px-4 py-2.5 rounded-xl inline-flex items-center gap-2 shadow-md cursor-pointer"
                 >
-                  <Sparkles size={15} className="text-[#EA580C]" />
+                  <FileCheck size={15} className="text-emerald-400" />
                   Preenchimento Automático
                 </button>
                 <button
@@ -1515,7 +1515,7 @@ export const PropostaDetalhePage: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="p-2 bg-[#0A2540] text-white rounded-lg">
-                  <Sparkles size={18} className="text-[#EA580C]" />
+                  <FileCheck size={18} className="text-emerald-400" />
                 </span>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm">

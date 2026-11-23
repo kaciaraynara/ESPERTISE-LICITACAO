@@ -7,7 +7,6 @@ import {
   MagnifyingGlass,
   WarningCircle,
   ChartLineUp,
-  Robot,
   Gavel,
   CheckSquare,
   Vault,
@@ -16,7 +15,6 @@ import {
   Receipt,
   GraduationCap,
   FileText,
-  Brain,
   Eye,
   CreditCard,
   Gear,
@@ -269,7 +267,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     subtitle: 'Acompanhamento & Lances',
     icon: QuadroIcon,
     items: [
-      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Robô de Lances', icon: Robot, requiredFeature: 'robo_lances' },
+      { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Mesa de Lances', icon: Gavel, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
       { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: Calculator },
       { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Preços', icon: Tag, requiredFeature: 'catalogo_produtos' },
@@ -284,7 +282,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Scales,
     items: [
       { path: FORNECEDOR_ROUTES.defesas_recursos, label: 'Central de Defesas e Recursos', icon: Scales, requiredFeature: 'recursos_administrativos' },
-      { path: FORNECEDOR_ROUTES.lex, label: 'Análise com a Luli', icon: Brain, requiredFeature: 'luli_ia_avancada' },
+      { path: FORNECEDOR_ROUTES.lex, label: 'Análise Técnica do Edital', icon: Scales, requiredFeature: 'luli_ia_avancada' },
       { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
       { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },

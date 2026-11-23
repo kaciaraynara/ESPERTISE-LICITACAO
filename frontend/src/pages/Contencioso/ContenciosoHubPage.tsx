@@ -5,7 +5,6 @@ import {
   FilePdf,
   UploadSimple,
   Scales,
-  Brain,
   Check,
   Copy,
   DownloadSimple,
@@ -313,11 +312,11 @@ export default function ContenciosoHubPage() {
                 {isLoading ? (
                   <>
                     <SpinnerGap className="h-4 w-4 animate-spin" />
-                    Processando com Lex AI...
+                    Processando análise jurídica...
                   </>
                 ) : (
                   <>
-                    <Brain className="h-4 w-4" weight="fill" />
+                    <Scales className="h-4 w-4" weight="fill" />
                     Analisar Recurso & Gerar Contrarrazões
                   </>
                 )}

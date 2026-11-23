@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarClock, Compass, ExternalLink, BellPlus, Search, Loader2, Sparkles } from 'lucide-react';
+import { CalendarClock, Compass, ExternalLink, BellPlus, Search, Loader2, Target } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { licitacoesApi, prazosApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -205,7 +205,7 @@ export const PcaPage: React.FC = () => {
               onClick={filtrarPorCnae}
               className="inline-flex w-full md:w-auto shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
             >
-              <Sparkles className="h-4 w-4" />
+              <Target className="h-4 w-4" />
               Filtrar pelo meu CNAE
             </button>
           )}

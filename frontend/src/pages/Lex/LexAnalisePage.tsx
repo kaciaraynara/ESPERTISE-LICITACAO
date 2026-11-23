@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Sparkles,
+  Scale,
   Send,
   Loader2,
   ShieldAlert,
@@ -10,7 +10,7 @@ import {
   Building2,
   Download,
   RefreshCw,
-  Bot,
+  ShieldCheck,
   Paperclip,
   X,
 } from 'lucide-react';
@@ -261,17 +261,17 @@ export const LexAnalisePage: React.FC = () => {
       {/* Barra superior compacta */}
       <div className="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm md:flex-row md:items-center">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#081C3A] text-[#F97316]">
-            <Bot className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#081C3A] text-emerald-400">
+            <Scale className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-extrabold text-[#081C3A]">Luli — Análise Investigativa</h1>
+              <h1 className="text-base font-extrabold text-[#081C3A]">Luli — Consultor Licitatório & Análise Técnica</h1>
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                <Sparkles className="h-3 w-3" /> Online
+                <ShieldCheck className="h-3 w-3" /> Conectado
               </span>
             </div>
-            <p className="text-xs text-slate-500">Leitura de editais, PDF/Foto, CNPJs e propostas</p>
+            <p className="text-xs text-slate-500">Auditoria técnica de editais, termos de referência, itens e certidões</p>
           </div>
         </div>
 

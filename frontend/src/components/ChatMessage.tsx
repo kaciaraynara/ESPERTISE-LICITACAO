@@ -11,13 +11,22 @@ export interface ChatMessageProps {
 }
 
 export function cleanHumanAiText(raw: string): string {
-  return (raw || '')
+  if (!raw) return '';
+  return raw
     .replace(/\r\n/g, '\n')
-    .replace(/\[(?:Fato da fonte|Cálculo reproduzível|Indício|Hipótese|Inconclusivo)\]/gi, '')
+    // Remove tags técnicas e jargões de IA
+    .replace(/\[(?:Fato da fonte|Cálculo reproduzível|Indício|Hipótese|Inconclusivo|Gerado por IA|Análise IA)\]/gi, '')
+    // Substitui travessões por pontuação natural
     .replace(/\s*[—–]\s*/g, ': ')
-    .replace(/\*{3,}/g, '**')
-    .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$|[.,;:!?])/g, '$1$2')
-    .replace(/^\s*[-*]\s+/gm, '• ');
+    .replace(/\s*--\s*/g, ' - ')
+    // Remove itálicos de asterisco simples (*palavra*)
+    .replace(/(^|[^\*])\*([^*\n\r]+)\*([^\*]|$)/g, '$1$2$3')
+    // Limpa asteriscos residuais soltos ou triplos
+    .replace(/(^|\s)\*(?=\s|$)/g, '$1')
+    .replace(/\*{3,}/g, '')
+    // Converte marcadores para bullets limpos
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .trim();
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({

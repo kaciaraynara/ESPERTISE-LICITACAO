@@ -11,7 +11,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Sparkles,
   Download,
 } from 'lucide-react';
 import { useCompany } from '../contexts/CompanyContext';
@@ -101,13 +100,13 @@ export default function RecursosPage() {
 
       const data = resp?.data as any;
       if (data?.status === 'insufficient_evidence') {
-        toast(data?.resposta || 'Adicione mais detalhes nos fatos/motivos para fundamentar o recurso com IA.', { icon: '⚠️' });
+        toast(data?.resposta || 'Adicione mais detalhes nos fatos/motivos para fundamentar a peça jurídica.', { icon: '⚠️' });
       } else if (data?.resposta || data?.content || data?.texto_recurso) {
         analiseIaPersonalizada = String(data?.resposta || data?.content || data?.texto_recurso).trim();
-        toast.success('Fundamentação jurídica gerada com sucesso pela IA!');
+        toast.success('Fundamentação jurídica técnica elaborada com sucesso!');
       }
     } catch {
-      toast.error('Falha ao consultar a IA jurídica; minuta montada com modelo-base.');
+      toast.error('Falha ao processar a fundamentação; minuta montada com modelo-base.');
     } finally {
       setGerandoIa(false);
     }
@@ -326,12 +325,12 @@ export default function RecursosPage() {
                 {gerandoIa ? (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    <span>Redigindo fundamentação com inteligência jurídica...</span>
+                    <span>Redigindo fundamentação jurídica técnica...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Redigir Recurso / Impugnação</span>
+                    <Scale className="h-3.5 w-3.5" />
+                    <span>Elaborar Peça Jurídica</span>
                   </>
                 )}
               </button>

@@ -14,6 +14,7 @@ import { documentosApi } from '../../services/api';
 import { DocumentoCofre } from '../../types/cofre.types';
 import { Link } from 'react-router-dom';
 import { FORNECEDOR_ROUTES } from '@/routes';
+import { abrirDocumentoSeguro } from '@/utils/abrirDocumentoSeguro';
 
 export const CofreDocumentosScreen: React.FC = () => {
   const [abaAtiva, setAbaAtiva] = useState<string>('TODOS');
@@ -204,14 +205,13 @@ export const CofreDocumentosScreen: React.FC = () => {
                     <td className="p-4">{getBadgeStatus(doc.status, doc.diasParaVencer)}</td>
                     <td className="p-4 text-center">
                       {doc.arquivoUrl && doc.arquivoUrl !== '#' ? (
-                        <a
-                          href={doc.arquivoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-bold text-blue-600 hover:underline"
+                        <button
+                          type="button"
+                          onClick={() => void abrirDocumentoSeguro(doc.arquivoUrl, `${doc.nome}.pdf`)}
+                          className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
                         >
                           Visualizar
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-slate-400">—</span>
                       )}

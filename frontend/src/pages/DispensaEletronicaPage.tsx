@@ -6,7 +6,7 @@ import {
   DollarSign,
   Search,
   ArrowRight,
-  Bot,
+  Gavel,
   FileCheck2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -75,18 +75,18 @@ export const DispensaEletronicaPage: React.FC = () => {
       const lista = res.data?.data || res.data || [];
       setDispensas(Array.isArray(lista)
         ? lista.map((item: Record<string, unknown>) => ({
-            id: String(item.id ?? item.numeroControlePNCP ?? ''),
-            numero: String(item.numero ?? item.processo ?? item.numeroCompra ?? ''),
-            orgao: String(item.orgao ?? ''),
-            objeto: String(item.objeto ?? ''),
-            valor: Number(item.valor ?? item.valorEstimado ?? item.valor_estimado ?? 0),
-            modalidade: String(item.modalidade ?? 'Dispensa Eletrônica'),
-            dataAbertura: String(item.dataAbertura ?? item.data_abertura ?? ''),
-            uf: String(item.uf ?? ''),
-            municipio: String(item.municipio ?? ''),
-            link: typeof item.link === 'string' ? item.link : undefined,
-            status: String(item.status ?? item.situacao ?? ''),
-          }))
+          id: String(item.id ?? item.numeroControlePNCP ?? ''),
+          numero: String(item.numero ?? item.processo ?? item.numeroCompra ?? ''),
+          orgao: String(item.orgao ?? ''),
+          objeto: String(item.objeto ?? ''),
+          valor: Number(item.valor ?? item.valorEstimado ?? item.valor_estimado ?? 0),
+          modalidade: String(item.modalidade ?? 'Dispensa Eletrônica'),
+          dataAbertura: String(item.dataAbertura ?? item.data_abertura ?? ''),
+          uf: String(item.uf ?? ''),
+          municipio: String(item.municipio ?? ''),
+          link: typeof item.link === 'string' ? item.link : undefined,
+          status: String(item.status ?? item.situacao ?? ''),
+        }))
         : []);
       setPerfilRadar(res.data?.meta?.perfilRadar ?? null);
     } catch (error: any) {
@@ -366,7 +366,7 @@ export const DispensaEletronicaPage: React.FC = () => {
                       className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all"
                       title="Configurar robô para envio de lances nesta dispensa"
                     >
-                      <Bot size={14} className="text-[#0A2540]" /> Robô
+                      <Gavel size={14} className="text-[#0A2540]" /> Lances
                     </Link>
                     <Link
                       to={`${FORNECEDOR_ROUTES.propostas}?edital=${disp.id}`}
