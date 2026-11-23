@@ -25,6 +25,7 @@ import { LexController } from '../controllers/lex.controller';
 // Sub-roteadores
 import certidoesRoutes from './certidoes.routes';
 import documentosRoutes from './documentos.routes';
+import habilitacaoRoutes from './habilitacao.routes';
 import documentTemplatesRoutes from './document-templates.routes';
 import lexRoutes from './lex.routes';
 import roboRoutes from './robo.routes';
@@ -1327,6 +1328,11 @@ router.use(
   '/documentos',
   requirePlanFeature('cofre_documentos'),
   documentosRoutes,
+);
+
+router.use(
+  '/habilitacao',
+  habilitacaoRoutes,
 );
 
 router.use(

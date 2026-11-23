@@ -72,7 +72,7 @@ const NAV_GROUPS: Record<ProfileRole, NavGroup[]> = {
         { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Editais', icon: Scales },
         { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos Administrativos', icon: FileText },
         { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: ShieldCheck },
-        { path: FORNECEDOR_ROUTES.habilitacao, label: 'Matriz de Habilitação', icon: CheckCircle },
+        { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckCircle },
         { path: FORNECEDOR_ROUTES.certidoes, label: 'Certidões Negativas', icon: FileText },
         { path: FORNECEDOR_ROUTES.cofre, label: 'Cofre de Documentos', icon: Briefcase },
         { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos e Alertas', icon: Clock },

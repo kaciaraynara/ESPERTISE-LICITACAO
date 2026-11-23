@@ -33,7 +33,7 @@ const HEADER_TITLES: Record<string, string> = {
   '/fornecedor/radar-nulidades': 'Radar de Nulidades',
   '/fornecedor/cofre': 'Cofre de Documentos',
   '/fornecedor/certidoes': 'Certidões Negativas',
-  '/fornecedor/habilitacao': 'Matriz de Habilitação',
+  '/fornecedor/habilitacao': 'Documentos de Habilitação',
   '/fornecedor/prazos': 'Prazos Fatais e Alertas',
   '/fornecedor/gestao-pos-vitoria': 'Gestão Pós-Vitória',
   '/fornecedor/contratos': 'Gestão Contratual',

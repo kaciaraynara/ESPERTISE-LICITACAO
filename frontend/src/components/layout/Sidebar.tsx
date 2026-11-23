@@ -254,6 +254,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     icon: Crosshair,
     items: [
       { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Licitações', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
       { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensa Eletrônica', icon: Lightning, requiredFeature: 'radar_editais' },
       { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Compass, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
@@ -302,7 +303,6 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos', icon: Vault, requiredFeature: 'Meus Documentos' },
       { path: FORNECEDOR_ROUTES.certidoes, label: 'Monitoramento de Certidões', icon: Certificate, requiredFeature: 'certidoes' },
-      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
       { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
       { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios e Resultados', icon: ChartLineUp, requiredFeature: 'Relatórios e Resultados' },
     ],

@@ -828,6 +828,25 @@ export const analiseViabilidadeApi = {
     api.get(editalId ? `/analise-viabilidade/${encodeURIComponent(editalId)}` : '/analise-viabilidade', { params }),
 };
 
+export const habilitacaoApi = {
+  obterStatus: (empresaId?: string) =>
+    api.get('/habilitacao/status', { params: empresaId ? { empresa_id: empresaId } : undefined }),
+  emitirGratuitos: (empresaId?: string) =>
+    api.post('/habilitacao/emitir-gratuitos', empresaId ? { empresa_id: empresaId } : {}),
+  anexarDocumento: (codigoItem: number, arquivo: File, dataVencimento?: string, empresaId?: string) => {
+    const formData = new FormData();
+    formData.append('arquivo', arquivo);
+    formData.append('codigoItem', String(codigoItem));
+    if (dataVencimento) formData.append('dataVencimento', dataVencimento);
+    if (empresaId) formData.append('empresa_id', empresaId);
+    return api.post('/habilitacao/anexar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  baixarPastaCompletaUrl: (empresaId?: string) =>
+    `${api.defaults.baseURL || '/api/v1'}/habilitacao/baixar-pasta-completa${empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''}`,
+};
+
 // ─── Criar Proposta (Lei 14.133/2021) ────────────────────────────────────────
 export interface ProposalItemDto {
   id: string;
