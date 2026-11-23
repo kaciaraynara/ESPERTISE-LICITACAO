@@ -5,6 +5,24 @@ import {
   obterLinkMunicipal,
 } from './habilitacao.service';
 
+jest.mock('../database/prisma', () => ({
+  prisma: {
+    company: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'empresa-teste-123',
+        razaoSocial: 'EMPRESA EXEMPLAR COMERCIO E SERVICOS LTDA',
+        cnpj: '12345678000199',
+        municipio: 'Fortaleza',
+        uf: 'CE',
+      }),
+    },
+    document: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+  },
+}));
+
 describe('Serviço de Documentos de Habilitação (Lei nº 14.133/2021)', () => {
   const service = new HabilitacaoService();
 
@@ -66,14 +84,13 @@ describe('Serviço de Documentos de Habilitação (Lei nº 14.133/2021)', () => 
     expect(header).toBe('%PDF-');
   });
 
-  it('4. Deve gerar Comprovante de Inscrição no CNPJ em PDF sem falhar mesmo com rede externa offline', async () => {
-    const buffer = await service.gerarBufferPdfCnpj(empresaMock);
+  it('4. Deve exigir comprovante oficial da Receita Federal para CNPJ e não gerar documento apócrifo', async () => {
+    const status = await service.obterStatusDocumentos('user-1', 'emp-1');
+    const itemCnpj = status.itens.find((i) => i.codigo === 1);
 
-    expect(buffer).toBeDefined();
-    expect(Buffer.isBuffer(buffer)).toBe(true);
-    expect(buffer.length).toBeGreaterThan(1500);
-
-    const header = buffer.subarray(0, 5).toString('ascii');
-    expect(header).toBe('%PDF-');
+    expect(itemCnpj).toBeDefined();
+    expect(itemCnpj?.automatico).toBe(false);
+    expect(itemCnpj?.exigePortalGoverno).toBe(true);
+    expect(itemCnpj?.linkOficial).toContain('receita.fazenda.gov.br');
   });
 });

@@ -340,12 +340,12 @@ export class HabilitacaoService {
         etapaNumero: 1,
         etapaNome: 'Etapa 1 — Documentos da Empresa (Habilitação Jurídica)',
         nome: 'Comprovante do CNPJ',
-        descricao: 'Comprovante de Inscrição e Situação Cadastral emitido com dados oficiais da Receita Federal.',
+        descricao: 'Comprovante de Inscrição e Situação Cadastral emitido pela Receita Federal do Brasil. Obtenha a via autêntica oficial no portal e anexe aqui.',
         orgaoEmissor: 'Receita Federal do Brasil',
-        automatico: true,
+        automatico: false,
         tipoChave: 'c01_cnpj',
         linkOficial: 'https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp',
-        exigePortalGoverno: false,
+        exigePortalGoverno: true,
       },
       {
         codigo: 2,
@@ -592,132 +592,51 @@ export class HabilitacaoService {
   }
 
   /**
-   * Gera o PDF do Comprovante de Inscrição e Situação Cadastral no CNPJ
-   */
-  async gerarBufferPdfCnpj(empresa: any): Promise<Buffer> {
-    let dadosCnpj: any = null;
-    const cnpjNumeros = String(empresa.cnpj || '').replace(/\D/g, '');
-
-    // Consulta resiliente à BrasilAPI (limite de 8 segundos)
-    try {
-      if (cnpjNumeros.length === 14) {
-        const resp = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpjNumeros}`, {
-          timeout: 8000,
-        });
-        if (resp.data && resp.data.razao_social) {
-          dadosCnpj = resp.data;
-        }
-      }
-    } catch {
-      // Se a consulta externa falhar ou demorar, usa com segurança os dados da base local
-    }
-
-    const razaoSocial = dadosCnpj?.razao_social || empresa.razaoSocial || 'Empresa Licitante';
-    const nomeFantasia = dadosCnpj?.nome_fantasia || empresa.nomeFantasia || razaoSocial;
-    const cnpjFormat = formatarCnpj(empresa.cnpj);
-    const logradouro = dadosCnpj?.logradouro || empresa.logradouro || 'Endereço Comercial';
-    const bairro = dadosCnpj?.bairro || empresa.bairro || 'Centro';
-    const municipio = dadosCnpj?.municipio || empresa.municipio || 'São Paulo';
-    const uf = dadosCnpj?.uf || empresa.uf || 'SP';
-    const cep = dadosCnpj?.cep || empresa.cep || '00000-000';
-    const cnae = dadosCnpj?.cnae_fiscal_descricao || empresa.cnaePrincipal || 'Atividade Comercial';
-    const situacaoCadastral = dadosCnpj?.descricao_situacao_cadastral || 'ATIVA';
-    const dataAbertura = dadosCnpj?.data_inicio_atividade || '01/01/2020';
-
-    return new Promise<Buffer>((resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
-        const chunks: Buffer[] = [];
-
-        doc.on('data', (c) => chunks.push(c));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', (err) => reject(err));
-
-        // Cabeçalho Oficial
-        doc.lineWidth(1.5).rect(40, 40, 515, 760).stroke('#0B192C');
-
-        doc.fontSize(11).font('Helvetica-Bold').fillColor('#0B192C').text('REPÚBLICA FEDERATIVA DO BRASIL', 50, 55, { align: 'center' });
-        doc.fontSize(10).font('Helvetica-Bold').text('CADASTRO NACIONAL DA PESSOA JURÍDICA', { align: 'center' });
-        doc.fontSize(9).font('Helvetica').fillColor('#475569').text('COMPROVANTE DE INSCRIÇÃO E DE SITUAÇÃO CADASTRAL', { align: 'center' });
-
-        doc.moveTo(50, 95).lineTo(545, 95).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Bloco 1: Número de Inscrição e Data de Abertura
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('NÚMERO DE INSCRIÇÃO', 50, 105);
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#0B192C').text(cnpjFormat, 50, 117);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('DATA DE ABERTURA', 380, 105);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(dataAbertura, 380, 117);
-
-        doc.moveTo(50, 135).lineTo(545, 135).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Bloco 2: Razão Social e Nome Fantasia
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('NOME EMPRESARIAL', 50, 145);
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#0B192C').text(razaoSocial, 50, 157);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('TÍTULO DO ESTABELECIMENTO (NOME FANTASIA)', 50, 175);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(nomeFantasia, 50, 187);
-
-        doc.moveTo(50, 205).lineTo(545, 205).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Bloco 3: Atividade Econômica Principal
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('CÓDIGO E DESCRIÇÃO DA ATIVIDADE ECONÔMICA PRINCIPAL', 50, 215);
-        doc.fontSize(8.5).font('Helvetica').fillColor('#0B192C').text(cnae, 50, 227, { width: 490 });
-
-        doc.moveTo(50, 255).lineTo(545, 255).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Bloco 4: Endereço
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('LOGRADOURO', 50, 265);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(logradouro, 50, 277);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('BAIRRO/DISTRITO', 50, 295);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(bairro, 50, 307);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('MUNICÍPIO', 280, 295);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(`${municipio} - ${uf}`, 280, 307);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('CEP', 450, 295);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(cep, 450, 307);
-
-        doc.moveTo(50, 325).lineTo(545, 325).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Bloco 5: Situação Cadastral
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('SITUAÇÃO CADASTRAL', 50, 335);
-        doc.fontSize(11).font('Helvetica-Bold').fillColor('#059669').text(situacaoCadastral, 50, 347);
-
-        doc.fontSize(8).font('Helvetica-Bold').fillColor('#0F172A').text('DATA DA SITUAÇÃO CADASTRAL', 280, 335);
-        doc.fontSize(9).font('Helvetica').fillColor('#0B192C').text(new Date().toLocaleDateString('pt-BR'), 280, 347);
-
-        doc.moveTo(50, 370).lineTo(545, 370).lineWidth(0.5).stroke('#CBD5E1');
-
-        // Rodapé de Certificação
-        doc.fontSize(8).font('Helvetica-Oblique').fillColor('#64748B').text(
-          'Documento gerado para fins de Habilitação Jurídica em conformidade com o Art. 66 da Lei Federal nº 14.133/2021.',
-          50,
-          740,
-          { align: 'center', width: 495 }
-        );
-        doc.fontSize(7.5).font('Helvetica').fillColor('#94A3B8').text(
-          `Emitido em ${new Date().toLocaleString('pt-BR')} via Plataforma Expertise Licitatória`,
-          50,
-          755,
-          { align: 'center', width: 495 }
-        );
-
-        doc.end();
-      } catch (err) {
-        reject(err);
-      }
-    });
-  }
-
-  /**
-   * Gera o PDF com as Declarações Obrigatórias da Lei 14.133/2021 preenchido com dados da empresa
+   * Gera o PDF com as Declarações Obrigatórias da Lei 14.133/2021 preenchido com dados 100% autênticos da empresa
+   * (Emissão legítima do próprio licitante conforme Art. 63 da Lei 14.133/2021 e LGPD)
    */
   async gerarBufferPdfDeclaracoesLei14133(empresa: any): Promise<Buffer> {
     const razaoSocial = empresa.razaoSocial || 'EMPRESA LICITANTE';
     const cnpjFormat = formatarCnpj(empresa.cnpj);
-    const enderecoCompleto = `${empresa.logradouro || 'Sede da Empresa'}, ${empresa.bairro || 'Centro'} - ${empresa.municipio || 'Município'}/${empresa.uf || 'UF'}`;
+
+    // Busca dados de endereço reais da empresa ou enriquece via cadastro oficial da Receita Federal
+    let enderecoReal = '';
+    if (empresa.logradouro && empresa.logradouro !== 'Endereço Comercial') {
+      const num = empresa.numero ? `, nº ${empresa.numero}` : '';
+      const compl = empresa.complemento ? ` (${empresa.complemento})` : '';
+      const bairro = empresa.bairro && empresa.bairro !== 'Centro' ? `, Bairro ${empresa.bairro}` : '';
+      const cep = empresa.cep && empresa.cep !== '00000-000' ? `, CEP ${empresa.cep}` : '';
+      enderecoReal = `${empresa.logradouro}${num}${compl}${bairro}, ${empresa.municipio || 'Município'}/${empresa.uf || 'UF'}${cep}`;
+    } else {
+      // Tenta enriquecer com dados oficiais da Receita Federal via BrasilAPI
+      const cnpjNumeros = String(empresa.cnpj || '').replace(/\D/g, '');
+      if (cnpjNumeros.length === 14) {
+        try {
+          const resp = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpjNumeros}`, { timeout: 5000 });
+          if (resp.data && resp.data.logradouro) {
+            const d = resp.data;
+            enderecoReal = `${d.logradouro}, ${d.numero || 'S/N'}, ${d.bairro} - ${d.municipio}/${d.uf}, CEP ${d.cep}`;
+            // Atualiza dados cadastrais reais da empresa no banco
+            try {
+              await prisma.company.update({
+                where: { id: empresa.id },
+                data: {
+                  logradouro: d.logradouro,
+                  bairro: d.bairro,
+                  municipio: d.municipio,
+                  uf: d.uf,
+                  cep: d.cep,
+                },
+              });
+            } catch {}
+          }
+        } catch {}
+      }
+      if (!enderecoReal) {
+        enderecoReal = `Sede no Município de ${empresa.municipio || 'Sede da Empresa'}/${empresa.uf || 'UF'}`;
+      }
+    }
+
     const porte = empresa.porte || 'Microempresa (ME) ou Empresa de Pequeno Porte (EPP)';
 
     return new Promise<Buffer>((resolve, reject) => {
@@ -729,14 +648,14 @@ export class HabilitacaoService {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', (err) => reject(err));
 
-        // Cabeçalho
+        // Cabeçalho Oficial
         doc.fontSize(13).font('Helvetica-Bold').fillColor('#0B192C').text('DECLARAÇÕES UNIFICADAS DE HABILITAÇÃO', { align: 'center' });
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#059669').text('LEI FEDERAL Nº 14.133/2021', { align: 'center' });
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#059669').text('LEI FEDERAL Nº 14.133/2021 — ART. 63', { align: 'center' });
         doc.moveDown(1);
 
         // Qualificação da Empresa
         doc.fontSize(9.5).font('Helvetica').fillColor('#0F172A').text(
-          `A empresa ${razaoSocial}, inscrita no CNPJ sob o nº ${cnpjFormat}, sediada em ${enderecoCompleto}, por intermédio de seu representante legal, declara sob as penas da lei, para fins de participação em procedimentos licitatórios:`,
+          `A empresa ${razaoSocial}, inscrita no CNPJ sob o nº ${cnpjFormat}, sediada em ${enderecoReal}, por intermédio de seu representante legal, declara sob as penas da lei, para fins de participação em procedimentos licitatórios:`,
           { align: 'justify', lineGap: 3 }
         );
         doc.moveDown(1);
@@ -774,7 +693,7 @@ export class HabilitacaoService {
         doc.moveDown(0.8);
 
         // Declaração 5: Enquadramento de Porte
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('5. ENQUADRAMENTO DE PORTE EMPRESARIAL');
+        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('5. ENQUADRAMENTO DE PORTE EMPRESARIAL (LC 123/2006)');
         doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
           `Declara, sob as penalidades legais, que cumpre os requisitos de qualificação do porte empresarial (${porte}) e que não incorre em nenhuma das vedações previstas no art. 3º, § 4º, da Lei Complementar nº 123/2006.`,
           { align: 'justify', lineGap: 2 }
@@ -803,6 +722,12 @@ export class HabilitacaoService {
         doc.fontSize(8.5).font('Helvetica').fillColor('#475569').text(`CNPJ: ${cnpjFormat}`, { align: 'center' });
         doc.fontSize(8).font('Helvetica-Oblique').fillColor('#64748B').text('Representante Legal', { align: 'center' });
 
+        doc.moveDown(1.5);
+        doc.fontSize(7).font('Helvetica').fillColor('#94A3B8').text(
+          'Documento emitido para fins exclusivos de Habilitação em Licitações Públicas (Lei nº 14.133/2021). O tratamento das informações respeita estritamente a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD).',
+          { align: 'center', width: 495 }
+        );
+
         doc.end();
       } catch (err) {
         reject(err);
@@ -811,7 +736,8 @@ export class HabilitacaoService {
   }
 
   /**
-   * Emissão silenciosa e protegida dos documentos gratuitos disponíveis
+   * Emissão legítima das Declarações Oficiais da Lei 14.133/2021 pela própria empresa licitante (Art. 63)
+   * (A plataforma NÃO emite certidões de órgãos fazendários/Receita Federal em cumprimento à autenticidade pública)
    */
   async emitirDocumentosGratuitos(userId: string, companyId?: string): Promise<RespostaStatusHabilitacao> {
     const empresa = await this.obterEmpresaAtiva(userId, companyId);
@@ -819,62 +745,18 @@ export class HabilitacaoService {
       throw new Error('EMPRESA_NAO_ENCONTRADA: Cadastre os dados da sua empresa antes de emitir documentos.');
     }
 
-    // 1. Emissão do Comprovante do CNPJ (com proteção isolada por try/catch)
+    // Limpeza de segurança: se existir algum arquivo gerado por simulação de CNPJ no passado, remove para forçar anexo oficial
     try {
-      const cnpjBuffer = await this.gerarBufferPdfCnpj(empresa);
-
-      const uploadCnpj = await storageService.uploadFile({
-        buffer: cnpjBuffer,
-        originalName: '01 - Comprovante CNPJ.pdf',
-        mimeType: 'application/pdf',
-        userId,
-        folder: `habilitacao/${empresa.id}`,
+      await prisma.document.deleteMany({
+        where: {
+          companyId: empresa.id,
+          tipo: 'c01_cnpj',
+          arquivoNome: '01 - Comprovante CNPJ.pdf',
+        },
       });
+    } catch {}
 
-      // Validade de 90 dias para comprovação cadastral
-      const validadeCnpj = new Date();
-      validadeCnpj.setDate(validadeCnpj.getDate() + 90);
-
-      // Salva ou atualiza no banco
-      const docExistente = await prisma.document.findFirst({
-        where: { companyId: empresa.id, tipo: 'c01_cnpj' },
-      });
-
-      if (docExistente) {
-        await prisma.document.update({
-          where: { id: docExistente.id },
-          data: {
-            validade: validadeCnpj,
-            storageKey: uploadCnpj.storageKey,
-            url: uploadCnpj.url,
-            arquivoNome: '01 - Comprovante CNPJ.pdf',
-            fileMimeType: 'application/pdf',
-            fileSize: cnpjBuffer.length,
-            status: 'valido',
-          },
-        });
-      } else {
-        await prisma.document.create({
-          data: {
-            userId,
-            companyId: empresa.id,
-            tipo: 'c01_cnpj',
-            nome: 'Comprovante do CNPJ',
-            validade: validadeCnpj,
-            storageKey: uploadCnpj.storageKey,
-            url: uploadCnpj.url,
-            arquivoNome: '01 - Comprovante CNPJ.pdf',
-            fileMimeType: 'application/pdf',
-            fileSize: cnpjBuffer.length,
-            status: 'valido',
-          },
-        });
-      }
-    } catch (errCnpj) {
-      console.warn('[HabilitacaoService] Aviso ao emitir CNPJ automático:', errCnpj);
-    }
-
-    // 2. Emissão das Declarações da Lei 14.133/2021 (com proteção isolada por try/catch)
+    // Emissão oficial das Declarações da Lei 14.133/2021 (Art. 63)
     try {
       const declBuffer = await this.gerarBufferPdfDeclaracoesLei14133(empresa);
 

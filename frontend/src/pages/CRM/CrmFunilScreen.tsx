@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Search, ShieldCheck, BarChart3, 
+  Search, ShieldCheck, BarChart3, Scale,
   Plus, Calendar, DollarSign, ChevronRight, User, Loader2
 } from 'lucide-react';
 import { useOportunidadesCRM, useMetricasCRM, useMoverEtapaOportunidade } from '../../hooks/useCrmQuery';
@@ -56,7 +56,7 @@ export const CrmFunilScreen: React.FC = () => {
               <BarChart3 size={16} /> <span>CRM & Funil</span>
             </a>
             <a href="/lex" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
-              <img src="/assets/mascote-3d.png" alt="Lex" className="w-4 h-4 object-contain" /> <span>Análise de Editais</span>
+              <Scale size={16} /> <span>Análise de Editais</span>
             </a>
             <a href="/cofre" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
               <ShieldCheck size={16} /> <span>Cofre de Documentos</span>

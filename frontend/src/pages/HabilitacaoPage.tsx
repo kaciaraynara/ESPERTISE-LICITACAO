@@ -105,7 +105,7 @@ export const HabilitacaoPage: React.FC = () => {
     }
   }, [mensagemAviso]);
 
-  // Botão 1 do topo: "Emitir documentos gratuitos agora"
+  // Botão 1 do topo: "Emitir Declarações Obrigatórias da Lei 14.133/2021"
   const handleEmitirGratuitos = async () => {
     try {
       setEmitindo(true);
@@ -114,7 +114,7 @@ export const HabilitacaoPage: React.FC = () => {
       const res = await habilitacaoApi.emitirGratuitos(selectedCompany?.id);
       if (res.data?.success && res.data?.data) {
         setDados(res.data.data);
-        setMensagemSucesso('Comprovante do CNPJ e Declarações Obrigatórias foram emitidos e salvos na pasta da sua empresa!');
+        setMensagemSucesso('As Declarações Obrigatórias da Lei 14.133/2021 (Art. 63) foram emitidas com os dados autênticos da sua empresa e salvas na pasta!');
       }
     } catch {
       setMensagemAviso('O portal do governo está instável no momento. Você pode abrir o site oficial pelo botão ao lado e anexar o arquivo manualmente.');
@@ -282,12 +282,12 @@ export const HabilitacaoPage: React.FC = () => {
                 {emitindo ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin text-amber-400" />
-                    <span>Emitindo documentos...</span>
+                    <span>Emitindo declarações...</span>
                   </>
                 ) : (
                   <>
                     <FileCheck className="h-4 w-4 text-emerald-400" />
-                    <span>Emitir documentos gratuitos agora</span>
+                    <span>Emitir Declarações Obrigatórias (Lei 14.133/2021)</span>
                   </>
                 )}
               </button>
@@ -376,6 +376,17 @@ export const HabilitacaoPage: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* AVISO DE CONFORMIDADE JURÍDICA E LGPD */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 shadow-2xs flex items-start gap-3">
+          <FileText className="h-5 w-5 text-[#0B192C] shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold text-[#0B192C]">Autenticidade Documental & Conformidade com a Lei 14.133/2021:</span>
+            <p className="leading-relaxed">
+              O Comprovante do CNPJ e as Certidões Fiscais (Federal, Estadual, Municipal, FGTS e Trabalhista) devem ser emitidos diretamente nos órgãos públicos emissores oficiais através dos botões &ldquo;1. Abrir site oficial&rdquo; ao lado de cada item, e anexados na pasta da sua empresa. A plataforma emite com exclusividade as <strong>Declarações Obrigatórias do Art. 63</strong> subscritas pelo próprio licitante, garantindo 100% de veracidade, validade jurídica perante pregoeiros e conformidade estrita com a LGPD (Lei nº 13.709/2018).
+            </p>
+          </div>
+        </div>
 
         {/* CARREGAMENTO INICIAL */}
         {carregando && !dados && (

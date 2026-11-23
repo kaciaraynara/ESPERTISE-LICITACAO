@@ -114,18 +114,10 @@ export class DocumentosController {
         }
       }
 
-      // 2. Contingência dinâmica para documentos emitidos pelo sistema (CNPJ e Declarações)
+      // 2. Contingência dinâmica EXCLUSIVAMENTE para Declarações Oficiais da própria empresa (Art. 63 da Lei 14.133/2021)
       const empresa =
         doc.company ||
         (doc.companyId ? await prisma.company.findUnique({ where: { id: doc.companyId } }) : null);
-
-      if (doc.tipo === 'c01_cnpj' && empresa) {
-        const { habilitacaoService } = await import('../services/habilitacao.service');
-        const buffer = await habilitacaoService.gerarBufferPdfCnpj(empresa);
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.arquivoNome || '01 - Comprovante CNPJ.pdf')}"`);
-        return res.send(buffer);
-      }
 
       if (doc.tipo === 'c12_declaracoes_obrigatorias' && empresa) {
         const { habilitacaoService } = await import('../services/habilitacao.service');
@@ -133,6 +125,13 @@ export class DocumentosController {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.arquivoNome || '12 - Declaracoes Obrigatorias Lei 14.133.pdf')}"`);
         return res.send(buffer);
+      }
+
+      if (doc.tipo === 'c01_cnpj') {
+        return res.status(404).json({
+          success: false,
+          message: 'O Comprovante de Inscrição e Situação Cadastral deve ser obtido diretamente no portal oficial da Receita Federal do Brasil (https://solucoes.receita.fazenda.gov.br/Servicos/cnpjreva/Cnpjreva_Solicitacao.asp) e anexado na pasta da sua empresa. A plataforma não emite certidões fazendárias em cumprimento à autenticidade documental pública.',
+        });
       }
 
       return res.status(404).json({ success: false, message: 'Arquivo não localizado no armazenamento' });

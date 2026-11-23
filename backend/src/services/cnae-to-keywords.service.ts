@@ -7,30 +7,30 @@ const CNAE_DIVISION_KEYWORDS: Array<{
   max: number;
   keywords: string[];
 }> = [
-  { min: 1, max: 3, keywords: ['agricultura', 'pecuária', 'alimentos', 'silvicultura', 'pesca'] },
-  { min: 5, max: 9, keywords: ['mineração', 'extração mineral', 'pedras', 'areia'] },
-  { min: 10, max: 12, keywords: ['alimentos', 'bebidas', 'refeição', 'produtos alimentícios'] },
-  { min: 13, max: 15, keywords: ['uniformes', 'vestuário', 'calçados', 'têxteis'] },
-  { min: 16, max: 18, keywords: ['móveis', 'madeira', 'papel', 'impressão', 'gráfica'] },
-  { min: 19, max: 23, keywords: ['combustíveis', 'produtos químicos', 'plásticos', 'materiais de construção'] },
-  { min: 24, max: 30, keywords: ['máquinas', 'equipamentos', 'veículos', 'peças', 'estruturas metálicas'] },
-  { min: 31, max: 33, keywords: ['móveis', 'equipamentos', 'manutenção', 'reparos'] },
-  { min: 35, max: 35, keywords: ['energia', 'instalações elétricas', 'geração elétrica'] },
-  { min: 36, max: 39, keywords: ['água', 'saneamento', 'resíduos', 'reciclagem', 'limpeza urbana'] },
-  { min: 41, max: 43, keywords: ['obra', 'construção', 'engenharia', 'reforma', 'manutenção predial'] },
-  { min: 45, max: 47, keywords: ['materiais', 'equipamentos', 'suprimentos', 'fornecimento'] },
-  { min: 49, max: 53, keywords: ['transporte', 'logística', 'frete', 'armazenagem', 'entrega'] },
-  { min: 55, max: 56, keywords: ['alimentação', 'refeições', 'hospedagem', 'serviços de alimentação'] },
-  { min: 58, max: 63, keywords: ['software', 'tecnologia', 'sistemas', 'informática', 'telecomunicações'] },
-  { min: 64, max: 66, keywords: ['serviços financeiros', 'seguros', 'consultoria financeira'] },
-  { min: 68, max: 68, keywords: ['imóveis', 'locação', 'administração imobiliária'] },
-  { min: 69, max: 75, keywords: ['consultoria', 'serviços técnicos', 'engenharia', 'arquitetura', 'serviços profissionais'] },
-  { min: 77, max: 82, keywords: ['limpeza', 'vigilância', 'segurança', 'terceirização', 'serviços administrativos'] },
-  { min: 85, max: 85, keywords: ['educação', 'ensino', 'capacitação', 'treinamento'] },
-  { min: 86, max: 88, keywords: ['saúde', 'serviços médicos', 'serviços hospitalares', 'assistência social'] },
-  { min: 90, max: 93, keywords: ['cultura', 'eventos', 'esportes', 'recreação'] },
-  { min: 94, max: 96, keywords: ['serviços pessoais', 'manutenção', 'reparos'] },
-];
+    { min: 1, max: 3, keywords: ['agricultura', 'pecuária', 'alimentos', 'silvicultura', 'pesca'] },
+    { min: 5, max: 9, keywords: ['mineração', 'extração mineral', 'pedras', 'areia'] },
+    { min: 10, max: 12, keywords: ['alimentos', 'bebidas', 'refeição', 'produtos alimentícios'] },
+    { min: 13, max: 15, keywords: ['uniformes', 'vestuário', 'calçados', 'têxteis'] },
+    { min: 16, max: 18, keywords: ['móveis', 'madeira', 'papel', 'impressão', 'gráfica'] },
+    { min: 19, max: 23, keywords: ['combustíveis', 'produtos químicos', 'plásticos', 'materiais de construção'] },
+    { min: 24, max: 30, keywords: ['máquinas', 'equipamentos', 'veículos', 'peças', 'estruturas metálicas'] },
+    { min: 31, max: 33, keywords: ['móveis', 'equipamentos', 'manutenção', 'reparos'] },
+    { min: 35, max: 35, keywords: ['energia', 'instalações elétricas', 'geração elétrica'] },
+    { min: 36, max: 39, keywords: ['água', 'saneamento', 'resíduos', 'reciclagem', 'limpeza urbana'] },
+    { min: 41, max: 43, keywords: ['obra', 'construção', 'engenharia', 'reforma', 'manutenção predial'] },
+    { min: 45, max: 47, keywords: ['materiais', 'equipamentos', 'suprimentos', 'fornecimento'] },
+    { min: 49, max: 53, keywords: ['transporte', 'logística', 'frete', 'armazenagem', 'entrega'] },
+    { min: 55, max: 56, keywords: ['alimentação', 'refeições', 'hospedagem', 'serviços de alimentação'] },
+    { min: 58, max: 63, keywords: ['software', 'tecnologia', 'sistemas', 'informática', 'telecomunicações'] },
+    { min: 64, max: 66, keywords: ['serviços financeiros', 'seguros', 'consultoria financeira'] },
+    { min: 68, max: 68, keywords: ['imóveis', 'locação', 'administração imobiliária'] },
+    { min: 69, max: 75, keywords: ['consultoria', 'serviços técnicos', 'engenharia', 'arquitetura', 'serviços profissionais'] },
+    { min: 77, max: 82, keywords: ['limpeza', 'vigilância', 'segurança', 'terceirização', 'serviços administrativos'] },
+    { min: 85, max: 85, keywords: ['educação', 'ensino', 'capacitação', 'treinamento'] },
+    { min: 86, max: 88, keywords: ['saúde', 'serviços médicos', 'serviços hospitalares', 'assistência social'] },
+    { min: 90, max: 93, keywords: ['cultura', 'eventos', 'esportes', 'recreação'] },
+    { min: 94, max: 96, keywords: ['serviços pessoais', 'manutenção', 'reparos'] },
+  ];
 
 const STOPWORDS = new Set([
   'de', 'da', 'do', 'das', 'dos', 'em', 'e', 'para', 'com', 'sem', 'ou',
@@ -249,8 +249,8 @@ export async function avaliarCompatibilidadeCnae(
 
   const valorFormatado = params.valorEstimado
     ? (typeof params.valorEstimado === 'number'
-        ? `R$ ${params.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-        : String(params.valorEstimado))
+      ? `R$ ${params.valorEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      : String(params.valorEstimado))
     : 'Não informado';
 
   const userPrompt = `

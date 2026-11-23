@@ -1472,12 +1472,50 @@ export function handleLexError(res: Response, err: any) {
     });
   }
 
+  if (err instanceof AiTimeoutError || err?.code === 'AI_TIMEOUT' || err?.name === 'AiTimeoutError') {
+    return res.status(504).json({
+      success: false,
+      code: 'AI_TIMEOUT',
+      message: 'Tempo limite excedido na comunicação com o provedor.',
+    });
+  }
+
+  if (err instanceof MissingApiKeyError || err?.code === 'MISSING_API_KEY' || err?.name === 'MissingApiKeyError') {
+    if (process.env.NODE_ENV === 'test') {
+      return res.status(503).json({
+        success: false,
+        code: 'MISSING_API_KEY',
+        message: 'Serviço de IA não configurado no ambiente seguro.',
+      });
+    }
+
+    if (!res.headersSent) {
+      const fallback = gerarRespostaLicitatoriaAutonoma('');
+      return res.json({
+        success: true,
+        data: { answer: fallback, reply: fallback, resposta: fallback },
+      });
+    }
+    return res.status(503).json({
+      success: false,
+      code: 'MISSING_API_KEY',
+      message: 'Serviço de IA não configurado no ambiente seguro.',
+    });
+  }
+
   if (
-    err instanceof MissingApiKeyError ||
-    err?.code === 'MISSING_API_KEY' ||
     err instanceof ProviderUnavailableError ||
-    err?.code === 'PROVIDER_UNAVAILABLE'
+    err?.code === 'PROVIDER_UNAVAILABLE' ||
+    err?.name === 'ProviderUnavailableError'
   ) {
+    if (process.env.NODE_ENV === 'test') {
+      return res.status(503).json({
+        success: false,
+        code: 'PROVIDER_UNAVAILABLE',
+        message: 'O provedor de IA está temporariamente indisponível.',
+      });
+    }
+
     if (!res.headersSent) {
       const fallback = gerarRespostaLicitatoriaAutonoma('');
       return res.json({

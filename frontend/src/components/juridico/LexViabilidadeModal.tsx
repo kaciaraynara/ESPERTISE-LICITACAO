@@ -9,6 +9,7 @@ import {
   BarChart3, 
   MessageSquare,
   AlertTriangle,
+  Scale,
 } from '@components/icons/phosphor-compat';
 
 type Tab = 'resumo' | 'riscos' | 'viabilidade' | 'chat';
@@ -59,7 +60,7 @@ export default function LexViabilidadeModal({ isOpen, onClose, licitacaoId, obje
             <div className="flex items-center justify-between p-6 bg-gradient-to-r from-brand-blue to-blue-900 text-white">
               <div className="flex items-center gap-3">
                 <div className="p-1 bg-white/20 rounded-lg backdrop-blur-md w-10 h-10 flex items-center justify-center overflow-hidden">
-                  <img src="/assets/mascote-3d.png" alt="Assistente de Análise" className="w-8 h-8 object-contain" />
+                  <Scale className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold tracking-tight">Análise de Editais</h2>

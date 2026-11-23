@@ -553,11 +553,10 @@ export const ScoreOportunidadesPage: React.FC = () => {
               key={f.id}
               type="button"
               onClick={() => setFiltro(f.id as any)}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                filtro === f.id
-                  ? 'bg-[#0B192C] text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
+              className={`rounded-xl px-4 py-2 text-xs font-bold transition ${filtro === f.id
+                ? 'bg-[#0B192C] text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
             >
               {f.label}
             </button>
@@ -607,9 +606,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
             return (
               <div
                 key={ed.id || idx}
-                className={`rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${
-                  faixa === 'ALTA' ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'
-                }`}
+                className={`rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md ${faixa === 'ALTA' ? 'border-emerald-200 ring-1 ring-emerald-100' : 'border-slate-200'
+                  }`}
               >
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                   <div className="space-y-2 flex-1">
