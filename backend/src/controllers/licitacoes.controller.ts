@@ -1,3 +1,4 @@
+import { enviarAlertaEditaisCnae } from '../services/resend.service';
 import { queryPcaFromDb } from '../services/pca-sync.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
 import { scaleCacheGet, scaleCacheSet, scaleSingleflight } from '../services/scale-cache.service';
@@ -778,6 +779,57 @@ export class LicitacoesController {
       });
     } catch (error) {
       return sendPncpError(res, error);
+    }
+  };
+  enviarAlertaAgora = async (req: AuthRequest, res: Response) => {
+    try {
+      const { prisma } = require('../database/prisma');
+      const headerCid = String(req.headers['x-company-id'] || '').trim();
+      const company = await prisma.company.findFirst({ where: { tenantId: req.user?.tenantId, ...(headerCid ? { id: headerCid } : {}) } });
+      const email = (company as any)?.email || req.user?.email;
+      if (!email) {
+        return res.status(400).json({ success: false, message: 'Cadastre um e-mail na sua conta ou empresa para receber alertas.' });
+      }
+      const cnae = company?.cnaePrincipal || '';
+      const uf = company?.uf || undefined;
+      const palavras = Array.isArray((company as any)?.palavrasChave) ? (company as any).palavrasChave.slice(0, 3).join(' ') : '';
+
+      const busca = await listarLicitacoes({
+        local: true,
+        apenasAbertos: true,
+        ...(cnae ? { cnae } : {}),
+        ...(palavras ? { palavraChave: palavras } : {}),
+        ...(uf ? { uf } : {}),
+        tamanhoPagina: 8,
+      }, req.user?.id, req.user?.tenantId);
+
+      const editais = (busca.data || []).slice(0, 8).map((item: any) => ({
+        titulo: item.objeto || item.objetoCompra || 'Licitação compatível',
+        orgao: item.orgao || item.nomeOrgao || 'Órgão Público',
+        valorEstimado: item.valorEstimado ?? item.valorTotalEstimado ?? undefined,
+        link: `https://www.expertiselicitatoria.com.br/fornecedor/radar`,
+      }));
+
+      if (editais.length === 0) {
+        return res.json({ success: true, sent: 0, message: 'Nenhum edital aberto encontrado para o seu CNAE/UF no momento.' });
+      }
+
+      const envio = await enviarAlertaEditaisCnae({
+        email,
+        empresaNome: company?.razaoSocial || 'Sua Empresa',
+        cnae: cnae || 'Geral',
+        editais,
+      });
+
+      return res.json({
+        success: true,
+        sent: editais.length,
+        email,
+        message: `${editais.length} edital(is) recomendado(s) enviado(s) para ${email}!`,
+        id: envio?.id,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error?.message || 'Erro ao enviar alertas por e-mail.' });
     }
   };
 }

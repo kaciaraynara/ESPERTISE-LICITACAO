@@ -1158,6 +1158,7 @@ router.get(
 // LICITAÇÕES E SINCRONIZAÇÃO
 // ==========================================
 
+router.post('/licitacoes/enviar-alerta-agora', fornecedor, handle(licitacoes.enviarAlertaAgora.bind(licitacoes) as RequestHandler));
 router.get('/licitacoes/pca', fornecedor, handle(licitacoes.listarPcas.bind(licitacoes) as RequestHandler));
 router.get('/licitacoes/sync-status', fornecedor, handle(licitacoes.statusSincronizacao as RequestHandler));
 router.get('/licitacoes/ramos', fornecedor, handle(licitacoes.listarRamos as RequestHandler));

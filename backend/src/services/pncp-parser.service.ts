@@ -355,7 +355,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     const parsePdfBuffer = async (buf: Buffer): Promise<string> => {
       try {
         let pdfParseModule: any;
-        try { pdfParseModule = (await import('pdf-parse')).default; } catch { pdfParseModule = require('pdf-parse'); }
+        pdfParseModule = require('pdf-parse');
         const pdfFn = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule?.default || pdfParseModule;
         const pdfData = await pdfFn(buf);
         return String(pdfData?.text || '').trim();

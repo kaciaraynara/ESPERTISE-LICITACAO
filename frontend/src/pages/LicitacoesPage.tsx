@@ -1,3 +1,4 @@
+import api from '@/services/api';
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Search,
@@ -781,6 +782,20 @@ export default function LicitacoesPage({
             >
               <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
               {sincronizando ? 'Atualizando em 2º plano...' : 'Atualizar editais'}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const r = await api.post('/licitacoes/enviar-alerta-agora');
+                  exibirAviso('sucesso', r.data?.message || 'Alertas enviados para o seu e-mail!');
+                } catch (e: any) {
+                  exibirAviso('erro', e?.response?.data?.message || 'Não foi possível enviar o alerta por e-mail.');
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#0070C0] bg-white px-4 py-2 text-xs font-bold text-[#0070C0] hover:bg-blue-50 transition cursor-pointer"
+            >
+              Receber no E-mail
             </button>
           </div>
         </div>

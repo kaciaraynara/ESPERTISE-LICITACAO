@@ -1,3 +1,4 @@
+import api from '@/services/api';
 import React, { useState, useEffect } from 'react';
 import {
   FileText,
@@ -86,6 +87,7 @@ export const LeitorEditaisPage: React.FC = () => {
     Promise.allSettled([
       noticesApi.getBasicSummary(selectedEditalId),
       noticesApi.getById(selectedEditalId),
+      api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=40').catch(() => null),
     ])
       .then(([basicRes, detailRes]) => {
         if (!active) return;
