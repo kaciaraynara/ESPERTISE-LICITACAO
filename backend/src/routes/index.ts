@@ -1,3 +1,4 @@
+import { PrecificacaoController } from '../controllers/precificacao.controller';
 import { academiaController } from '../controllers/academia.controller';
 import { attachEditaisSseStream } from '../services/realtime-editais.service';
 import { createSimpleRateLimit } from '../shared/middlewares/rate-limit.middleware';
@@ -467,6 +468,8 @@ router.post(
   handle(lex.extrairParaProposta.bind(lex) as RequestHandler),
 );
 
+const precificacaoCtrl = new PrecificacaoController();
+router.post('/precificacao/viabilidade', fornecedor, handle(precificacaoCtrl.calcularMargens.bind(precificacaoCtrl) as RequestHandler));
 router.use(
   '/precificacao',
   requirePlanFeature('pricing.strategy'),

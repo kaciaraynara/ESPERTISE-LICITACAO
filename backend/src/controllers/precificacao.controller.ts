@@ -79,7 +79,8 @@ export class PrecificacaoController {
       const detalhadosRaw = body.custosIndiretosDetalhados ?? {};
       const custosIndiretosDetalhados: Record<string, number> = {};
       for (const campo of CAMPOS_CUSTOS_DETALHADOS) {
-        const valor = Number(detalhadosRaw?.[campo] ?? 0);
+        const rawVal = detalhadosRaw?.[campo];
+        const valor = rawVal === '' || rawVal === null || rawVal === undefined ? 0 : Number(rawVal);
         if (!Number.isFinite(valor) || valor < 0) {
           return res.status(400).json({
             success: false,

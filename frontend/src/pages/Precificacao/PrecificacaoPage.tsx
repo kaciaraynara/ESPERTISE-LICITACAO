@@ -482,7 +482,7 @@ export const PrecificacaoPage: React.FC = () => {
               min={0}
               step="0.01"
               value={custos.custoProdutoServico}
-              onChange={(e) => setCustos({ ...custos, custoProdutoServico: e.target.value === '' ? 0 : Number(e.target.value) })}
+              onChange={(e) => setCustos({ ...custos, custoProdutoServico: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <p className="mt-0.5 text-[10px] text-slate-400">
@@ -497,7 +497,7 @@ export const PrecificacaoPage: React.FC = () => {
             </label>
             <select
               value={String(custos.impostosPercentual)}
-              onChange={(e) => setCustos({ ...custos, impostosPercentual: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => setCustos({ ...custos, impostosPercentual: (parseFloat(e.target.value) || 0) || 0 })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800"
             >
               <option value="6">Simples Nacional — Comércio/Serviços Anexo III (6%)</option>
@@ -519,7 +519,7 @@ export const PrecificacaoPage: React.FC = () => {
                 max={99}
                 step="0.1"
                 value={custos.impostosPercentual}
-                onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
+                onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -533,7 +533,7 @@ export const PrecificacaoPage: React.FC = () => {
                 max={100}
                 step="0.1"
                 value={custos.custoOperacionalPercentual}
-                onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
+                onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -547,7 +547,7 @@ export const PrecificacaoPage: React.FC = () => {
                 max={99}
                 step="0.1"
                 value={custos.margemDesejadaPercentual}
-                onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: e.target.value === '' ? 0 : Number(e.target.value) })}
+                onChange={(e) => setCustos({ ...custos, margemDesejadaPercentual: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -575,7 +575,7 @@ export const PrecificacaoPage: React.FC = () => {
                     onChange={(e) =>
                       setCustosDetalhados({
                         ...custosDetalhados,
-                        [item.chave]: e.target.value === '' ? 0 : Number(e.target.value),
+                        [item.chave]: e.target.value === '' ? 0 : (Number(e.target.value) || 0),
                       })
                     }
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -603,7 +603,7 @@ export const PrecificacaoPage: React.FC = () => {
             <input
               type="number"
               value={valorMaximoEdital}
-              onChange={(e) => setValorMaximoEdital(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setValorMaximoEdital((parseFloat(e.target.value) || 0) || 0)}
               className="w-full bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
