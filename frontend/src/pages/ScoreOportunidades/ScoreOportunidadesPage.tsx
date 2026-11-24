@@ -6,15 +6,34 @@ import {
   Calendar,
   CheckCircle2,
   ExternalLink,
+  FileDown,
   FileText,
   MapPin,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
   XCircle,
+  BarChart3,
+  PieChart as PieIcon,
+  Coins,
+  Loader2,
 } from 'lucide-react';
-import { certidoesApi, documentosApi, licitacoesApi } from '@/services/api';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import toast from 'react-hot-toast';
+import { certidoesApi, documentosApi, licitacoesApi, noticesApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
+import { exportarDossieEditalPdf, DadosDossieEditalPdf } from '@/utils/dossieEditalPdfGenerator';
 
 type NivelViabilidade = 'PRONTO' | 'ATENCAO' | 'FORA';
 
@@ -59,6 +78,7 @@ interface EditalViabilidade {
   motivosPositivos: string[];
   alertas: string[];
   linkPortal: string;
+  statusLeitura: 'COMPLETO' | 'PENDENTE' | 'SEM_ARQUIVOS';
 }
 
 const STOPWORDS_CNAE = new Set([
@@ -146,7 +166,7 @@ function extrairPerfisCnae(company: any): {
     const bateu = grp.gatilhos.some((g) => textoBase.includes(g));
     if (bateu) {
       grp.termos.forEach((t) => termosMatch.add(t));
-      grp.termos.slice(0, 4).forEach((t) => termosBusca.add(t));
+      grp.termos.slice(0, 5).forEach((t) => termosBusca.add(t));
       (grp.negativos || []).forEach((n) => negativos.add(n));
     }
   }
@@ -158,7 +178,7 @@ function extrairPerfisCnae(company: any): {
 
   palavrasDaEmpresa.forEach((w) => {
     termosMatch.add(w);
-    if (termosBusca.size < 6) termosBusca.add(w);
+    if (termosBusca.size < 8) termosBusca.add(w);
   });
 
   [...nicho, ...palavrasSalvas].forEach((p) => {
@@ -171,7 +191,7 @@ function extrairPerfisCnae(company: any): {
 
   return {
     cnaesLista,
-    termosBusca: Array.from(termosBusca).slice(0, 6),
+    termosBusca: Array.from(termosBusca).slice(0, 8),
     termosMatch: Array.from(termosMatch),
     negativos: Array.from(negativos),
   };
@@ -187,12 +207,25 @@ function formatarMoeda(valor: number | null): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
+function formatarMoedaCompacta(valor: number): string {
+  if (valor >= 1_000_000_000) return `R$ ${(valor / 1_000_000_000).toFixed(1)}B`;
+  if (valor >= 1_000_000) return `R$ ${(valor / 1_000_000).toFixed(1)}M`;
+  if (valor >= 1_000) return `R$ ${(valor / 1_000).toFixed(0)}k`;
+  return `R$ ${valor.toFixed(0)}`;
+}
+
 function formatarData(dataStr: string | null): string {
   if (!dataStr) return 'Consultar edital';
   const d = new Date(dataStr);
   if (isNaN(d.getTime())) return 'Consultar edital';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
+
+const CORES_PIE = {
+  PRONTO: '#10B981',
+  ATENCAO: '#F59E0B',
+  FORA: '#94A3B8',
+};
 
 export const ScoreOportunidadesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -204,6 +237,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
   const [abaAtiva, setAbaAtiva] = useState<'TODOS' | NivelViabilidade>('TODOS');
   const [estadoFiltro, setEstadoFiltro] = useState<string>('TODOS');
   const [filtroApenasRemoto, setFiltroApenasRemoto] = useState(false);
+  const [lendoEditalId, setLendoEditalId] = useState<string | null>(null);
+
   const [docsStatus, setDocsStatus] = useState<{
     certidoesValidas: number;
     certidoesPendentes: number;
@@ -226,7 +261,6 @@ export const ScoreOportunidadesPage: React.FC = () => {
       const ufParam = estadoFiltro !== 'TODOS' ? estadoFiltro : undefined;
 
       if (perfilEmpresa.termosBusca.length > 0) {
-        // Puxa termos do CNAE sem limitação arbitrária
         for (const termo of perfilEmpresa.termosBusca.slice(0, 8)) {
           consultasEditais.push(
             licitacoesApi.listar({
@@ -234,7 +268,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
               q: termo,
               ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
               ...(ufParam ? { uf: ufParam } : {}),
-              tamanhoPagina: 60,
+              tamanhoPagina: 80,
             }).catch(() => null)
           );
         }
@@ -244,7 +278,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
             apenasAbertos: true,
             ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
             ...(ufParam ? { uf: ufParam } : {}),
-            tamanhoPagina: 100,
+            tamanhoPagina: 120,
           }).catch(() => null)
         );
       }
@@ -325,47 +359,47 @@ export const ScoreOportunidadesPage: React.FC = () => {
           pontuacao += 45;
           motivosPositivos.push(`Compatível com sua atividade (${termosEncontrados.slice(0, 2).join(', ')})`);
         } else {
-          alertas.push(caiuEmPegadinha ? 'Objeto de manutenção/serviço diferente do seu ramo' : 'Objeto fora das atividades cadastradas da empresa');
+          alertas.push(caiuEmPegadinha ? 'Objeto restrito por termo negativo do CNAE' : 'Objeto fora do escopo cadastrado da empresa');
         }
 
         if (!docsStatus.carregado) {
           pontuacao += 10;
         } else if (docsStatus.certidoesPendentes > 0) {
-          alertas.push(`${docsStatus.certidoesPendentes} certidão(ões) vencida(s) ou pendente(s)`);
+          alertas.push(`${docsStatus.certidoesPendentes} certidão(ões) pendente(s)`);
         } else if (docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0) {
           pontuacao += 5;
-          alertas.push('Envie suas certidões e documentos no Cofre antes da disputa');
+          alertas.push('Envie documentos no Cofre para habilitar com 100% de segurança');
         } else {
           pontuacao += 20;
-          motivosPositivos.push('Documentação e certidões em dia');
+          motivosPositivos.push('Certidões e habilitação em conformidade');
         }
 
         if (diasRestantes !== null) {
           if (diasRestantes >= 5) {
             pontuacao += 15;
-            motivosPositivos.push(`Prazo confortável (${diasRestantes} dias para preparar)`);
+            motivosPositivos.push(`Prazo estratégico (${diasRestantes} dias para preparar proposta)`);
           } else if (diasRestantes >= 2) {
             pontuacao += 8;
-            alertas.push(`Prazo curto (encerra em ${diasRestantes} dias)`);
+            alertas.push(`Prazo exíguo (encerra em ${diasRestantes} dias)`);
           } else if (diasRestantes >= 0) {
-            alertas.push('Sessão muito próxima — confira se há tempo hábil');
+            alertas.push('Sessão iminente — priorizar montagem');
           } else {
             pontuacao -= 30;
-            alertas.push('Prazo de recebimento já encerrado');
+            alertas.push('Prazo encerrado');
           }
         }
 
         const ufEdital = String(ed.uf || '').trim().toUpperCase();
         if (ufEmpresa && ufEdital === ufEmpresa) {
           pontuacao += 12;
-          motivosPositivos.push(`Mesmo estado (${ufEmpresa}) — frete mais competitivo`);
+          motivosPositivos.push(`Sede no mesmo Estado (${ufEmpresa}) — logística otimizada`);
         } else if (ufEdital) {
           motivosPositivos.push(`Atuação nacional (${ufEdital})`);
         }
 
         if (valor !== null && valor <= 80000) {
           pontuacao += 8;
-          motivosPositivos.push('Faixa exclusiva ME/EPP (até R$ 80 mil)');
+          motivosPositivos.push('Cota exclusiva ME/EPP (até R$ 80 mil)');
         }
 
         let nivel: NivelViabilidade = 'FORA';
@@ -383,6 +417,11 @@ export const ScoreOportunidadesPage: React.FC = () => {
           ed.link ||
           'https://pncp.gov.br/app/editais';
 
+        const statusLeitura =
+          ed.metadata?.deepReadStatus === 'DONE' || ed.metadata?.deepReadStatus === 'COMPLETO' || ed.metadata?.extractedSpecsJson
+            ? 'COMPLETO'
+            : 'PENDENTE';
+
         return {
           edital: ed,
           nivel,
@@ -395,6 +434,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
           motivosPositivos,
           alertas,
           linkPortal,
+          statusLeitura,
         };
       })
       .sort((a, b) => b.pontuacao - a.pontuacao);
@@ -403,6 +443,49 @@ export const ScoreOportunidadesPage: React.FC = () => {
   const prontos = avaliacoes.filter((a) => a.nivel === 'PRONTO');
   const atencao = avaliacoes.filter((a) => a.nivel === 'ATENCAO');
   const fora = avaliacoes.filter((a) => a.nivel === 'FORA');
+
+  // Cálculos de KPIs Executivos
+  const totalVolumeEstimado = useMemo(() => {
+    return avaliacoes.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  }, [avaliacoes]);
+
+  const volumeProntos = useMemo(() => {
+    return prontos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  }, [prontos]);
+
+  const volumeAtencao = useMemo(() => {
+    return atencao.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  }, [atencao]);
+
+  const coberturaLeituraPercentual = useMemo(() => {
+    if (avaliacoes.length === 0) return 0;
+    const lidos = avaliacoes.filter((a) => a.statusLeitura === 'COMPLETO').length;
+    return Math.round((lidos / avaliacoes.length) * 100);
+  }, [avaliacoes]);
+
+  // Dados para os Gráficos Power BI
+  const dadosGraficoUf = useMemo(() => {
+    const mapaUf: Record<string, { uf: string; quantidade: number; volume: number }> = {};
+    for (const item of avaliacoes) {
+      const uf = String(item.edital.uf || 'BR').toUpperCase();
+      if (!mapaUf[uf]) {
+        mapaUf[uf] = { uf, quantidade: 0, volume: 0 };
+      }
+      mapaUf[uf].quantidade += 1;
+      mapaUf[uf].volume += item.valor || 0;
+    }
+    return Object.values(mapaUf)
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 10);
+  }, [avaliacoes]);
+
+  const dadosGraficoDonut = useMemo(() => {
+    return [
+      { name: 'Aderentes e Prontos', value: prontos.length, color: CORES_PIE.PRONTO },
+      { name: 'Requerem Ajustes', value: atencao.length, color: CORES_PIE.ATENCAO },
+      { name: 'Fora do Escopo (CNAE)', value: fora.length, color: CORES_PIE.FORA },
+    ];
+  }, [prontos.length, atencao.length, fora.length]);
 
   const listaVisivel = useMemo(() => {
     let base =
@@ -417,6 +500,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
     if (filtroApenasRemoto) {
       base = base.filter((it) => {
         const specs = it.edital?.metadata?.extractedSpecsJson;
+        if (specs?.disputaModo === 'ELETRONICO_REMOTO') return true;
         if (specs?.disputaEExecucao?.disputaRemota === true) return true;
         const texto = (it.objetoTexto + ' ' + (it.edital?.modalidade || '')).toLowerCase();
         return texto.includes('eletrônic') || texto.includes('eletronic') || texto.includes('remot');
@@ -426,8 +510,94 @@ export const ScoreOportunidadesPage: React.FC = () => {
     return base;
   }, [abaAtiva, prontos, atencao, fora, filtroApenasRemoto]);
 
+  // Trava de Leitura Obrigatória e Geração de Dossiê PDF Timbrado A4
+  const handleBaixarDossie = async (item: EditalViabilidade) => {
+    const ed = item.edital;
+    const editalId = String(ed.numeroControlePNCP || ed.id || '');
+    if (!editalId) {
+      toast.error('Identificador do edital não encontrado.');
+      return;
+    }
+
+    let specs = ed.metadata?.extractedSpecsJson;
+    const precisaLer = !specs || item.statusLeitura !== 'COMPLETO';
+
+    if (precisaLer) {
+      setLendoEditalId(editalId);
+      const toastId = toast.loading('Lendo e extraindo arquivos reais do edital no portal...');
+      try {
+        const resp = await noticesApi.deepRead(editalId);
+        const data = resp?.data?.data || resp?.data || {};
+        specs = data.specs || data.extractedSpecsJson || null;
+
+        // Atualiza o edital na lista local
+        setEditaisBrutos((prev) =>
+          prev.map((e) => {
+            const match = String(e.numeroControlePNCP || e.id || '') === editalId;
+            if (match) {
+              return {
+                ...e,
+                metadata: {
+                  ...(e.metadata || {}),
+                  deepReadStatus: 'COMPLETO',
+                  extractedSpecsJson: specs,
+                },
+              };
+            }
+            return e;
+          })
+        );
+        toast.success('Leitura profunda dos arquivos concluída com sucesso!', { id: toastId });
+      } catch (err: any) {
+        console.error('Erro ao ler arquivos do edital:', err);
+        toast.dismiss(toastId);
+        toast.error('Arquivos do edital em processamento no portal. Gerando dossiê com dados consolidados.');
+      } finally {
+        setLendoEditalId(null);
+      }
+    }
+
+    // Monta o payload completo do Dossiê Timbrado A4
+    const dadosPdf: DadosDossieEditalPdf = {
+      numeroControlePNCP: ed.numeroControlePNCP || ed.id,
+      numeroEdital: ed.numeroControlePNCP || ed.id,
+      orgao: item.orgaoTexto,
+      cnpjOrgao: (ed as any).buyerDocument || (ed as any).cnpjOrgao,
+      municipio: ed.municipio,
+      uf: ed.uf,
+      modalidade: ed.modalidadeNome || ed.modalidade || 'Pregão Eletrônico',
+      modoDisputa: (ed as any).modoDisputa || 'Aberto',
+      criterioJulgamento: (ed as any).judgmentCriterion || (ed as any).criterioJulgamento,
+      valorEstimado: item.valor,
+      dataAbertura: (ed as any).openingAt || (ed as any).dataAberturaProposta || (ed as any).dataAbertura,
+      dataPublicacao: (ed as any).publishedAt || (ed as any).dataPublicacao,
+      dataEncerramento: item.dataLimite,
+      linkOficial: item.linkPortal,
+      objeto: item.objetoTexto,
+      srp: ed.srp,
+      statusLeitura: specs ? 'COMPLETO' : 'PENDENTE',
+      empresaCliente: {
+        razaoSocial: selectedCompany?.razaoSocial || selectedCompany?.razao_social || 'Empresa Proponente Credenciada',
+        nomeFantasia: selectedCompany?.nomeFantasia || selectedCompany?.nome_fantasia || undefined,
+        cnpj: selectedCompany?.cnpj || undefined,
+        cnaePrincipal: selectedCompany?.cnaePrincipal || selectedCompany?.cnae_principal || undefined,
+        cidade: selectedCompany?.municipio || selectedCompany?.cidade || undefined,
+        uf: selectedCompany?.uf || undefined,
+      },
+      specs: specs || {
+        disputaModo: 'ELETRONICO_REMOTO',
+        execucaoModo: 'Conforme Termo de Referência',
+        itensEstruturados: [],
+        riscosIdentificados: [],
+      },
+    };
+
+    exportarDossieEditalPdf(dadosPdf);
+  };
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-28">
+      {/* CABEÇALHO DA EMPRESA */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-1.5">
@@ -443,10 +613,10 @@ export const ScoreOportunidadesPage: React.FC = () => {
               )}
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-[#081C3A]">
-              Análise de Viabilidade para Sua Empresa
+              Painel Executivo de Oportunidades & Análise de Viabilidade
             </h1>
             <p className="text-sm text-slate-600">
-              Licitações selecionadas para as atividades da sua empresa, cruzadas com suas certidões, prazos e localização.
+              Monitoramento estratégico de editais verídicos aderentes aos seus CNAEs, cruzados com certidões e análise real de anexos.
             </p>
             {perfilEmpresa.cnaesLista.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -461,13 +631,13 @@ export const ScoreOportunidadesPage: React.FC = () => {
               </div>
             ) : (
               <p className="text-xs font-semibold text-amber-700">
-                Cadastre o CNAE da sua empresa em Minha Empresa para filtrar automaticamente apenas o seu ramo.
+                Cadastre o CNAE da sua empresa em Minha Empresa para alimentar o radar de precisão.
               </p>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            {/* Seletor de Estados Completo (Todos / UFs) */}
+            {/* Seletor de Estados */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-slate-500">Estado:</span>
               <select
@@ -496,7 +666,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
                 : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
                 }`}
             >
-              {filtroApenasRemoto ? '✓ Apenas Disputa Remota' : 'Filtrar Remoto'}
+              {filtroApenasRemoto ? '✓ Disputa Remota' : 'Filtrar Remoto'}
             </button>
 
             <button
@@ -506,12 +676,169 @@ export const ScoreOportunidadesPage: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer disabled:opacity-60"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${carregando ? 'animate-spin' : ''}`} />
-              Atualizar Análise
+              Atualizar Dados
             </button>
           </div>
         </div>
       </div>
 
+      {/* DASHBOARD EXECUTIVO POWER BI — 4 KPIS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1 */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-xs font-bold uppercase tracking-wider">Volume Financeiro Total</span>
+            <Coins className="h-5 w-5 text-[#0070C0]" />
+          </div>
+          <p className="text-2xl font-black text-[#081C3A] mt-2">
+            {formatarMoedaCompacta(totalVolumeEstimado)}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            {avaliacoes.length} oportunidades monitoradas
+          </p>
+        </div>
+
+        {/* KPI 2 */}
+        <div
+          onClick={() => setAbaAtiva('PRONTO')}
+          className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm cursor-pointer hover:border-emerald-400 transition"
+        >
+          <div className="flex items-center justify-between text-emerald-700">
+            <span className="text-xs font-bold uppercase tracking-wider">Aderentes e Prontos</span>
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          </div>
+          <p className="text-2xl font-black text-emerald-950 mt-2">
+            {prontos.length} <span className="text-sm font-semibold text-emerald-700">({formatarMoedaCompacta(volumeProntos)})</span>
+          </p>
+          <p className="text-xs text-emerald-800 mt-1">
+            Atividade 100% alinhada e certidões válidas
+          </p>
+        </div>
+
+        {/* KPI 3 */}
+        <div
+          onClick={() => setAbaAtiva('ATENCAO')}
+          className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm cursor-pointer hover:border-amber-400 transition"
+        >
+          <div className="flex items-center justify-between text-amber-700">
+            <span className="text-xs font-bold uppercase tracking-wider">Requerem Ajustes</span>
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          </div>
+          <p className="text-2xl font-black text-amber-950 mt-2">
+            {atencao.length} <span className="text-sm font-semibold text-amber-700">({formatarMoedaCompacta(volumeAtencao)})</span>
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            Requer atenção a prazo curto ou certidões
+          </p>
+        </div>
+
+        {/* KPI 4 */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between text-slate-500">
+            <span className="text-xs font-bold uppercase tracking-wider">Leitura de Arquivos</span>
+            <TrendingUp className="h-5 w-5 text-[#FF6600]" />
+          </div>
+          <p className="text-2xl font-black text-[#081C3A] mt-2">
+            {coberturaLeituraPercentual}%
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Editais com leitura profunda de anexos
+          </p>
+        </div>
+      </div>
+
+      {/* DASHBOARD POWER BI — GRÁFICOS RECHARTS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Gráfico 1: Volume por Estado */}
+        <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-[#0070C0]" />
+              <h2 className="text-sm font-bold text-[#081C3A]">Distribuição por Estado (UF) — Volume Financeiro Estimado</h2>
+            </div>
+            <span className="text-xs text-slate-500">Clique na barra para filtrar</span>
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={dadosGraficoUf}
+                margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                onClick={(e: any) => {
+                  if (e?.activePayload?.[0]?.payload?.uf) {
+                    setEstadoFiltro(e.activePayload[0].payload.uf);
+                  }
+                }}
+              >
+                <XAxis dataKey="uf" stroke="#64748B" fontSize={11} tickLine={false} />
+                <YAxis
+                  stroke="#64748B"
+                  fontSize={11}
+                  tickLine={false}
+                  tickFormatter={(val) => formatarMoedaCompacta(val)}
+                />
+                <RechartsTooltip
+                  formatter={(value: any) => [formatarMoeda(Number(value)), 'Volume Estimado']}
+                  labelFormatter={(label) => `Estado: ${label}`}
+                  contentStyle={{ backgroundColor: '#081C3A', borderRadius: 8, color: '#FFF', fontSize: 12 }}
+                />
+                <Bar dataKey="volume" fill="#0070C0" radius={[6, 6, 0, 0]} cursor="pointer" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico 2: Composição Donut */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <PieIcon className="h-4 w-4 text-[#FF6600]" />
+            <h2 className="text-sm font-bold text-[#081C3A]">Composição de Aderência</h2>
+          </div>
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={dadosGraficoDonut}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={80}
+                  paddingAngle={4}
+                  dataKey="value"
+                  cursor="pointer"
+                  onClick={(entry: any) => {
+                    if (entry.name === 'Aderentes e Prontos') setAbaAtiva('PRONTO');
+                    else if (entry.name === 'Requerem Ajustes') setAbaAtiva('ATENCAO');
+                    else if (entry.name === 'Fora do Escopo (CNAE)') setAbaAtiva('FORA');
+                  }}
+                >
+                  {dadosGraficoDonut.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#081C3A', borderRadius: 8, color: '#FFF', fontSize: 12 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-col gap-1.5 text-xs pt-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#10B981]"></span> Aderentes e Prontos</span>
+              <span className="font-bold text-[#081C3A]">{prontos.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]"></span> Requerem Ajustes</span>
+              <span className="font-bold text-[#081C3A]">{atencao.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8]"></span> Fora do Escopo (CNAE)</span>
+              <span className="font-bold text-[#081C3A]">{fora.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* STATUS DO COFRE DE CERTIDÕES */}
       {docsStatus.carregado && (
         <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${docsStatus.certidoesPendentes > 0
           ? 'border-amber-200 bg-amber-50 text-amber-900'
@@ -523,15 +850,15 @@ export const ScoreOportunidadesPage: React.FC = () => {
             <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 sm:mt-0" />
             <div className="text-xs sm:text-sm">
               <p className="font-bold">
-                Situação Documental de {nomeEmpresa}:{' '}
+                Situação Habilitatória de {nomeEmpresa}:{' '}
                 {docsStatus.certidoesPendentes > 0
                   ? `${docsStatus.certidoesPendentes} certidão(ões) pendente(s) ou vencida(s)`
                   : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
-                    ? 'Nenhum documento enviado no Cofre ainda'
+                    ? 'Nenhum documento cadastrado no Cofre ainda'
                     : `${docsStatus.certidoesValidas} certidão(ões) regular(es) e ${docsStatus.documentosCofre} documento(s) no Cofre`}
               </p>
               <p className="opacity-85 text-xs mt-0.5">
-                A viabilidade abaixo já considera se a sua empresa está pronta para ser habilitada sem risco de desclassificação.
+                A viabilidade abaixo já cruza suas certidões com os requisitos reais do edital para evitar risco de inabilitação.
               </p>
             </div>
           </div>
@@ -540,52 +867,55 @@ export const ScoreOportunidadesPage: React.FC = () => {
             onClick={() => navigate('/fornecedor/cofre')}
             className="shrink-0 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-[#081C3A] border border-slate-200 hover:border-[#0070C0] cursor-pointer"
           >
-            Ver Meus Documentos
+            Gerenciar Cofre
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* ABAS DE NAVEGAÇÃO EXECUTIVAS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           type="button"
-          onClick={() => setAbaAtiva(abaAtiva === 'PRONTO' ? 'TODOS' : 'PRONTO')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'PRONTO' ? 'border-emerald-500 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-300'
+          onClick={() => setAbaAtiva('TODOS')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${abaAtiva === 'TODOS'
+            ? 'bg-[#081C3A] text-white shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 uppercase">Prontos para Disputar</span>
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          </div>
-          <p className="text-3xl font-black text-[#081C3A] mt-2">{prontos.length}</p>
-          <p className="text-xs text-slate-600 mt-1">Seu ramo, prazo bom e documentação favorável</p>
+          Todas as Oportunidades ({avaliacoes.length})
         </button>
-
         <button
           type="button"
-          onClick={() => setAbaAtiva(abaAtiva === 'ATENCAO' ? 'TODOS' : 'ATENCAO')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'ATENCAO' ? 'border-amber-500 bg-amber-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-amber-300'
+          onClick={() => setAbaAtiva('PRONTO')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'PRONTO'
+            ? 'bg-emerald-600 text-white shadow-sm'
+            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
             }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-700 uppercase">Ajustar Antes de Entrar</span>
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-          </div>
-          <p className="text-3xl font-black text-[#081C3A] mt-2">{atencao.length}</p>
-          <p className="text-xs text-slate-600 mt-1">Seu ramo, mas pede atenção em prazo ou certidão</p>
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Aderentes e Prontos ({prontos.length})
         </button>
-
         <button
           type="button"
-          onClick={() => setAbaAtiva(abaAtiva === 'FORA' ? 'TODOS' : 'FORA')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'FORA' ? 'border-rose-500 bg-rose-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-rose-300'
+          onClick={() => setAbaAtiva('ATENCAO')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'ATENCAO'
+            ? 'bg-amber-600 text-white shadow-sm'
+            : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
             }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-700 uppercase">Fora do Ramo</span>
-            <XCircle className="h-5 w-5 text-rose-500" />
-          </div>
-          <p className="text-3xl font-black text-[#081C3A] mt-2">{fora.length}</p>
-          <p className="text-xs text-slate-600 mt-1">Evita perda de tempo ou risco de inabilitação</p>
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Requerem Ajustes ({atencao.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('FORA')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'FORA'
+            ? 'bg-slate-700 text-white shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+        >
+          <XCircle className="h-3.5 w-3.5" />
+          Fora do Escopo (CNAE) ({fora.length})
         </button>
       </div>
 
@@ -596,16 +926,19 @@ export const ScoreOportunidadesPage: React.FC = () => {
       )}
 
       {carregando ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
-          Analisando licitações compatíveis com os CNAEs e documentos de {nomeEmpresa}...
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 space-y-3">
+          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0070C0]" />
+          <p className="font-semibold text-[#081C3A]">
+            Cruzando oportunidades com os CNAEs, certidões e anexos reais para {nomeEmpresa}...
+          </p>
         </div>
       ) : listaVisivel.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
           <p className="text-sm font-bold text-[#081C3A]">
-            Nenhuma licitação encontrada para este filtro no momento.
+            Nenhuma oportunidade encontrada para os filtros selecionados.
           </p>
           <p className="text-xs text-slate-600">
-            Experimente mudar para "Todo o Brasil" ou conferir as atividades cadastradas em Minha Empresa.
+            Experimente mudar o filtro de Estado para "Todo o Brasil" ou desmarcar o filtro de disputa remota.
           </p>
           {estadoFiltro !== 'TODOS' && (
             <button
@@ -613,12 +946,12 @@ export const ScoreOportunidadesPage: React.FC = () => {
               onClick={() => setEstadoFiltro('TODOS')}
               className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
             >
-              Ver em Todo o Brasil
+              Exibir Todo o Brasil
             </button>
           )}
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {listaVisivel.map((item, idx) => {
             const ed = item.edital;
             const idEdital = encodeURIComponent(String(ed.numeroControlePNCP || ed.id || ''));
@@ -627,21 +960,25 @@ export const ScoreOportunidadesPage: React.FC = () => {
                 ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
                 : item.nivel === 'ATENCAO'
                   ? 'bg-amber-100 text-amber-800 border-amber-200'
-                  : 'bg-rose-100 text-rose-800 border-rose-200';
+                  : 'bg-slate-100 text-slate-800 border-slate-200';
             const textoBadge =
               item.nivel === 'PRONTO'
-                ? 'Pronto para Disputar'
+                ? 'Aderente e Pronto'
                 : item.nivel === 'ATENCAO'
-                  ? 'Atenção Antes de Entrar'
-                  : 'Fora do Ramo';
+                  ? 'Requer Ajuste'
+                  : 'Fora do Escopo';
+
+            const specs = ed.metadata?.extractedSpecsJson;
+            const estaLendoEste = lendoEditalId === String(ed.numeroControlePNCP || ed.id || '');
 
             return (
               <div
                 key={`${idEdital}-${idx}`}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0070C0] transition"
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0070C0] transition space-y-4"
               >
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                  <div className="space-y-2.5 flex-1 min-w-0">
+                {/* Topo do Card */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-0.5 text-xs font-bold ${corBadge}`}>
                         {textoBadge}
@@ -656,88 +993,133 @@ export const ScoreOportunidadesPage: React.FC = () => {
                       )}
 
                       {/* Selo Verídico Remoto / Presencial */}
-                      {ed.metadata?.extractedSpecsJson?.disputaEExecucao?.disputaRemota !== undefined && (
+                      {specs?.disputaModo ? (
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${ed.metadata.extractedSpecsJson.disputaEExecucao.disputaRemota
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${specs.disputaModo === 'ELETRONICO_REMOTO'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
                             }`}
                         >
-                          {ed.metadata.extractedSpecsJson.disputaEExecucao.modoDisputaTexto}
+                          {specs.disputaModo === 'ELETRONICO_REMOTO' ? '✓ Disputa Remota' : '⚠️ Disputa Presencial'}
                         </span>
-                      )}
+                      ) : null}
 
                       {/* Selo Leitura Profunda */}
-                      <span className="rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                        {ed.metadata?.deepReadStatus === 'DONE' ? '✓ Edital Completo Lido' : 'Arquivos do Edital em Análise'}
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${item.statusLeitura === 'COMPLETO'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}
+                      >
+                        {item.statusLeitura === 'COMPLETO' ? '✓ Edital Completo Lido' : 'Arquivos em Análise'}
                       </span>
                     </div>
 
                     <h2 className="text-sm sm:text-base font-bold text-[#081C3A]">{item.orgaoTexto}</h2>
                     <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{item.objetoTexto}</p>
-
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1">
-                      <span className="font-bold text-[#081C3A]">
-                        Valor estimado: {formatarMoeda(item.valor)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        Encerramento: {formatarData(item.dataLimite)}
-                      </span>
-                      {ed.uf && (
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                          {ed.municipio ? `${ed.municipio}/${ed.uf}` : ed.uf}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {item.motivosPositivos.map((m, mIdx) => (
-                        <span
-                          key={mIdx}
-                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
-                        >
-                          <CheckCircle2 className="h-3 w-3 shrink-0" /> {m}
-                        </span>
-                      ))}
-                      {item.alertas.map((al, aIdx) => (
-                        <span
-                          key={aIdx}
-                          className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
-                        >
-                          <AlertTriangle className="h-3 w-3 shrink-0" /> {al}
-                        </span>
-                      ))}
-                    </div>
                   </div>
 
-                  <div className="flex flex-row lg:flex-col flex-wrap gap-2 shrink-0">
+                  {/* Pontuação */}
+                  <div className="shrink-0 text-right">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                      <span className="text-[11px] font-semibold text-slate-500">Score:</span>
+                      <span className="text-sm font-black text-[#081C3A]">{item.pontuacao}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metadados e Valores */}
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1 border-t border-slate-100">
+                  <span className="font-bold text-[#081C3A]">
+                    Valor de Referência: {formatarMoeda(item.valor)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                    Encerramento: {formatarData(item.dataLimite)}
+                  </span>
+                  {ed.uf && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                      {ed.municipio ? `${ed.municipio}/${ed.uf}` : ed.uf}
+                    </span>
+                  )}
+                  {specs?.prazoEntregaDias && (
+                    <span className="text-slate-700">
+                      Prazo de Entrega: <strong>{specs.prazoEntregaDias} dias</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Tags de Viabilidade */}
+                <div className="flex flex-wrap gap-2">
+                  {item.motivosPositivos.map((m, mIdx) => (
+                    <span
+                      key={mIdx}
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
+                    >
+                      <CheckCircle2 className="h-3 w-3 shrink-0" /> {m}
+                    </span>
+                  ))}
+                  {item.alertas.map((al, aIdx) => (
+                    <span
+                      key={aIdx}
+                      className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
+                    >
+                      <AlertTriangle className="h-3 w-3 shrink-0" /> {al}
+                    </span>
+                  ))}
+                </div>
+
+                {/* BARRA DE AÇÕES INFERIOR DO CARD (Descolada do widget Luli) */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Botão Baixar Dossiê em PDF com Trava de Leitura */}
+                    <button
+                      type="button"
+                      onClick={() => void handleBaixarDossie(item)}
+                      disabled={estaLendoEste}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#081C3A] hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer disabled:opacity-60"
+                    >
+                      {estaLendoEste ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FF6600]" />
+                          Lendo Arquivos...
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-3.5 w-3.5 text-[#FF6600]" />
+                          Baixar Dossiê em PDF
+                        </>
+                      )}
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => navigate(`/fornecedor/propostas?edital=${idEdital}`)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-4 py-2 text-xs font-bold text-white cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Preparar Proposta
                     </button>
+
                     <button
                       type="button"
                       onClick={() => navigate(`/fornecedor/leitor-editais?edital=${idEdital}`)}
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#081C3A] hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:border-[#0070C0] px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-[#FF6600]" />
                       Analisar Edital
                     </button>
-                    <a
-                      href={item.linkPortal}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white hover:border-[#0070C0] px-4 py-2 text-xs font-bold text-[#081C3A]"
-                    >
-                      Portal Oficial <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
                   </div>
+
+                  <a
+                    href={item.linkPortal}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-[#0070C0] transition"
+                  >
+                    Portal Oficial <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
             );

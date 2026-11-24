@@ -278,6 +278,7 @@ const PROCUREMENT_NOTICE_ENXUTO_SELECT = {
   status: true,
   srp: true,
   source: true,
+  metadata: true,
 } as const;
 
 export function extractPncpAuditParams(
@@ -1131,6 +1132,9 @@ export async function listarLicitacoes(
       fonte: r.source || 'PNCP',
       tipoObjeto,
       score: calcularScoreItem(obj, r.uf, valorEstimado, openDate, companyProfile),
+      metadata: r.metadata || null,
+      deepAnalysis: r.metadata?.extractedSpecsJson || (r.metadata && typeof r.metadata === 'object' ? (r.metadata as any).extractedSpecsJson : null) || null,
+      statusLeitura: (r.metadata as any)?.deepReadStatus || ((r.metadata as any)?.extractedSpecsJson ? 'COMPLETO' : 'PENDENTE'),
     };
   };
 
@@ -1183,7 +1187,8 @@ export async function listarLicitacoes(
         id, external_id, numero_controle_pncp, notice_number, url,
         buyer_document, buyer_name, estimated_value, published_at,
         opening_at, closing_at, uf, municipality, object, modality,
-        modo_disputa, judgment_criterion, status, srp, source, object_type
+        modo_disputa, judgment_criterion, status, srp, source, object_type,
+        metadata
       FROM procurement_notices
       WHERE ${built.fullWhereSql}
       ORDER BY ${built.orderBySql}

@@ -71,7 +71,7 @@ function requestSessionRefresh() {
 // ─── Instância Axios ──────────────────────────────────────────────────────────
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 45000,
+  timeout: 75000,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -462,6 +462,8 @@ export const noticesApi = {
     api.post('/notices/batch-score', { noticeIds }),
   getDownloadUrl: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/download-url`),
   getItens: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/itens`),
+  deepRead: (id: string, force = false) =>
+    api.post(`/notices/${encodeURIComponent(id)}/deep-read`, { force }),
 };
 
 export const concorrentesApi = {

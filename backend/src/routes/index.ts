@@ -1026,6 +1026,16 @@ router.get(
   ),
 );
 
+router.post(
+  '/notices/:id/deep-read',
+  requirePlanFeature('radar_editais'),
+  handle(
+    notices.deepRead.bind(
+      notices,
+    ) as RequestHandler,
+  ),
+);
+
 router.get(
   '/notices/:id/basic-summary',
   requirePlanFeature(

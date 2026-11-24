@@ -10,6 +10,8 @@ import { documentGenerationService } from '../services/document-generation.servi
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { gerarEsqueletoImpugnacao } from '../services/impugnacao.service';
+import { preencherTextoEditalAutomaticamente } from '../services/pncp-parser.service';
+import { EditalDeepAnalyzerService } from '../services/edital-deep-analyzer.service';
 
 export class NoticesController {
   constructor(
@@ -310,6 +312,52 @@ export class NoticesController {
     } catch (error) {
       console.error('[NoticesController] Erro ao gerar minuta:', error);
       return res.status(500).json({ success: false, message: 'Erro ao gerar minuta de impugnação' });
+    }
+  }
+
+  async deepRead(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const notice = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [{ id: noticeId }, { externalId: noticeId }, { dedupeKey: `pncp-${noticeId}` }],
+        },
+      });
+
+      if (!notice) {
+        return res.status(404).json({ success: false, message: 'Edital não encontrado para leitura profunda' });
+      }
+
+      const force = req.query.force === 'true' || req.body?.force === true;
+      const meta = (notice.metadata as Record<string, any>) || {};
+      if (!force && meta.extractedSpecsJson && meta.deepReadStatus === 'COMPLETO') {
+        return res.json({
+          success: true,
+          data: {
+            noticeId: notice.id,
+            status: 'COMPLETO',
+            specs: meta.extractedSpecsJson,
+          },
+        });
+      }
+
+      // 1. Extração dos arquivos reais (PDF / DOCX / ZIP) caso ainda não estejam em document_chunks
+      await preencherTextoEditalAutomaticamente(notice.id);
+
+      // 2. Análise profunda e estruturada (especificações, riscos, regras de disputa e execução)
+      const ficha = await EditalDeepAnalyzerService.processarEditalPorId(notice.id);
+
+      return res.json({
+        success: true,
+        data: {
+          noticeId: notice.id,
+          status: ficha ? 'COMPLETO' : 'SEM_ARQUIVOS',
+          specs: ficha,
+        },
+      });
+    } catch (error: any) {
+      console.error('[NoticesController] Erro na leitura profunda do edital:', error);
+      return res.status(500).json({ success: false, message: error?.message || 'Erro ao processar leitura profunda do edital' });
     }
   }
 }
