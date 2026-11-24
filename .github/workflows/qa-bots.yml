@@ -1,8 +1,6 @@
 name: QA Bots Multi-CNAE (Continuidade e Regressao)
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
