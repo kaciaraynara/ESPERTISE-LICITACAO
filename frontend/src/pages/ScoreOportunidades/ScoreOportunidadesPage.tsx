@@ -12,12 +12,12 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
-  TrendingUp,
   XCircle,
   BarChart3,
   PieChart as PieIcon,
   Coins,
   Loader2,
+  Globe,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -457,11 +457,19 @@ export const ScoreOportunidadesPage: React.FC = () => {
     return atencao.reduce((acc, curr) => acc + (curr.valor || 0), 0);
   }, [atencao]);
 
-  const coberturaLeituraPercentual = useMemo(() => {
-    if (avaliacoes.length === 0) return 0;
-    const lidos = avaliacoes.filter((a) => a.statusLeitura === 'COMPLETO').length;
-    return Math.round((lidos / avaliacoes.length) * 100);
+  const disputasRemotas = useMemo(() => {
+    return avaliacoes.filter((it) => {
+      const specs = it.edital?.metadata?.extractedSpecsJson;
+      if (specs?.disputaModo === 'ELETRONICO_REMOTO') return true;
+      if (specs?.disputaEExecucao?.disputaRemota === true) return true;
+      const texto = (it.objetoTexto + ' ' + (it.edital?.modalidade || '')).toLowerCase();
+      return texto.includes('eletrônic') || texto.includes('eletronic') || texto.includes('remot');
+    });
   }, [avaliacoes]);
+
+  const volumeRemotas = useMemo(() => {
+    return disputasRemotas.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  }, [disputasRemotas]);
 
   // Dados para os Gráficos Power BI
   const dadosGraficoUf = useMemo(() => {
@@ -578,11 +586,11 @@ export const ScoreOportunidadesPage: React.FC = () => {
       statusLeitura: specs ? 'COMPLETO' : 'PENDENTE',
       empresaCliente: {
         razaoSocial: selectedCompany?.razaoSocial || selectedCompany?.razao_social || 'Empresa Proponente Credenciada',
-        nomeFantasia: selectedCompany?.nomeFantasia || selectedCompany?.nome_fantasia || undefined,
-        cnpj: selectedCompany?.cnpj || undefined,
-        cnaePrincipal: selectedCompany?.cnaePrincipal || selectedCompany?.cnae_principal || undefined,
-        cidade: selectedCompany?.municipio || selectedCompany?.cidade || undefined,
-        uf: selectedCompany?.uf || undefined,
+        nomeFantasia: selectedCompany?.nomeFantasia || selectedCompany?.nome_fantasia,
+        cnpj: selectedCompany?.cnpj,
+        cnaePrincipal: selectedCompany?.cnaePrincipal || selectedCompany?.cnae_principal,
+        cidade: selectedCompany?.municipio || selectedCompany?.cidade,
+        uf: selectedCompany?.uf,
       },
       specs: specs || {
         disputaModo: 'ELETRONICO_REMOTO',
@@ -616,7 +624,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
               Painel Executivo de Oportunidades & Análise de Viabilidade
             </h1>
             <p className="text-sm text-slate-600">
-              Monitoramento estratégico de editais verídicos aderentes aos seus CNAEs, cruzados com certidões e análise real de anexos.
+              Oportunidades públicas selecionadas para o seu negócio, com análise prática para você decidir onde vale a pena disputar.
             </p>
             {perfilEmpresa.cnaesLista.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -733,16 +741,22 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
 
         {/* KPI 4 */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div
+          onClick={() => setFiltroApenasRemoto(!filtroApenasRemoto)}
+          className={`rounded-2xl border p-4 shadow-sm cursor-pointer transition ${filtroApenasRemoto
+            ? 'border-emerald-500 bg-emerald-50/70'
+            : 'border-slate-200 bg-white hover:border-[#0070C0]'
+            }`}
+        >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-bold uppercase tracking-wider">Leitura de Arquivos</span>
-            <TrendingUp className="h-5 w-5 text-[#FF6600]" />
+            <span className="text-xs font-bold uppercase tracking-wider">Disputas Remotas</span>
+            <Globe className="h-5 w-5 text-[#0070C0]" />
           </div>
           <p className="text-2xl font-black text-[#081C3A] mt-2">
-            {coberturaLeituraPercentual}%
+            {disputasRemotas.length} <span className="text-sm font-semibold text-slate-500">({formatarMoedaCompacta(volumeRemotas)})</span>
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Editais com leitura profunda de anexos
+            {filtroApenasRemoto ? '✓ Filtro remoto ativo (clique para limpar)' : 'Pregões 100% eletrônicos e online'}
           </p>
         </div>
       </div>
@@ -850,15 +864,15 @@ export const ScoreOportunidadesPage: React.FC = () => {
             <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 sm:mt-0" />
             <div className="text-xs sm:text-sm">
               <p className="font-bold">
-                Situação Habilitatória de {nomeEmpresa}:{' '}
+                Documentação e Certidões de {nomeEmpresa}:{' '}
                 {docsStatus.certidoesPendentes > 0
-                  ? `${docsStatus.certidoesPendentes} certidão(ões) pendente(s) ou vencida(s)`
+                  ? `${docsStatus.certidoesPendentes} certidão(ões) pendente(s) ou a renovar`
                   : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
                     ? 'Nenhum documento cadastrado no Cofre ainda'
-                    : `${docsStatus.certidoesValidas} certidão(ões) regular(es) e ${docsStatus.documentosCofre} documento(s) no Cofre`}
+                    : `${docsStatus.certidoesValidas} certidão(ões) regular(es) e ${docsStatus.documentosCofre} documento(s) arquivado(s)`}
               </p>
               <p className="opacity-85 text-xs mt-0.5">
-                A viabilidade abaixo já cruza suas certidões com os requisitos reais do edital para evitar risco de inabilitação.
+                Mantenha suas certidões em dia para disputar e vencer contratos com segurança jurídica.
               </p>
             </div>
           </div>
@@ -986,33 +1000,31 @@ export const ScoreOportunidadesPage: React.FC = () => {
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                         {ed.modalidadeNome || ed.modalidade || 'Licitação'}
                       </span>
-                      {ed.srp && (
-                        <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
-                          Registro de Preços
-                        </span>
-                      )}
 
-                      {/* Selo Verídico Remoto / Presencial */}
-                      {specs?.disputaModo ? (
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${specs.disputaModo === 'ELETRONICO_REMOTO'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                        >
-                          {specs.disputaModo === 'ELETRONICO_REMOTO' ? '✓ Disputa Remota' : '⚠️ Disputa Presencial'}
+                      {/* Selo de Disputa Remota vs Presencial */}
+                      {specs?.disputaModo === 'ELETRONICO_REMOTO' || (item.objetoTexto + ' ' + (ed.modalidade || '')).toLowerCase().includes('eletrônic') ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-emerald-50 text-emerald-800 border-emerald-200">
+                          Sessão Online / Remota
+                        </span>
+                      ) : specs?.disputaModo === 'PRESENCIAL' ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200">
+                          Disputa Presencial
                         </span>
                       ) : null}
 
-                      {/* Selo Leitura Profunda */}
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${item.statusLeitura === 'COMPLETO'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}
-                      >
-                        {item.statusLeitura === 'COMPLETO' ? '✓ Edital Completo Lido' : 'Arquivos em Análise'}
-                      </span>
+                      {/* Selo ME/EPP */}
+                      {(item.valor !== null && item.valor <= 80000) && (
+                        <span className="rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+                          Exclusivo ME/EPP
+                        </span>
+                      )}
+
+                      {/* Selo SRP */}
+                      {ed.srp && (
+                        <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
+                          Registro de Preços
+                        </span>
+                      )}
                     </div>
 
                     <h2 className="text-sm sm:text-base font-bold text-[#081C3A]">{item.orgaoTexto}</h2>
@@ -1050,9 +1062,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Tags de Viabilidade */}
+                {/* Tags de Viabilidade (No máximo 3 destaques objetivos) */}
                 <div className="flex flex-wrap gap-2">
-                  {item.motivosPositivos.map((m, mIdx) => (
+                  {item.motivosPositivos.slice(0, 3).map((m, mIdx) => (
                     <span
                       key={mIdx}
                       className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
@@ -1060,7 +1072,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
                       <CheckCircle2 className="h-3 w-3 shrink-0" /> {m}
                     </span>
                   ))}
-                  {item.alertas.map((al, aIdx) => (
+                  {item.alertas.slice(0, 2).map((al, aIdx) => (
                     <span
                       key={aIdx}
                       className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
