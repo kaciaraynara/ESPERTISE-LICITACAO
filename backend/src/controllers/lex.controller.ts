@@ -71,52 +71,189 @@ const EXPERTISE_TOOLS_MAP = `
 - Academia do Licitante: trilhas praticas de capacitacao em licitacoes e Lei 14.133/2021.
 `;
 
-async function fetchPncpLinkContext(texto: string): Promise<string> {
+async function fetchEditalFullContext(identificadorOuTexto: string): Promise<string> {
+  if (!identificadorOuTexto || !identificadorOuTexto.trim()) return '';
+  const texto = identificadorOuTexto.trim();
+
+  // Extrai potenciais identificadores
+  const uuidMatch = texto.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
   const urlMatch = texto.match(/pncp\.gov\.br\/app\/editais\/(\d{14})\/(\d{4})\/(\d+)/i);
   const ctrlMatch = texto.match(/(\d{14})-\d+-(\d+)\/(\d{4})/);
-  const cnpj = urlMatch?.[1] || ctrlMatch?.[1];
-  const ano = urlMatch?.[2] || ctrlMatch?.[3];
-  const seq = urlMatch?.[3] || (ctrlMatch?.[2] ? String(Number(ctrlMatch[2])) : undefined);
-  if (!cnpj || !ano || !seq) return '';
+
+  let idCandidato = uuidMatch?.[0] || ctrlMatch?.[0] || '';
+  if (!idCandidato && !urlMatch) {
+    const primeiroToken = texto.split(/[\s,]+/)[0];
+    if (primeiroToken && (primeiroToken.length >= 8 || primeiroToken.includes('.'))) {
+      idCandidato = primeiroToken;
+    }
+  }
 
   try {
-    const baseCompra = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}`;
-    const baseItens = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/itens`;
-    const baseArqs = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/arquivos`;
+    let notice: any = null;
 
-    const [compraRes, itensRes, arqsRes] = await Promise.allSettled([
-      fetch(baseCompra, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
-      fetch(baseItens, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
-      fetch(baseArqs, { headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' }, signal: AbortSignal.timeout(8000) }),
-    ]);
+    // 1. Busca no banco de dados local PostgreSQL com items e attachments
+    if (idCandidato) {
+      notice = await prisma.procurementNotice.findFirst({
+        where: {
+          OR: [
+            ...(uuidMatch ? [{ id: uuidMatch[0] }] : []),
+            { numeroControlePncp: idCandidato },
+            { externalId: idCandidato },
+            { dedupeKey: `pncp-${idCandidato}` },
+            { dedupeKey: idCandidato },
+            { noticeNumber: idCandidato },
+          ],
+        },
+        include: {
+          items: { orderBy: { itemNumber: 'asc' }, take: 40 },
+          attachments: { select: { fileName: true, extractedText: true }, take: 5 },
+        },
+      });
+    }
 
-    if (compraRes.status !== 'fulfilled' || !compraRes.value.ok) return '';
-    const compra: any = await compraRes.value.json();
-    const itens = (itensRes.status === 'fulfilled' && itensRes.value.ok ? await itensRes.value.json().catch(() => []) : []) as any[];
-    const arqs = (arqsRes.status === 'fulfilled' && arqsRes.value.ok ? await arqsRes.value.json().catch(() => []) : []) as any[];
+    // 2. Se não localizou no banco, busca na base remota oficial do PNCP
+    if (!notice && (idCandidato || urlMatch)) {
+      try {
+        const idParaBuscar = idCandidato || (urlMatch ? `${urlMatch[1]}-1-${urlMatch[3]}/${urlMatch[2]}` : '');
+        if (idParaBuscar) {
+          const licitacaoRemota = await buscarLicitacaoPorIdOuControle(idParaBuscar, { requirePersistence: false });
+          if (licitacaoRemota) {
+            notice = {
+              noticeNumber: licitacaoRemota.numeroEdital || licitacaoRemota.numeroCompra,
+              processoAdministrativo: licitacaoRemota.processo,
+              numeroControlePncp: licitacaoRemota.numeroControlePNCP,
+              buyerName: licitacaoRemota.orgao,
+              buyerDocument: licitacaoRemota.cnpjOrgao,
+              object: licitacaoRemota.objeto,
+              uf: licitacaoRemota.uf,
+              municipality: licitacaoRemota.municipio,
+              estimatedValue: licitacaoRemota.valorEstimado,
+              modality: licitacaoRemota.modalidade,
+              modoDisputa: licitacaoRemota.modoDisputa,
+              srp: licitacaoRemota.srp,
+              publishedAt: licitacaoRemota.dataPublicacao,
+              openingAt: licitacaoRemota.dataAbertura,
+              closingAt: licitacaoRemota.dataEncerramento,
+              items: (licitacaoRemota as any).items || (licitacaoRemota as any).itens || [],
+            };
+          }
+        }
+      } catch (errBusca) {
+        console.warn('[fetchEditalFullContext] Falha na busca remota do PNCP:', errBusca);
+      }
+    }
 
-    const itensResumo = Array.isArray(itens) && itens.length > 0
-      ? itens.slice(0, 12).map((it: any, i: number) => `  ${i + 1}. ${it.descricao || it.materialOuServicoNome || 'Item'} | Qtd: ${it.quantidade ?? '-'} ${it.unidadeMedida || ''} | Ref.: R$ ${it.valorUnitarioEstimado ?? '-'} | Sugestao Competitiva (-8%): R$ ${it.valorUnitarioEstimado ? (Number(it.valorUnitarioEstimado) * 0.92).toFixed(2) : 'N/I'}`).join('\n')
-      : '  Itens não listados separadamente na API.';
+    // 3. Fallback via API direta de compras/itens do PNCP caso tenha dados de URL
+    if (!notice && (urlMatch || ctrlMatch)) {
+      const cnpj = urlMatch?.[1] || ctrlMatch?.[1];
+      const ano = urlMatch?.[2] || ctrlMatch?.[3];
+      const seq = urlMatch?.[3] || (ctrlMatch?.[2] ? String(Number(ctrlMatch[2])) : undefined);
+      if (cnpj && ano && seq) {
+        const baseCompra = `https://pncp.gov.br/api/consulta/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}`;
+        const baseItens = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${Number(seq)}/itens`;
+        const [compraRes, itensRes] = await Promise.allSettled([
+          fetch(baseCompra, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(7000) }),
+          fetch(baseItens, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(7000) }),
+        ]);
+        if (compraRes.status === 'fulfilled' && compraRes.value.ok) {
+          const c: any = await compraRes.value.json();
+          const itList = itensRes.status === 'fulfilled' && itensRes.value.ok ? await itensRes.value.json().catch(() => []) : [];
+          notice = {
+            noticeNumber: c.numeroCompra || c.processo,
+            numeroControlePncp: c.numeroControlePNCP,
+            buyerName: c.orgaoEntidade?.razaoSocial,
+            buyerDocument: cnpj,
+            object: c.objetoCompra,
+            uf: c.unidadeOrgao?.ufSigla,
+            municipality: c.unidadeOrgao?.municipioNome,
+            estimatedValue: c.valorTotalEstimado,
+            modality: c.modalidadeNome,
+            modoDisputa: c.modoDisputaNome,
+            srp: c.srp,
+            publishedAt: c.dataPublicacaoPncp,
+            openingAt: c.dataAberturaProposta,
+            closingAt: c.dataEncerramentoProposta,
+            items: Array.isArray(itList) ? itList.map((it: any) => ({
+              itemNumber: it.numeroItem,
+              description: it.descricao || it.materialOuServicoNome,
+              quantity: it.quantidade,
+              unitOfMeasure: it.unidadeMedida,
+              unitPrice: it.valorUnitarioEstimado,
+              totalPrice: it.valorTotal,
+            })) : [],
+          };
+        }
+      }
+    }
 
-    const arqsResumo = Array.isArray(arqs) && arqs.length > 0
-      ? arqs.slice(0, 5).map((a: any) => `  - ${a.titulo || a.tipoDocumentoNome || 'Documento'}: ${a.url || ''}`).join('\n')
-      : '  Sem anexos listados.';
+    if (!notice) return '';
 
-    return `\n[DADOS OFICIAIS OBTIDOS DO PNCP PARA O LINK INFORMADO]
-Número Controle PNCP: ${compra.numeroControlePNCP || ''}
-Órgão: ${compra.orgaoEntidade?.razaoSocial || ''} (CNPJ: ${cnpj}) - ${compra.unidadeOrgao?.municipioNome || ''}/${compra.unidadeOrgao?.ufSigla || ''}
-Modalidade: ${compra.modalidadeNome || ''} | Modo de Disputa: ${compra.modoDisputaNome || ''} | SRP: ${compra.srp ? 'Sim' : 'Não'}
-Objeto: ${compra.objetoCompra || ''}
-Informação Complementar: ${compra.informacaoComplementar || 'Nenhuma'}
-Valor Total Estimado: R$ ${compra.valorTotalEstimado ?? 'Não informado'}
-Publicação: ${compra.dataPublicacaoPncp || ''} | Abertura Propostas: ${compra.dataAberturaProposta || ''} | Encerramento: ${compra.dataEncerramentoProposta || ''}
-Portal Origem: ${compra.linkSistemaOrigem || compra.usuarioNome || ''}
-Principais Itens:
-${itensResumo}
-Arquivos/Anexos Oficiais:
-${arqsResumo}`;
-  } catch {
+    // Formatação de valores e datas
+    const valorEstimadoFmt = notice.estimatedValue != null && Number(notice.estimatedValue) > 0
+      ? `R$ ${Number(notice.estimatedValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      : 'Orçamento Sigiloso / Consolidado nos Itens';
+
+    const formatData = (d: any) => {
+      if (!d) return 'Não informada';
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return String(d);
+        return dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      } catch {
+        return String(d);
+      }
+    };
+
+    // Formatação dos itens reais da licitação
+    const rawItens = notice.items || [];
+    let itensFormatados = 'Itens não desmembrados separadamente na base.';
+    if (Array.isArray(rawItens) && rawItens.length > 0) {
+      itensFormatados = rawItens
+        .slice(0, 25)
+        .map((it: any, i: number) => {
+          const num = it.itemNumber || it.numeroItem || it.numero || i + 1;
+          const desc = it.description || it.descricao || it.especificacao || 'Item';
+          const qtd = it.quantity || it.quantidade || 1;
+          const unid = it.unitOfMeasure || it.unidadeMedida || it.unidade || 'UN';
+          const vUnit = Number(it.unitPrice || it.valorUnitario || it.valorUnitarioEstimado || 0);
+          const vTot = Number(it.totalPrice || it.valorTotal || it.valorTotalEstimado || (vUnit > 0 ? vUnit * Number(qtd) : 0));
+          return `  Item #${num}: ${desc} | Qtd: ${qtd} ${unid} | Vlr. Unit. Ref: ${vUnit > 0 ? `R$ ${vUnit.toFixed(2)}` : 'Ver edital'} | Total: ${vTot > 0 ? `R$ ${vTot.toFixed(2)}` : 'Ver edital'}`;
+        })
+        .join('\n');
+    }
+
+    // Trechos de anexos do termo de referência
+    const anexosTextos = Array.isArray(notice.attachments) && notice.attachments.length > 0
+      ? notice.attachments
+          .filter((a: any) => a.extractedText && a.extractedText.trim().length > 20)
+          .map((a: any) => `[ANEXO: ${a.fileName}]\n${a.extractedText.slice(0, 3000)}`)
+          .join('\n\n')
+      : '';
+
+    return `\n[DOSSIÊ TÉCNICO OFICIAL DO EDITAL - BASE DE DADOS DO GOVERNO / PNCP]
+Número do Edital / Compra: ${notice.noticeNumber || notice.numeroControlePncp || 'Edital Oficial'}
+Processo Administrativo: ${notice.processoAdministrativo || 'Processo Administrativo Oficial'}
+Número de Controle PNCP: ${notice.numeroControlePncp || 'Sincronizado'}
+Órgão Convocador: ${notice.buyerName || 'Órgão Licitante'} (CNPJ: ${notice.buyerDocument || 'Órgão Público'})
+Localização: ${[notice.municipality, notice.uf].filter(Boolean).join(' - ') || 'Nacional'}
+Modalidade: ${notice.modality || 'Pregão Eletrônico'} | Modo de Disputa: ${notice.modoDisputa || 'Aberto e Fechado'} | SRP: ${notice.srp ? 'Sim (Registro de Preços)' : 'Não (Contratação Imediata)'}
+Amparo Legal: Lei Federal nº 14.133/2021
+OBJETO INTEGRAL:
+${notice.object || 'Objeto constante no edital e termo de referência.'}
+
+VALOR ESTIMADO GLOBAL: ${valorEstimadoFmt}
+
+CRONOGRAMA OFICIAL:
+- Publicação: ${formatData(notice.publishedAt)}
+- Abertura de Propostas: ${formatData(notice.openingAt)}
+- Sessão de Disputa / Lances: ${formatData(notice.closingAt || notice.openingAt)}
+- Prazo Fatal de Impugnação / Esclarecimento: Até 3 dias úteis anteriores à sessão (Art. 164 da Lei 14.133/2021)
+
+RELAÇÃO OFICIAL DE ITENS DO CERTAME:
+${itensFormatados}
+${anexosTextos ? `\nTRECHOS DO TERMO DE REFERÊNCIA / ANEXOS:\n${anexosTextos}` : ''}`;
+  } catch (error) {
+    console.warn('[fetchEditalFullContext] Erro ao carregar contexto completo do edital:', error);
     return '';
   }
 }
@@ -308,7 +445,10 @@ export class LexController {
       }
 
       const resolvedId = noticeId || licitacaoId || edital_id;
-      const documentText = (contextoEdital || contexto || '').trim().slice(0, 150000);
+      const targetEditalId = resolvedId || req.body?.noticeId || req.body?.edital_id || '';
+      const editalRealData = await fetchEditalFullContext(targetEditalId ? `${targetEditalId} ${pergunta}` : pergunta);
+
+      const documentText = [contextoEdital, contexto, editalRealData].filter(Boolean).join('\n\n').trim().slice(0, 150000);
       const conversationContext = (messages || [])
         .slice(-8)
         .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
@@ -326,28 +466,28 @@ export class LexController {
       const groundingContext = buildGroundingContext(req);
       // CONVERSA LIVRE LULI: quando nao ha edital especifico selecionado, conversa direto com o Gemini sem puxar edital aleatorio
       if (stream === false) {
-      const __noticeIdChat = String(req.body?.noticeId || req.body?.edital_id || '').trim();
-      let __pncpChatExtra = '';
-      if (__noticeIdChat && typeof fetchPncpLinkContext === 'function') {
-        try {
-          __pncpChatExtra = await fetchPncpLinkContext(__noticeIdChat);
-        } catch {}
-      }
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
-        const [companyRadar, pncpLinkData, radarSearchData] = await Promise.all([
+        const [companyRadar, radarSearchData] = await Promise.all([
           buildCompanyOperationalRadar((req.user as any)?.companyId),
-          fetchPncpLinkContext(resolvedId ? `${pergunta} ${resolvedId}` : pergunta),
           fetchRadarSearchContext(pergunta),
         ]);
-        const systemPrompt = `Você é a Luli, consultora especialista em licitações públicas (Lei 14.133/2021, LC 123/2006 e TCU), disputas de pregão, contabilidade/impostos e jurídico licitatório na plataforma Expertise Licitatória.
-Regras obrigatórias de estilo:
-- Fale como uma pessoa real e colega de trabalho: natural, simpática, direta e objetiva. Nada de respostas longas ou listas genéricas sem necessidade.
-- Se a pessoa mandar apenas "oi", "olá" ou "tudo bem", responda em no máximo 2 frases curtas e leves${userName ? `, chamando por ${userName}` : ''}, perguntando direto em que pode ajudar agora.
-- NUNCA comente que o chat se repetiu, nunca peça desculpas por falhas antigas e nunca repita o nome jurídico/razão social completo da empresa em toda resposta.
-- NUNCA use jargões técnicos em inglês (proibido Stop-Loss, BDI, Split Payment, API, Cache, KPI) nem tags como [Fato da fonte].
-- Nunca invente dados, datas, valores ou editais. Quando responder sobre licitação ou imposto, vá direto ao ponto prático.
-Contexto da tela atual: ${documentText || 'Painel principal'}${pncpLinkData}${radarSearchData}
-${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados sempre que o usuário perguntar sobre certidões, prazos, alertas ou créditos, ou quando houver urgência prática):\n${companyRadar}` : ''}`;
+        const systemPrompt = `Você é a Luli, estrategista jurídica e consultora sênior em licitações públicas da plataforma Expertise Licitatória (Lei 14.133/2021, LC 123/2006 e TCU).
+Diretrizes Obrigatórias:
+- Se houver dados oficiais de um edital no contexto abaixo, você DEVE LER E INTERPRETAR O EDITAL POR COMPLETO. É PROIBIDO dar respostas genéricas ou teóricas.
+- Cite explicitamente o número do edital, o órgão contratante, os valores de referência dos itens, os prazos fatais e os requisitos de habilitação.
+- Se o usuário pedir para resumir ou analisar o edital, apresente o Parecer Técnico-Operacional nos 6 blocos de engenharia licitatória:
+  1. DADOS CADASTRAIS & ENQUADRAMENTO: Órgão, Processo, Modalidade, Modo de Disputa e Amparo Legal (Lei 14.133/2021).
+  2. OBJETO REAL & ESCOPO DA CONTRATAÇÃO: Explique o que o órgão precisa na prática e cite os itens reais com quantidades e valores de referência do PNCP.
+  3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS: Data e hora da disputa de lances e prazo de impugnação/esclarecimento (3 dias úteis anteriores, Art. 164).
+  4. MATRIZ DE HABILITAÇÃO: Exigências jurídicas, fiscais, certidões, balanço patrimonial e atestados de capacidade técnica (limitados a 50% - Súmula 263 TCU).
+  5. CONDIÇÕES DE ENTREGA E PAGAMENTO: Prazos de execução, liquidação do empenho e regras contratuais.
+  6. PARECER DE RISCO, TÁTICA DE LANCES & PRÓXIMO PASSO: Cuidados com cláusulas restritivas, proteção do valor mínimo seguro e orientação do próximo passo na plataforma.
+- Se a mensagem do usuário for apenas uma saudação informal (como "oi" ou "tudo bem"), responda em 1 ou 2 frases curtas e acolhedoras${userName ? `, chamando por ${userName}` : ''}.
+- NUNCA use introduções ou despedidas robóticas de IA (nada de "Olá, sou a IA", "Espero ter ajudado!").
+- NUNCA invente dados, datas, valores ou editais.
+${editalRealData ? `\n${editalRealData}\n` : ''}
+Contexto da tela atual: ${documentText || 'Painel principal'}${radarSearchData}
+${companyRadar ? `\nMonitoramento real da empresa neste momento:\n${companyRadar}` : ''}`;
 
         const cleanHistory = (messages || [])
           .filter((m) => m && m.content && !m.content.includes('Não consegui concluir essa resposta agora') && !m.content.includes('Análise técnica estruturada sobre os dados oficiais do certame'))
@@ -456,11 +596,14 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento (use esses dados
   async resumo(req: AuthRequest, res: Response) {
     try {
       const noticeId = resolveNoticeId(req);
+      const editalRealData = noticeId ? await fetchEditalFullContext(noticeId) : '';
       const result = await this.grounding.runLex(
         {
           pergunta:
             'Apresente um Parecer Técnico-Operacional e Jurídico completo deste edital para o licitante, em formato executivo profissional e sem estrutura de IA ou preâmbulos genéricos. Estruture obrigatoriamente nos 6 blocos de Engenharia Licitatória: 1. Dados Cadastrais e Enquadramento Legal; 2. Objeto Real e Itens da Contratação (quantidades, especificações e valores de referência); 3. Cronograma Crítico e Prazos Fatais (sessão pública, prazo de impugnação de 3 dias úteis do Art. 164 da Lei 14.133/2021 e prazo de envio de propostas); 4. Matriz de Habilitação (jurídica, fiscal, técnica com atestados e qualificação econômico-financeira); 5. Condições de Pagamento, Entrega e Execução; 6. Parecer de Riscos e Tática de Lances para Vencer. Baseie-se estritamente nas fontes oficiais do PNCP.',
           noticeId,
+          providedDocumentText: editalRealData || undefined,
+          contexto: editalRealData || undefined,
           purpose: 'lex_resumo_grounded',
           metadata: { endpoint: '/lex/resumo' },
         },

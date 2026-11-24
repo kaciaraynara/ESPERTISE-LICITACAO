@@ -87,11 +87,11 @@ export function LexFloatingWidget() {
       const orgao = edital.orgao || edital.nomeOrgao || edital.buyerName || edital.orgaoEntidade?.razaoSocial || 'Órgão Licitante';
       const objeto = edital.objetoCompra || edital.objeto || 'Objeto não informado';
       const valor = edital.valorTotalEstimado ?? edital.valorEstimado ?? edital.valor_estimado;
-      const pergunta = `Analise este edital para a minha empresa e me diga a melhor estratégia para vencer:\nÓrgão: ${orgao}\nEdital: ${edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id}\nModalidade: ${edital.modalidadeNome || edital.modalidade || 'Pregão'}\nObjeto: ${objeto}\nValor estimado: ${valor ? 'R$ ' + Number(valor).toLocaleString('pt-BR') : 'Consultar edital'}`;
+      const pergunta = `Elabore o Parecer Técnico-Operacional e Jurídico de Engenharia Licitatória completo deste edital para a minha empresa vencer: Edital ${edital.numeroEdital || edital.numeroCompra || edital.numeroControlePNCP || edital.id} do órgão ${orgao} (Valor: ${valor ? 'R$ ' + Number(valor).toLocaleString('pt-BR') : 'Conforme edital'}). Estruture obrigatoriamente nos 6 blocos executivos da Lei 14.133/2021, citando os itens oficiais com quantitativos e valores de referência, cronograma de prazos fatais, matriz de habilitação com atestados e recomendação de lance seguro.`;
 
       setMensagens((prev) => [
         ...prev,
-        { id: String(Date.now()), autor: 'usuario', texto: `Analise o edital: ${objeto.slice(0, 120)}...`, horario: horaAtual() },
+        { id: String(Date.now()), autor: 'usuario', texto: `Elaborar Parecer Técnico do Edital: ${objeto.slice(0, 100)}...`, horario: horaAtual() },
       ]);
       setEnviando(true);
       try {
