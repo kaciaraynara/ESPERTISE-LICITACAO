@@ -282,10 +282,11 @@ export function buildRadarSqlQuery(input: RadarSqlQueryInput): BuiltRadarSqlQuer
       const digits = qTrim.replace(/\D/g, '');
       const docExpr = digits.length >= 8 ? ` OR buyer_document ILIKE ${addParam(`%${digits}%`)}` : '';
       baseConditions.push(
-        `(notice_number ILIKE ${pLike} OR external_id ILIKE ${pLike}${docExpr} OR search_vector @@ ${qTsQueryExpr})`,
+        `(notice_number ILIKE ${pLike} OR external_id ILIKE ${pLike}${docExpr} OR search_vector @@ ${qTsQueryExpr} OR EXISTS (SELECT 1 FROM document_chunks dc WHERE dc.source_type = 'procurement_notice' AND dc.source_id = procurement_notices.id::text AND dc.content ILIKE ${pLike}))`,
       );
     } else {
-      baseConditions.push(`search_vector @@ ${qTsQueryExpr}`);
+      const pLikeContent = addParam(`%${qTrim}%`);
+      baseConditions.push(`(search_vector @@ ${qTsQueryExpr} OR EXISTS (SELECT 1 FROM document_chunks dc WHERE dc.source_type = 'procurement_notice' AND dc.source_id = procurement_notices.id::text AND dc.content ILIKE ${pLikeContent}))`);
     }
   }
 

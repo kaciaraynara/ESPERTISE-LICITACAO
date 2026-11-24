@@ -66,7 +66,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
   const [carregando, setCarregando] = useState(false);
   const [dossies, setDossies] = useState<DossieItem[]>([]);
   const { selectedCompany } = useCompany();
-  const [sugeridos, setSugeridos] = useState<Array<{ cnpj: string; razaoSocial: string; uf?: string; porte?: string }>>([]);
+  const [sugeridos, setSugeridos] = useState<Array<{ cnpj: string; razaoSocial: string; uf?: string; porte?: string; totalVitorias?: number }>>([]);
 
   useEffect(() => {
     const cnae = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal || '';
@@ -77,7 +77,9 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         const lista = res?.data?.data?.concorrentesCnae || [];
         if (Array.isArray(lista) && lista.length > 0) {
           setSugeridos(lista.slice(0, 6));
-          setCnpjs((prev) => prev.every((c) => !c.trim()) ? lista.slice(0, 3).map((x: any) => formatCnpjMask(x.cnpj)) : prev);
+          const iniciais = lista.slice(0, 3).map((x: any) => formatCnpjMask(x.cnpj));
+          setCnpjs((prev) => (prev.every((c) => !c.trim()) ? iniciais : prev));
+          consultarConcorrentes(iniciais, true);
         }
       })
       .catch(() => null);
@@ -102,8 +104,9 @@ export const HistoricoConcorrentesPage: React.FC = () => {
     setCnpjs(cnpjs.filter((_, i) => i !== idx));
   };
 
-  const consultarConcorrentes = async () => {
-    const validos = cnpjs
+  const consultarConcorrentes = async (cnpjsOverride?: string[] | unknown, silencioso = false) => {
+    const origem = Array.isArray(cnpjsOverride) ? cnpjsOverride : cnpjs;
+    const validos = origem
       .map((c) => sanitizeCnpj(c))
       .filter((c) => isValidCnpj(c, { optional: false }));
 
@@ -117,7 +120,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       const resp = await api.post('/concorrentes/historico', { cnpjs: Array.from(new Set(validos)) }, { timeout: 30000 });
       const resultados = (resp.data?.data || []) as DossieItem[];
       setDossies(resultados);
-      toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
+      if (!silencioso) toast.success(`${resultados.length} concorrente(s) analisado(s) com dados reais.`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Não foi possível consultar os concorrentes agora.');
     } finally {
@@ -183,11 +186,10 @@ export const HistoricoConcorrentesPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {sugeridos.length > 0 && (
-          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+        {sugeridos.length > 0 && (
+          <div className="mb-4 w-full rounded-xl border border-blue-200 bg-blue-50/70 p-3">
             <p className="mb-2 text-xs font-semibold text-blue-900">
-              Concorrentes ativos no seu CNAE (Compras.gov.br) — clique para incluir:
+              Concorrentes do seu segmento com atuação em licitações (PNCP / Compras.gov.br) — clique para incluir:
             </p>
             <div className="flex flex-wrap gap-2">
               {sugeridos.map((s) => (
@@ -200,12 +202,13 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                   }}
                   className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 transition"
                 >
-                  + {s.razaoSocial.slice(0, 32)} {s.uf ? `(${s.uf})` : ''}
+                  + {s.razaoSocial.slice(0, 32)} {s.uf ? `(${s.uf})` : ''} {s.totalVitorias ? `· ${s.totalVitorias} vitórias` : ''}
                 </button>
               ))}
             </div>
           </div>
         )}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {cnpjs.map((val, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <input
@@ -392,7 +395,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                         {formatarMoeda(d.estatisticas?.valorTotalContratado || 0)}
                       </td>
                       <td className="py-3 pr-3">{formatarMoeda(d.estatisticas?.maiorContrato || 0)}</td>
-                      <td className="py-3">{d.estatisticas?.órgãosContratantes || 0}</td>
+                      <td className="py-3">{d.estatisticas?.orgaosContratantes ?? d.estatisticas?.['órgãosContratantes'] ?? 0}</td>
                     </tr>
                   );
                 })}

@@ -38,7 +38,14 @@ interface EditalBruto {
   urlOficial?: string | null;
   link?: string | null;
   srp?: boolean;
+  metadata?: any;
 }
+
+const UFS_BRASIL = [
+  'TODOS', 'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ',
+  'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+];
 
 interface EditalViabilidade {
   edital: EditalBruto;
@@ -195,7 +202,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
   const [erro, setErro] = useState('');
   const [editaisBrutos, setEditaisBrutos] = useState<EditalBruto[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<'TODOS' | NivelViabilidade>('TODOS');
-  const [escopoEstado, setEscopoEstado] = useState<'TODOS' | 'MINHA_UF'>('TODOS');
+  const [estadoFiltro, setEstadoFiltro] = useState<string>('TODOS');
+  const [filtroApenasRemoto, setFiltroApenasRemoto] = useState(false);
   const [docsStatus, setDocsStatus] = useState<{
     certidoesValidas: number;
     certidoesPendentes: number;
@@ -215,16 +223,17 @@ export const ScoreOportunidadesPage: React.FC = () => {
       const companyId = selectedCompany?.id && selectedCompany.id !== 'default' ? selectedCompany.id : undefined;
 
       const consultasEditais: Promise<any>[] = [];
+      const ufParam = estadoFiltro !== 'TODOS' ? estadoFiltro : undefined;
 
       if (perfilEmpresa.termosBusca.length > 0) {
-        for (const termo of perfilEmpresa.termosBusca.slice(0, 3)) {
+        // Puxa termos do CNAE sem limitação arbitrária
+        for (const termo of perfilEmpresa.termosBusca.slice(0, 8)) {
           consultasEditais.push(
             licitacoesApi.listar({
-              local: true,
               apenasAbertos: true,
               q: termo,
               ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
-              ...(escopoEstado === 'MINHA_UF' && ufEmpresa ? { uf: ufEmpresa } : {}),
+              ...(ufParam ? { uf: ufParam } : {}),
               tamanhoPagina: 60,
             }).catch(() => null)
           );
@@ -232,10 +241,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
       } else {
         consultasEditais.push(
           licitacoesApi.listar({
-            local: true,
             apenasAbertos: true,
             ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
-            ...(escopoEstado === 'MINHA_UF' && ufEmpresa ? { uf: ufEmpresa } : {}),
+            ...(ufParam ? { uf: ufParam } : {}),
             tamanhoPagina: 100,
           }).catch(() => null)
         );
@@ -276,7 +284,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
     } finally {
       setCarregando(false);
     }
-  }, [selectedCompany, perfilEmpresa.termosBusca, escopoEstado, ufEmpresa]);
+  }, [selectedCompany, perfilEmpresa.termosBusca, estadoFiltro, ufEmpresa]);
 
   useEffect(() => {
     void carregarAnalise();
@@ -396,14 +404,27 @@ export const ScoreOportunidadesPage: React.FC = () => {
   const atencao = avaliacoes.filter((a) => a.nivel === 'ATENCAO');
   const fora = avaliacoes.filter((a) => a.nivel === 'FORA');
 
-  const listaVisivel =
-    abaAtiva === 'PRONTO'
-      ? prontos
-      : abaAtiva === 'ATENCAO'
-        ? atencao
-        : abaAtiva === 'FORA'
-          ? fora
-          : [...prontos, ...atencao, ...fora];
+  const listaVisivel = useMemo(() => {
+    let base =
+      abaAtiva === 'PRONTO'
+        ? prontos
+        : abaAtiva === 'ATENCAO'
+          ? atencao
+          : abaAtiva === 'FORA'
+            ? fora
+            : [...prontos, ...atencao, ...fora];
+
+    if (filtroApenasRemoto) {
+      base = base.filter((it) => {
+        const specs = it.edital?.metadata?.extractedSpecsJson;
+        if (specs?.disputaEExecucao?.disputaRemota === true) return true;
+        const texto = (it.objetoTexto + ' ' + (it.edital?.modalidade || '')).toLowerCase();
+        return texto.includes('eletrônic') || texto.includes('eletronic') || texto.includes('remot');
+      });
+    }
+
+    return base;
+  }, [abaAtiva, prontos, atencao, fora, filtroApenasRemoto]);
 
   return (
     <div className="space-y-6 pb-24">
@@ -446,28 +467,37 @@ export const ScoreOportunidadesPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            {ufEmpresa && (
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
-                <button
-                  type="button"
-                  onClick={() => setEscopoEstado('TODOS')}
-                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                    escopoEstado === 'TODOS' ? 'bg-[#081C3A] text-white' : 'text-slate-600'
-                  }`}
-                >
-                  Todo o Brasil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEscopoEstado('MINHA_UF')}
-                  className={`rounded-full px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                    escopoEstado === 'MINHA_UF' ? 'bg-[#081C3A] text-white' : 'text-slate-600'
-                  }`}
-                >
-                  Apenas {ufEmpresa}
-                </button>
-              </div>
-            )}
+            {/* Seletor de Estados Completo (Todos / UFs) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">Estado:</span>
+              <select
+                value={estadoFiltro}
+                onChange={(e) => setEstadoFiltro(e.target.value)}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-[#081C3A] outline-none hover:border-[#0070C0] transition cursor-pointer"
+              >
+                <option value="TODOS">Todo o Brasil</option>
+                {ufEmpresa && <option value={ufEmpresa}>Meu Estado ({ufEmpresa})</option>}
+                <optgroup label="Selecione um Estado">
+                  {UFS_BRASIL.filter((u) => u !== 'TODOS' && u !== ufEmpresa).map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Filtro Apenas Remoto */}
+            <button
+              type="button"
+              onClick={() => setFiltroApenasRemoto(!filtroApenasRemoto)}
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition cursor-pointer border ${filtroApenasRemoto
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                }`}
+            >
+              {filtroApenasRemoto ? '✓ Apenas Disputa Remota' : 'Filtrar Remoto'}
+            </button>
 
             <button
               type="button"
@@ -483,13 +513,12 @@ export const ScoreOportunidadesPage: React.FC = () => {
       </div>
 
       {docsStatus.carregado && (
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${
-          docsStatus.certidoesPendentes > 0
-            ? 'border-amber-200 bg-amber-50 text-amber-900'
-            : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
-              ? 'border-blue-200 bg-blue-50 text-blue-950'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-        }`}>
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${docsStatus.certidoesPendentes > 0
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
+            ? 'border-blue-200 bg-blue-50 text-blue-950'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+          }`}>
           <div className="flex items-start sm:items-center gap-3">
             <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 sm:mt-0" />
             <div className="text-xs sm:text-sm">
@@ -520,9 +549,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setAbaAtiva(abaAtiva === 'PRONTO' ? 'TODOS' : 'PRONTO')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${
-            abaAtiva === 'PRONTO' ? 'border-emerald-500 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-300'
-          }`}
+          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'PRONTO' ? 'border-emerald-500 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-700 uppercase">Prontos para Disputar</span>
@@ -535,9 +563,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setAbaAtiva(abaAtiva === 'ATENCAO' ? 'TODOS' : 'ATENCAO')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${
-            abaAtiva === 'ATENCAO' ? 'border-amber-500 bg-amber-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-amber-300'
-          }`}
+          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'ATENCAO' ? 'border-amber-500 bg-amber-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-amber-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-700 uppercase">Ajustar Antes de Entrar</span>
@@ -550,9 +577,8 @@ export const ScoreOportunidadesPage: React.FC = () => {
         <button
           type="button"
           onClick={() => setAbaAtiva(abaAtiva === 'FORA' ? 'TODOS' : 'FORA')}
-          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${
-            abaAtiva === 'FORA' ? 'border-rose-500 bg-rose-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-rose-300'
-          }`}
+          className={`text-left rounded-2xl border p-4 transition cursor-pointer ${abaAtiva === 'FORA' ? 'border-rose-500 bg-rose-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-rose-300'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-rose-700 uppercase">Fora do Ramo</span>
@@ -581,10 +607,10 @@ export const ScoreOportunidadesPage: React.FC = () => {
           <p className="text-xs text-slate-600">
             Experimente mudar para "Todo o Brasil" ou conferir as atividades cadastradas em Minha Empresa.
           </p>
-          {escopoEstado === 'MINHA_UF' && (
+          {estadoFiltro !== 'TODOS' && (
             <button
               type="button"
-              onClick={() => setEscopoEstado('TODOS')}
+              onClick={() => setEstadoFiltro('TODOS')}
               className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
             >
               Ver em Todo o Brasil
@@ -628,6 +654,23 @@ export const ScoreOportunidadesPage: React.FC = () => {
                           Registro de Preços
                         </span>
                       )}
+
+                      {/* Selo Verídico Remoto / Presencial */}
+                      {ed.metadata?.extractedSpecsJson?.disputaEExecucao?.disputaRemota !== undefined && (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${ed.metadata.extractedSpecsJson.disputaEExecucao.disputaRemota
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
+                        >
+                          {ed.metadata.extractedSpecsJson.disputaEExecucao.modoDisputaTexto}
+                        </span>
+                      )}
+
+                      {/* Selo Leitura Profunda */}
+                      <span className="rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                        {ed.metadata?.deepReadStatus === 'DONE' ? '✓ Edital Completo Lido' : 'Arquivos do Edital em Análise'}
+                      </span>
                     </div>
 
                     <h2 className="text-sm sm:text-base font-bold text-[#081C3A]">{item.orgaoTexto}</h2>

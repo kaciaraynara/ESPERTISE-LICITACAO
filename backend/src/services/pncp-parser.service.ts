@@ -81,27 +81,27 @@ export function buildFallbackNoticeScope(notice: any, rawItens: any[] = []): str
     Array.isArray(rawItens) && rawItens.length > 0
       ? rawItens
       : Array.isArray(notice?.items) && notice.items.length > 0
-      ? notice.items
-      : Array.isArray(raw?.itens) && raw.itens.length > 0
-      ? raw.itens
-      : [];
+        ? notice.items
+        : Array.isArray(raw?.itens) && raw.itens.length > 0
+          ? raw.itens
+          : [];
 
   const itensFormatados =
     itensList.length > 0
       ? itensList
-          .map((it: any, idx: number) => {
-            const num = it.itemNumber ?? it.numeroItem ?? idx + 1;
-            const desc = it.description ?? it.descricao ?? 'Item da contratação';
-            const qtd = Number(it.quantity ?? it.quantidade ?? 1);
-            const un = it.unit ?? it.unidadeMedida ?? 'UN';
-            const vUnit = Number(it.estimatedUnitValue ?? it.valorUnitarioEstimado) || null;
-            const vTot =
-              Number(it.estimatedTotalValue ?? it.valorTotal) ||
-              (vUnit ? vUnit * qtd : null);
-            const vTotStr = vTot != null && vTot > 0 ? ` | Valor Estimado: R$ ${vTot.toFixed(2)}` : '';
-            return `• Item ${num}: ${desc} (Qtd: ${qtd} ${un}${vTotStr})`;
-          })
-          .join('\n')
+        .map((it: any, idx: number) => {
+          const num = it.itemNumber ?? it.numeroItem ?? idx + 1;
+          const desc = it.description ?? it.descricao ?? 'Item da contratação';
+          const qtd = Number(it.quantity ?? it.quantidade ?? 1);
+          const un = it.unit ?? it.unidadeMedida ?? 'UN';
+          const vUnit = Number(it.estimatedUnitValue ?? it.valorUnitarioEstimado) || null;
+          const vTot =
+            Number(it.estimatedTotalValue ?? it.valorTotal) ||
+            (vUnit ? vUnit * qtd : null);
+          const vTotStr = vTot != null && vTot > 0 ? ` | Valor Estimado: R$ ${vTot.toFixed(2)}` : '';
+          return `• Item ${num}: ${desc} (Qtd: ${qtd} ${un}${vTotStr})`;
+        })
+        .join('\n')
       : '• Nenhum item individual cadastrado no registro do certame.';
 
   return [
@@ -434,6 +434,14 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       sequencial,
       sequencialArquivo: seqArquivo,
     });
+
+    // 10. Atualiza a ficha técnica profunda (EditalDeepAnalyzerService) de forma imediata
+    try {
+      const { EditalDeepAnalyzerService } = require('./edital-deep-analyzer.service');
+      await EditalDeepAnalyzerService.processarEditalPorId(targetNoticeId);
+    } catch (deepErr: any) {
+      console.warn('[PNCP Parser] Falha ao atualizar ficha profunda do edital:', deepErr.message);
+    }
 
     if (notice?.id) {
       await prisma.procurementAttachment.upsert({

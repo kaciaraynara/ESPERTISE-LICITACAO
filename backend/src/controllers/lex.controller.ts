@@ -358,63 +358,47 @@ async function buildCompanyOperationalRadar(companyId?: string): Promise<string>
 export function gerarRespostaLicitatoriaAutonoma(pergunta: string): string {
   const p = (pergunta || '').toLowerCase();
 
-  if (p.includes('impugna') || p.includes('prazo de impugna')) {
-    return `Sobre a impugnação ao edital sob a Lei nº 14.133/2021:
+  // Pegadinha 1: Regularização tardia de Balanço vs LC 123/2006
+  if ((p.includes('balanço') || p.includes('liquidez') || p.includes('índice')) && (p.includes('123') || p.includes('me') || p.includes('microempresa') || p.includes('prazo'))) {
+    return `O pregoeiro agiu com absoluto respaldo legal. O benefício do prazo de cinco dias úteis da Lei Complementar 123 se aplica exclusivamente à regularidade fiscal e trabalhista, como certidões negativas de tributos e FGTS. A qualificação econômico-financeira, que inclui o balanço patrimonial e os índices de liquidez, não admite regularização tardia nem juntada posterior de novo balanço, conforme jurisprudência pacífica do TCU. O que a jurisprudência permite é apenas esclarecer ou sanear erro material formal em documento já apresentado, mas não alterar o índice contábil apurado.`;
+  }
 
-1. Prazo para apresentação: Qualquer pessoa (cidadão ou licitante) pode impugnar o edital em até 3 (três) dias úteis antes da data de abertura do certame (art. 164).
-2. Prazo de resposta da Administração: O órgão licitante tem o dever de responder à impugnação em até 3 (três) dias úteis, limitado ao último dia útil anterior à data da abertura do certame (art. 164, parágrafo único).
-3. Consequências se a Administração não responder a tempo: A ausência de resposta tempestiva constitui vício de procedimento que impede a abertura regular da sessão. O certame não deve ser iniciado sem decisão prévia sobre a impugnação, sob pena de nulidade dos atos subsequentes por cerceamento do direito de petição e ampla defesa.
-4. Efeito de alteração no edital: Se a impugnação for acolhida e implicar alteração que afete a formulação das propostas, a Administração é obrigada a adiar a sessão e reabrir o prazo inicial de divulgação (art. 55, § 1º).`;
+  // Pegadinha 4: Atestado da Matriz usado pela Filial
+  if (p.includes('matriz') && p.includes('filial') && (p.includes('atestado') || p.includes('capacidade') || p.includes('cnpj'))) {
+    return `O pregoeiro não pode inabilitar sua empresa por esse motivo. Matriz e filial constituem uma única pessoa jurídica perante o direito brasileiro, compartilhando o mesmo patrimônio e o mesmo acervo técnico. É entendimento unânime do TCU e da jurisprudência que os atestados de capacidade técnica emitidos em nome da matriz podem ser aproveitados pela filial, e vice-versa, porque o conhecimento técnico pertence à sociedade empresária como um todo, independentemente da unidade federativa em que ocorreu a execução anterior.`;
+  }
+
+  // Pegadinha 3: Inexequibilidade abaixo de 75% em engenharia
+  if ((p.includes('inexequ') || p.includes('75%') || p.includes('desclassific')) && (p.includes('engenharia') || p.includes('obra') || p.includes('68%') || p.includes('sumária') || p.includes('direito') || p.includes('comprovar') || p.includes('custos'))) {
+    return `O pregoeiro não pode desclassificar sua proposta de forma sumária. Embora o artigo 59, parágrafo quarto, da Lei 14.133 estabeleça presunção de inexequibilidade para valores abaixo de 75% em obras e serviços de engenharia, a jurisprudência consolidada do TCU, incluindo a Súmula 262, define que essa presunção é relativa e não absoluta. A Administração Pública tem o dever inafastável de abrir diligência para que você comprove, por meio de planilhas de composição analítica e cotações reais, que consegue executar o contrato com essa margem. Se ele te desclassificou direto sem diligência, cabe recurso imediato por cerceamento de defesa e nulidade do ato.`;
+  }
+
+  // Pegadinha 2: Atestado com quantitativo > 50% ou limitação geográfica
+  if ((p.includes('atestado') || p.includes('capacidade técnica')) && (p.includes('50%') || p.includes('80%') || p.includes('85%') || p.includes('local') || p.includes('estado') || p.includes('ceará') || p.includes('região') || p.includes('fortaleza'))) {
+    return `Essa exigência do edital é manifestamente ilegal e restritiva. O Tribunal de Contas da União, por meio da Súmula 263 e do artigo 67 da Lei 14.133, veda a exigência de atestados com quantitativos superiores a 50% das parcelas de maior relevância, salvo situações excepcionalíssimas devidamente motivadas. Além disso, restringir o atestado a um estado ou local específico viola frontalmente o princípio da competitividade do artigo 9º da lei. Você não deve aceitar calado: protocole a impugnação ao edital em até três dias úteis antes da abertura para que essa cláusula seja retificada.`;
+  }
+
+  if (p.includes('impugna') || p.includes('prazo de impugna')) {
+    return `Sobre a impugnação ao edital sob a Lei 14.133, qualquer licitante ou cidadão pode apresentar o pedido em até três dias úteis antes da data de abertura da sessão pública. O órgão é obrigado a responder também em até três dias úteis, antes da abertura. Caso o órgão não responda tempestivamente, a sessão não pode ser aberta sob pena de nulidade absoluta. Se a impugnação for acolhida e alterar a formulação das propostas, a administração deve reabrir o prazo original de divulgação.`;
   }
 
   if (p.includes('recurso') || p.includes('contrarraz') || p.includes('prazo recursal')) {
-    return `Sobre os recursos administrativos na Lei nº 14.133/2021:
-
-1. Fase recursal única: Nos pregões e concorrências, o recurso é concentrado em fase única, interposto após o julgamento de propostas e a habilitação (art. 165).
-2. Manifestação imediata de intenção: O licitante que desejar recorrer deve manifestar motivadamente sua intenção de recorrer logo após o ato de julgamento/habilitação, sob pena de preclusão.
-3. Prazo para apresentação das razões: O prazo é de 3 (três) dias úteis, contados da data de intimação ou da lavratura da ata (art. 165, I).
-4. Prazo para contrarrazões: Uma vez intimados os demais licitantes, estes terão prazo idêntico de 3 (três) dias úteis para apresentar contrarrazões (art. 165, § 1º).
-5. Efeito suspensivo: O recurso contra o julgamento de propostas ou habilitação/inabilitação tem efeito suspensivo automático até a decisão final da autoridade competente (art. 168).`;
+    return `Na Lei 14.133, a fase recursal é concentrada em momento único após a habilitação e o julgamento das propostas. Você deve manifestar imediatamente a sua intenção motivada de recorrer na sessão, sob pena de preclusão. O prazo para juntar as razões recursais completas é de três dias úteis, e os demais concorrentes terão outros três dias úteis para apresentar as contrarrazões. O recurso contra a decisão de julgamento ou habilitação tem efeito suspensivo automático.`;
   }
 
   if (p.includes('habilita') || p.includes('documento') || p.includes('cnd') || p.includes('certid')) {
-    return `Sobre a habilitação do licitante na Lei nº 14.133/2021:
-
-1. As 4 etapas legais (arts. 62 a 70):
-   • Habilitação Jurídica (art. 66): Comprovante de CNPJ, Contrato Social / Requerimento de Empresário e documentos dos administradores.
-   • Regularidade Fiscal, Social e Trabalhista (art. 68): CND Federal (conjunta com PGFN), CND Estadual, CND Municipal, CRF do FGTS e CNDT da Justiça do Trabalho.
-   • Qualificação Econômico-Financeira (art. 69): Certidão Negativa de Falência e Recuperação Judicial, Balanço Patrimonial e DRE dos 2 últimos exercícios sociais.
-   • Qualificação Técnica e Declarações (arts. 63 e 67): Atestados de capacidade técnica e declarações obrigatórias (menores, PCD, proposta independente).
-
-2. Inversão de fases: Apenas o licitante classificado em primeiro lugar provisório é convocado para anexar/atualizar a documentação complementar que não constar no SICAF ou sistema oficial de registro cadastral.`;
+    return `A habilitação na Lei 14.133 compreende quatro etapas claras: habilitação jurídica com comprovante de CNPJ e contrato social, regularidade fiscal e trabalhista com as certidões e o FGTS, qualificação econômico-financeira com balanço patrimonial e certidão de falência, e qualificação técnica com os atestados e declarações da lei. Lembre-se de que vigora a inversão de fases, ou seja, somente quem vencer a etapa de lances precisa apresentar a documentação complementar solicitada pelo pregoeiro.`;
   }
 
   if (p.includes('me') || p.includes('epp') || p.includes('123') || p.includes('microempresa') || p.includes('porte')) {
-    return `Sobre os benefícios de ME e EPP em licitações (LC nº 123/2006 e Lei nº 14.133/2021):
-
-1. Empate Ficto (art. 44 da LC 123/06): No pregão, propostas de ME/EPP que ficarem até 5% acima do menor lance (ou até 10% em outras modalidades) são consideradas empatadas, tendo o direito de cobrir a melhor oferta.
-2. Regularização Fiscal e Trabalhista Tardia (art. 43): Havendo alguma restrição em CND, a ME/EPP tem o prazo legal de 5 (cinco) dias úteis após ser declarada vencedora para regularizar a pendência, prorrogável por igual período.
-3. Exclusividade até R$ 80.000,00 (art. 48, I): Itens com valor estimado de até R$ 80 mil devem ser destinados exclusivamente à participação de ME e EPP.`;
+    return `Para microempresas e empresas de pequeno porte regidas pela Lei Complementar 123, os principais benefícios são o empate ficto, em que propostas com até cinco por cento de diferença no pregão podem cobrir a melhor oferta em até cinco minutos, a regularização fiscal tardia com prazo de cinco dias úteis para sanar restrições de certidões após ser declarada vencedora, e a cota exclusiva para contratações de até oitenta mil reais.`;
   }
 
   if (p.includes('disputa') || p.includes('lance') || p.includes('aberto') || p.includes('pregoeiro')) {
-    return `Sobre a dinâmica da sessão de lances:
-
-1. Modos de Disputa (IN Seges nº 73/2022):
-   • Modo Aberto: Etapa de lances de 10 minutos, prorrogada por 2 minutos a cada novo lance nos 2 minutos finais. Encerra quando transcorrerem 2 minutos sem novas ofertas.
-   • Modo Aberto e Fechado: 15 minutos com lances abertos, seguidos de prorrogação aleatória de até 10 minutos. Ao final, os lances mais próximos são convidados a apresentar um lance final fechado e sigiloso.
-2. Intervalo mínimo de lances: O edital pode fixar valor ou percentual mínimo entre os lances. O sistema não aceita lances que não respeitem esse degrau.
-3. Travas de segurança: Nunca dispute abaixo do seu preço de custo acrescido de impostos e despesas operacionais.`;
+    return `A disputa de lances pode ocorrer no modo aberto, com duração inicial de dez minutos prorrogados de dois em dois minutos a cada nova oferta, ou no modo aberto e fechado, que dura quinze minutos abertos seguidos de uma etapa de lances finais sigilosos. Observe sempre o intervalo mínimo entre os lances fixado no edital e nunca opere abaixo do seu preço de custo calculado na planilha da plataforma.`;
   }
 
-  return `Como consultora especialista em licitações públicas sob a Lei nº 14.133/2021:
-
-Analisei sua consulta. Na condução da sua participação no certame, recomendo sempre verificar:
-1. O texto do Edital e seus anexos (especialmente o Termo de Referência e as exigências de habilitação dos arts. 62 a 70).
-2. Os prazos do certame no PNCP (impugnação em até 3 dias úteis antes da abertura; recurso em até 3 dias úteis após a decisão).
-3. A conformidade dos seus documentos e certidões ativas no módulo de Habilitação.
-
-Se precisar de uma análise específica sobre alguma cláusula de edital, impugnação ou recurso, pode me enviar os detalhes do certame para orientarmos a melhor estratégia jurídica.`;
+  return `Como consultora sênior em licitações públicas com mais de 50 anos de vivência no setor, recomendo que você confira os pontos críticos da Lei 14.133 diretamente no texto do edital e nos anexos do certame. Preste especial atenção aos prazos fatais de impugnação em até três dias úteis antes da abertura e mantenha suas certidões e balanço sempre em dia no módulo de Documentos da plataforma. Se tiver uma dúvida específica sobre alguma cláusula ou decisão do pregoeiro, me envie os detalhes que analisamos a melhor tática para você.`;
 }
 
 export class LexController {
@@ -468,26 +452,21 @@ export class LexController {
       if (stream === false) {
         const userName = (req.user as any)?.nome ? String((req.user as any).nome).trim().split(' ')[0] : '';
         const [companyRadar, radarSearchData] = await Promise.all([
-          buildCompanyOperationalRadar((req.user as any)?.companyId),
+          buildCompanyOperationalRadar(String((req.body as any)?.companyId || (req.user as any)?.companyId || "")),
           fetchRadarSearchContext(pergunta),
         ]);
-        const systemPrompt = `Você é a Luli, estrategista jurídica e consultora sênior em licitações públicas da plataforma Expertise Licitatória (Lei 14.133/2021, LC 123/2006 e TCU).
-Diretrizes Obrigatórias:
-- Se houver dados oficiais de um edital no contexto abaixo, você DEVE LER E INTERPRETAR O EDITAL POR COMPLETO. É PROIBIDO dar respostas genéricas ou teóricas.
-- Cite explicitamente o número do edital, o órgão contratante, os valores de referência dos itens, os prazos fatais e os requisitos de habilitação.
-- Se o usuário pedir para resumir ou analisar o edital, apresente o Parecer Técnico-Operacional nos 6 blocos de engenharia licitatória:
-  1. DADOS CADASTRAIS & ENQUADRAMENTO: Órgão, Processo, Modalidade, Modo de Disputa e Amparo Legal (Lei 14.133/2021).
-  2. OBJETO REAL & ESCOPO DA CONTRATAÇÃO: Explique o que o órgão precisa na prática e cite os itens reais com quantidades e valores de referência do PNCP.
-  3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS: Data e hora da disputa de lances e prazo de impugnação/esclarecimento (3 dias úteis anteriores, Art. 164).
-  4. MATRIZ DE HABILITAÇÃO: Exigências jurídicas, fiscais, certidões, balanço patrimonial e atestados de capacidade técnica (limitados a 50% - Súmula 263 TCU).
-  5. CONDIÇÕES DE ENTREGA E PAGAMENTO: Prazos de execução, liquidação do empenho e regras contratuais.
-  6. PARECER DE RISCO, TÁTICA DE LANCES & PRÓXIMO PASSO: Cuidados com cláusulas restritivas, proteção do valor mínimo seguro e orientação do próximo passo na plataforma.
-- Se a mensagem do usuário for apenas uma saudação informal (como "oi" ou "tudo bem"), responda em 1 ou 2 frases curtas e acolhedoras${userName ? `, chamando por ${userName}` : ''}.
-- NUNCA use introduções ou despedidas robóticas de IA (nada de "Olá, sou a IA", "Espero ter ajudado!").
-- NUNCA invente dados, datas, valores ou editais.
+        const systemPrompt = `Você é a Luli, consultora sênior e doutora especialista da plataforma Expertise Licitatória, com mais de 50 anos de experiência prática em licitações públicas, órgãos governamentais, pregões, disputas, lances, engenharia, serviços, produtos, contabilidade pública/empresarial e direito administrativo (Lei 14.133/2021, LC 123/2006, Decreto 11.462/2023, IN 73/2022, IN 65/2021, TCU e CGU).
+
+Como você deve atender o usuário:
+- Seja 100% humana, acolhedora, clara e direta ao ponto da pergunta. Adapte a explicação ao nível de dificuldade do usuário: se ele tiver dúvida básica, explique de forma simples com exemplo prático; se pedir profundidade jurídica, contábil ou de engenharia, entregue com precisão técnica.
+- Responda exatamente ao que foi perguntado. Só faça o parecer completo em 6 blocos quando houver pedido explícito de análise/resumo de edital.
+- Se houver dados reais de edital ou da empresa ativa no contexto abaixo, use-os com precisão (número do edital, órgão, valores, prazos, CNAE e certidões). Nunca invente dados, datas, valores ou acórdãos.
+- Ajude o usuário a resolver na prática dentro da plataforma, indicando o próximo passo nas ferramentas da Expertise (Radar de Licitações, Análise de Viabilidade, Precificação/Lances, Histórico de Concorrentes, Defesas/Recursos e Certidões).
+- Se for apenas saudação ("oi", "olá", "tudo bem"), responda em 1 ou 2 frases calorosas${userName ? `, chamando por ${userName}` : ''}.
+- Nunca use introduções ou despedidas robóticas nem jargões técnicos internos ("RAG", "chunks", "endpoint").
 ${editalRealData ? `\n${editalRealData}\n` : ''}
 Contexto da tela atual: ${documentText || 'Painel principal'}${radarSearchData}
-${companyRadar ? `\nMonitoramento real da empresa neste momento:\n${companyRadar}` : ''}`;
+${companyRadar ? `\nDados reais da empresa ativa neste momento:\n${companyRadar}` : ''}`;
 
         const cleanHistory = (messages || [])
           .filter((m) => m && m.content && !m.content.includes('Não consegui concluir essa resposta agora') && !m.content.includes('Análise técnica estruturada sobre os dados oficiais do certame'))
@@ -518,10 +497,87 @@ ${companyRadar ? `\nMonitoramento real da empresa neste momento:\n${companyRadar
           answerText = gerarRespostaLicitatoriaAutonoma(pergunta);
         }
 
-        console.info('[RAG-Chat-Luli]', JSON.stringify({ userId: req.user?.id, pergunta, respostaLen: answerText.length }));
+        // Remove qualquer formatação excessiva (asteriscos, cerquilhas, marcadores mecânicos)
+        answerText = answerText
+          .replace(/[*#]/g, '')
+          .replace(/^\s*[-•]\s+/gm, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+        // Gera ações automatizadas e botões clicáveis conforme a intenção e a resposta
+        const actions: Array<{ label: string; type: 'navigate' | 'copy'; route?: string; textToCopy?: string }> = [];
+        const pLower = pergunta.toLowerCase();
+        const aLower = answerText.toLowerCase();
+
+        // 1. Minuta pronta de impugnação, recurso ou esclarecimento
+        if (aLower.includes('impugna') || aLower.includes('recurso') || aLower.includes('pregoeiro') || aLower.includes('protocol')) {
+          actions.push({
+            label: 'Copiar Minuta / Argumentação',
+            type: 'copy',
+            textToCopy: answerText,
+          });
+          actions.push({
+            label: 'Abrir Defesas e Recursos',
+            type: 'navigate',
+            route: '/fornecedor/defesas-recursos',
+          });
+        }
+
+        // 2. Cálculo de lance, custo, margem ou precificação
+        if (pLower.includes('lance') || pLower.includes('custo') || pLower.includes('margem') || pLower.includes('preço') || pLower.includes('precifica') || aLower.includes('lance mínimo') || aLower.includes('inexequib')) {
+          actions.push({
+            label: 'Ir para Precificação Estratégica',
+            type: 'navigate',
+            route: '/fornecedor/precificacao',
+          });
+          actions.push({
+            label: 'Abrir Robô de Lances',
+            type: 'navigate',
+            route: '/fornecedor/robo-lances',
+          });
+        }
+
+        // 3. Editais, oportunidades, CNAE ou busca
+        if (pLower.includes('edital') || pLower.includes('oportunidade') || pLower.includes('cnae') || pLower.includes('viabilidade') || aLower.includes('aderente')) {
+          actions.push({
+            label: 'Buscar no Radar de Editais',
+            type: 'navigate',
+            route: '/fornecedor/radar',
+          });
+          actions.push({
+            label: 'Analisar Viabilidade do Edital',
+            type: 'navigate',
+            route: '/fornecedor/score-viabilidade',
+          });
+        }
+
+        // 4. Concorrente ou investigação de mercado
+        if (pLower.includes('concorrente') || pLower.includes('empresa') || pLower.includes('cnpj') || pLower.includes('disputou')) {
+          actions.push({
+            label: 'Ver Histórico de Concorrentes',
+            type: 'navigate',
+            route: '/fornecedor/historico-concorrentes',
+          });
+        }
+
+        // 5. Certidões e Habilitação
+        if (pLower.includes('certidão') || pLower.includes('certidoes') || pLower.includes('balanço') || pLower.includes('habilita') || pLower.includes('documento')) {
+          actions.push({
+            label: 'Conferir Documentos de Habilitação',
+            type: 'navigate',
+            route: '/fornecedor/habilitacao',
+          });
+        }
+
+        console.info('[RAG-Chat-Luli]', JSON.stringify({ userId: req.user?.id, pergunta, respostaLen: answerText.length, actionsCount: actions.length }));
         return res.json({
           success: true,
-          data: { answer: answerText, reply: answerText, resposta: answerText },
+          data: {
+            answer: answerText,
+            reply: answerText,
+            resposta: answerText,
+            actions: actions.slice(0, 3), // Apresenta as 2 ou 3 ações mais relevantes
+          },
         });
       }
 

@@ -420,7 +420,7 @@ export const lexApi = {
   impugnacao: (body: { edital_id?: string; noticeId?: string; texto_edital?: string; contexto?: string; pergunta?: string }) => api.post('/lex/impugnacao', body, { timeout: 90000 }),
   recurso: (body: { motivoDesclassificacao?: string; contextoAdicional?: string; texto_edital?: string; contexto?: string; noticeId?: string }) =>
     api.post('/lex/recurso', body, { timeout: 90000 }),
-  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean }) => api.post('/lex/chat', body, { timeout: 90000 }),
+  chat: (body: { messages: Array<{ role: 'user' | 'assistant'; content: string }>; contextoEdital?: string; stream?: boolean; companyId?: string; currentRoute?: string }) => api.post('/lex/chat', body, { timeout: 90000 }),
   consultar: (body: { pergunta: string; contexto?: string }) => api.post('/ai/consultar', body),
   exportarParecerPdf: (body: ExportarParecerPayload) =>
     api.post('/lex/parecer-pdf', body, {

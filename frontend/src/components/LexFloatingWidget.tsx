@@ -1,16 +1,25 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize2, Minimize2, Send, Trash2, X, Move, Sparkles } from 'lucide-react';
+import { Maximize2, Minimize2, Send, Trash2, X, Move, Sparkles, Copy, ArrowRight, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useCompany } from '../contexts/CompanyContext';
 import { lexApi } from '../services/api';
 import { ChatMessage, cleanHumanAiText } from './ChatMessage';
+
+export interface ChatAction {
+  label: string;
+  type: 'navigate' | 'copy';
+  route?: string;
+  textToCopy?: string;
+}
 
 interface Mensagem {
   id: string;
   autor: 'usuario' | 'luli';
   texto: string;
   horario: string;
+  actions?: ChatAction[];
 }
 
 function horaAtual(): string {
@@ -44,10 +53,12 @@ const MENSAGEM_INICIAL: Mensagem = {
 
 export function LexFloatingWidget() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { selectedCompany } = useCompany();
 
   const [aberto, setAberto] = useState(false);
   const [expandido, setExpandido] = useState(false);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [entrada, setEntrada] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [mensagens, setMensagens] = useState<Mensagem[]>([MENSAGEM_INICIAL]);
@@ -100,11 +111,15 @@ export function LexFloatingWidget() {
           noticeId: edital.numeroControlePNCP || edital.id,
           contexto: `Radar de Editais - Empresa: ${selectedCompany?.razaoSocial || selectedCompany?.nomeFantasia || ''}`,
           messages: [{ role: 'user', content: pergunta }],
+          companyId: selectedCompany?.id,
+          currentRoute: pathname,
         } as any);
-        const texto = resp?.data?.data?.answer || resp?.data?.answer || resp?.data?.data?.resposta || resp?.data?.resposta || 'Não consegui analisar este edital agora.';
+        const payload = resp?.data?.data || resp?.data || {};
+        const texto = payload?.answer || payload?.resposta || 'Não consegui analisar este edital agora.';
+        const actions = Array.isArray(payload?.actions) ? payload.actions : [];
         setMensagens((prev) => [
           ...prev,
-          { id: String(Date.now() + 1), autor: 'luli', texto: String(texto), horario: horaAtual() },
+          { id: String(Date.now() + 1), autor: 'luli', texto: String(texto), horario: horaAtual(), actions },
         ]);
       } catch {
         setMensagens((prev) => [
@@ -157,9 +172,12 @@ export function LexFloatingWidget() {
           })),
         contextoEdital,
         stream: false,
+        companyId: selectedCompany?.id,
+        currentRoute: pathname,
       });
 
       const payload = resp?.data?.data || resp?.data || resp || {};
+      const actions = Array.isArray(payload.actions) ? payload.actions : [];
       const respostaTexto =
         payload.answer ||
         payload.resposta ||
@@ -183,6 +201,7 @@ export function LexFloatingWidget() {
           autor: 'luli',
           texto: String(respostaTexto),
           horario: horaAtual(),
+          actions,
         },
       ]);
     } catch {
@@ -413,6 +432,40 @@ export function LexFloatingWidget() {
                           />
                           <div className="flex-1">
                             <ChatMessage role="assistant" content={cleanHumanAiText(msg.texto)} />
+
+                            {/* Botões de Ação Dinâmicos da Luli */}
+                            {Array.isArray(msg.actions) && msg.actions.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                                {msg.actions.map((act, actIdx) => (
+                                  <button
+                                    key={actIdx}
+                                    type="button"
+                                    onClick={() => {
+                                      if (act.type === 'navigate' && act.route) {
+                                        navigate(act.route);
+                                      } else if (act.type === 'copy' && act.textToCopy) {
+                                        navigator.clipboard.writeText(act.textToCopy);
+                                        setCopiadoId(`${msg.id}-${actIdx}`);
+                                        toast.success('Texto copiado com sucesso!');
+                                        setTimeout(() => setCopiadoId(null), 3000);
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-[#0070C0] hover:bg-[#0070C0] hover:text-white transition-all cursor-pointer shadow-xs active:scale-95"
+                                  >
+                                    {act.type === 'copy' ? (
+                                      copiadoId === `${msg.id}-${actIdx}` ? (
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )
+                                    ) : (
+                                      <ArrowRight className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>{act.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
