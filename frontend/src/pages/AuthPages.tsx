@@ -176,7 +176,7 @@ export function LoginPage() {
       }
       setLoading(true);
       try {
-        await api.post('/auth/reset-password', { token: resetToken, novaSenha });
+        await api.post('/auth/reset-password', { token: resetToken, senha: novaSenha });
         setMensagem('Senha redefinida com sucesso! Você já pode entrar com sua nova senha.');
         setNovaSenha('');
         setConfirmarSenha('');
@@ -280,7 +280,7 @@ export function LoginPage() {
         )}
 
         <div className="flex items-center justify-between gap-2">
-          {!reset ? (
+          {!reset && !isResetPasswordMode ? (
             <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
               <input
                 type="checkbox"

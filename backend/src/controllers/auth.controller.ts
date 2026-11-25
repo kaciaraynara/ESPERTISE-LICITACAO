@@ -401,7 +401,7 @@ export class AuthController {
   async resetPassword(req: Request, res: Response) {
     try {
       const token = (req.body?.token ?? '').toString().trim();
-      const novaSenha = (req.body?.senha ?? req.body?.password ?? '').toString();
+      const novaSenha = (req.body?.novaSenha ?? req.body?.senha ?? req.body?.password ?? '').toString();
 
       if (!token) {
         return res.status(400).json({
