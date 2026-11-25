@@ -254,6 +254,48 @@ export function obterLinkMunicipal(municipio?: string | null, uf?: string | null
   return `https://www.google.com/search?q=certidao+negativa+debitos+municipais+prefeitura+${encodeURIComponent(cid)}+${siglaUf}`;
 }
 
+
+function parseBrDateToIso(brDate: string): Date | null {
+  const m = brDate.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const dt = new Date(`${y}-${mo}-${d}T12:00:00Z`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+async function extrairValidadeRealDoPdf(buffer: Buffer): Promise<Date | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pdfParse = require('pdf-parse');
+    const parsed = await pdfParse(buffer);
+    const texto = String(parsed?.text || '').replace(/\s+/g, ' ');
+    if (!texto.trim()) return null;
+
+    // 1. Padrao intervalo (ex.: FGTS CRF "Validade: 01/11/2026 a 30/11/2026")
+    const rangeMatch = texto.match(/(?:validade|v[aá]lida\s+de)\s*:?\s*\d{2}\/\d{2}\/\d{4}\s*(?:a|at[eé]|-)\s*(\d{2}\/\d{2}\/\d{4})/i);
+    if (rangeMatch?.[1]) {
+      const dt = parseBrDateToIso(rangeMatch[1]);
+      if (dt) return dt;
+    }
+
+    // 2. Padroes diretos de vencimento/validade
+    const directPatterns = [
+      /(?:v[aá]lid[oa]\s+at[eé]|data\s+de\s+validade|prazo\s+de\s+validade|vencimento|expira\s+em)\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
+      /validade\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
+    ];
+    for (const rx of directPatterns) {
+      const m = texto.match(rx);
+      if (m?.[1]) {
+        const dt = parseBrDateToIso(m[1]);
+        if (dt) return dt;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export class HabilitacaoService {
   /**
    * Avalia a situação e os dias para vencer de um documento
@@ -651,89 +693,66 @@ export class HabilitacaoService {
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', (err) => reject(err));
 
-        // Cabeçalho Oficial
-        doc.fontSize(13).font('Helvetica-Bold').fillColor('#0B192C').text('DECLARAÇÕES UNIFICADAS DE HABILITAÇÃO', { align: 'center' });
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#14532D').text('LEI FEDERAL Nº 14.133/2021 — ART. 63 (MODELO PARA ASSINATURA)', { align: 'center' });
-          doc.moveDown(0.5);
-          doc.fontSize(8.5).font('Helvetica').fillColor('#475569').text('Órgão Licitante: ______________________________________   Pregão/Processo nº: ______________________', { align: 'center' });
-        doc.moveDown(1);
+          const porteTexto = String(empresa.porte || 'Microempresa ou Empresa de Pequeno Porte')
+            .replace(/^ME$/i, 'Microempresa - ME')
+            .replace(/^EPP$/i, 'Empresa de Pequeno Porte - EPP');
 
-        // Qualificação da Empresa
-        doc.fontSize(9.5).font('Helvetica').fillColor('#0F172A').text(
-          `A empresa ${razaoSocial}, inscrita no CNPJ sob o nº ${cnpjFormat}, sediada em ${enderecoReal}, por intermédio de seu representante legal, declara sob as penas da lei, para fins de participação em procedimentos licitatórios:`,
-          { align: 'justify', lineGap: 3 }
-        );
-        doc.moveDown(1);
+          // Papel timbrado da propria empresa licitante
+          doc.fontSize(12).font('Helvetica-Bold').fillColor('#0B192C').text(razaoSocial.toUpperCase(), { align: 'left' });
+          doc.fontSize(8.5).font('Helvetica').fillColor('#475569').text(`CNPJ: ${cnpjFormat}  |  ${enderecoReal}`, { align: 'left' });
+          doc.moveDown(0.4);
+          doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#0B192C').lineWidth(1).stroke();
+          doc.moveDown(1);
 
-        // Declaração 1: Inexistência de Fatos Impeditivos (Art. 14 da Lei 14.133/21)
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('1. INEXISTÊNCIA DE FATOS IMPEDITIVOS (ART. 14)');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          'Declara que não está impedida de licitar ou contratar com a Administração Pública, que não foi declarada inidônea por nenhum órgão público da administração direta ou indireta, e que inexistem fatos supervenientes impeditivos da sua habilitação.',
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(0.8);
+          // Titulo do documento
+          doc.fontSize(12).font('Helvetica-Bold').fillColor('#0B192C').text('DECLARAÇÃO UNIFICADA PARA HABILITAÇÃO EM LICITAÇÃO', { align: 'center' });
+          doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#14532D').text('LEI FEDERAL Nº 14.133/2021', { align: 'center' });
+          doc.moveDown(1);
 
-        // Declaração 2: Não emprego de menores (Art. 7º, XXXIII, CF e Art. 68, VI, Lei 14.133/21)
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('2. CUMPRIMENTO DO ART. 7º, XXXIII, DA CONSTITUIÇÃO FEDERAL');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          'Declara que não emprega menor de 18 (dezoito) anos em trabalho noturno, perigoso ou insalubre e não emprega menor de 16 (dezesseis) anos, salvo na condição de aprendiz, a partir de 14 (quatorze) anos.',
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(0.8);
+          // Identificacao do certame (preenchimento obrigatorio antes da assinatura)
+          doc.fontSize(9).font('Helvetica-Bold').fillColor('#0B192C').text('AO(À) AGENTE DE CONTRATAÇÃO / PREGOEIRO(A)');
+          doc.fontSize(9).font('Helvetica').fillColor('#1E293B').text('Órgão Licitante: ____________________________________________________________________');
+          doc.text('Edital / Pregão Eletrônico nº: _______________________   Processo Administrativo nº: _______________________');
+          doc.text('Objeto: _________________________________________________________________________________');
+          doc.moveDown(0.9);
 
-        // Declaração 3: Elaboração Independente de Proposta (Art. 67 da Lei 14.133/21)
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('3. ELABORAÇÃO INDEPENDENTE DE PROPOSTA');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          'Declara que a proposta apresentada foi elaborada de maneira independente e que o seu conteúdo não foi, no todo ou em parte, direta ou indiretamente, informado, discutido ou divulgado com qualquer outro participante ou competidor.',
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(0.8);
+          // Qualificacao completa
+          doc.fontSize(9.5).font('Helvetica').fillColor('#0F172A').text(
+            `A empresa ${razaoSocial}, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº ${cnpjFormat}, com sede em ${enderecoReal}, por intermédio de seu representante legal abaixo qualificado, DECLARA, sob as penas da lei e para os devidos fins no certame em epígrafe, que:`,
+            { align: 'justify', lineGap: 2.5 }
+          );
+          doc.moveDown(0.8);
 
-        // Declaração 4: Reserva de Cargos para PCD (Art. 63, IV da Lei 14.133/21)
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('4. RESERVA DE CARGOS PARA PESSOA COM DEFICIÊNCIA');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          'Declara que atende às exigências de reserva de cargos para pessoa com deficiência e para reabilitado da Previdência Social, previstas em lei e em outras normas específicas, conforme o art. 63, inciso IV, da Lei nº 14.133/2021.',
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(0.8);
+          const clausulas = [
+            ['1. CUMPRIMENTO DOS REQUISITOS DE HABILITAÇÃO (ART. 63, INCISO I)', 'Atende plenamente a todos os requisitos de habilitação jurídica, regularidade fiscal, social e trabalhista, qualificação econômico-financeira e técnica exigidos no instrumento convocatório, respondendo pela veracidade das informações prestadas.'],
+            ['2. INEXISTÊNCIA DE FATOS IMPEDITIVOS E IDONEIDADE (ART. 14)', 'Não se encontra impedida de licitar ou contratar com a Administração Pública, não foi declarada inidônea por qualquer órgão ou entidade pública e inexistem fatos supervenientes impeditivos à sua participação.'],
+            ['3. PROTEÇÃO AO TRABALHO DO MENOR (ART. 7º, XXXIII, CF E ART. 68, VI)', 'Não emprega menor de 18 (dezoito) anos em trabalho noturno, perigoso ou insalubre e não emprega menor de 16 (dezesseis) anos, salvo na condição de aprendiz, a partir de 14 (quatorze) anos.'],
+            ['4. RESERVA DE CARGOS PARA PCD E REABILITADOS (ART. 63, INCISO IV)', 'Cumpre as exigências de reserva de cargos para pessoa com deficiência e para reabilitado da Previdência Social, previstas em lei e em outras normas específicas.'],
+            ['5. INTEGRALIDADE DOS CUSTOS NA PROPOSTA (ART. 63, § 1º)', 'Sua proposta econômica compreende a integralidade dos custos para atendimento dos direitos trabalhistas assegurados na Constituição Federal, nas leis trabalhistas, nas normas infralegais, nas convenções coletivas de trabalho e nos termos de ajustamento de conduta vigentes na data de entrega das propostas.'],
+            ['6. ELABORAÇÃO INDEPENDENTE DE PROPOSTA', 'A proposta apresentada foi elaborada de forma totalmente independente, sem qualquer acordo, ajuste ou divulgação prévia de conteúdo com outros licitantes ou concorrentes.'],
+            ['7. ENQUADRAMENTO EMPRESARIAL (LEI COMPLEMENTAR Nº 123/2006)', `Enquadra-se na condição de ${porteTexto}, não incorrendo em nenhuma das vedações previstas no art. 3º, § 4º, da Lei Complementar nº 123/2006.`],
+          ];
 
-        // Declaração 5: Enquadramento de Porte
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('5. ENQUADRAMENTO DE PORTE EMPRESARIAL (LC 123/2006)');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          `Declara, sob as penalidades legais, que cumpre os requisitos de qualificação do porte empresarial (${porte}) e que não incorre em nenhuma das vedações previstas no art. 3º, § 4º, da Lei Complementar nº 123/2006.`,
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(0.8);
+          for (const [titulo, texto] of clausulas) {
+            doc.fontSize(9).font('Helvetica-Bold').fillColor('#0B192C').text(titulo);
+            doc.fontSize(8.8).font('Helvetica').fillColor('#334155').text(texto, { align: 'justify', lineGap: 2 });
+            doc.moveDown(0.55);
+          }
 
-        // Declaração 6: Cumprimento Pleno dos Requisitos (Art. 63, I da Lei 14.133/21)
-        doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text('6. PLENO CUMPRIMENTO DOS REQUISITOS DE HABILITAÇÃO');
-        doc.fontSize(9).font('Helvetica').fillColor('#334155').text(
-          'Declara que atende a todos os requisitos de habilitação jurídica, regularidade fiscal e trabalhista, qualificação econômica e técnica exigidos para a contratação.',
-          { align: 'justify', lineGap: 2 }
-        );
-        doc.moveDown(1.5);
+          doc.moveDown(0.8);
+          const dataHoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+          doc.fontSize(9.5).font('Helvetica').fillColor('#0F172A').text(`${empresa.municipio || 'Local'}, ${dataHoje}.`, { align: 'center' });
+          doc.moveDown(1.8);
 
-        // Data e Assinatura
-        const dataHoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-        doc.fontSize(9.5).font('Helvetica').fillColor('#0F172A').text(
-          `${empresa.municipio || 'Sede'}, ${dataHoje}.`,
-          { align: 'center' }
-        );
-        doc.moveDown(2);
+          doc.moveTo(140, doc.y).lineTo(455, doc.y).strokeColor('#0F172A').lineWidth(0.8).stroke();
+          doc.moveDown(0.3);
+          doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0B192C').text(razaoSocial.toUpperCase(), { align: 'center' });
+          doc.fontSize(8.5).font('Helvetica').fillColor('#334155').text(`CNPJ: ${cnpjFormat}`, { align: 'center' });
+          doc.text('Representante Legal: __________________________________________  |  CPF: _______________________', { align: 'center' });
+          doc.moveDown(0.3);
+          doc.fontSize(7.5).font('Helvetica-Oblique').fillColor('#64748B').text('Assinar preferencialmente com certificado digital (e-CPF ICP-Brasil ou assinatura Gov.br) antes de protocolar.', { align: 'center' });
 
-        doc.moveTo(170, doc.y).lineTo(425, doc.y).lineWidth(1).stroke('#0B192C');
-        doc.moveDown(0.5);
-        doc.fontSize(9).font('Helvetica-Bold').fillColor('#0B192C').text(razaoSocial, { align: 'center' });
-        doc.fontSize(8.5).font('Helvetica').fillColor('#475569').text(`CNPJ: ${cnpjFormat}`, { align: 'center' });
-        doc.fontSize(8).font('Helvetica-Oblique').fillColor('#64748B').text('Representante Legal', { align: 'center' });
-
-        doc.moveDown(1.5);
-        doc.fontSize(7).font('Helvetica').fillColor('#94A3B8').text(
-          'Documento emitido para fins exclusivos de Habilitação em Licitações Públicas (Lei nº 14.133/2021). O tratamento das informações respeita estritamente a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD).',
-          { align: 'center', width: 495 }
-        );
-
-        doc.end();
+          doc.end();
       } catch (err) {
         reject(err);
       }
@@ -826,6 +845,8 @@ export class HabilitacaoService {
     let validadeDate: Date | null = null;
     if (dataVencimento) {
       validadeDate = new Date(dataVencimento);
+    } else if (file?.buffer && (!file.mimetype || file.mimetype.includes('pdf'))) {
+      validadeDate = await extrairValidadeRealDoPdf(file.buffer);
     }
 
     const docExistente = await prisma.document.findFirst({

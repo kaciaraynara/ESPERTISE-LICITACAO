@@ -640,7 +640,7 @@ export const HabilitacaoPage: React.FC = () => {
                 {/* Pergunta clara sobre data de vencimento */}
                 <div className="space-y-1.5">
                   <label htmlFor="data-vencimento-input" className="text-xs font-bold text-[#0B192C] block">
-                    Qual a data de vencimento que está escrita no documento?
+                    Data de vencimento (opcional — leitura automática no PDF)
                   </label>
                   <input
                     id="data-vencimento-input"
@@ -650,7 +650,7 @@ export const HabilitacaoPage: React.FC = () => {
                     className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-[#0B192C] outline-none focus:border-[#14532D]"
                   />
                   <p className="text-[11px] text-slate-500">
-                    Já sugerimos uma data padrão com base na validade comum deste tipo de certidão. Você pode ajustar se necessário.
+                    Se deixar em branco, a plataforma lê a data de validade impressa dentro do PDF automaticamente ao salvar.
                   </p>
                 </div>
 
