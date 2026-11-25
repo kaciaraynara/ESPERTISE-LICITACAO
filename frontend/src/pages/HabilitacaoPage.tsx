@@ -248,7 +248,7 @@ export const HabilitacaoPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans text-[#0F172A]">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 space-y-6">
+      <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* =========================================================================
             1. TOPO SIMPLES E DIRETO COM IDENTIFICAÇÃO E AÇÕES PRINCIPAIS
@@ -264,7 +264,7 @@ export const HabilitacaoPage: React.FC = () => {
                 Documentos de Habilitação (Lei 14.133/2021)
               </h1>
               <p className="text-sm text-slate-600 max-w-2xl leading-relaxed">
-                Deixe todos os documentos da sua empresa prontos e organizados para enviar assim que vencer a licitação.
+                Mantenha os 13 documentos obrigatórios atualizados e prontos para participar de licitações em todo o Brasil.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-700">
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200">
@@ -273,7 +273,7 @@ export const HabilitacaoPage: React.FC = () => {
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200">
                   <MapPin className="h-4 w-4 text-[#14532D]" />
-                  Cidade/Estado: <strong className="text-[#0B192C]">{dados?.empresa?.municipio || selectedCompany?.municipio || 'São Paulo'} - {dados?.empresa?.uf || selectedCompany?.uf || 'SP'}</strong>
+                  Cidade/Estado: <strong className="text-[#0B192C]">{(dados?.empresa?.municipio || selectedCompany?.municipio) ? `${dados?.empresa?.municipio || selectedCompany?.municipio} - ${dados?.empresa?.uf || selectedCompany?.uf || ''}` : 'Atuação Nacional (Brasil)'}</strong>
                 </span>
                 {dados?.empresa?.cnpjFormatado && (
                   <span className="rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200 font-mono text-slate-600">
@@ -393,9 +393,9 @@ export const HabilitacaoPage: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 shadow-2xs flex items-start gap-3">
           <FileText className="h-5 w-5 text-[#0B192C] shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <span className="font-bold text-[#0B192C]">Autenticidade Documental & Conformidade com a Lei 14.133/2021:</span>
-            <p className="leading-relaxed">
-              O Comprovante do CNPJ e as Certidões Fiscais (Federal, Estadual, Municipal, FGTS e Trabalhista) devem ser emitidos diretamente nos órgãos públicos emissores oficiais através dos botões &ldquo;1. Abrir site oficial&rdquo; ao lado de cada item, e anexados na pasta da sua empresa. A plataforma emite com exclusividade as <strong>Declarações Obrigatórias do Art. 63</strong> subscritas pelo próprio licitante, garantindo 100% de veracidade, validade jurídica perante pregoeiros e conformidade estrita com a LGPD (Lei nº 13.709/2018).
+            <span className="font-bold text-[#0B192C]">Organização dos Documentos da Empresa</span>
+            <p className="leading-relaxed text-slate-600">
+              Emita as certidões nos portais oficiais, anexe os arquivos em PDF e acompanhe os vencimentos. Para as Declarações Obrigatórias (item 12), baixe o modelo, assine com certificado digital (e-CPF ou Gov.br) e anexe o documento assinado.
             </p>
           </div>
         </div>

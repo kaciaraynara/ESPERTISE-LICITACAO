@@ -517,7 +517,10 @@ export class HabilitacaoService {
           if (item.codigo === 9 && (t.includes('falenc') || t.includes('concord') || n.includes('falenc'))) return true;
           if (item.codigo === 10 && (t.includes('balanco') || t.includes('balanço') || n.includes('balanço'))) return true;
           if (item.codigo === 11 && (t.includes('idonea') || t.includes('idônea') || t.includes('ceis') || n.includes('idone'))) return true;
-          if (item.codigo === 12 && (t.includes('declarac') || t.includes('declaraç') || n.includes('declaraç'))) return true;
+          if (item.codigo === 12) {
+            if (d.arquivoNome === '12 - Declarações Obrigatórias Lei 14.133.pdf' || d.arquivoNome === '12 - DeclaraÃ§Ãµes ObrigatÃ³rias Lei 14.133.pdf') return false;
+            return t.includes('declarac') || t.includes('declaraç') || t.includes('declaraÃ§') || n.includes('declaraç') || n.includes('declaraÃ§');
+          }
           if (item.codigo === 13 && (t.includes('atestado') || n.includes('atestado') || t.includes('capacidade'))) return true;
           return false;
         });
