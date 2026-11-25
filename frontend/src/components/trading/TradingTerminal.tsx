@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
   Zap,
@@ -7,18 +8,27 @@ import {
   Play,
   Pause,
   RefreshCw,
-  Clock,
   Volume2,
   VolumeX,
   Gavel,
   CheckCircle2,
+  AlertTriangle,
   Lock,
   AlertOctagon,
+  Copy,
+  Check,
+  Calculator,
+  FileText,
+  Building2,
+  Radio,
+  Sparkles,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Decimal from 'decimal.js';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
-import { propostasApi, licitacoesApi } from '@/services/api';
+import { propostasApi, licitacoesApi, certidoesApi, documentosApi } from '@/services/api';
 import { buildOfficialPncpPortalUrl } from '@/utils/pncp';
 import { useCompany } from '@/contexts/CompanyContext';
 
@@ -34,8 +44,8 @@ export interface ItemPlanilhaTerminal {
   valorReferencia: number;
   melhorLanceConcorrente: number;
   seuUltimoLance: number | null;
-  lanceAlvo: number;
-  pisoMinimo: number;
+  lanceAlvo: number; // Meta de Lance
+  pisoMinimo: number; // Valor Mínimo (Sem Prejuízo)
   estrategia: EstrategiaType;
   decrementoMinimo: number;
   status: StatusItemType;
@@ -72,20 +82,50 @@ export const TradingTerminal: React.FC = () => {
   const [edital, setEdital] = useState<EditalOption | null>(null);
   const [portalUrl, setPortalUrl] = useState<string>('https://pncp.gov.br/app/editais');
 
+  // Conexão Honesta e Extensão Chrome
+  const [conectorExtensaoAtivo, setConectorExtensaoAtivo] = useState<boolean>(false);
+  const [nomePortalConectado, setNomePortalConectado] = useState<string>('');
+  const [modalExtensaoAberta, setModalExtensaoAberta] = useState<boolean>(false);
+
   // Áudio de Alertas do Pregoeiro
   const [somHabilitado, setSomHabilitado] = useState<boolean>(true);
 
-  // Aba Ativa no Mobile (para nunca quebrar em telas pequenas)
-  const [abaMobile, setAbaMobile] = useState<'ITENS' | 'PREPARACAO' | 'AVISOS'>('ITENS');
+  // Modo de Exibição (Tabela Completa vs Cards no Mobile/Tablet)
+  const [modoVisualizacao, setModoVisualizacao] = useState<'TABELA' | 'CARDS'>('TABELA');
+  const [abaMobile, setAbaMobile] = useState<'ITENS' | 'COPILOTO' | 'AVISOS' | 'CHECKLIST'>('ITENS');
 
-  // Contagem Regressiva para a Abertura da Sessão
-  const [tempoRestanteMinutos, setTempoRestanteMinutos] = useState<number>(14);
-  const [tempoRestanteSegundos, setTempoRestanteSegundos] = useState<number>(30);
-  const [disputaEmAndamento] = useState<boolean>(true);
-
-  // Planilha de Itens Reais (Inicia vazia até selecionar edital ou puxar proposta)
+  // Planilha de Itens Reais
   const [itens, setItens] = useState<ItemPlanilhaTerminal[]>([]);
   const [carregandoItens, setCarregandoItens] = useState<boolean>(false);
+  const [itemSelecionadoId, setItemSelecionadoId] = useState<string>('');
+
+  // Checklist de Prontidão da Empresa (100% Real do Banco)
+  const [carregandoChecklist, setCarregandoChecklist] = useState<boolean>(true);
+  const [checklistReal, setChecklistReal] = useState<{
+    certidoesValidas: number;
+    certidoesVencidas: number;
+    totalCertidoes: number;
+    totalDocumentos: number;
+    propostaCadastrada: boolean;
+    nomeProposta?: string;
+  }>({
+    certidoesValidas: 0,
+    certidoesVencidas: 0,
+    totalCertidoes: 0,
+    totalDocumentos: 0,
+    propostaCadastrada: false,
+  });
+
+  // Copiloto: Calculadora Instantânea de Próximo Lance
+  const [menorPrecoInformado, setMenorPrecoInformado] = useState<string>('');
+  const [lanceCalculado, setLanceCalculado] = useState<number | null>(null);
+  const [alertaPrejuizoAtivo, setAlertaPrejuizoAtivo] = useState<boolean>(false);
+  const [alertaInexequivelAtivo, setAlertaInexequivelAtivo] = useState<boolean>(false);
+  const [copiadoLance, setCopiadoLance] = useState<boolean>(false);
+
+  // Benefício ME/EPP - Cronômetro Legal de 5 Minutos (Empate Ficto LC 123/2006)
+  const [tempoMeSegundos, setTempoMeSegundos] = useState<number>(300);
+  const [cronometroMeAtivo, setCronometroMeAtivo] = useState<boolean>(false);
 
   // Mensagens do Pregoeiro e Avisos Oficiais
   const [mensagens, setMensagens] = useState<MensagemDisputa[]>([
@@ -93,9 +133,12 @@ export const TradingTerminal: React.FC = () => {
       id: 'msg-1',
       hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       autor: 'SISTEMA',
-      texto: 'Sessão pública conectada. Selecione um edital monitorado ou puxe sua proposta comercial para sincronizar os lotes e itens da sua atividade.',
+      texto: 'Mesa Estratégica iniciada em Modo Manual Assistido. Selecione um edital para carregar os lotes e calcular os lances de segurança.',
     },
   ]);
+
+  // Mensagens Prontas para o Pregoeiro (Copiar em 1 Clique)
+  const [mensagemCopiadaId, setMensagemCopiadaId] = useState<string | null>(null);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
@@ -104,17 +147,71 @@ export const TradingTerminal: React.FC = () => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagens]);
 
-  // Cronômetro Regressivo da Sessão
+  // Handshake com a Extensão Google Chrome Oficial
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTempoRestanteSegundos((seg) => {
-        if (seg > 0) return seg - 1;
-        setTempoRestanteMinutos((min) => (min > 0 ? min - 1 : 0));
-        return 59;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
+    const handleMensagemExtensao = (event: MessageEvent) => {
+      if (event.data?.source === 'EXPERTISE_CHROME_EXTENSION') {
+        if (event.data?.type === 'HEARTBEAT' || event.data?.type === 'SYNC_PORTAL_STATE') {
+          setConectorExtensaoAtivo(true);
+          setNomePortalConectado(event.data?.portalName || 'Portal de Compras');
+
+          if (Array.isArray(event.data?.itens) && event.data.itens.length > 0) {
+            setItens((prev) =>
+              prev.map((it) => {
+                const itemExt = event.data.itens.find((x: any) => x.numero === it.itemNumero);
+                if (!itemExt) return it;
+                const novoMelhor = roundDec(Number(itemExt.melhorLance) || it.melhorLanceConcorrente);
+                const novoStatus: StatusItemType =
+                  novoMelhor <= it.pisoMinimo
+                    ? 'PISO_ATINGIDO'
+                    : itemExt.posicao === 1
+                    ? 'VENCENDO'
+                    : 'COBERTO';
+
+                return {
+                  ...it,
+                  melhorLanceConcorrente: novoMelhor,
+                  seuUltimoLance: itemExt.seuLance ? roundDec(Number(itemExt.seuLance)) : it.seuUltimoLance,
+                  status: novoStatus,
+                };
+              })
+            );
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMensagemExtensao);
+
+    // Envia ping de descoberta para a extensão
+    window.postMessage({ source: 'EXPERTISE_WEB_APP', type: 'PING' }, '*');
+
+    return () => {
+      window.removeEventListener('message', handleMensagemExtensao);
+    };
   }, []);
+
+  // Cronômetro do Benefício ME/EPP (5 minutos)
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    if (cronometroMeAtivo && tempoMeSegundos > 0) {
+      timer = setInterval(() => {
+        setTempoMeSegundos((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    } else if (tempoMeSegundos === 0 && cronometroMeAtivo) {
+      setCronometroMeAtivo(false);
+      toast.error('Prazo legal de 5 minutos da Lei Complementar 123/2006 expirado!', { duration: 6000 });
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cronometroMeAtivo, tempoMeSegundos]);
+
+  const formatTempoMe = (segundos: number) => {
+    const min = Math.floor(segundos / 60);
+    const seg = segundos % 60;
+    return `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+  };
 
   const adicionarMensagem = useCallback(
     (autor: 'PREGOEIRO' | 'SISTEMA' | 'LANCE' | 'ALERTA', texto: string, itemNumero?: number, valor?: number) => {
@@ -135,51 +232,59 @@ export const TradingTerminal: React.FC = () => {
     []
   );
 
-  // Sincronização automática inicial com propostas ou certames reais da empresa
+  // Consulta do Checklist Real da Empresa Ativa
+  useEffect(() => {
+    let active = true;
+    const consultarChecklistReal = async () => {
+      setCarregandoChecklist(true);
+      try {
+        const empresaId = selectedCompany?.id;
+        const [respCert, respProp, respDocs] = await Promise.all([
+          certidoesApi.listar(empresaId ? { empresa_id: empresaId } : undefined).catch(() => null),
+          propostasApi.listar().catch(() => null),
+          documentosApi.listar(empresaId ? { empresa_id: empresaId } : undefined).catch(() => null),
+        ]);
+
+        if (!active) return;
+
+        const certs: any[] = respCert?.data?.data || (Array.isArray(respCert?.data) ? respCert.data : []);
+        const certidoesValidas = certs.filter((c) => /regular|valida|válida|emitida|ok/i.test(String(c.status || ''))).length;
+        const certidoesVencidas = certs.filter((c) => /vencid|pendent|irregular/i.test(String(c.status || ''))).length;
+
+        const docs: any[] = respDocs?.data?.data || (Array.isArray(respDocs?.data) ? respDocs.data : []);
+        const totalDocsCofre = docs.length;
+
+        const propsList: any[] = respProp?.data?.data || (respProp?.data as any)?.items || [];
+        const propostaCadastrada = Array.isArray(propsList) && propsList.length > 0;
+        const nomeProposta = propostaCadastrada ? propsList[0]?.titulo || propsList[0]?.numeroProposta : undefined;
+
+        setChecklistReal({
+          certidoesValidas,
+          certidoesVencidas,
+          totalCertidoes: certs.length,
+          totalDocumentos: totalDocsCofre,
+          propostaCadastrada,
+          nomeProposta,
+        });
+      } catch (err) {
+        console.warn('Falha ao carregar checklist real:', err);
+      } finally {
+        if (active) setCarregandoChecklist(false);
+      }
+    };
+
+    consultarChecklistReal();
+    return () => {
+      active = false;
+    };
+  }, [selectedCompany?.id]);
+
+  // Sincronização inicial com certames do CNAE da empresa ativa se não houver edital
   useEffect(() => {
     let active = true;
     const inicializarDisputa = async () => {
       try {
         setCarregandoItens(true);
-        // 1. Tenta carregar da proposta comercial salva
-        const resProp = await propostasApi.listar();
-        const list = resProp?.data?.data || (resProp?.data as any)?.items || [];
-        if (Array.isArray(list) && list.length > 0) {
-          const prop = list[0];
-          const rawItens = Array.isArray(prop?.items) ? prop.items : [];
-          if (rawItens.length > 0 && active) {
-            setItens(
-              rawItens.map((it: any, idx: number) => {
-                const ref = roundDec(Number(it.precoUnitarioProposto || it.valorUnitario || it.custoDireto || 100));
-                const custo = roundDec(Number(it.custoDireto || ref * 0.75));
-                const piso = roundDec(custo * 1.10);
-                const lanceAlvo = roundDec(ref * 0.92);
-
-                return {
-                  id: String(it.id || idx + 1),
-                  itemNumero: Number(it.numero || idx + 1),
-                  descricao: String(it.descricao || `Item ${idx + 1}`),
-                  quantidade: Number(it.quantidade || 1),
-                  unidadeMedida: String(it.unidadeMedida || 'UN'),
-                  valorReferencia: ref,
-                  melhorLanceConcorrente: ref,
-                  seuUltimoLance: null,
-                  lanceAlvo,
-                  pisoMinimo: piso,
-                  estrategia: 'COBERTURA',
-                  decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
-                  status: 'COBERTO',
-                  ativo: true,
-                  margemEstimadaPct: roundDec(((ref - custo) / (ref || 1)) * 100),
-                };
-              })
-            );
-            adicionarMensagem('SISTEMA', `Itens da proposta "${prop.titulo || 'Comercial'}" sincronizados para a disputa.`);
-            return;
-          }
-        }
-
-        // 2. Se não houver propostas salvas, busca certame compatível com o CNAE da empresa ativa
         const cnaeAtivo = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal;
         const resLic = await licitacoesApi.listar({ cnae: cnaeAtivo, local: true } as any);
         const licList = resLic?.data?.items || resLic?.data?.data || [];
@@ -192,42 +297,41 @@ export const TradingTerminal: React.FC = () => {
           const resItens = await licitacoesApi.obterItens(primeiroEdital.id);
           const rawItens = resItens.data?.data || resItens.data?.items || resItens.data || [];
           if (Array.isArray(rawItens) && rawItens.length > 0 && active) {
-            setItens(
-              rawItens.map((it: any, idx: number) => {
-                const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
-                const piso = roundDec(ref * 0.78);
-                const alvo = roundDec(ref * 0.92);
-                return {
-                  id: String(it.id || idx + 1),
-                  itemNumero: Number(it.numeroItem || it.numero || idx + 1),
-                  descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
-                  quantidade: Number(it.quantidade || 1),
-                  unidadeMedida: String(it.unidadeMedida || 'UN'),
-                  valorReferencia: ref,
-                  melhorLanceConcorrente: ref,
-                  seuUltimoLance: null,
-                  lanceAlvo: alvo,
-                  pisoMinimo: piso,
-                  estrategia: 'COBERTURA',
-                  decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
-                  status: 'COBERTO',
-                  ativo: true,
-                  margemEstimadaPct: 22.0,
-                };
-              })
-            );
-            adicionarMensagem('SISTEMA', `Certame ${primeiroEdital.numeroEdital || primeiroEdital.id} vinculado à Sala de Disputa.`);
+            const mapped = rawItens.map((it: any, idx: number) => {
+              const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
+              const piso = roundDec(ref * 0.78);
+              const alvo = roundDec(ref * 0.92);
+              return {
+                id: String(it.id || idx + 1),
+                itemNumero: Number(it.numeroItem || it.numero || idx + 1),
+                descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
+                quantidade: Number(it.quantidade || 1),
+                unidadeMedida: String(it.unidadeMedida || 'UN'),
+                valorReferencia: ref,
+                melhorLanceConcorrente: ref,
+                seuUltimoLance: null,
+                lanceAlvo: alvo,
+                pisoMinimo: piso,
+                estrategia: 'COBERTURA' as EstrategiaType,
+                decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+                status: 'COBERTO' as StatusItemType,
+                ativo: true,
+                margemEstimadaPct: 22.0,
+              };
+            });
+            setItens(mapped);
+            if (mapped.length > 0) setItemSelecionadoId(mapped[0].id);
+            adicionarMensagem('SISTEMA', `Certame ${primeiroEdital.numeroEdital || primeiroEdital.id} vinculado à Mesa Estratégica.`);
           }
         }
       } catch {
-        // Falha silenciosa
+        // Silencioso
       } finally {
         if (active) setCarregandoItens(false);
       }
     };
 
     inicializarDisputa();
-
     return () => {
       active = false;
     };
@@ -243,17 +347,20 @@ export const TradingTerminal: React.FC = () => {
       }))
     );
 
+    // Notifica também a extensão se estiver ativa
+    window.postMessage({ source: 'EXPERTISE_WEB_APP', type: 'EMERGENCY_STOP' }, '*');
+
     adicionarMensagem(
       'ALERTA',
-      'PARADA DE EMERGÊNCIA ACIONADA: Todos os robôs e disparos automáticos foram interrompidos imediatamente.'
+      'PARADA DE EMERGÊNCIA ACIONADA: Todos os disparos e automações de lances foram interrompidos imediatamente.'
     );
-    toast.error('PARADA DE EMERGÊNCIA EXECUTADA: Todos os robôs foram pausados com segurança.', {
+    toast.error('PARADA DE EMERGÊNCIA EXECUTADA: Todas as operações pausadas com segurança.', {
       duration: 5000,
       icon: '🛑',
     });
   };
 
-  // RETOMAR TODOS OS ROBÔS
+  // RETOMAR TODOS OS ITENS
   const ligarTodos = () => {
     setItens((prev) =>
       prev.map((it) => {
@@ -267,8 +374,8 @@ export const TradingTerminal: React.FC = () => {
         };
       })
     );
-    adicionarMensagem('SISTEMA', 'Monitoramento ativado em todos os itens com margem de segurança preservada.');
-    toast.success('Robôs ativos e monitorando a disputa.');
+    adicionarMensagem('SISTEMA', 'Monitoramento ativado com limite de segurança preservado.');
+    toast.success('Itens ativos e monitorando a disputa.');
   };
 
   // Alternar Ativação Individual
@@ -279,13 +386,13 @@ export const TradingTerminal: React.FC = () => {
         const novoAtivo = !it.ativo;
         if (novoAtivo && it.melhorLanceConcorrente <= it.pisoMinimo) {
           toast.error(
-            `Item #${it.itemNumero}: Piso mínimo de ${formatBRL(it.pisoMinimo)} já atingido. Ativação bloqueada para proteger sua empresa.`
+            `Item #${it.itemNumero}: Valor mínimo de ${formatBRL(it.pisoMinimo)} já atingido. Ativação bloqueada para proteger sua empresa contra prejuízo.`
           );
           return { ...it, ativo: false, status: 'PISO_ATINGIDO' };
         }
         adicionarMensagem(
           'SISTEMA',
-          `Robô do Item #${it.itemNumero} ${novoAtivo ? 'ATIVADO' : 'PAUSADO'} pelo operador.`
+          `Item #${it.itemNumero} ${novoAtivo ? 'ATIVADO' : 'PAUSADO'} pelo operador.`
         );
         return {
           ...it,
@@ -296,7 +403,7 @@ export const TradingTerminal: React.FC = () => {
     );
   };
 
-  // Atualização Direta de Campos com Decimal.js
+  // Atualização Direta de Campos
   const atualizarCampoItem = (
     itemId: string,
     campo: 'pisoMinimo' | 'lanceAlvo' | 'estrategia',
@@ -325,19 +432,19 @@ export const TradingTerminal: React.FC = () => {
     );
   };
 
-  // Disparo Imediato de Lance com Validação de Segurança
+  // Disparo de Lance Manual com Validação Rígida de Piso Mínimo
   const dispararLanceManual = (item: ItemPlanilhaTerminal) => {
     if (!item.lanceAlvo || item.lanceAlvo <= 0) {
-      toast.error(`Informe um valor de lance válido para o Item #${item.itemNumero}.`);
+      toast.error(`Informe uma meta de lance válida para o Item #${item.itemNumero}.`);
       return;
     }
 
     if (item.lanceAlvo < item.pisoMinimo) {
       adicionarMensagem(
         'ALERTA',
-        `BLOQUEIO DE SEGURANÇA: Lance de ${formatBRL(item.lanceAlvo)} no Item #${item.itemNumero} rejeitado por violar o piso mínimo de ${formatBRL(item.pisoMinimo)}.`
+        `BLOQUEIO DE SEGURANÇA: Lance de ${formatBRL(item.lanceAlvo)} no Item #${item.itemNumero} rejeitado por violar o limite mínimo para não ter prejuízo (${formatBRL(item.pisoMinimo)}).`
       );
-      toast.error(`Operação bloqueada: Lance de ${formatBRL(item.lanceAlvo)} viola seu piso de segurança (${formatBRL(item.pisoMinimo)}).`);
+      toast.error(`Operação bloqueada: Lance de ${formatBRL(item.lanceAlvo)} viola seu limite de segurança (${formatBRL(item.pisoMinimo)}).`);
       return;
     }
 
@@ -355,9 +462,22 @@ export const TradingTerminal: React.FC = () => {
       })
     );
 
+    // Dispara via postMessage para extensão se conectada
+    if (conectorExtensaoAtivo) {
+      window.postMessage(
+        {
+          source: 'EXPERTISE_WEB_APP',
+          type: 'DISPATCH_BID',
+          itemNumero: item.itemNumero,
+          valor: valorDisparo,
+        },
+        '*'
+      );
+    }
+
     adicionarMensagem(
       'LANCE',
-      `LANCE CONFIRMADO: Item #${item.itemNumero} registrado com ${formatBRL(valorDisparo)}. Posição assumida: 1º LUGAR.`,
+      `LANCE REGISTRADO: Item #${item.itemNumero} com ${formatBRL(valorDisparo)}. Posição assumida: 1º LUGAR.`,
       item.itemNumero,
       valorDisparo
     );
@@ -376,32 +496,32 @@ export const TradingTerminal: React.FC = () => {
       const prop = list[0];
       const rawItens = Array.isArray(prop?.items) ? prop.items : [];
       if (rawItens.length > 0) {
-        setItens(
-          rawItens.map((it: any, idx: number) => {
-            const ref = roundDec(Number(it.precoUnitarioProposto || it.valorUnitario || it.custoDireto || 100));
-            const custo = roundDec(Number(it.custoDireto || ref * 0.75));
-            const piso = roundDec(custo * 1.10);
-            const lanceAlvo = roundDec(ref * 0.92);
+        const mapped = rawItens.map((it: any, idx: number) => {
+          const ref = roundDec(Number(it.precoUnitarioProposto || it.valorUnitario || it.custoDireto || 100));
+          const custo = roundDec(Number(it.custoDireto || ref * 0.75));
+          const piso = roundDec(custo * 1.10);
+          const lanceAlvo = roundDec(ref * 0.92);
 
-            return {
-              id: String(it.id || idx + 1),
-              itemNumero: Number(it.numero || idx + 1),
-              descricao: String(it.descricao || `Item ${idx + 1}`),
-              quantidade: Number(it.quantidade || 1),
-              unidadeMedida: String(it.unidadeMedida || 'UN'),
-              valorReferencia: ref,
-              melhorLanceConcorrente: ref,
-              seuUltimoLance: null,
-              lanceAlvo,
-              pisoMinimo: piso,
-              estrategia: 'COBERTURA',
-              decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
-              status: 'COBERTO',
-              ativo: true,
-              margemEstimadaPct: roundDec(((ref - custo) / ref) * 100),
-            };
-          })
-        );
+          return {
+            id: String(it.id || idx + 1),
+            itemNumero: Number(it.numero || idx + 1),
+            descricao: String(it.descricao || `Item ${idx + 1}`),
+            quantidade: Number(it.quantidade || 1),
+            unidadeMedida: String(it.unidadeMedida || 'UN'),
+            valorReferencia: ref,
+            melhorLanceConcorrente: ref,
+            seuUltimoLance: null,
+            lanceAlvo,
+            pisoMinimo: piso,
+            estrategia: 'COBERTURA' as EstrategiaType,
+            decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+            status: 'COBERTO' as StatusItemType,
+            ativo: true,
+            margemEstimadaPct: roundDec(((ref - custo) / ref) * 100),
+          };
+        });
+        setItens(mapped);
+        if (mapped.length > 0) setItemSelecionadoId(mapped[0].id);
         adicionarMensagem('SISTEMA', `Itens da proposta "${prop.titulo || 'Ativa'}" carregados com sucesso.`);
         toast.success(`Itens carregados da proposta "${prop.titulo || 'Ativa'}"!`);
       }
@@ -419,62 +539,61 @@ export const TradingTerminal: React.FC = () => {
     }
     adicionarMensagem('SISTEMA', `Edital selecionado: ${e.numeroEdital || e.id} - ${e.orgao || 'Órgão Promotor'}.`);
 
-    // Sincroniza os itens reais do edital selecionado
     try {
       const resp = await licitacoesApi.obterItens(e.id);
       const rawItens = resp.data?.data || resp.data?.items || resp.data || [];
       if (Array.isArray(rawItens) && rawItens.length > 0) {
-        setItens(
-          rawItens.map((it: any, idx: number) => {
-            const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
-            const piso = roundDec(ref * 0.78);
-            const alvo = roundDec(ref * 0.92);
-            return {
-              id: String(it.id || idx + 1),
-              itemNumero: Number(it.numeroItem || it.numero || idx + 1),
-              descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
-              quantidade: Number(it.quantidade || 1),
-              unidadeMedida: String(it.unidadeMedida || 'UN'),
-              valorReferencia: ref,
-              melhorLanceConcorrente: ref,
-              seuUltimoLance: null,
-              lanceAlvo: alvo,
-              pisoMinimo: piso,
-              estrategia: 'COBERTURA',
-              decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
-              status: 'COBERTO',
-              ativo: true,
-              margemEstimadaPct: 22.0,
-            };
-          })
-        );
-        adicionarMensagem('SISTEMA', `${rawItens.length} itens reais do certame carregados para a planilha.`);
+        const mapped = rawItens.map((it: any, idx: number) => {
+          const ref = roundDec(Number(it.valorUnitarioEstimado || it.valorReferencia || it.valorEstimado || 100));
+          const piso = roundDec(ref * 0.78);
+          const alvo = roundDec(ref * 0.92);
+          return {
+            id: String(it.id || idx + 1),
+            itemNumero: Number(it.numeroItem || it.numero || idx + 1),
+            descricao: String(it.descricao || it.descricaoItem || `Item ${idx + 1}`),
+            quantidade: Number(it.quantidade || 1),
+            unidadeMedida: String(it.unidadeMedida || 'UN'),
+            valorReferencia: ref,
+            melhorLanceConcorrente: ref,
+            seuUltimoLance: null,
+            lanceAlvo: alvo,
+            pisoMinimo: piso,
+            estrategia: 'COBERTURA' as EstrategiaType,
+            decrementoMinimo: roundDec(Math.max(1, ref * 0.005)),
+            status: 'COBERTO' as StatusItemType,
+            ativo: true,
+            margemEstimadaPct: 22.0,
+          };
+        });
+        setItens(mapped);
+        if (mapped.length > 0) setItemSelecionadoId(mapped[0].id);
+        adicionarMensagem('SISTEMA', `${rawItens.length} itens reais do certame carregados.`);
         toast.success(`${rawItens.length} itens carregados do edital.`);
       } else {
         const refGlobal = roundDec(Number(e.valorEstimado || 1000));
-        setItens([
-          {
-            id: `item-${e.id}-1`,
-            itemNumero: 1,
-            descricao: String(e.objeto || 'Lote Único da Disputa'),
-            quantidade: 1,
-            unidadeMedida: 'Global',
-            valorReferencia: refGlobal,
-            melhorLanceConcorrente: refGlobal,
-            seuUltimoLance: null,
-            lanceAlvo: roundDec(refGlobal * 0.92),
-            pisoMinimo: roundDec(refGlobal * 0.78),
-            estrategia: 'COBERTURA',
-            decrementoMinimo: roundDec(Math.max(10, refGlobal * 0.005)),
-            status: 'COBERTO',
-            ativo: true,
-            margemEstimadaPct: 22.0,
-          },
-        ]);
+        const itemUnico: ItemPlanilhaTerminal = {
+          id: `item-${e.id}-1`,
+          itemNumero: 1,
+          descricao: String(e.objeto || 'Lote Único da Disputa'),
+          quantidade: 1,
+          unidadeMedida: 'Global',
+          valorReferencia: refGlobal,
+          melhorLanceConcorrente: refGlobal,
+          seuUltimoLance: null,
+          lanceAlvo: roundDec(refGlobal * 0.92),
+          pisoMinimo: roundDec(refGlobal * 0.78),
+          estrategia: 'COBERTURA',
+          decrementoMinimo: roundDec(Math.max(10, refGlobal * 0.005)),
+          status: 'COBERTO',
+          ativo: true,
+          margemEstimadaPct: 22.0,
+        };
+        setItens([itemUnico]);
+        setItemSelecionadoId(itemUnico.id);
         adicionarMensagem('SISTEMA', `Lote global do edital carregado.`);
       }
     } catch {
-      // Falha silenciosa preserva estado limpo
+      // Silencioso
     }
   };
 
@@ -484,12 +603,110 @@ export const TradingTerminal: React.FC = () => {
     adicionarMensagem('SISTEMA', `Acesso à sala oficial acionado no portal: ${portalUrl}`);
   };
 
-  // Indicadores de Liderança
+  // Item atualmente em foco para cálculo
+  const itemEmFoco = useMemo(() => {
+    return itens.find((x) => x.id === itemSelecionadoId) || itens[0] || null;
+  }, [itens, itemSelecionadoId]);
+
+  // Copiloto: Cálculo Instantâneo de Próximo Lance
+  const calcularProximoLance = () => {
+    if (!itemEmFoco) {
+      toast.error('Selecione um item para calcular.');
+      return;
+    }
+
+    const valorDigitado = parseFloat(menorPrecoInformado.replace(/\./g, '').replace(',', '.'));
+    if (isNaN(valorDigitado) || valorDigitado <= 0) {
+      toast.error('Informe um valor de lance válido visto no portal.');
+      return;
+    }
+
+    const decremento = itemEmFoco.decrementoMinimo || Math.max(1, valorDigitado * 0.005);
+    const sugerido = roundDec(valorDigitado - decremento);
+
+    setLanceCalculado(sugerido);
+    setCopiadoLance(false);
+
+    // Validação 1: Abaixo do Piso de Segurança (Risco de Prejuízo)
+    const emPrejuizo = sugerido < itemEmFoco.pisoMinimo;
+    setAlertaPrejuizoAtivo(emPrejuizo);
+
+    // Validação 2: Inexequibilidade Art. 59 da Lei 14.133/2021 (inferior a 50% da referência)
+    const inexequivel = valorDigitado < itemEmFoco.valorReferencia * 0.50;
+    setAlertaInexequivelAtivo(inexequivel);
+
+    if (emPrejuizo) {
+      toast.error(
+        `ALERTA: O lance sugerido de ${formatBRL(sugerido)} viola seu Limite Mínimo para Não Ter Prejuízo (${formatBRL(itemEmFoco.pisoMinimo)})!`,
+        { duration: 6000 }
+      );
+    } else {
+      toast.success(`Lance de ${formatBRL(sugerido)} calculado com margem segura!`);
+    }
+  };
+
+  const copiarLanceSugerido = () => {
+    if (!lanceCalculado) return;
+    navigator.clipboard.writeText(lanceCalculado.toFixed(2).replace('.', ','));
+    setCopiadoLance(true);
+    toast.success(`Valor ${formatBRL(lanceCalculado)} copiado! Cole no campo de lance do portal.`);
+    setTimeout(() => setCopiadoLance(false), 3000);
+  };
+
+  // Copiar Mensagens Prontas para o Pregoeiro
+  const copiarMensagemPregoeiro = (id: string, texto: string) => {
+    navigator.clipboard.writeText(texto);
+    setMensagemCopiadaId(id);
+    toast.success('Mensagem copiada! Cole no chat do pregoeiro no portal.');
+    setTimeout(() => setMensagemCopiadaId(null), 3500);
+  };
+
+  // Indicadores de Resumo Operacional
   const totalItens = itens.length;
   const itensVencendo = itens.filter((i) => i.status === 'VENCENDO').length;
   const itensAtivos = itens.filter((i) => i.ativo).length;
   const totalAlvo = useMemo(() => itens.reduce((acc, it) => acc + it.quantidade * it.lanceAlvo, 0), [itens]);
   const totalPiso = useMemo(() => itens.reduce((acc, it) => acc + it.quantidade * it.pisoMinimo, 0), [itens]);
+
+  // Mensagens Padrão Prontas para Pregoeiro
+  const mensagensPregoeiroTemplates = [
+    {
+      id: 'msg-negociacao',
+      titulo: '1. Negociação de Preço (Art. 61 Lei 14.133/2021)',
+      texto: `Prezado(a) Pregoeiro(a), informamos que nossa proposta já reflete o melhor valor competitivo com garantia de execução e custos operacionais rigorosamente apurados. Em espírito de colaboração com a Administração, confirmamos a manutenção do valor com plena exequibilidade contratual.`,
+    },
+    {
+      id: 'msg-prazo-2h',
+      titulo: '2. Solicitação de Prazo de 2h para Proposta Readequada',
+      texto: `Prezado(a) Pregoeiro(a), com fulcro no princípio da razoabilidade e no edital, solicitamos a concessão do prazo regulamentar de 2 (duas) horas para o envio da proposta comercial devidamente readequada ao lance final e suas planilhas de custos.`,
+    },
+    {
+      id: 'msg-recurso',
+      titulo: '3. Registro de Intenção de Recurso (Art. 165 Lei 14.133/2021)',
+      texto: `Prezado(a) Pregoeiro(a), manifestamos expressamente nossa intenção de recorrer contra a aceitação da proposta da empresa classificada provisoriamente em 1º lugar, em razão do descumprimento dos requisitos técnicos do Termo de Referência e indício de preço inexequível conforme Art. 59, III da Lei 14.133/2021.`,
+    },
+    {
+      id: 'msg-meepp',
+      titulo: '4. Requerimento de Direito de Preferência ME/EPP (LC 123/2006)',
+      texto: `Prezado(a) Pregoeiro(a), na condição de Microempresa/EPP devidamente qualificada no certame, requeremos o exercício do direito de preferência e empate ficto (Arts. 44 e 45 da Lei Complementar nº 123/2006) para apresentação de lance final desempate no prazo de 5 minutos.`,
+    },
+  ];
+
+  // Interpretação Humana do Modo de Disputa Real
+  const modoDisputaDescricao = useMemo(() => {
+    const mod = String(edital?.modalidade || '').toLowerCase();
+    const obj = String(edital?.objeto || '').toLowerCase();
+    if (mod.includes('aberto e fechado') || mod.includes('aberto-fechado')) {
+      return 'Disputa Aberta e Fechada (lance final sigiloso de 5 min)';
+    }
+    if (mod.includes('aberto')) {
+      return 'Disputa Aberta (lances sucessivos com prorrogações de 2 min)';
+    }
+    if (mod.includes('dispensa') || obj.includes('dispensa')) {
+      return 'Dispensa Eletrônica (envio contínuo de lances)';
+    }
+    return 'Pregão Eletrônico (Disputa Sucessiva de Lances)';
+  }, [edital]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 font-sans">
@@ -500,27 +717,46 @@ export const TradingTerminal: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#081C3A] text-[#F97316] shadow-sm">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#081C3A] text-[#EA580C] shadow-sm">
                 <Gavel className="h-6 w-6" />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-lg sm:text-xl font-extrabold text-[#081C3A]">
-                    Sala de Disputa & Robô de Lances
+                    Mesa Estratégica de Disputa & Copiloto Operacional
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-                    Sessão Conectada
-                  </span>
+
+                  {/* BADGE DE CONEXÃO HONESTO */}
+                  {conectorExtensaoAtivo ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                      Conector Ativo no Portal: {nomePortalConectado}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700 border border-slate-300">
+                      <Radio className="h-3 w-3 text-blue-600" />
+                      Modo Manual Assistido
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Acompanhe a disputa em tempo real, proteja sua margem contra lances inexequíveis e receba avisos do pregoeiro.
+                  Acompanhe a disputa em tempo real, proteja sua margem contra prejuízo e receba alertas estratégicos baseados na Lei 14.133/2021.
                 </p>
               </div>
             </div>
 
-            {/* Ações Globais: Ligar Todos & Parada de Emergência */}
+            {/* Ações Globais: Extensão Chrome, Ligar Todos & Parada de Emergência */}
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setModalExtensaoAberta(true)}
+                title="Conectar Extensão Oficial do Chrome"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-[#0070C0] px-3 py-2 text-xs font-bold transition shadow-xs"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {conectorExtensaoAtivo ? 'Extensão Conectada' : 'Conectar Extensão'}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSomHabilitado(!somHabilitado)}
@@ -537,7 +773,7 @@ export const TradingTerminal: React.FC = () => {
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600 bg-white px-3.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition"
               >
                 <Play className="h-4 w-4 text-emerald-600" />
-                Ligar Todos
+                Ativar Todos
               </button>
 
               <button
@@ -551,22 +787,20 @@ export const TradingTerminal: React.FC = () => {
             </div>
           </div>
 
-          {/* CARD DE CONEXÃO & ALERTA DE PROXIMIDADE DA DISPUTA */}
+          {/* CARD DE CONEXÃO & DETALHES DO EDITAL */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
-            {/* Bloco 1: Alerta de Início / Disputa */}
-            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Clock className="h-5 w-5 text-amber-600 shrink-0" />
-                <div>
-                  <span className="text-[11px] font-bold text-amber-800 uppercase block">Horário da Disputa</span>
-                  <span className="text-xs font-extrabold text-[#081C3A]">
-                    {disputaEmAndamento ? 'Fase de Lances em Andamento' : `Inicia em ${tempoRestanteMinutos}m ${tempoRestanteSegundos}s`}
-                  </span>
-                </div>
+            {/* Bloco 1: Modo Operacional e Empresa Ativa */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Empresa em Disputa</span>
+                <span className="text-xs font-extrabold text-[#081C3A] block truncate max-w-[200px]">
+                  {selectedCompany?.razaoSocial || selectedCompany?.nomeFantasia || 'Empresa Ativa'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {selectedCompany?.cnpj ? `CNPJ: ${selectedCompany.cnpj}` : 'Selecione uma empresa'}
+                </span>
               </div>
-              <span className="rounded-lg bg-amber-500/20 px-2 py-1 text-[11px] font-mono font-bold text-amber-800">
-                Hoje, 10:00h
-              </span>
+              <Building2 className="h-5 w-5 text-slate-400 shrink-0" />
             </div>
 
             {/* Bloco 2: Edital Selecionado */}
@@ -604,7 +838,7 @@ export const TradingTerminal: React.FC = () => {
         </div>
 
         {/* =========================================================================
-            2. CARDS DE RESUMO OPERACIONAL (KPIs LIMPOS E CLAROS)
+            2. CARDS DE RESUMO OPERACIONAL (KPIs EXECUTIVOS)
             ========================================================================= */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
@@ -618,7 +852,7 @@ export const TradingTerminal: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 block">Robôs em Operação</span>
+            <span className="text-xs font-semibold text-slate-500 block">Itens em Acompanhamento</span>
             <div className="flex items-baseline gap-2 mt-1">
               <strong className="text-xl sm:text-2xl font-black text-[#081C3A] font-mono">
                 {itensAtivos}
@@ -628,7 +862,7 @@ export const TradingTerminal: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-            <span className="text-xs font-semibold text-slate-500 block">Faturamento Alvo</span>
+            <span className="text-xs font-semibold text-slate-500 block">Faturamento Alvo (Meta)</span>
             <div className="mt-1">
               <strong className="text-sm sm:text-base font-extrabold text-emerald-700 font-mono">
                 {formatBRL(totalAlvo)}
@@ -638,7 +872,7 @@ export const TradingTerminal: React.FC = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
             <span className="text-xs font-semibold text-slate-500 block flex items-center gap-1">
-              <Lock className="h-3.5 w-3.5 text-red-500" /> Piso Total Seguro
+              <Lock className="h-3.5 w-3.5 text-red-500" /> Valor Mínimo Total (Sem Prejuízo)
             </span>
             <div className="mt-1">
               <strong className="text-sm sm:text-base font-extrabold text-red-600 font-mono">
@@ -648,7 +882,7 @@ export const TradingTerminal: React.FC = () => {
           </div>
         </div>
 
-        {/* ABAS NO MOBILE (Evita quebras ou sobreposição de colunas em telas de celular) */}
+        {/* ABAS NO MOBILE / TABLET */}
         <div className="flex lg:hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xs">
           <button
             type="button"
@@ -657,7 +891,16 @@ export const TradingTerminal: React.FC = () => {
               abaMobile === 'ITENS' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Itens da Disputa ({itens.length})
+            Itens ({itens.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaMobile('COPILOTO')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+              abaMobile === 'COPILOTO' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Calculadora
           </button>
           <button
             type="button"
@@ -666,26 +909,26 @@ export const TradingTerminal: React.FC = () => {
               abaMobile === 'AVISOS' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Avisos do Pregoeiro
+            Mensagens
           </button>
           <button
             type="button"
-            onClick={() => setAbaMobile('PREPARACAO')}
+            onClick={() => setAbaMobile('CHECKLIST')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              abaMobile === 'PREPARACAO' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
+              abaMobile === 'CHECKLIST' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Preparação
+            Checklist
           </button>
         </div>
 
         {/* =========================================================================
-            3. ÁREA PRINCIPAL: PLANILHA DE LANCES & PAINEL DE AVISOS DO PREGOEIRO
+            3. ÁREA PRINCIPAL: GRADE DE ITENS (ESQUERDA) + COPILOTO E CHECKLIST (DIREITA)
             ========================================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* COLUNA PRINCIPAL (8 Colunas no Desktop): PLANILHA DE ITENS E LANCES */}
+          {/* COLUNA ESQUERDA (8 Colunas no Desktop): TABELA / CARDS DE ITENS */}
           <div
-            className={`lg:col-span-8 space-y-3 ${
+            className={`lg:col-span-8 space-y-4 ${
               abaMobile !== 'ITENS' ? 'hidden lg:block' : 'block'
             }`}
           >
@@ -693,232 +936,631 @@ export const TradingTerminal: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h2 className="text-sm font-extrabold text-[#081C3A] flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-[#F97316]" />
-                    Controle de Lances por Item (Trava de Segurança Ativa)
+                    <Activity className="h-4 w-4 text-[#EA580C]" />
+                    Controle de Lances por Item (Limite de Segurança Ativo)
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Defina o valor alvo e o piso mínimo inegociável. O robô nunca dispara lances com prejuízo.
+                    Defina sua Meta de Lance e o Valor Mínimo inegociável. A plataforma nunca dispara ou recomenda lances com prejuízo.
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={sincronizarPropostaSalva}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:bg-slate-100 transition shrink-0"
-                >
-                  <RefreshCw className="h-3.5 w-3.5 text-[#0070C0]" />
-                  Puxar Minha Proposta
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="hidden sm:flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => setModoVisualizacao('TABELA')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded ${
+                        modoVisualizacao === 'TABELA' ? 'bg-white shadow-xs text-[#081C3A]' : 'text-slate-500'
+                      }`}
+                    >
+                      Tabela
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoVisualizacao('CARDS')}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded ${
+                        modoVisualizacao === 'CARDS' ? 'bg-white shadow-xs text-[#081C3A]' : 'text-slate-500'
+                      }`}
+                    >
+                      Cards
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={sincronizarPropostaSalva}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:bg-slate-100 transition shrink-0"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 text-[#0070C0]" />
+                    Puxar Minha Proposta
+                  </button>
+                </div>
               </div>
 
-              {/* Tabela Limpa de Lances */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full min-w-[700px] border-collapse text-left text-xs">
-                  <thead className="bg-[#081C3A] text-white text-[11px] font-bold">
-                    <tr>
-                      <th className="py-2.5 px-3 w-12 text-center">Item</th>
-                      <th className="py-2.5 px-3 min-w-[160px]">Descrição</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Melhor Oferta</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Seu Lance</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Lance Alvo</th>
-                      <th className="py-2.5 px-3 w-28 text-right">Piso Seguro</th>
-                      <th className="py-2.5 px-3 w-28 text-center">Estratégia</th>
-                      <th className="py-2.5 px-3 w-28 text-center">Status</th>
-                      <th className="py-2.5 px-3 w-20 text-center">Operar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {carregandoItens ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center text-xs font-semibold text-slate-500">
-                          <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#F97316] mb-2" />
-                          Sincronizando itens e lotes com a base oficial...
-                        </td>
-                      </tr>
-                    ) : itens.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center">
-                          <div className="mx-auto max-w-md space-y-3 px-4">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#081C3A]">
-                              <Gavel className="h-6 w-6 text-[#F97316]" />
-                            </div>
-                            <div>
-                              <h4 className="text-sm font-bold text-slate-800">
-                                Nenhum certame vinculado no momento
-                              </h4>
-                              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                                Selecione um edital monitorado no seletor acima ou clique no botão abaixo para puxar os itens da sua proposta comercial com margens travadas contra prejuízo.
-                              </p>
-                            </div>
-                            <div className="flex justify-center gap-2 pt-1">
-                              <button
-                                type="button"
-                                onClick={sincronizarPropostaSalva}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
-                              >
-                                <RefreshCw className="h-3.5 w-3.5 text-[#F97316]" />
-                                Puxar Minha Proposta Comercial
-                              </button>
-                            </div>
+              {/* MODO CARDS (PARA TABLET OU QUANDO ESCOLHIDO) */}
+              {modoVisualizacao === 'CARDS' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  {itens.map((it) => {
+                    const liderando = it.status === 'VENCENDO';
+                    const pisoAtingido = it.status === 'PISO_ATINGIDO';
+
+                    return (
+                      <div
+                        key={it.id}
+                        onClick={() => setItemSelecionadoId(it.id)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                          it.id === itemSelecionadoId
+                            ? 'border-[#081C3A] ring-2 ring-[#081C3A]/20 bg-slate-50/50'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="text-xs font-black text-[#081C3A]">Item #{it.itemNumero}</span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              liderando
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : pisoAtingido
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {liderando ? '1º Lugar' : pisoAtingido ? 'Piso Atingido' : 'Em Disputa'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-800 font-medium my-2 line-clamp-2" title={it.descricao}>
+                          {it.descricao}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 text-xs py-1 border-t border-slate-100">
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Menor Concorrente</span>
+                            <strong className="text-slate-800 font-mono">{formatBRL(it.melhorLanceConcorrente)}</strong>
                           </div>
-                        </td>
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Seu Último Lance</span>
+                            <strong className="text-emerald-700 font-mono">
+                              {it.seuUltimoLance ? formatBRL(it.seuUltimoLance) : 'Nenhum'}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500 block">Meta de Lance</span>
+                            <strong className="text-slate-800 font-mono">{formatBRL(it.lanceAlvo)}</strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-red-600 block">Valor Mínimo (Seguro)</span>
+                            <strong className="text-red-700 font-mono">{formatBRL(it.pisoMinimo)}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 mt-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispararLanceManual(it);
+                            }}
+                            className="px-3 py-1 bg-[#EA580C] hover:bg-orange-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                          >
+                            <Zap className="h-3 w-3" /> Disparar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* TABELA RESPONSIVA (SEM CORTE DE COLUNAS NO DESKTOP) */
+                <div className="w-full overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full border-collapse text-left text-xs min-w-[760px]">
+                    <thead className="bg-[#081C3A] text-white text-[11px] font-bold">
+                      <tr>
+                        <th className="py-2.5 px-3 w-12 text-center">Item</th>
+                        <th className="py-2.5 px-3">Descrição</th>
+                        <th className="py-2.5 px-2.5 w-24 text-right">Referência</th>
+                        <th className="py-2.5 px-2.5 w-24 text-right">Menor Oferta</th>
+                        <th className="py-2.5 px-2.5 w-24 text-right">Seu Lance</th>
+                        <th className="py-2.5 px-2.5 w-28 text-right">Meta de Lance</th>
+                        <th className="py-2.5 px-2.5 w-28 text-right">Valor Mínimo</th>
+                        <th className="py-2.5 px-2 w-24 text-center">Situação</th>
+                        <th className="py-2.5 px-2 w-20 text-center">Ações</th>
                       </tr>
-                    ) : (
-                      itens.map((it) => {
-                      const liderando = it.status === 'VENCENDO';
-                      const pisoAtingido = it.status === 'PISO_ATINGIDO';
-
-                      return (
-                        <tr
-                          key={it.id}
-                          className={`hover:bg-slate-50/80 transition-colors ${
-                            liderando ? 'bg-emerald-50/40' : pisoAtingido ? 'bg-red-50/40' : ''
-                          }`}
-                        >
-                          {/* Item */}
-                          <td className="py-2.5 px-3 text-center font-bold text-[#081C3A]">
-                            #{it.itemNumero}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {carregandoItens ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center text-xs font-semibold text-slate-500">
+                            <RefreshCw className="mx-auto h-5 w-5 animate-spin text-[#EA580C] mb-2" />
+                            Sincronizando itens e lotes com a base oficial...
                           </td>
-
-                          {/* Descrição */}
-                          <td className="py-2.5 px-3">
-                            <span className="font-bold text-slate-800 block truncate max-w-[180px]" title={it.descricao}>
-                              {it.descricao}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              Ref: {formatBRL(it.valorReferencia)} • Qtd: {it.quantidade}
-                            </span>
-                          </td>
-
-                          {/* Melhor Oferta do Mercado */}
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-700">
-                            {formatBRL(it.melhorLanceConcorrente)}
-                          </td>
-
-                          {/* Seu Lance Atual */}
-                          <td className="py-2.5 px-3 text-right font-mono font-bold">
-                            {it.seuUltimoLance ? (
-                              <span className={liderando ? 'text-emerald-700 font-extrabold' : 'text-amber-700'}>
-                                {formatBRL(it.seuUltimoLance)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 font-normal">--</span>
-                            )}
-                          </td>
-
-                          {/* Lance Alvo (Editável) */}
-                          <td className="py-2 px-2 text-right">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={it.lanceAlvo}
-                              onChange={(e) => atualizarCampoItem(it.id, 'lanceAlvo', Number(e.target.value))}
-                              className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1 text-right font-mono font-bold text-xs text-slate-800 outline-none focus:border-[#F97316]"
-                            />
-                          </td>
-
-                          {/* Piso Seguro (Stop-Loss) */}
-                          <td className="py-2 px-2 text-right">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={it.pisoMinimo}
-                              onChange={(e) => atualizarCampoItem(it.id, 'pisoMinimo', Number(e.target.value))}
-                              className="w-24 rounded-lg border border-red-200 bg-red-50/50 px-2 py-1 text-right font-mono font-bold text-xs text-red-700 outline-none focus:border-red-500"
-                            />
-                          </td>
-
-                          {/* Estratégia */}
-                          <td className="py-2 px-2 text-center">
-                            <select
-                              value={it.estrategia}
-                              onChange={(e) => atualizarCampoItem(it.id, 'estrategia', e.target.value as EstrategiaType)}
-                              className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 outline-none"
-                            >
-                              <option value="SNIPER">Sniper (Final)</option>
-                              <option value="COBERTURA">Degrau</option>
-                              <option value="MANUAL">Manual</option>
-                            </select>
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-2.5 px-2 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${
-                                liderando
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : pisoAtingido
-                                  ? 'bg-red-100 text-red-800 border border-red-300'
-                                  : it.ativo
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-300'
-                              }`}
-                            >
-                              {liderando && <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />}
-                              {it.status === 'VENCENDO'
-                                ? '1º Lugar'
-                                : it.status === 'PISO_ATINGIDO'
-                                ? 'Piso Atingido'
-                                : it.status === 'COBERTO'
-                                ? 'Coberto'
-                                : 'Pausado'}
-                            </span>
-                          </td>
-
-                          {/* Ação: Disparar e Pausar */}
-                          <td className="py-2 px-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => dispararLanceManual(it)}
-                                title="Enviar este lance com validação de piso"
-                                className="rounded-lg bg-[#F97316] hover:bg-orange-600 p-1.5 text-white shadow-xs transition"
-                              >
-                                <Zap className="h-3.5 w-3.5" />
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleItemAtivo(it.id)}
-                                title={it.ativo ? 'Pausar automação deste item' : 'Ligar automação'}
-                                className={`rounded-lg border p-1.5 transition ${
-                                  it.ativo
-                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                    : 'border-slate-300 bg-slate-100 text-slate-500'
-                                }`}
-                              >
-                                {it.ativo ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                              </button>
+                        </tr>
+                      ) : itens.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center">
+                            <div className="mx-auto max-w-md space-y-3 px-4">
+                              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#081C3A]">
+                                <Gavel className="h-6 w-6 text-[#EA580C]" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-bold text-slate-800">
+                                  Nenhum item cadastrado nesta disputa
+                                </h4>
+                                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                  Selecione um edital monitorado no topo ou clique abaixo para importar os itens da sua proposta comercial com limites de segurança ativos.
+                                </p>
+                              </div>
+                              <div className="flex justify-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={sincronizarPropostaSalva}
+                                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#081C3A] px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-sm"
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5 text-[#EA580C]" />
+                                  Puxar Minha Proposta Comercial
+                                </button>
+                              </div>
                             </div>
                           </td>
                         </tr>
-                      );
-                    }))}
-                  </tbody>
-                </table>
+                      ) : (
+                        itens.map((it) => {
+                          const liderando = it.status === 'VENCENDO';
+                          const pisoAtingido = it.status === 'PISO_ATINGIDO';
+                          const selecionado = it.id === itemSelecionadoId;
+
+                          return (
+                            <tr
+                              key={it.id}
+                              onClick={() => setItemSelecionadoId(it.id)}
+                              className={`cursor-pointer transition-colors ${
+                                selecionado
+                                  ? 'bg-blue-50/60 ring-1 ring-inset ring-blue-300'
+                                  : liderando
+                                  ? 'bg-emerald-50/40 hover:bg-emerald-50/60'
+                                  : pisoAtingido
+                                  ? 'bg-red-50/40 hover:bg-red-50/60'
+                                  : 'hover:bg-slate-50/80'
+                              }`}
+                            >
+                              {/* Item */}
+                              <td className="py-2.5 px-3 text-center font-bold text-[#081C3A]">
+                                #{it.itemNumero}
+                              </td>
+
+                              {/* Descrição */}
+                              <td className="py-2.5 px-3">
+                                <span className="font-bold text-slate-800 block truncate max-w-[170px]" title={it.descricao}>
+                                  {it.descricao}
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  Qtd: {it.quantidade} {it.unidadeMedida}
+                                </span>
+                              </td>
+
+                              {/* Valor Referência */}
+                              <td className="py-2.5 px-2.5 text-right font-mono text-slate-500 text-[11px]">
+                                {formatBRL(it.valorReferencia)}
+                              </td>
+
+                              {/* Menor Oferta do Mercado */}
+                              <td className="py-2.5 px-2.5 text-right font-mono font-bold text-slate-700">
+                                {formatBRL(it.melhorLanceConcorrente)}
+                              </td>
+
+                              {/* Seu Lance Atual */}
+                              <td className="py-2.5 px-2.5 text-right font-mono font-bold">
+                                {it.seuUltimoLance ? (
+                                  <span className="text-emerald-700">{formatBRL(it.seuUltimoLance)}</span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+
+                              {/* Meta de Lance (Editável) */}
+                              <td className="py-2 px-2 text-right">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={it.lanceAlvo}
+                                  onChange={(e) =>
+                                    atualizarCampoItem(it.id, 'lanceAlvo', parseFloat(e.target.value) || 0)
+                                  }
+                                  className="w-24 rounded border border-slate-300 bg-white px-1.5 py-1 text-right font-mono text-xs font-bold text-slate-800 focus:border-[#081C3A] focus:outline-none"
+                                />
+                              </td>
+
+                              {/* Valor Mínimo (Sem Prejuízo - Editável) */}
+                              <td className="py-2 px-2 text-right">
+                                <div className="relative inline-block">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={it.pisoMinimo}
+                                    onChange={(e) =>
+                                      atualizarCampoItem(it.id, 'pisoMinimo', parseFloat(e.target.value) || 0)
+                                    }
+                                    className="w-24 rounded border border-red-200 bg-red-50/50 px-1.5 py-1 text-right font-mono text-xs font-bold text-red-700 focus:border-red-500 focus:outline-none"
+                                  />
+                                </div>
+                              </td>
+
+                              {/* Situação */}
+                              <td className="py-2.5 px-2 text-center">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                    liderando
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : pisoAtingido
+                                      ? 'bg-red-100 text-red-800'
+                                      : it.ativo
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {it.status === 'VENCENDO'
+                                    ? '1º Lugar'
+                                    : it.status === 'PISO_ATINGIDO'
+                                    ? 'Piso Atingido'
+                                    : it.status === 'COBERTO'
+                                    ? 'Coberto'
+                                    : 'Pausado'}
+                                </span>
+                              </td>
+
+                              {/* Ações */}
+                              <td className="py-2 px-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      dispararLanceManual(it);
+                                    }}
+                                    title="Disparar este lance respeitando o limite mínimo"
+                                    className="rounded-lg bg-[#EA580C] hover:bg-orange-600 p-1.5 text-white shadow-xs transition"
+                                  >
+                                    <Zap className="h-3.5 w-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleItemAtivo(it.id);
+                                    }}
+                                    title={it.ativo ? 'Pausar acompanhamento' : 'Ativar acompanhamento'}
+                                    className={`rounded-lg border p-1.5 transition ${
+                                      it.ativo
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                        : 'border-slate-300 bg-slate-100 text-slate-500'
+                                    }`}
+                                  >
+                                    {it.ativo ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO DO BENEFÍCIO ME/EPP (EMPATE FICTO LC 123/2006) */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 shrink-0">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-emerald-950 uppercase flex items-center gap-2">
+                      Benefício ME/EPP: Empate Ficto (LC nº 123/2006)
+                      <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                        Margem Legal de 5%
+                      </span>
+                    </h3>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Se sua empresa for ME/EPP e a melhor oferta for de grande porte com até 5% de diferença, você tem direito prioritário de cobrir o preço em até 5 minutos!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cronômetro Regressivo de 5 Minutos */}
+                <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-emerald-300 shadow-xs shrink-0">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Prazo Legal de Cobertura</span>
+                    <strong className="text-lg font-black text-[#081C3A] font-mono">
+                      {formatTempoMe(tempoMeSegundos)}
+                    </strong>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCronometroMeAtivo(!cronometroMeAtivo)}
+                      className={`p-2 rounded-lg font-bold text-white transition ${
+                        cronometroMeAtivo ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                      }`}
+                      title={cronometroMeAtivo ? 'Pausar contagem' : 'Iniciar contagem regressiva de 5 minutos'}
+                    >
+                      {cronometroMeAtivo ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCronometroMeAtivo(false);
+                        setTempoMeSegundos(300);
+                      }}
+                      className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition"
+                      title="Reiniciar para 5:00"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* COLUNA LATERAL (4 Colunas no Desktop): AVISOS DO PREGOEIRO & PREPARAÇÃO */}
+          {/* COLUNA DIREITA (4 Colunas no Desktop): COPILOTO, CHAT DO PREGOEIRO E CHECKLIST */}
           <div
             className={`lg:col-span-4 space-y-4 ${
               abaMobile === 'ITENS' ? 'hidden lg:block' : 'block'
             }`}
           >
-            {/* BOX 1: AVISOS OFICIAIS & CHAT DO PREGOEIRO */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col h-80">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            {/* BOX 1: COPILOTO DE DISPUTA - CALCULADORA INSTANTÂNEA DE PRÓXIMO LANCE */}
+            <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${
+              abaMobile !== 'COPILOTO' && abaMobile !== 'ITENS' ? 'hidden lg:block' : 'block'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h3 className="text-xs font-black uppercase text-[#081C3A] flex items-center gap-1.5">
-                  <Gavel className="h-4 w-4 text-[#0070C0]" />
-                  Avisos do Pregoeiro & Eventos
+                  <Calculator className="h-4 w-4 text-[#EA580C]" />
+                  Calculadora Instantânea de Lance
                 </h3>
-                <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                  Ao Vivo
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                  {itemEmFoco ? `Item #${itemEmFoco.itemNumero}` : 'Nenhum selecionado'}
                 </span>
               </div>
 
-              {/* Feed de Mensagens */}
+              {itemEmFoco ? (
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Qual é o menor preço agora no portal? (R$)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ex: 1450,00"
+                        value={menorPrecoInformado}
+                        onChange={(e) => setMenorPrecoInformado(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && calcularProximoLance()}
+                        className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:border-[#081C3A] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={calcularProximoLance}
+                        className="px-3 py-2 bg-[#081C3A] hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
+                      >
+                        Calcular
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* RESULTADO DO CÁLCULO */}
+                  {lanceCalculado !== null && (
+                    <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500">Lance Recomendado:</span>
+                        <strong className="text-base font-black text-[#081C3A] font-mono">
+                          {formatBRL(lanceCalculado)}
+                        </strong>
+                      </div>
+
+                      {/* ALERTA DE PREJUÍZO (VERMELHO) */}
+                      {alertaPrejuizoAtivo && (
+                        <div className="p-2.5 rounded-lg bg-red-100 border border-red-300 text-red-950 font-bold space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-red-900">
+                            <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                            PREÇO ABAIXO DO LIMITE DE SEGURANÇA!
+                          </div>
+                          <p className="text-[11px] font-normal text-red-800 leading-tight">
+                            Não cubra este lance. O valor calculado é inferior ao seu limite mínimo ({formatBRL(itemEmFoco.pisoMinimo)}), gerando risco de operação com prejuízo.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* ALERTA DE INEXEQUIBILIDADE ART. 59 LEI 14.133 */}
+                      {alertaInexequivelAtivo && (
+                        <div className="p-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-950 text-[11px] leading-tight space-y-1">
+                          <strong className="flex items-center gap-1 text-amber-900">
+                            <Gavel className="h-3.5 w-3.5" /> Indício de Inexequibilidade (Art. 59, III Lei 14.133/2021)
+                          </strong>
+                          <p className="text-amber-800 text-[10px]">
+                            O menor lance caiu mais de 50% abaixo do valor estimado do edital. O pregoeiro deve exigir comprovação de custos. Caso o concorrente não comprove, cabe desclassificação e recurso administrativo.
+                          </p>
+                        </div>
+                      )}
+
+                      {!alertaPrejuizoAtivo && (
+                        <button
+                          type="button"
+                          onClick={copiarLanceSugerido}
+                          className="w-full mt-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
+                        >
+                          {copiadoLance ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          {copiadoLance ? 'Copiado para Área de Transferência!' : 'Copiar Valor do Lance'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 py-2">
+                  Carregue um edital ou proposta para ativar a calculadora.
+                </p>
+              )}
+            </div>
+
+            {/* BOX 2: MENSAGENS PRONTAS PARA O PREGOEIRO (COPIAR EM 1 CLIQUE) */}
+            <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${
+              abaMobile !== 'AVISOS' && abaMobile !== 'ITENS' ? 'hidden lg:block' : 'block'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-black uppercase text-[#081C3A] flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-[#0070C0]" />
+                  Mensagens Prontas para o Pregoeiro
+                </h3>
+                <span className="text-[10px] text-slate-500 font-bold">1 Clique para Copiar</span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {mensagensPregoeiroTemplates.map((msg) => (
+                  <div key={msg.id} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-[11px] font-bold text-[#081C3A]">{msg.titulo}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copiarMensagemPregoeiro(msg.id, msg.texto)}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition ${
+                          mensagemCopiadaId === msg.id
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {mensagemCopiadaId === msg.id ? (
+                          <>
+                            <Check className="h-3 w-3" /> Copiado!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" /> Copiar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                      {msg.texto}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* BOX 3: CHECKLIST DE PRONTIDÃO DA EMPRESA (100% REAL) */}
+            <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 ${
+              abaMobile !== 'CHECKLIST' && abaMobile !== 'ITENS' ? 'hidden lg:block' : 'block'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-black uppercase text-[#081C3A] flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  Checklist de Prontidão da Empresa
+                </h3>
+                {carregandoChecklist && <RefreshCw className="h-3 w-3 animate-spin text-slate-400" />}
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {/* Certidões Fiscais */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span className="flex items-center gap-1.5 font-bold text-slate-800">
+                      {checklistReal.certidoesVencidas > 0 ? (
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      )}
+                      Certidões Fiscais (CNDs)
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      {checklistReal.totalCertidoes > 0
+                        ? `${checklistReal.certidoesValidas} válidas de ${checklistReal.totalCertidoes}`
+                        : 'Nenhuma certidão cadastrada'}
+                    </span>
+                  </div>
+                  {checklistReal.certidoesVencidas > 0 ? (
+                    <Link
+                      to="/fornecedor/certidoes"
+                      className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold text-[10px] transition"
+                    >
+                      {checklistReal.certidoesVencidas} pendentes
+                    </Link>
+                  ) : checklistReal.totalCertidoes > 0 ? (
+                    <span className="font-bold text-emerald-700 text-[11px]">100% Válidas</span>
+                  ) : (
+                    <Link
+                      to="/fornecedor/certidoes"
+                      className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold text-[10px]"
+                    >
+                      Cadastrar
+                    </Link>
+                  )}
+                </div>
+
+                {/* Proposta Comercial */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span className="flex items-center gap-1.5 font-bold text-slate-800">
+                      {checklistReal.propostaCadastrada ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 text-slate-400" />
+                      )}
+                      Proposta Comercial
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      {checklistReal.propostaCadastrada
+                        ? checklistReal.nomeProposta || 'Pronta para importação'
+                        : 'Nenhuma proposta vinculada'}
+                    </span>
+                  </div>
+                  {checklistReal.propostaCadastrada ? (
+                    <span className="font-bold text-emerald-700 text-[11px]">Vinculada</span>
+                  ) : (
+                    <Link
+                      to="/fornecedor/proposta"
+                      className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold text-[10px]"
+                    >
+                      Criar Proposta
+                    </Link>
+                  )}
+                </div>
+
+                {/* Limites de Segurança por Item */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <span className="flex items-center gap-1.5 font-bold text-slate-800">
+                      <Lock className="h-3.5 w-3.5 text-[#EA580C]" />
+                      Limite Mínimo para Não Ter Prejuízo
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      {totalPiso > 0 ? 'Valores mínimos fixados por item' : 'Configure o valor mínimo'}
+                    </span>
+                  </div>
+                  <span className="font-bold text-emerald-700 text-[11px]">Ativo</span>
+                </div>
+              </div>
+
+              {/* Modo Real do Edital */}
+              <div className="pt-2 border-t border-slate-100 flex flex-col gap-1 text-xs text-slate-500">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Modo de Disputa do Certame:</span>
+                <strong className="text-[#081C3A] text-[11px] leading-tight">
+                  {modoDisputaDescricao}
+                </strong>
+              </div>
+            </div>
+
+            {/* BOX 4: FEED DE MENSAGENS DO SISTEMA & PREGOEIRO */}
+            <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col h-64 ${
+              abaMobile !== 'AVISOS' && abaMobile !== 'ITENS' ? 'hidden lg:block' : 'block'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs font-black uppercase text-[#081C3A] flex items-center gap-1.5">
+                  <Gavel className="h-4 w-4 text-[#0070C0]" />
+                  Registro de Ocorrências & Lances
+                </h3>
+              </div>
+
               <div className="flex-1 overflow-y-auto py-2 space-y-2 text-xs">
                 {mensagens.map((msg) => (
                   <div
@@ -951,45 +1593,67 @@ export const TradingTerminal: React.FC = () => {
                 <div ref={chatBottomRef} />
               </div>
             </div>
-
-            {/* BOX 2: PREPARAÇÃO TÁTICA ANTES DA DISPUTA (CHECKLIST DO LICITANTE) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-              <h3 className="text-xs font-black uppercase text-[#081C3A] flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                Checklist de Prontidão da Empresa
-              </h3>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="flex items-center gap-2 font-medium text-slate-700">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Certidões e CNDs Fiscais
-                  </span>
-                  <span className="font-bold text-emerald-700">100% Válidas</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="flex items-center gap-2 font-medium text-slate-700">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Proposta Comercial
-                  </span>
-                  <span className="font-bold text-emerald-700">Importada</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <span className="flex items-center gap-2 font-medium text-slate-700">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Travas de Stop-Loss
-                  </span>
-                  <span className="font-bold text-emerald-700">Ativas por Item</span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Modo de Disputa:</span>
-                <strong className="text-[#081C3A]">Aberto-Fechado (IN 73/2022)</strong>
-              </div>
-            </div>
           </div>
         </div>
       </div>
+
+      {/* MODAL DE INSTRUÇÕES DA EXTENSÃO GOOGLE CHROME */}
+      {modalExtensaoAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-[#081C3A]">
+                <Sparkles className="h-5 w-5 text-[#EA580C]" />
+                <h3 className="font-extrabold text-base">Extensão Oficial de Disputa Expertise</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalExtensaoAberta(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
+              <p>
+                A <strong>Extensão Oficial do Google Chrome</strong> conecta esta Mesa Estratégica diretamente com a aba aberta onde você está logado nos portais de compras públicas:
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-800">
+                <span className="p-2 rounded-lg bg-slate-50 border border-slate-200">✓ Compras.gov.br</span>
+                <span className="p-2 rounded-lg bg-slate-50 border border-slate-200">✓ BLL Compras</span>
+                <span className="p-2 rounded-lg bg-slate-50 border border-slate-200">✓ BNC (Bolsa Nacional)</span>
+                <span className="p-2 rounded-lg bg-slate-50 border border-slate-200">✓ Portal de Compras Públicas</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 space-y-1">
+                <strong>Como Carregar no Chrome:</strong>
+                <ol className="list-decimal pl-4 space-y-1 text-[11px]">
+                  <li>Abra o Chrome e digite <code className="bg-white px-1 py-0.5 rounded border border-blue-200">chrome://extensions</code></li>
+                  <li>Ative o <strong>Modo do desenvolvedor</strong> no canto superior direito.</li>
+                  <li>Clique em <strong>Carregar sem compactação</strong> e selecione a pasta <code className="bg-white px-1 py-0.5 rounded border border-blue-200">chrome-extension</code> do projeto.</li>
+                  <li>Abra a aba do certame no portal e a extensão sincronizará os lances automaticamente com a Mesa!</li>
+                </ol>
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px]">
+                <strong>Segurança Inviolável:</strong> A extensão nunca dispara lances com valor inferior ao seu <em>Valor Mínimo (Sem Prejuízo)</em> cadastrado na Expertise.
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setModalExtensaoAberta(false)}
+                className="px-4 py-2 bg-[#081C3A] hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

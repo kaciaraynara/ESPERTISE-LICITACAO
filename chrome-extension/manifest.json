@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "Expertise Licitatória - Conector Oficial de Disputa",
+  "version": "1.0.0",
+  "description": "Conector oficial para acompanhamento em tempo real e automação segura de lances nos portais Compras.gov.br, BLL, BNC e Portal de Compras Públicas.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.comprasnet.gov.br/*",
+    "*://*.compras.gov.br/*",
+    "*://*.bll.org.br/*",
+    "*://*.bllcompras.com/*",
+    "*://*.bnc.org.br/*",
+    "*://*.portaldecompraspublicas.com.br/*",
+    "http://localhost:3000/*",
+    "http://localhost:3001/*",
+    "http://localhost:5173/*",
+    "http://localhost:5174/*",
+    "https://*.onrender.com/*",
+    "https://*.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Expertise Licitatória - Mesa de Disputa",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "scripts/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.comprasnet.gov.br/*",
+        "*://*.compras.gov.br/*",
+        "*://*.bll.org.br/*",
+        "*://*.bllcompras.com/*",
+        "*://*.bnc.org.br/*",
+        "*://*.portaldecompraspublicas.com.br/*",
+        "http://localhost:5173/*",
+        "http://localhost:5174/*",
+        "https://*.vercel.app/*"
+      ],
+      "js": ["scripts/content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

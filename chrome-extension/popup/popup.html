@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expertise Licitatória · Conector de Disputa</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="extension-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-area">
+        <div class="logo-badge">EX</div>
+        <div>
+          <h1>Expertise Licitatória</h1>
+          <span class="subtitle">Conector Oficial de Disputa</span>
+        </div>
+      </div>
+      <div id="statusIndicator" class="status-badge disconnected">
+        <span class="status-dot"></span>
+        <span id="statusText">Aguardando Portal</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Portal Detectado -->
+      <section class="card portal-card">
+        <div class="card-header">
+          <span class="label">Portal na Aba Ativa</span>
+          <span id="portalName" class="badge">Nenhum</span>
+        </div>
+        <p id="portalInfo" class="desc">Abra o Compras.gov.br, BLL, BNC ou Portal de Compras Públicas na sala de lances.</p>
+      </section>
+
+      <!-- Empresa e Certame Conectados -->
+      <section class="card">
+        <div class="card-row">
+          <span class="label">Empresa Ativa:</span>
+          <strong id="companyName" class="val truncate">Carregando...</strong>
+        </div>
+        <div class="card-row">
+          <span class="label">Edital em Foco:</span>
+          <strong id="noticeName" class="val truncate">Nenhum selecionado</strong>
+        </div>
+      </section>
+
+      <!-- Automação Assistida e Trava de Segurança -->
+      <section class="card safety-card">
+        <div class="safety-header">
+          <div>
+            <span class="safety-title">Envio Assistido de Lances</span>
+            <span class="safety-sub">Protegido por Valor Mínimo</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleAutomation" />
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <div class="safety-notice">
+          <strong>Regra Inegociável de Segurança:</strong>
+          <p>A automação <strong>NUNCA</strong> dispara lances abaixo do seu <em>Valor Mínimo (Sem Prejuízo)</em> fixado na plataforma Expertise.</p>
+        </div>
+
+        <div class="status-summary" id="itemsSummary">
+          <span>Itens Sincronizados: <strong id="itemCount">0</strong></span>
+          <span>Menor Oferta: <strong id="lowestBid">R$ 0,00</strong></span>
+        </div>
+      </section>
+
+      <!-- Botão de Parada de Emergência -->
+      <section class="emergency-section">
+        <button id="btnEmergencyStop" class="btn-emergency">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          PARADA DE EMERGÊNCIA (STOP ALL)
+        </button>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <button id="btnOpenMesa" class="btn-link">
+        Abrir Mesa Estratégica Completa ↗
+      </button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
