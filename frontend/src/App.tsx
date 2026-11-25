@@ -493,7 +493,7 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
             <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
             <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
-            <Route path={FORNECEDOR_ROUTES.integracoes} element={<IntegracoesPage />} />
+            <Route path={FORNECEDOR_ROUTES.integracoes} element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
             <Route path="/fornecedor/radar-telemetria" element={<RadarPage />} />
             <Route path="/admin/radar" element={<RadarPage />} />
 

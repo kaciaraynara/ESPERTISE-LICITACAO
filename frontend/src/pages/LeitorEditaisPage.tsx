@@ -567,11 +567,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <button
                 type="button"
                 onClick={() => setAbaDossie('visao')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  abaDossie === 'visao'
-                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'visao'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>Ficha Técnica & Objeto</span>
@@ -580,11 +579,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <button
                 type="button"
                 onClick={() => setAbaDossie('itens')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  abaDossie === 'itens'
-                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'itens'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Package className="w-3.5 h-3.5" />
                 <span>Itens ({itens.length})</span>
@@ -593,11 +591,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <button
                 type="button"
                 onClick={() => setAbaDossie('habilitacao')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  abaDossie === 'habilitacao'
-                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'habilitacao'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Habilitação Lei 14.133</span>
@@ -606,11 +603,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <button
                 type="button"
                 onClick={() => setAbaDossie('vicios')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  abaDossie === 'vicios'
-                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'vicios'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>
@@ -743,26 +739,24 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                       {auditoria.apontamentos.map((vicio, idx) => (
                         <div
                           key={idx}
-                          className={`p-3.5 rounded-xl border ${
-                            vicio.gravidade === 'ALTO'
-                              ? 'bg-red-50/60 border-red-200 text-red-950'
-                              : vicio.gravidade === 'MEDIO'
-                                ? 'bg-amber-50/60 border-amber-200 text-amber-950'
-                                : 'bg-slate-50 border-slate-200 text-slate-800'
-                          }`}
+                          className={`p-3.5 rounded-xl border ${vicio.gravidade === 'ALTO'
+                            ? 'bg-red-50/60 border-red-200 text-red-950'
+                            : vicio.gravidade === 'MEDIO'
+                              ? 'bg-amber-50/60 border-amber-200 text-amber-950'
+                              : 'bg-slate-50 border-slate-200 text-slate-800'
+                            }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-black text-xs block">
                               {vicio.titulo}
                             </span>
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                                vicio.gravidade === 'ALTO'
-                                  ? 'bg-red-200/80 text-red-900'
-                                  : vicio.gravidade === 'MEDIO'
-                                    ? 'bg-amber-200/80 text-amber-900'
-                                    : 'bg-slate-200 text-slate-800'
-                              }`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${vicio.gravidade === 'ALTO'
+                                ? 'bg-red-200/80 text-red-900'
+                                : vicio.gravidade === 'MEDIO'
+                                  ? 'bg-amber-200/80 text-amber-900'
+                                  : 'bg-slate-200 text-slate-800'
+                                }`}
                             >
                               Gravidade {vicio.gravidade}
                             </span>
@@ -927,11 +921,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                       {auditoria.apontamentos.map((vicio, idx) => (
                         <div
                           key={idx}
-                          className={`p-3 rounded-xl border text-xs space-y-1.5 ${
-                            vicio.gravidade === 'ALTO'
-                              ? 'bg-red-50/50 border-red-200 text-red-950'
-                              : 'bg-amber-50/50 border-amber-200 text-amber-950'
-                          }`}
+                          className={`p-3 rounded-xl border text-xs space-y-1.5 ${vicio.gravidade === 'ALTO'
+                            ? 'bg-red-50/50 border-red-200 text-red-950'
+                            : 'bg-amber-50/50 border-amber-200 text-amber-950'
+                            }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <strong className="text-xs font-black">

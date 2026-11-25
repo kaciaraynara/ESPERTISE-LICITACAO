@@ -12,7 +12,7 @@ describe('Sidebar unificado Desktop/Mobile & PCA responsivo (Etapa 5)', () => {
     expect(sidebarRaw).toContain('Precificação Estratégica');
     expect(sidebarRaw).toContain('Catálogo de Produtos & Preços');
     expect(sidebarRaw).toContain('Dados da Empresa');
-    expect(sidebarRaw).toContain('Integrações & Portais');
+    expect(sidebarRaw).not.toContain('Integrações & Portais');
   });
 
   it('DashboardLayout delega menu mobile diretamente para <Sidebar mobileOpen={mobileMenuOpen} /> sem menu paralelo', () => {
