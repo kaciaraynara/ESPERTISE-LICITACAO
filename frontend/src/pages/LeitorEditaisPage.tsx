@@ -468,10 +468,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-1 text-xs">
                 <strong className="text-xs font-black text-amber-900 block">
-                  O portal não disponibilizou o PDF integral com texto legível via integração
+                  Dados oficiais e itens carregados do Portal Nacional (PNCP)
                 </strong>
                 <p className="text-amber-800 leading-relaxed">
-                  Exibindo abaixo os dados oficiais, regras e itens registrados no PNCP. Você pode baixar os arquivos originais nos links abaixo ou anexar manualmente o PDF oficial para auditoria profunda de todas as cláusulas.
+                  O órgão não disponibilizou um PDF com texto selecionável neste registro. Abaixo estão todos os dados e itens oficiais; caso tenha o arquivo em PDF no seu computador, anexe ao lado para leitura completa.
                 </p>
               </div>
             </div>

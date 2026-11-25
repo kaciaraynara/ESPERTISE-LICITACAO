@@ -219,10 +219,11 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       },
       orderBy: { chunkIndex: 'asc' },
       take: 80,
-      select: { content: true },
+      select: { content: true, metadata: true },
     });
 
-    if (existingChunks.length > 0) {
+    const hasRealPdfChunk = existingChunks.some((c: any) => !c?.metadata?.structuredFallback);
+    if (existingChunks.length > 0 && hasRealPdfChunk) {
       return existingChunks.map((c) => c.content).join('\n\n');
     }
 

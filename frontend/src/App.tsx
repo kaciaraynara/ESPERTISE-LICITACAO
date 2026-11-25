@@ -102,9 +102,7 @@ const AcademiaPage = React.lazy(() =>
 );
 const TermosDeUsoPage = React.lazy(() => import('./pages/TermosDeUsoPage'));
 const PoliticaPrivacidadePage = React.lazy(() => import('./pages/PoliticaPrivacidadePage'));
-const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));
-const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
-const RadarPage = React.lazy(() => import('./pages/RadarPage'));
+const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));const RadarPage = React.lazy(() => import('./pages/RadarPage'));
 const ExpertiseFiscalPage = React.lazy(() => import('./pages/ExpertiseFiscalPage'));
 const RedeFornecedoresPage = React.lazy(() => import('./pages/RedeFornecedoresPage'));
 const SuperAdminPage = React.lazy(() => import('./pages/SuperAdmin/SuperAdminPage'));
