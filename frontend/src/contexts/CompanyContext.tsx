@@ -41,6 +41,18 @@ export interface Company {
   uf?: string | null;
   municipio?: string | null;
   cidade?: string | null;
+  // Perfil Tributário Corporativo
+  regimeTributario?: string | null;
+  anexoSimples?: string | null;
+  faixaFaturamentoRbt12?: number | null;
+  aliquotaEfetivaSimples?: number | null;
+  ufSede?: string | null;
+  municipioSede?: string | null;
+  aliquotaIssPadrao?: number | null;
+  aliquotaIcmsInterna?: number | null;
+  regimeSubstituicaoTributaria?: boolean;
+  desoneracaoFolha?: boolean;
+  cprb?: number | null;
 }
 
 export interface CompanyContextData {
@@ -144,9 +156,20 @@ export function normalizeCompany(raw: any): Company {
     porte: raw?.porte || null,
     status: raw?.status || null,
     qsa: Array.isArray(raw?.qsa) ? raw.qsa : undefined,
-    uf: raw?.uf || null,
+    uf: raw?.uf || raw?.ufSede || null,
     municipio,
     cidade: municipio,
+    regimeTributario: raw?.regimeTributario || raw?.regime_tributario || 'SIMPLES_NACIONAL',
+    anexoSimples: raw?.anexoSimples || raw?.anexo_simples || null,
+    faixaFaturamentoRbt12: raw?.faixaFaturamentoRbt12 !== undefined ? Number(raw.faixaFaturamentoRbt12) : null,
+    aliquotaEfetivaSimples: raw?.aliquotaEfetivaSimples !== undefined ? Number(raw.aliquotaEfetivaSimples) : null,
+    ufSede: raw?.ufSede || raw?.uf_sede || raw?.uf || null,
+    municipioSede: raw?.municipioSede || raw?.municipio_sede || municipio,
+    aliquotaIssPadrao: raw?.aliquotaIssPadrao !== undefined ? Number(raw.aliquotaIssPadrao) : null,
+    aliquotaIcmsInterna: raw?.aliquotaIcmsInterna !== undefined ? Number(raw.aliquotaIcmsInterna) : null,
+    regimeSubstituicaoTributaria: Boolean(raw?.regimeSubstituicaoTributaria ?? raw?.regime_substituicao_tributaria ?? false),
+    desoneracaoFolha: Boolean(raw?.desoneracaoFolha ?? raw?.desoneracao_folha ?? false),
+    cprb: raw?.cprb !== undefined ? Number(raw.cprb) : null,
   };
 }
 

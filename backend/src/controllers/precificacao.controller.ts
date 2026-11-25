@@ -1,7 +1,90 @@
 import { Request, Response } from 'express';
 import { calcularViabilidade } from '../services/viabilidade.service';
+import { motorTributarioService } from '../services/motor-tributario.service';
+import { prisma } from '../database/prisma';
 
 export class PrecificacaoController {
+  /**
+   * POST /api/v1/precificacao/motor-tributario
+   * Executa o cálculo determinístico conforme Lei 14.133/21, LC 123/06 e Acórdão 2622/13-TCU.
+   */
+  async calcularMotorTributario(req: Request, res: Response) {
+    try {
+      const body = req.body ?? {};
+      const companyId = body.companyId || (req as any).companyId;
+
+      let regimeTributario = body.regimeTributario || 'SIMPLES_NACIONAL';
+      let anexoSimples = body.anexoSimples || 'ANEXO_I_COMERCIO';
+      let aliquotaEfetivaSimples = Number(body.aliquotaEfetivaSimples ?? 6.0);
+      let tipoContratacao = body.tipoContratacao || 'COMERCIO_PRODUTOS';
+      let ufOrigem = body.ufOrigem || 'SP';
+      let ufDestino = body.ufDestino || 'SP';
+      let aliquotaIss = Number(body.aliquotaIss ?? 3.0);
+      let aliquotaIcms = Number(body.aliquotaIcms ?? 18.0);
+      let isSubstituicaoTributaria = Boolean(body.isSubstituicaoTributariaIcms ?? false);
+
+      if (companyId) {
+        const comp = await prisma.company.findUnique({
+          where: { id: String(companyId) },
+        });
+        if (comp) {
+          regimeTributario = comp.regimeTributario || regimeTributario;
+          anexoSimples = comp.anexoSimples || anexoSimples;
+          if (comp.aliquotaEfetivaSimples) aliquotaEfetivaSimples = Number(comp.aliquotaEfetivaSimples);
+          if (comp.uf) ufOrigem = comp.uf;
+          if (comp.aliquotaIssPadrao) aliquotaIss = Number(comp.aliquotaIssPadrao);
+          if (comp.aliquotaIcmsInterna) aliquotaIcms = Number(comp.aliquotaIcmsInterna);
+          isSubstituicaoTributaria = comp.regimeSubstituicaoTributaria ?? isSubstituicaoTributaria;
+
+          // Dedução automática de tipo de contratação pelo CNAE da empresa se não fornecido
+          if (!body.tipoContratacao && comp.cnaePrincipal) {
+            const cnae = comp.cnaePrincipal.replace(/\D/g, '');
+            if (cnae.startsWith('41') || cnae.startsWith('42') || cnae.startsWith('43')) {
+              tipoContratacao = 'OBRAS_ENGENHARIA';
+            } else if (cnae.startsWith('81') || cnae.startsWith('80')) {
+              tipoContratacao = 'SERVICOS_ANEXO_IV';
+            } else if (cnae.startsWith('45') || cnae.startsWith('46') || cnae.startsWith('47')) {
+              tipoContratacao = 'COMERCIO_PRODUTOS';
+            } else {
+              tipoContratacao = 'SERVICOS_GERAIS';
+            }
+          }
+        }
+      }
+
+      const resultado = motorTributarioService.calcularPrecificacao({
+        tipoContratacao,
+        regimeTributario,
+        anexoSimples,
+        aliquotaEfetivaSimplesPct: aliquotaEfetivaSimples,
+        custoItemBase: Number(body.custoItemBase ?? body.custoProdutoServico ?? 100),
+        custoLogisticoFrete: Number(body.custoLogisticoFrete ?? body.frete ?? 0),
+        custosEmbalagemSeguro: Number(body.custosEmbalagemSeguro ?? 0),
+        encargosTrabalhistasMaoDeObra: Number(body.encargosTrabalhistasMaoDeObra ?? 0),
+        outrosCustosDiretos: Number(body.outrosCustosDiretos ?? 0),
+        ufOrigem,
+        ufDestinoOrgao: ufDestino,
+        aliquotaIssPct: aliquotaIss,
+        aliquotaIcmsInternaPct: aliquotaIcms,
+        isSubstituicaoTributariaIcms: isSubstituicaoTributaria,
+        margemLucroDesejadaPct: Number(body.margemLucroDesejadaPct ?? body.margemDesejadaPercentual ?? 15.0),
+        margemMinimaSegurancaPct: Number(body.margemMinimaSegurancaPct ?? 5.0),
+        valorOrcamentoEdital: body.valorOrcamentoEdital ? Number(body.valorOrcamentoEdital) : undefined,
+        parametrosBdi: body.parametrosBdi,
+      });
+
+      return res.json({
+        success: true,
+        data: resultado,
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: error?.message || 'Erro ao calcular motor tributário determinístico.',
+      });
+    }
+  }
+
   /**
    * POST /api/v1/precificacao/viabilidade
    * Suporta tanto o payload de PrecificacaoPage.tsx ({ custoProdutoServico, impostosPercentual, custoOperacionalPercentual, margemDesejadaPercentual })
@@ -174,3 +257,4 @@ export class PrecificacaoController {
     }
   }
 }
+export default PrecificacaoController;

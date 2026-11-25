@@ -71,6 +71,28 @@ export class EmpresasService {
       regioes: company.regioes,
       orgaos_preferidos: company.orgaosPreferidos,
       orgaos_bloqueados: company.orgaosBloqueados,
+      // Perfil Tributário
+      regimeTributario: company.regimeTributario || 'SIMPLES_NACIONAL',
+      regime_tributario: company.regimeTributario || 'SIMPLES_NACIONAL',
+      anexoSimples: company.anexoSimples || 'ANEXO_I_COMERCIO',
+      anexo_simples: company.anexoSimples || 'ANEXO_I_COMERCIO',
+      faixaFaturamentoRbt12: company.faixaFaturamentoRbt12 ? Number(company.faixaFaturamentoRbt12) : null,
+      faixa_faturamento_rbt12: company.faixaFaturamentoRbt12 ? Number(company.faixaFaturamentoRbt12) : null,
+      aliquotaEfetivaSimples: company.aliquotaEfetivaSimples ? Number(company.aliquotaEfetivaSimples) : 6.0,
+      aliquota_efetiva_simples: company.aliquotaEfetivaSimples ? Number(company.aliquotaEfetivaSimples) : 6.0,
+      ufSede: company.ufSede || company.uf || null,
+      uf_sede: company.ufSede || company.uf || null,
+      municipioSede: company.municipioSede || company.municipio || null,
+      municipio_sede: company.municipioSede || company.municipio || null,
+      aliquotaIssPadrao: company.aliquotaIssPadrao ? Number(company.aliquotaIssPadrao) : 3.0,
+      aliquota_iss_padrao: company.aliquotaIssPadrao ? Number(company.aliquotaIssPadrao) : 3.0,
+      aliquotaIcmsInterna: company.aliquotaIcmsInterna ? Number(company.aliquotaIcmsInterna) : 18.0,
+      aliquota_icms_interna: company.aliquotaIcmsInterna ? Number(company.aliquotaIcmsInterna) : 18.0,
+      regimeSubstituicaoTributaria: company.regimeSubstituicaoTributaria ?? false,
+      regime_substituicao_tributaria: company.regimeSubstituicaoTributaria ?? false,
+      desoneracaoFolha: company.desoneracaoFolha ?? false,
+      desoneracao_folha: company.desoneracaoFolha ?? false,
+      cprb: company.cprb ? Number(company.cprb) : 0.0,
       qsa: qsa || company.qsa || [],
       created_at: company.createdAt instanceof Date ? company.createdAt.toISOString() : String(company.createdAt),
       updated_at: company.updatedAt instanceof Date ? company.updatedAt.toISOString() : String(company.updatedAt),
@@ -184,6 +206,7 @@ export class EmpresasService {
       : regioesManuais;
     const razaoFinal = manualRazao || official.razao_social;
     const fantasiaFinal = manualFantasia || official.nome_fantasia;
+    const municipioFinal = manualMunicipio || official.municipio || null;
 
     const row = await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
@@ -215,6 +238,17 @@ export class EmpresasService {
           regioes: regioesFinais,
           orgaosPreferidos: this.stringArray(body.orgaos_preferidos),
           orgaosBloqueados: this.stringArray(body.orgaos_bloqueados),
+          regimeTributario: this.optionalString(body.regime_tributario ?? body.regimeTributario) || 'SIMPLES_NACIONAL',
+          anexoSimples: this.optionalString(body.anexo_simples ?? body.anexoSimples) || 'ANEXO_I_COMERCIO',
+          faixaFaturamentoRbt12: this.numberOrNull(body.faixa_faturamento_rbt12 ?? body.faixaFaturamentoRbt12),
+          aliquotaEfetivaSimples: this.numberOrNull(body.aliquota_efetiva_simples ?? body.aliquotaEfetivaSimples) ?? 6.0,
+          ufSede: this.optionalString(body.uf_sede ?? body.ufSede ?? ufFinal),
+          municipioSede: this.optionalString(body.municipio_sede ?? body.municipioSede ?? municipioFinal),
+          aliquotaIssPadrao: this.numberOrNull(body.aliquota_iss_padrao ?? body.aliquotaIssPadrao) ?? 3.0,
+          aliquotaIcmsInterna: this.numberOrNull(body.aliquota_icms_interna ?? body.aliquotaIcmsInterna) ?? 18.0,
+          regimeSubstituicaoTributaria: Boolean(body.regime_substituicao_tributaria ?? body.regimeSubstituicaoTributaria ?? false),
+          desoneracaoFolha: Boolean(body.desoneracao_folha ?? body.desoneracaoFolha ?? false),
+          cprb: this.numberOrNull(body.cprb) ?? 0.0,
         },
       });
 
@@ -341,6 +375,39 @@ export class EmpresasService {
         orgaosBloqueados: body.orgaos_bloqueados === undefined
           ? atual.orgaos_bloqueados
           : this.stringArray(body.orgaos_bloqueados),
+        regimeTributario: body.regime_tributario === undefined && body.regimeTributario === undefined
+          ? (atualRow.regimeTributario || 'SIMPLES_NACIONAL')
+          : (this.optionalString(body.regime_tributario ?? body.regimeTributario) || 'SIMPLES_NACIONAL'),
+        anexoSimples: body.anexo_simples === undefined && body.anexoSimples === undefined
+          ? (atualRow.anexoSimples || 'ANEXO_I_COMERCIO')
+          : (this.optionalString(body.anexo_simples ?? body.anexoSimples) || 'ANEXO_I_COMERCIO'),
+        faixaFaturamentoRbt12: body.faixa_faturamento_rbt12 === undefined && body.faixaFaturamentoRbt12 === undefined
+          ? atualRow.faixaFaturamentoRbt12
+          : this.numberOrNull(body.faixa_faturamento_rbt12 ?? body.faixaFaturamentoRbt12),
+        aliquotaEfetivaSimples: body.aliquota_efetiva_simples === undefined && body.aliquotaEfetivaSimples === undefined
+          ? atualRow.aliquotaEfetivaSimples
+          : (this.numberOrNull(body.aliquota_efetiva_simples ?? body.aliquotaEfetivaSimples) ?? 6.0),
+        ufSede: body.uf_sede === undefined && body.ufSede === undefined
+          ? atualRow.ufSede
+          : this.optionalString(body.uf_sede ?? body.ufSede),
+        municipioSede: body.municipio_sede === undefined && body.municipioSede === undefined
+          ? atualRow.municipioSede
+          : this.optionalString(body.municipio_sede ?? body.municipioSede),
+        aliquotaIssPadrao: body.aliquota_iss_padrao === undefined && body.aliquotaIssPadrao === undefined
+          ? atualRow.aliquotaIssPadrao
+          : (this.numberOrNull(body.aliquota_iss_padrao ?? body.aliquotaIssPadrao) ?? 3.0),
+        aliquotaIcmsInterna: body.aliquota_icms_interna === undefined && body.aliquotaIcmsInterna === undefined
+          ? atualRow.aliquotaIcmsInterna
+          : (this.numberOrNull(body.aliquota_icms_interna ?? body.aliquotaIcmsInterna) ?? 18.0),
+        regimeSubstituicaoTributaria: body.regime_substituicao_tributaria === undefined && body.regimeSubstituicaoTributaria === undefined
+          ? atualRow.regimeSubstituicaoTributaria
+          : Boolean(body.regime_substituicao_tributaria ?? body.regimeSubstituicaoTributaria),
+        desoneracaoFolha: body.desoneracao_folha === undefined && body.desoneracaoFolha === undefined
+          ? atualRow.desoneracaoFolha
+          : Boolean(body.desoneracao_folha ?? body.desoneracaoFolha),
+        cprb: body.cprb === undefined
+          ? atualRow.cprb
+          : (this.numberOrNull(body.cprb) ?? 0.0),
       },
     });
 

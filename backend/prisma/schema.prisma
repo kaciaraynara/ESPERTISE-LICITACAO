@@ -74,7 +74,7 @@ model User {
 
   monitoredNotices  CompanyMonitoredNotice[]
   assignedDeadlines Deadline[]
-  deadlines         Deadline[]              @relation("UserDeadlines")
+  deadlines         Deadline[]               @relation("UserDeadlines")
   auditLogs         AuditLog[]
 
   @@index([tenantId])
@@ -93,57 +93,69 @@ model ApiRateLimitBucket {
 }
 
 model Company {
-  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String               @map("tenant_id") @db.Uuid
-  userId               String               @map("user_id") @db.Uuid
-  cnpj                 String
-  razaoSocial          String               @map("razao_social")
-  nomeFantasia         String?              @map("nome_fantasia")
-  cnaePrincipal        String?              @map("cnae_principal")
-  municipio            String?
-  uf                   String?
-  status               String?
-  trialEndsAt          DateTime?            @map("trial_ends_at") @db.Timestamptz(6)
-  nicho                String[]             @default([])
-  palavrasChave        String[]             @default([]) @map("palavras_chave")
-  valorMin             Decimal?             @map("valor_min") @db.Decimal(14, 2)
-  valorMax             Decimal?             @map("valor_max") @db.Decimal(14, 2)
-  regioes              String[]             @default([])
-  orgaosPreferidos     String[]             @default([]) @map("orgaos_preferidos")
-  orgaosBloqueados     String[]             @default([]) @map("orgaos_bloqueados")
-  impedimentoLicitacao Boolean              @default(false) @map("impedimento_licitacao")
-  impedimentoDetalhes  String?              @map("impedimento_detalhes") @db.Text
-  cep                  String?
-  logradouro           String?
-  bairro               String?
-  telefone             String?
-  email                String?
-  porte                String?
-  radarTiposObjeto     String[]             @default([]) @map("radar_tipos_objeto")
-  radarIncluirSemClassificacao Boolean      @default(true) @map("radar_incluir_sem_classificacao")
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  certificates         CompanyCertificate[]
-  documents            Document[]
-  proposals            Proposal[]
+  id                           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                     String               @map("tenant_id") @db.Uuid
+  userId                       String               @map("user_id") @db.Uuid
+  cnpj                         String
+  razaoSocial                  String               @map("razao_social")
+  nomeFantasia                 String?              @map("nome_fantasia")
+  cnaePrincipal                String?              @map("cnae_principal")
+  municipio                    String?
+  uf                           String?
+  status                       String?
+  trialEndsAt                  DateTime?            @map("trial_ends_at") @db.Timestamptz(6)
+  nicho                        String[]             @default([])
+  palavrasChave                String[]             @default([]) @map("palavras_chave")
+  valorMin                     Decimal?             @map("valor_min") @db.Decimal(14, 2)
+  valorMax                     Decimal?             @map("valor_max") @db.Decimal(14, 2)
+  regioes                      String[]             @default([])
+  orgaosPreferidos             String[]             @default([]) @map("orgaos_preferidos")
+  orgaosBloqueados             String[]             @default([]) @map("orgaos_bloqueados")
+  impedimentoLicitacao         Boolean              @default(false) @map("impedimento_licitacao")
+  impedimentoDetalhes          String?              @map("impedimento_detalhes") @db.Text
+  cep                          String?
+  logradouro                   String?
+  bairro                       String?
+  telefone                     String?
+  email                        String?
+  porte                        String?
+  radarTiposObjeto             String[]             @default([]) @map("radar_tipos_objeto")
+  radarIncluirSemClassificacao Boolean              @default(true) @map("radar_incluir_sem_classificacao")
+  // Perfil Tributário Determinístico da Empresa (Lei 14.133/21 e LC 123/06)
+  regimeTributario             String?              @default("SIMPLES_NACIONAL") @map("regime_tributario")
+  anexoSimples                 String?              @default("ANEXO_I_COMERCIO") @map("anexo_simples")
+  faixaFaturamentoRbt12        Decimal?             @map("faixa_faturamento_rbt12") @db.Decimal(14, 2)
+  aliquotaEfetivaSimples       Decimal?             @default(6.0) @map("aliquota_efetiva_simples") @db.Decimal(5, 2)
+  ufSede                       String?              @map("uf_sede")
+  municipioSede                String?              @map("municipio_sede")
+  aliquotaIssPadrao            Decimal?             @default(3.0) @map("aliquota_iss_padrao") @db.Decimal(5, 2)
+  aliquotaIcmsInterna          Decimal?             @default(18.0) @map("aliquota_icms_interna") @db.Decimal(5, 2)
+  regimeSubstituicaoTributaria Boolean              @default(false) @map("regime_substituicao_tributaria")
+  desoneracaoFolha             Boolean              @default(false) @map("desoneracao_folha")
+  cprb                         Decimal?             @default(0.0) @map("cprb") @db.Decimal(5, 2)
+  createdAt                    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  tenant                       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user                         User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  certificates                 CompanyCertificate[]
+  documents                    Document[]
+  proposals                    Proposal[]
 
-  moduleAccess     CompanyModuleAccess[]
-  monitoredNotices CompanyMonitoredNotice[]
-  deadlines        Deadline[]
-  catalogItems     CatalogItem[]
-  contracts        Contract[]
+  moduleAccess            CompanyModuleAccess[]
+  monitoredNotices        CompanyMonitoredNotice[]
+  deadlines               Deadline[]
+  catalogItems            CatalogItem[]
+  contracts               Contract[]
   contractAmendments      ContractAmendment[]
   contractValidityPeriods ContractValidityPeriod[]
-  guarantees       Guarantee[]
-  contractGuarantees ContractGuarantee[]
-  contractEquilibria ContractEquilibrium[]
-  garantiasLicitacao GarantiaLicitacao[]
-  addonSubscriptions CompanyAddonSubscription[]
-  fiscalImports      FiscalDocumentImport[]
-  taxCredits         TaxCreditOpportunity[]
-  contractTaxLedgers ContractTaxLedger[]
+  guarantees              Guarantee[]
+  contractGuarantees      ContractGuarantee[]
+  contractEquilibria      ContractEquilibrium[]
+  garantiasLicitacao      GarantiaLicitacao[]
+  addonSubscriptions      CompanyAddonSubscription[]
+  fiscalImports           FiscalDocumentImport[]
+  taxCredits              TaxCreditOpportunity[]
+  contractTaxLedgers      ContractTaxLedger[]
 
   @@unique([userId, cnpj])
   @@unique([tenantId, cnpj])
@@ -213,27 +225,27 @@ model Notification {
 }
 
 model Subscription {
-  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String               @map("user_id") @db.Uuid
-  email           String
-  plano           String
-  planType        PlanType?            @map("plan_type")
-  cnpjsRegistered Int?                 @default(0) @map("cnpjs_registered")
-  monthlyAnalysesUsed Int?             @default(0) @map("monthly_analyses_used")
-  monthlyProposalsUsed Int?            @default(0) @map("monthly_proposals_used")
-  lastResetDate   DateTime?            @default(now()) @map("last_reset_date") @db.Timestamptz(6)
-  categoria       SubscriptionCategory @default(plataforma)
-  status          SubscriptionStatus   @default(trialing)
-  periodoInicio   DateTime             @map("periodo_inicio") @db.Timestamptz(6)
-  periodoFim      DateTime             @map("periodo_fim") @db.Timestamptz(6)
-  cancelarAoFim   Boolean              @default(false) @map("cancelar_ao_fim")
-  pendingPlanId   String?              @map("pending_plan_id")
-  pendingPlanAt   DateTime?            @map("pending_plan_at") @db.Timestamptz(6)
-  asaasCustomerId     String?              @map("mp_payer_id")
-  asaasSubscriptionId String?              @map("mp_preapproval_id")
-  asaasPlanCode       String?              @map("mp_plan_id")
-  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String               @map("user_id") @db.Uuid
+  email                String
+  plano                String
+  planType             PlanType?            @map("plan_type")
+  cnpjsRegistered      Int?                 @default(0) @map("cnpjs_registered")
+  monthlyAnalysesUsed  Int?                 @default(0) @map("monthly_analyses_used")
+  monthlyProposalsUsed Int?                 @default(0) @map("monthly_proposals_used")
+  lastResetDate        DateTime?            @default(now()) @map("last_reset_date") @db.Timestamptz(6)
+  categoria            SubscriptionCategory @default(plataforma)
+  status               SubscriptionStatus   @default(trialing)
+  periodoInicio        DateTime             @map("periodo_inicio") @db.Timestamptz(6)
+  periodoFim           DateTime             @map("periodo_fim") @db.Timestamptz(6)
+  cancelarAoFim        Boolean              @default(false) @map("cancelar_ao_fim")
+  pendingPlanId        String?              @map("pending_plan_id")
+  pendingPlanAt        DateTime?            @map("pending_plan_at") @db.Timestamptz(6)
+  asaasCustomerId      String?              @map("mp_payer_id")
+  asaasSubscriptionId  String?              @map("mp_preapproval_id")
+  asaasPlanCode        String?              @map("mp_plan_id")
+  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([userId, categoria])
   @@index([email])
@@ -465,74 +477,73 @@ model Jurisprudence {
 }
 
 model AnnualProcurementPlan {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pncpId        String   @unique @map("pncp_id")
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pncpId        String                      @unique @map("pncp_id")
   year          Int
-  buyerName     String   @map("buyer_name")
-  buyerDocument String   @map("buyer_document")
+  buyerName     String                      @map("buyer_name")
+  buyerDocument String                      @map("buyer_document")
   uf            String?
   municipality  String?
-  totalItems    Int      @default(0) @map("total_items")
-  totalValue    Decimal? @map("total_value") @db.Decimal(18, 2)
-  rawPayload    Json?    @map("raw_payload")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  totalItems    Int                         @default(0) @map("total_items")
+  totalValue    Decimal?                    @map("total_value") @db.Decimal(18, 2)
+  rawPayload    Json?                       @map("raw_payload")
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  items         AnnualProcurementPlanItem[]
 
   @@index([year, uf])
   @@index([buyerDocument])
-  items         AnnualProcurementPlanItem[]
-
   @@map("annual_procurement_plans")
 }
 
 model ProcurementNotice {
-  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String?                  @map("tenant_id")
-  source            String
-  externalId        String?                  @map("external_id")
-  numeroControlePncp String?                 @unique @map("numero_controle_pncp")
-  dedupeKey         String                   @unique @map("dedupe_key")
-  contentHash       String                   @map("content_hash")
-  noticeNumber            String?                  @map("notice_number")
-  processoAdministrativo  String?                  @map("processo_administrativo")
-  modality                String?
-  modalityEnum            ProcurementModality?     @map("modality_enum")
-  judgmentCriterion       JudgmentCriterion?       @map("judgment_criterion")
-  executionRegime         ExecutionRegime?         @map("execution_regime")
-  exclusiveMeEpp          Boolean                  @default(false) @map("exclusive_me_epp")
-  inversaoFases           Boolean                  @default(true) @map("inversao_fases")
-  faseHabilitacaoPrevia   Boolean                  @default(false) @map("fase_habilitacao_previa")
-  prazoMinimoDiasUteis    Int?                     @map("prazo_minimo_dias_uteis")
-  modoDisputa             String?                  @map("modo_disputa")
-  srp                     Boolean                  @default(false)
-  amparoLegal             String?                  @default("Lei 14.133/2021") @map("amparo_legal")
-  objectType              String?                  @map("object_type")
-  searchVector            Unsupported("tsvector")? @map("search_vector")
-  buyerName               String?                  @map("buyer_name")
-  buyerDocument     String?                  @map("buyer_document")
-  object            String
-  uf                String?
-  municipality      String?
-  estimatedValue    Decimal?                 @map("estimated_value") @db.Decimal(18, 2)
-  status            String?
-  url               String?
-  publishedAt       DateTime?                @map("published_at") @db.Timestamptz(6)
-  openingAt         DateTime?                @map("opening_at") @db.Timestamptz(6)
-  closingAt         DateTime?                @map("closing_at") @db.Timestamptz(6)
-  rawPayload        Json?                    @map("raw_payload")
-  classification    Json?
-  metadata          Json?
-  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  biddingHistory    BiddingHistory[]
-  legalAnalyses     LegalAnalysis[]
-  lots              ProcurementLot[]
-  items             ProcurementItem[]
-  attachments       ProcurementAttachment[]
-  requirements      ProcurementRequirement[]
-  proposals         Proposal[]
-  events            ProcurementEvent[]
-  biddingPipelines  BiddingPipeline[]
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String?                  @map("tenant_id")
+  source                 String
+  externalId             String?                  @map("external_id")
+  numeroControlePncp     String?                  @unique @map("numero_controle_pncp")
+  dedupeKey              String                   @unique @map("dedupe_key")
+  contentHash            String                   @map("content_hash")
+  noticeNumber           String?                  @map("notice_number")
+  processoAdministrativo String?                  @map("processo_administrativo")
+  modality               String?
+  modalityEnum           ProcurementModality?     @map("modality_enum")
+  judgmentCriterion      JudgmentCriterion?       @map("judgment_criterion")
+  executionRegime        ExecutionRegime?         @map("execution_regime")
+  exclusiveMeEpp         Boolean                  @default(false) @map("exclusive_me_epp")
+  inversaoFases          Boolean                  @default(true) @map("inversao_fases")
+  faseHabilitacaoPrevia  Boolean                  @default(false) @map("fase_habilitacao_previa")
+  prazoMinimoDiasUteis   Int?                     @map("prazo_minimo_dias_uteis")
+  modoDisputa            String?                  @map("modo_disputa")
+  srp                    Boolean                  @default(false)
+  amparoLegal            String?                  @default("Lei 14.133/2021") @map("amparo_legal")
+  objectType             String?                  @map("object_type")
+  searchVector           Unsupported("tsvector")? @map("search_vector")
+  buyerName              String?                  @map("buyer_name")
+  buyerDocument          String?                  @map("buyer_document")
+  object                 String
+  uf                     String?
+  municipality           String?
+  estimatedValue         Decimal?                 @map("estimated_value") @db.Decimal(18, 2)
+  status                 String?
+  url                    String?
+  publishedAt            DateTime?                @map("published_at") @db.Timestamptz(6)
+  openingAt              DateTime?                @map("opening_at") @db.Timestamptz(6)
+  closingAt              DateTime?                @map("closing_at") @db.Timestamptz(6)
+  rawPayload             Json?                    @map("raw_payload")
+  classification         Json?
+  metadata               Json?
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  biddingHistory         BiddingHistory[]
+  legalAnalyses          LegalAnalysis[]
+  lots                   ProcurementLot[]
+  items                  ProcurementItem[]
+  attachments            ProcurementAttachment[]
+  requirements           ProcurementRequirement[]
+  proposals              Proposal[]
+  events                 ProcurementEvent[]
+  biddingPipelines       BiddingPipeline[]
 
   monitoredByCompanies CompanyMonitoredNotice[]
   deadlines            Deadline[]
@@ -1287,15 +1298,15 @@ enum ProposalStatus {
 }
 
 model Proposal {
-  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId           String         @map("company_id") @db.Uuid
-  procurementNoticeId String?        @map("procurement_notice_id") @db.Uuid
-  titulo              String
-  status              ProposalStatus @default(RASCUNHO)
-  moeda               String         @default("BRL")
-  validadeDias        Int?           @map("validade_dias")
-  validadeAte         DateTime?      @map("validade_ate") @db.Timestamptz(6)
-  prazoEntregaDias    Int?           @map("prazo_entrega_dias")
+  id                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId                String             @map("company_id") @db.Uuid
+  procurementNoticeId      String?            @map("procurement_notice_id") @db.Uuid
+  titulo                   String
+  status                   ProposalStatus     @default(RASCUNHO)
+  moeda                    String             @default("BRL")
+  validadeDias             Int?               @map("validade_dias")
+  validadeAte              DateTime?          @map("validade_ate") @db.Timestamptz(6)
+  prazoEntregaDias         Int?               @map("prazo_entrega_dias")
   condicoesPagamento       String?            @map("condicoes_pagamento") @db.Text
   garantia                 String?            @db.Text
   observacoes              String?            @db.Text
@@ -1312,9 +1323,9 @@ model Proposal {
   declaracaoAcessibilidade Boolean            @default(true) @map("declaracao_acessibilidade")
   propostaFormatadaText    String?            @map("proposta_formatada_text") @db.Text
   createdById              String             @map("created_by_id") @db.Uuid
-  responsibleUserId   String?        @map("responsible_user_id") @db.Uuid
-  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  responsibleUserId        String?            @map("responsible_user_id") @db.Uuid
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company           Company            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   procurementNotice ProcurementNotice? @relation(fields: [procurementNoticeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1322,8 +1333,8 @@ model Proposal {
   responsibleUser   User?              @relation("ProposalResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   items             ProposalItem[]
 
-  deadlines Deadline[]
-  contracts Contract[]
+  deadlines  Deadline[]
+  contracts  Contract[]
   guarantees Guarantee[]
 
   @@index([companyId, status])
@@ -1596,28 +1607,28 @@ model CatalogItem {
 }
 
 model Deadline {
-  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId           String         @map("company_id") @db.Uuid
-  procurementNoticeId String?        @map("procurement_notice_id") @db.Uuid
-  proposalId          String?        @map("proposal_id") @db.Uuid
-  responsibleUserId   String?        @map("responsible_user_id") @db.Uuid
-  userId              String?        @map("user_id") @db.Uuid
-  title               String
-  description         String?        @db.Text
-  type                DeadlineType
-  status              DeadlineStatus @default(OPEN)
-  fundamentoLegal     String?        @map("fundamento_legal")
-  diasUteisAntecedencia Int?         @map("dias_uteis_antecedencia")
-  diasCorridosAtePrazo  Int?         @map("dias_corridos_ate_prazo")
-  tempestivoHoje      Boolean?       @map("tempestivo_hoje")
-  dueAt               DateTime       @default(now()) @map("due_at") @db.Timestamptz(6)
-  date                DateTime       @default(now()) @map("date") @db.Timestamptz(6)
-  completedAt         DateTime?      @map("completed_at") @db.Timestamptz(6)
-  source              String         @default("manual")
-  sourceReference     String?        @map("source_reference")
-  metadata            Json?
-  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId             String         @map("company_id") @db.Uuid
+  procurementNoticeId   String?        @map("procurement_notice_id") @db.Uuid
+  proposalId            String?        @map("proposal_id") @db.Uuid
+  responsibleUserId     String?        @map("responsible_user_id") @db.Uuid
+  userId                String?        @map("user_id") @db.Uuid
+  title                 String
+  description           String?        @db.Text
+  type                  DeadlineType
+  status                DeadlineStatus @default(OPEN)
+  fundamentoLegal       String?        @map("fundamento_legal")
+  diasUteisAntecedencia Int?           @map("dias_uteis_antecedencia")
+  diasCorridosAtePrazo  Int?           @map("dias_corridos_ate_prazo")
+  tempestivoHoje        Boolean?       @map("tempestivo_hoje")
+  dueAt                 DateTime       @default(now()) @map("due_at") @db.Timestamptz(6)
+  date                  DateTime       @default(now()) @map("date") @db.Timestamptz(6)
+  completedAt           DateTime?      @map("completed_at") @db.Timestamptz(6)
+  source                String         @default("manual")
+  sourceReference       String?        @map("source_reference")
+  metadata              Json?
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   procurementNotice ProcurementNotice? @relation(fields: [procurementNoticeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -1866,15 +1877,15 @@ model Contract {
   createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company           Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  procurementNotice ProcurementNotice?       @relation(fields: [procurementNoticeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  proposal          Proposal?                @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  aditivos          ContractAmendment[]
-  prazosVigencia    ContractValidityPeriod[]
-  guarantees        Guarantee[]
+  company            Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  procurementNotice  ProcurementNotice?       @relation(fields: [procurementNoticeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  proposal           Proposal?                @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  aditivos           ContractAmendment[]
+  prazosVigencia     ContractValidityPeriod[]
+  guarantees         Guarantee[]
   contractGuarantees ContractGuarantee[]
-  equilibria        ContractEquilibrium[]
-  taxLedgers        ContractTaxLedger[]
+  equilibria         ContractEquilibrium[]
+  taxLedgers         ContractTaxLedger[]
 
   @@unique([id, companyId], map: "contracts_id_company_id_key")
   @@index([companyId, status])
@@ -1886,21 +1897,21 @@ model Contract {
 }
 
 model Guarantee {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId       String           @map("company_id") @db.Uuid
-  proposalId      String?          @map("proposal_id") @db.Uuid
-  contractId      String?          @map("contract_id") @db.Uuid
-  tipoGarantia    GuaranteeType    @map("tipo_garantia")
-  modalidade      GuaranteeModality
-  valorOriginal   Decimal          @map("valor_original") @db.Decimal(18, 2)
-  status          GuaranteeStatus  @default(RETIDA)
-  dataVencimento  DateTime?        @map("data_vencimento") @db.Date
-  statusAlerta    String           @default("PENDENTE") @map("status_alerta")
-  comprovanteUrl  String?          @map("comprovante_url")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  proposalId     String?           @map("proposal_id") @db.Uuid
+  contractId     String?           @map("contract_id") @db.Uuid
+  tipoGarantia   GuaranteeType     @map("tipo_garantia")
+  modalidade     GuaranteeModality
+  valorOriginal  Decimal           @map("valor_original") @db.Decimal(18, 2)
+  status         GuaranteeStatus   @default(RETIDA)
+  dataVencimento DateTime?         @map("data_vencimento") @db.Date
+  statusAlerta   String            @default("PENDENTE") @map("status_alerta")
+  comprovanteUrl String?           @map("comprovante_url")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   proposal Proposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
@@ -1912,16 +1923,16 @@ model Guarantee {
 }
 
 model ContractGuarantee {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contractId     String          @map("contract_id") @db.Uuid
-  companyId      String          @map("company_id") @db.Uuid
-  tipoGarantia   GuaranteeType   @map("tipo_garantia")
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId     String            @map("contract_id") @db.Uuid
+  companyId      String            @map("company_id") @db.Uuid
+  tipoGarantia   GuaranteeType     @map("tipo_garantia")
   modalidade     GuaranteeModality
-  valorGarantido Decimal         @map("valor_garantido") @db.Decimal(18, 2)
-  dataVencimento DateTime?       @map("data_vencimento") @db.Date
-  status         GuaranteeStatus @default(RETIDA)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  valorGarantido Decimal           @map("valor_garantido") @db.Decimal(18, 2)
+  dataVencimento DateTime?         @map("data_vencimento") @db.Date
+  status         GuaranteeStatus   @default(RETIDA)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   contract Contract @relation(fields: [contractId, companyId], references: [id, companyId], onDelete: Cascade, onUpdate: NoAction)
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -1933,14 +1944,14 @@ model ContractGuarantee {
 }
 
 model ContractEquilibrium {
-  id               String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contractId       String                      @map("contract_id") @db.Uuid
-  companyId        String                      @map("company_id") @db.Uuid
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId        String                       @map("contract_id") @db.Uuid
+  companyId         String                       @map("company_id") @db.Uuid
   institutoJuridico ContractEquilibriumInstitute @map("instituto_juridico")
-  dataBase         DateTime                    @map("data_base") @db.Date
-  dataAniversario  DateTime                    @map("data_aniversario") @db.Date
-  createdAt        DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dataBase          DateTime                     @map("data_base") @db.Date
+  dataAniversario   DateTime                     @map("data_aniversario") @db.Date
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   contract Contract @relation(fields: [contractId, companyId], references: [id, companyId], onDelete: Cascade, onUpdate: NoAction)
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -1951,16 +1962,16 @@ model ContractEquilibrium {
 }
 
 model ContractMonitorAlert {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  dedupeKey   String   @unique @map("dedupe_key")
-  companyId   String   @map("company_id") @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  targetType  String   @map("target_type")
-  targetId    String   @map("target_id") @db.Uuid
-  alertType   String   @map("alert_type")
-  daysBefore  Int      @map("days_before")
-  dueDate     DateTime @map("due_date") @db.Date
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dedupeKey  String   @unique @map("dedupe_key")
+  companyId  String   @map("company_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id") @db.Uuid
+  alertType  String   @map("alert_type")
+  daysBefore Int      @map("days_before")
+  dueDate    DateTime @map("due_date") @db.Date
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([companyId, createdAt])
   @@index([targetType, targetId])
@@ -2057,22 +2068,22 @@ model BaseJuridica {
 // -----------------------------------------------------------------------------
 
 model BaseJuridicaKnowledge {
-  id                  String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   titulo              String
-  ementa              String?                     @db.Text
-  conteudo            String                      @db.Text
-  autoridade          String                      @default("TCU") // TCU, STJ, STF, AGU, CNJ, LEI_14133
-  esfera              String?                     @default("FEDERAL") // FEDERAL, ESTADUAL, MUNICIPAL
-  numeroAcordao       String?                     @map("numero_acordao")
+  ementa              String?                      @db.Text
+  conteudo            String                       @db.Text
+  autoridade          String                       @default("TCU") // TCU, STJ, STF, AGU, CNJ, LEI_14133
+  esfera              String?                      @default("FEDERAL") // FEDERAL, ESTADUAL, MUNICIPAL
+  numeroAcordao       String?                      @map("numero_acordao")
   ano                 Int?
-  artigosRelacionados String[]                    @default([]) @map("artigos_relacionados")
-  tags                String[]                    @default([])
-  embeddingModel      String?                     @default("text-embedding-3-small") @map("embedding_model")
+  artigosRelacionados String[]                     @default([]) @map("artigos_relacionados")
+  tags                String[]                     @default([])
+  embeddingModel      String?                      @default("text-embedding-3-small") @map("embedding_model")
   embedding           Unsupported("vector(1536)")?
   metadata            Json?
-  ativo               Boolean                     @default(true)
-  createdAt           DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  ativo               Boolean                      @default(true)
+  createdAt           DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([autoridade])
   @@index([ativo])
@@ -2103,7 +2114,7 @@ model GarantiaLicitacao {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([companyId])
   @@index([status])
@@ -2148,7 +2159,7 @@ model CompanyAddonSubscription {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([companyId, addonSlug])
   @@index([tenantId])
@@ -2159,24 +2170,24 @@ model CompanyAddonSubscription {
 }
 
 model TaxRuleVersion {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ruleCode       String    @map("rule_code") // CBS_PADRAO, IBS_PADRAO, IN1234_BENS, IN1234_SERVICOS, INSS_CESSAO_MAO_OBRA, PIS_COFINS_MONOFASICO
-  taxName        String    @map("tax_name") // CBS, IBS, IRRF, CSLL, PIS, COFINS, INSS, ICMS, ISS
-  taxRegime      String    @map("tax_regime") // SIMPLES_NACIONAL, LUCRO_PRESUMIDO, LUCRO_REAL, ALL
-  operationType  String    @map("operation_type") // FORNECIMENTO_BENS, SERVICOS_CONTINUOS, ENGENHARIA_OBRAS, LOCACAO, SAUDE_EDUCACAO
-  cnaePrefix     String?   @map("cnae_prefix")
-  ncmCode        String?   @map("ncm_code")
-  ratePercent    Decimal   @map("rate_percent") @db.Decimal(8, 4)
-  reducerPercent Decimal   @default(0) @map("reducer_percent") @db.Decimal(8, 4)
-  allowsCredit   Boolean   @default(false) @map("allows_credit")
-  creditRulesJson Json?    @default("{}") @map("credit_rules_json") @db.JsonB
-  legalBasis     String    @map("legal_basis") @db.Text // ex: "IN RFB nº 1.234/2012, Anexo I" ou "LC 214/2025, Art. 12"
-  effectiveFrom  DateTime  @map("effective_from") @db.Timestamptz(6)
-  effectiveTo    DateTime? @map("effective_to") @db.Timestamptz(6)
-  versionNumber  Int       @default(1) @map("version_number")
-  changelog      String?   @db.Text
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ruleCode        String    @map("rule_code") // CBS_PADRAO, IBS_PADRAO, IN1234_BENS, IN1234_SERVICOS, INSS_CESSAO_MAO_OBRA, PIS_COFINS_MONOFASICO
+  taxName         String    @map("tax_name") // CBS, IBS, IRRF, CSLL, PIS, COFINS, INSS, ICMS, ISS
+  taxRegime       String    @map("tax_regime") // SIMPLES_NACIONAL, LUCRO_PRESUMIDO, LUCRO_REAL, ALL
+  operationType   String    @map("operation_type") // FORNECIMENTO_BENS, SERVICOS_CONTINUOS, ENGENHARIA_OBRAS, LOCACAO, SAUDE_EDUCACAO
+  cnaePrefix      String?   @map("cnae_prefix")
+  ncmCode         String?   @map("ncm_code")
+  ratePercent     Decimal   @map("rate_percent") @db.Decimal(8, 4)
+  reducerPercent  Decimal   @default(0) @map("reducer_percent") @db.Decimal(8, 4)
+  allowsCredit    Boolean   @default(false) @map("allows_credit")
+  creditRulesJson Json?     @default("{}") @map("credit_rules_json") @db.JsonB
+  legalBasis      String    @map("legal_basis") @db.Text // ex: "IN RFB nº 1.234/2012, Anexo I" ou "LC 214/2025, Art. 12"
+  effectiveFrom   DateTime  @map("effective_from") @db.Timestamptz(6)
+  effectiveTo     DateTime? @map("effective_to") @db.Timestamptz(6)
+  versionNumber   Int       @default(1) @map("version_number")
+  changelog       String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   contractTaxLedgers ContractTaxLedger[]
 
@@ -2189,22 +2200,22 @@ model TaxRuleVersion {
 }
 
 model FiscalDocumentImport {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String   @map("tenant_id") @db.Uuid
-  companyId          String   @map("company_id") @db.Uuid
-  docType            String   @map("doc_type") // NFE_XML, SPED_FISCAL, EFD_CONTRIBUICOES, PGDAS_D, ECF_ECD, REINF_DCTFWEB
-  accessKeyOrPeriod  String   @map("access_key_or_period")
-  fileHashSha256     String   @map("file_hash_sha256")
-  direction          String   @default("ENTRADA") // ENTRADA | SAIDA | APURACAO
-  issueDate          DateTime @map("issue_date") @db.Timestamptz(6)
-  totalAmount        Decimal  @map("total_amount") @db.Decimal(18, 2)
-  taxesSummaryJson   Json?    @default("{}") @map("taxes_summary_json") @db.JsonB
-  parsedItemsJson    Json?    @default("[]") @map("parsed_items_json") @db.JsonB
-  createdByUserId    String?  @map("created_by_user_id") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  docType           String   @map("doc_type") // NFE_XML, SPED_FISCAL, EFD_CONTRIBUICOES, PGDAS_D, ECF_ECD, REINF_DCTFWEB
+  accessKeyOrPeriod String   @map("access_key_or_period")
+  fileHashSha256    String   @map("file_hash_sha256")
+  direction         String   @default("ENTRADA") // ENTRADA | SAIDA | APURACAO
+  issueDate         DateTime @map("issue_date") @db.Timestamptz(6)
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(18, 2)
+  taxesSummaryJson  Json?    @default("{}") @map("taxes_summary_json") @db.JsonB
+  parsedItemsJson   Json?    @default("[]") @map("parsed_items_json") @db.JsonB
+  createdByUserId   String?  @map("created_by_user_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([tenantId])
   @@index([companyId])
@@ -2215,29 +2226,29 @@ model FiscalDocumentImport {
 }
 
 model TaxCreditOpportunity {
-  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId                   String    @map("tenant_id") @db.Uuid
-  companyId                  String    @map("company_id") @db.Uuid
-  sourceDocumentId           String?   @map("source_document_id") @db.Uuid
-  taxType                    String    @map("tax_type")
-  originCategory             String    @map("origin_category") // RETENCAO_IN1234, RETENCAO_INSS_11, PIS_COFINS_MONOFASICO, ICMS_ST, CBS_IBS_CREDITO, PAGAMENTO_INDEVIDO
-  status                     String    @default("POTENTIAL") // POTENTIAL | VALIDATED | UTILIZED | REJECTED
-  principalAmount            Decimal   @map("principal_amount") @db.Decimal(18, 2)
-  selicUpdatedAmount         Decimal   @map("selic_updated_amount") @db.Decimal(18, 2)
-  calculationMemoryJson      Json      @map("calculation_memory_json") @db.JsonB // obrigatório
-  legalBasis                 String    @map("legal_basis") @db.Text
-  isDocumented               Boolean   @default(false) @map("is_documented")
-  isLegallyUsable            Boolean   @default(false) @map("is_legally_usable")
-  isAvailableForOffset       Boolean   @default(false) @map("is_available_for_offset")
-  validatedByProfessionalName String?  @map("validated_by_professional_name")
-  validatedByRegistryCrcOab  String?   @map("validated_by_registry_crc_oab")
-  validatedAt                DateTime? @map("validated_at") @db.Timestamptz(6)
-  perdcompProtocol           String?   @map("perdcomp_protocol")
-  usedInProposalId           String?   @map("used_in_proposal_id") @db.Uuid
-  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                    String    @map("tenant_id") @db.Uuid
+  companyId                   String    @map("company_id") @db.Uuid
+  sourceDocumentId            String?   @map("source_document_id") @db.Uuid
+  taxType                     String    @map("tax_type")
+  originCategory              String    @map("origin_category") // RETENCAO_IN1234, RETENCAO_INSS_11, PIS_COFINS_MONOFASICO, ICMS_ST, CBS_IBS_CREDITO, PAGAMENTO_INDEVIDO
+  status                      String    @default("POTENTIAL") // POTENTIAL | VALIDATED | UTILIZED | REJECTED
+  principalAmount             Decimal   @map("principal_amount") @db.Decimal(18, 2)
+  selicUpdatedAmount          Decimal   @map("selic_updated_amount") @db.Decimal(18, 2)
+  calculationMemoryJson       Json      @map("calculation_memory_json") @db.JsonB // obrigatório
+  legalBasis                  String    @map("legal_basis") @db.Text
+  isDocumented                Boolean   @default(false) @map("is_documented")
+  isLegallyUsable             Boolean   @default(false) @map("is_legally_usable")
+  isAvailableForOffset        Boolean   @default(false) @map("is_available_for_offset")
+  validatedByProfessionalName String?   @map("validated_by_professional_name")
+  validatedByRegistryCrcOab   String?   @map("validated_by_registry_crc_oab")
+  validatedAt                 DateTime? @map("validated_at") @db.Timestamptz(6)
+  perdcompProtocol            String?   @map("perdcomp_protocol")
+  usedInProposalId            String?   @map("used_in_proposal_id") @db.Uuid
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company                    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([tenantId])
   @@index([companyId])
@@ -2248,23 +2259,23 @@ model TaxCreditOpportunity {
 }
 
 model ContractTaxLedger {
-  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId                String         @map("tenant_id") @db.Uuid
-  companyId               String         @map("company_id") @db.Uuid
-  contractId              String         @map("contract_id") @db.Uuid
-  proposalId              String?        @map("proposal_id") @db.Uuid
-  baselineTaxLoadPercent  Decimal        @map("baseline_tax_load_percent") @db.Decimal(8, 4)
-  effectiveTaxLoadPercent Decimal        @map("effective_tax_load_percent") @db.Decimal(8, 4)
-  taxRuleVersionId        String         @map("tax_rule_version_id") @db.Uuid
-  financialImpactAmount   Decimal        @map("financial_impact_amount") @db.Decimal(18, 2)
-  rebalanceJustified      Boolean        @default(false) @map("rebalance_justified")
-  technicalReportJson     Json?          @default("{}") @map("technical_report_json") @db.JsonB
-  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  companyId               String   @map("company_id") @db.Uuid
+  contractId              String   @map("contract_id") @db.Uuid
+  proposalId              String?  @map("proposal_id") @db.Uuid
+  baselineTaxLoadPercent  Decimal  @map("baseline_tax_load_percent") @db.Decimal(8, 4)
+  effectiveTaxLoadPercent Decimal  @map("effective_tax_load_percent") @db.Decimal(8, 4)
+  taxRuleVersionId        String   @map("tax_rule_version_id") @db.Uuid
+  financialImpactAmount   Decimal  @map("financial_impact_amount") @db.Decimal(18, 2)
+  rebalanceJustified      Boolean  @default(false) @map("rebalance_justified")
+  technicalReportJson     Json?    @default("{}") @map("technical_report_json") @db.JsonB
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company                 Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  contract                Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  taxRuleVersion          TaxRuleVersion @relation(fields: [taxRuleVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contract       Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  taxRuleVersion TaxRuleVersion @relation(fields: [taxRuleVersionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([tenantId])
   @@index([companyId])
@@ -2275,13 +2286,13 @@ model ContractTaxLedger {
 }
 
 model AnnualProcurementPlanItem {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  planId         String?  @map("plan_id") @db.Uuid
-  pncpId         String   @map("pncp_id")
-  itemNumber     Int      @default(1) @map("item_number")
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId         String?   @map("plan_id") @db.Uuid
+  pncpId         String    @map("pncp_id")
+  itemNumber     Int       @default(1) @map("item_number")
   year           Int
-  buyerName      String   @map("buyer_name")
-  buyerDocument  String   @map("buyer_document")
+  buyerName      String    @map("buyer_name")
+  buyerDocument  String    @map("buyer_document")
   uf             String?
   municipality   String?
   category       String?

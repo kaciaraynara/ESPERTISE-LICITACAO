@@ -110,7 +110,7 @@ export const TradingTerminal: React.FC = () => {
     propostaCadastrada: false,
   });
 
-  // Copiloto: Calculadora Instantânea Humanizada
+  // Calculadora Instantânea Humanizada
   const [menorPrecoInformado, setMenorPrecoInformado] = useState<string>('');
   const [lanceCalculado, setLanceCalculado] = useState<number | null>(null);
   const [folgaCalculada, setFolgaCalculada] = useState<number | null>(null);
@@ -132,7 +132,7 @@ export const TradingTerminal: React.FC = () => {
       id: 'msg-1',
       hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       autor: 'SISTEMA',
-      texto: 'Copiloto de Disputa pronto. Selecione o edital no Passo 1 para carregar os lotes e calcular os lances de segurança.',
+      texto: 'Sala de Disputa & Lances pronta. Selecione o edital no Passo 1 para carregar os lotes e calcular os lances de segurança.',
     },
   ]);
 
@@ -477,7 +477,7 @@ export const TradingTerminal: React.FC = () => {
     return itens.find((x) => x.id === itemSelecionadoId) || itens[0] || null;
   }, [itens, itemSelecionadoId]);
 
-  // Copiloto: Cálculo Instantâneo Humanizado de Próximo Lance
+  // Cálculo Instantâneo Humanizado de Próximo Lance
   const calcularProximoLance = () => {
     if (!itemEmFoco) {
       toast.error('Selecione um item da disputa primeiro.');
@@ -577,19 +577,19 @@ export const TradingTerminal: React.FC = () => {
                   <Gavel size={20} />
                 </span>
                 <h1 className="text-lg sm:text-xl font-black text-[#081C3A]">
-                  Sala de Disputa & Copiloto de Lances
+                  Sala de Disputa & Lances
                 </h1>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Seu copiloto passo a passo para disputar certames públicos com margem protegida e sem prejuízo.
+                Acompanhe os valores da sessão, proteja seu lucro mínimo e responda ao pregoeiro com segurança.
               </p>
             </div>
 
             {/* AÇÕES DISCRETAS (SEM POLUIÇÃO E SEM BOTÕES FALSOS) */}
             <div className="flex items-center gap-2">
               {conectorExtensaoAtivo ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#14532D]/10 px-3 py-1 text-xs font-bold text-[#14532D] border border-[#166534]/30">
+                  <span className="h-2 w-2 rounded-full bg-[#166534] animate-ping" />
                   Conector Ativo no {nomePortalConectado}
                 </span>
               ) : (
@@ -608,7 +608,7 @@ export const TradingTerminal: React.FC = () => {
                 title={somHabilitado ? 'Som ativado' : 'Som silenciado'}
                 className="p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition"
               >
-                {somHabilitado ? <Volume2 className="h-4 w-4 text-emerald-600" /> : <VolumeX className="h-4 w-4 text-slate-400" />}
+                {somHabilitado ? <Volume2 className="h-4 w-4 text-[#14532D]" /> : <VolumeX className="h-4 w-4 text-slate-400" />}
               </button>
             </div>
           </div>
@@ -721,18 +721,18 @@ export const TradingTerminal: React.FC = () => {
           </div>
 
           {/* Cartão 2: Sua Meta de Valor */}
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4 shadow-sm flex flex-col justify-between">
+          <div className="rounded-2xl border border-[#166534]/30 bg-[#14532D]/5 p-4 shadow-sm flex flex-col justify-between">
             <div>
-              <span className="text-[11px] font-bold text-emerald-800 uppercase block">
+              <span className="text-[11px] font-bold text-[#14532D] uppercase block">
                 2. Sua Meta de Valor (Faturamento Alvo)
               </span>
               <div className="mt-2">
-                <strong className="text-xl sm:text-2xl font-black text-emerald-700 font-mono tracking-tight block">
+                <strong className="text-xl sm:text-2xl font-black text-[#14532D] font-mono tracking-tight block">
                   {formatBRL(totalAlvo)}
                 </strong>
               </div>
             </div>
-            <p className="text-[11px] text-emerald-900 pt-2 border-t border-emerald-100/60 mt-2">
+            <p className="text-[11px] text-[#14532D] pt-2 border-t border-[#166534]/20 mt-2">
               Preço ideal com lucro pleno projetado para todos os itens da disputa.
             </p>
           </div>
@@ -756,7 +756,7 @@ export const TradingTerminal: React.FC = () => {
         </div>
 
         {/* =========================================================================
-            3. ÁREA PRINCIPAL: TABELA DE 5 COLUNAS (ESQUERDA) + COPILOTO HUMANO (DIREITA)
+            3. ÁREA PRINCIPAL: TABELA DE 5 COLUNAS (ESQUERDA) + CALCULADORA E APOIO (DIREITA)
             ========================================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
@@ -993,14 +993,14 @@ export const TradingTerminal: React.FC = () => {
                     <div className="space-y-2 pt-1">
                       {/* Cenário A: Pode cobrir com segurança (Acima do Limite) */}
                       {!alertaPrejuizoAtivo && (
-                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-2">
+                        <div className="p-3 rounded-xl bg-[#14532D]/5 border border-[#166534]/30 text-slate-900 space-y-2">
                           <div className="flex items-start gap-2">
                             <span className="text-base">✅</span>
                             <div>
-                              <strong className="text-xs font-black block text-emerald-900">
+                              <strong className="text-xs font-black block text-[#14532D]">
                                 Pode cobrir com segurança!
                               </strong>
-                              <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                              <p className="text-xs text-slate-700 mt-0.5 leading-relaxed">
                                 Lance sugerido no portal: <strong>{formatBRL(lanceCalculado)}</strong>.
                                 {folgaCalculada !== null && folgaCalculada > 0 && (
                                   <> Você ainda fica <strong>{formatBRL(folgaCalculada)}</strong> acima do seu limite mínimo de lucro.</>
@@ -1012,7 +1012,7 @@ export const TradingTerminal: React.FC = () => {
                           <button
                             type="button"
                             onClick={copiarLanceSugerido}
-                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
+                            className="w-full py-2 bg-[#14532D] hover:bg-[#0f3d21] text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition"
                           >
                             {copiadoLance ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                             {copiadoLance ? 'Copiado para a área de transferência!' : 'Copiar este valor de lance'}
@@ -1092,7 +1092,10 @@ export const TradingTerminal: React.FC = () => {
               <div className="flex rounded-xl border border-slate-200 p-0.5 bg-slate-50 text-xs">
                 <button
                   type="button"
-                  onClick={() => setAbaLateral('MENSAGENS')}
+                  onClick={() => {
+                    setAbaLateral('MENSAGENS');
+                    setPassoAtivo(3);
+                  }}
                   className={`flex-1 py-1.5 font-bold rounded-lg transition ${
                     abaLateral === 'MENSAGENS' ? 'bg-[#081C3A] text-white' : 'text-slate-600 hover:text-slate-900'
                   }`}
@@ -1138,7 +1141,7 @@ export const TradingTerminal: React.FC = () => {
                           onClick={() => copiarMensagemPregoeiro(msg.id, msg.texto)}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                             mensagemCopiadaId === msg.id
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-[#14532D] text-white'
                               : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-100'
                           }`}
                         >
@@ -1184,7 +1187,7 @@ export const TradingTerminal: React.FC = () => {
                           type="button"
                           onClick={() => setCronometroMeAtivo(!cronometroMeAtivo)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white transition ${
-                            cronometroMeAtivo ? 'bg-amber-600' : 'bg-emerald-600'
+                            cronometroMeAtivo ? 'bg-amber-600' : 'bg-[#14532D]'
                           }`}
                         >
                           {cronometroMeAtivo ? 'Pausar' : 'Iniciar 5 min'}
@@ -1231,7 +1234,7 @@ export const TradingTerminal: React.FC = () => {
                         {checklistReal.certidoesVencidas} pendentes
                       </Link>
                     ) : (
-                      <span className="font-bold text-emerald-700 text-[11px]">100% em dia</span>
+                      <span className="font-bold text-[#14532D] text-[11px]">100% em dia</span>
                     )}
                   </div>
 
@@ -1242,7 +1245,7 @@ export const TradingTerminal: React.FC = () => {
                         {checklistReal.propostaCadastrada ? 'Pronta para importação' : 'Nenhuma proposta vinculada'}
                       </span>
                     </div>
-                    <span className="font-bold text-emerald-700 text-[11px]">
+                    <span className="font-bold text-[#14532D] text-[11px]">
                       {checklistReal.propostaCadastrada ? 'Vinculada' : 'Pendente'}
                     </span>
                   </div>
