@@ -476,8 +476,8 @@ export class HabilitacaoService {
         etapaNome: 'Etapa 4 — Declarações e Atestados (Qualificação Técnica)',
         nome: 'Declarações Obrigatórias da Lei 14.133/2021',
         descricao: 'Declarações conjuntas de não emprego de menores, reserva de cargos, inexistência de impedimentos e proposta independente.',
-        orgaoEmissor: 'Expertise Licitatória (Preenchido com dados da empresa)',
-        automatico: true,
+        orgaoEmissor: 'Representante Legal (Assinatura Gov.br / e-CPF)',
+          automatico: false,
         tipoChave: 'c12_declaracoes_obrigatorias',
         exigePortalGoverno: false,
       },
@@ -650,7 +650,9 @@ export class HabilitacaoService {
 
         // Cabeçalho Oficial
         doc.fontSize(13).font('Helvetica-Bold').fillColor('#0B192C').text('DECLARAÇÕES UNIFICADAS DE HABILITAÇÃO', { align: 'center' });
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#059669').text('LEI FEDERAL Nº 14.133/2021 — ART. 63', { align: 'center' });
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#14532D').text('LEI FEDERAL Nº 14.133/2021 — ART. 63 (MODELO PARA ASSINATURA)', { align: 'center' });
+          doc.moveDown(0.5);
+          doc.fontSize(8.5).font('Helvetica').fillColor('#475569').text('Órgão Licitante: ______________________________________   Pregão/Processo nº: ______________________', { align: 'center' });
         doc.moveDown(1);
 
         // Qualificação da Empresa
@@ -756,64 +758,26 @@ export class HabilitacaoService {
       });
     } catch {}
 
-    // Emissão oficial das Declarações da Lei 14.133/2021 (Art. 63)
+    // Gera o modelo PDF oficial para o representante legal assinar (nao marca como pronto sem assinatura)
+    let modeloDeclaracaoBase64: string | undefined;
     try {
       const declBuffer = await this.gerarBufferPdfDeclaracoesLei14133(empresa);
-
-      const uploadDecl = await storageService.uploadFile({
-        buffer: declBuffer,
-        originalName: '12 - Declarações Obrigatórias Lei 14.133.pdf',
-        mimeType: 'application/pdf',
-        userId,
-        folder: `habilitacao/${empresa.id}`,
-      });
-
-      // Validade de 180 dias para declarações
-      const validadeDecl = new Date();
-      validadeDecl.setDate(validadeDecl.getDate() + 180);
-
-      const docExistente = await prisma.document.findFirst({
-        where: { companyId: empresa.id, tipo: 'c12_declaracoes_obrigatorias' },
-      });
-
-      if (docExistente) {
-        await prisma.document.update({
-          where: { id: docExistente.id },
-          data: {
-            validade: validadeDecl,
-            storageKey: uploadDecl.storageKey,
-            url: uploadDecl.url,
-            arquivoNome: '12 - Declarações Obrigatórias Lei 14.133.pdf',
-            fileMimeType: 'application/pdf',
-            fileSize: declBuffer.length,
-            status: 'valido',
-          },
-        });
-      } else {
-        await prisma.document.create({
-          data: {
-            userId,
-            companyId: empresa.id,
-            tipo: 'c12_declaracoes_obrigatorias',
-            nome: 'Declarações Obrigatórias da Lei 14.133/2021',
-            validade: validadeDecl,
-            storageKey: uploadDecl.storageKey,
-            url: uploadDecl.url,
-            arquivoNome: '12 - Declarações Obrigatórias Lei 14.133.pdf',
-            fileMimeType: 'application/pdf',
-            fileSize: declBuffer.length,
-            status: 'valido',
-          },
-        });
-      }
+      modeloDeclaracaoBase64 = declBuffer.toString('base64');
+      // Remove eventual declaracao antiga gerada automaticamente sem assinatura
+      await prisma.document.deleteMany({
+        where: {
+          companyId: empresa.id,
+          tipo: 'c12_declaracoes_obrigatorias',
+          arquivoNome: '12 - Declarações Obrigatórias Lei 14.133.pdf',
+        },
+      }).catch(() => null);
     } catch (errDecl) {
-      console.warn('[HabilitacaoService] Aviso ao emitir Declarações automáticas:', errDecl);
+      console.warn('[HabilitacaoService] Aviso ao gerar modelo de Declarações:', errDecl);
     }
 
-    // Retorna status atualizado após geração
-    return this.obterStatusDocumentos(userId, companyId);
+    const statusAtual = await this.obterStatusDocumentos(userId, companyId);
+    return { ...statusAtual, modeloDeclaracaoBase64 } as any;
   }
-
   /**
    * Salva um documento anexado pelo usuário para um dos 13 itens
    */

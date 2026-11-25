@@ -114,7 +114,19 @@ export const HabilitacaoPage: React.FC = () => {
       const res = await habilitacaoApi.emitirGratuitos(selectedCompany?.id);
       if (res.data?.success && res.data?.data) {
         setDados(res.data.data);
-        setMensagemSucesso('As Declarações Obrigatórias da Lei 14.133/2021 (Art. 63) foram emitidas com os dados autênticos da sua empresa e salvas na pasta!');
+        if (res.data.data.modeloDeclaracaoBase64) {
+          const bin = atob(res.data.data.modeloDeclaracaoBase64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'Modelo_Declaracoes_Lei_14133_Para_Assinar.pdf';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+        setMensagemSucesso('Modelo baixado! Preencha o nº do edital/órgão, assine com e-CPF ou Gov.br e anexe o PDF assinado no item 12.');
       }
     } catch {
       setMensagemAviso('O portal do governo está instável no momento. Você pode abrir o site oficial pelo botão ao lado e anexar o arquivo manualmente.');
@@ -244,8 +256,8 @@ export const HabilitacaoPage: React.FC = () => {
         <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
-                <FileCheck className="h-4 w-4 text-emerald-600" />
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-emerald-800 border border-slate-200 border-l-4 border-l-[#14532D]">
+                <FileCheck className="h-4 w-4 text-[#14532D]" />
                 Conformidade Total com a Lei 14.133/2021
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-[#0B192C] tracking-tight">
@@ -260,7 +272,7 @@ export const HabilitacaoPage: React.FC = () => {
                   Empresa: <strong className="text-[#0B192C]">{dados?.empresa?.razaoSocial || selectedCompany?.razaoSocial || 'Empresa Ativa'}</strong>
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200">
-                  <MapPin className="h-4 w-4 text-emerald-600" />
+                  <MapPin className="h-4 w-4 text-[#14532D]" />
                   Cidade/Estado: <strong className="text-[#0B192C]">{dados?.empresa?.municipio || selectedCompany?.municipio || 'São Paulo'} - {dados?.empresa?.uf || selectedCompany?.uf || 'SP'}</strong>
                 </span>
                 {dados?.empresa?.cnpjFormatado && (
@@ -282,12 +294,12 @@ export const HabilitacaoPage: React.FC = () => {
                 {emitindo ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin text-amber-400" />
-                    <span>Emitindo declarações...</span>
+                    <span>Gerando modelo...</span>
                   </>
                 ) : (
                   <>
-                    <FileCheck className="h-4 w-4 text-emerald-400" />
-                    <span>Emitir Declarações Obrigatórias (Lei 14.133/2021)</span>
+                    <FileCheck className="h-4 w-4 text-[#4ADE80]" />
+                    <span>Baixar Modelo de Declarações (Para Assinar)</span>
                   </>
                 )}
               </button>
@@ -296,7 +308,7 @@ export const HabilitacaoPage: React.FC = () => {
                 type="button"
                 disabled={baixando}
                 onClick={handleBaixarPastaCompleta}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#059669] hover:bg-emerald-700 active:scale-98 px-6 py-3.5 text-sm font-extrabold text-white shadow-md transition disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#14532D] hover:bg-[#0F3F22] active:scale-98 px-6 py-3.5 text-sm font-extrabold text-white shadow-md transition disabled:opacity-50"
               >
                 {baixando ? (
                   <>
@@ -317,19 +329,19 @@ export const HabilitacaoPage: React.FC = () => {
           <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-4 space-y-2">
             <div className="flex flex-wrap items-center justify-between text-xs sm:text-sm font-extrabold text-[#0B192C]">
               <span>
-                Você já tem <strong className="text-emerald-700">{dados?.documentosProntos || 0} de 13</strong> documentos prontos
+                Você já tem <strong className="text-[#14532D]">{dados?.documentosProntos || 0} de 13</strong> documentos prontos
               </span>
-              <span className="font-mono text-emerald-700">{dados?.percentualConcluido || 0}% pronto</span>
+              <span className="font-mono text-[#14532D]">{dados?.percentualConcluido || 0}% pronto</span>
             </div>
             <div className="h-3.5 w-full rounded-full bg-slate-200 overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#059669] transition-all duration-700 ease-out"
+                className="h-full rounded-full bg-[#14532D] transition-all duration-700 ease-out"
                 style={{ width: `${dados?.percentualConcluido || 0}%` }}
               />
             </div>
             <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600 pt-1">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[#166534]" />
                 {dados?.documentosProntos || 0} Prontos
               </span>
               {(dados?.documentosVencendo || 0) > 0 && (
@@ -354,12 +366,12 @@ export const HabilitacaoPage: React.FC = () => {
 
         {/* MENSAGENS AMIGÁVEIS E EDUCATIVAS */}
         {mensagemSucesso && (
-          <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm font-bold text-[#0F172A] flex items-center justify-between shadow-xs animate-in fade-in">
             <div className="flex items-center gap-2.5">
-              <Check className="h-5 w-5 text-emerald-600 shrink-0" />
+              <Check className="h-5 w-5 text-[#14532D] shrink-0" />
               <span>{mensagemSucesso}</span>
             </div>
-            <button type="button" onClick={() => setMensagemSucesso(null)} className="text-emerald-700 hover:text-emerald-900 p-1">
+            <button type="button" onClick={() => setMensagemSucesso(null)} className="text-[#14532D] hover:text-[#0F172A] p-1">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -391,7 +403,7 @@ export const HabilitacaoPage: React.FC = () => {
         {/* CARREGAMENTO INICIAL */}
         {carregando && !dados && (
           <div className="rounded-3xl border border-slate-200 bg-white p-16 text-center shadow-sm space-y-3">
-            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-emerald-600" />
+            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-[#14532D]" />
             <h3 className="text-base font-extrabold text-[#0B192C]">Organizando os documentos da sua empresa...</h3>
             <p className="text-xs text-slate-500">Verificando certidões e comprovantes obrigatórios</p>
           </div>
@@ -424,7 +436,7 @@ export const HabilitacaoPage: React.FC = () => {
                         key={item.codigo}
                         className={`rounded-2xl border p-4 sm:p-5 flex flex-col justify-between transition shadow-xs hover:shadow-md ${
                           isPronto
-                            ? 'bg-white border-emerald-200'
+                            ? 'bg-white border-slate-200 border-l-4 border-l-[#14532D]'
                             : isVencendo
                             ? 'bg-amber-50/40 border-amber-300'
                             : isVencido
@@ -443,7 +455,7 @@ export const HabilitacaoPage: React.FC = () => {
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
                                 isPronto
-                                  ? 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-[#14532D]/10 text-[#14532D] border border-[#14532D]/20'
                                   : isVencendo
                                   ? 'bg-amber-100 text-amber-800'
                                   : isVencido
@@ -451,7 +463,7 @@ export const HabilitacaoPage: React.FC = () => {
                                   : 'bg-slate-100 text-slate-600'
                               }`}
                             >
-                              {isPronto && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                              {isPronto && <CheckCircle2 className="h-3.5 w-3.5 text-[#14532D]" />}
                               {isVencendo && <Clock className="h-3.5 w-3.5 text-amber-600" />}
                               {isVencido && <AlertTriangle className="h-3.5 w-3.5 text-red-600" />}
                               {item.situacaoTexto}
@@ -527,7 +539,7 @@ export const HabilitacaoPage: React.FC = () => {
                                       item.arquivoNome || `${item.nome}.pdf`
                                     )
                                   }
-                                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#14532D] hover:bg-[#0F3F22] text-white px-3 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
                                   <span>Visualizar documento</span>
@@ -538,7 +550,7 @@ export const HabilitacaoPage: React.FC = () => {
                                   onClick={handleEmitirGratuitos}
                                   className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B192C] hover:bg-slate-800 text-white px-3 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
                                 >
-                                  <FileCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                  <FileCheck className="h-3.5 w-3.5 text-[#4ADE80]" />
                                   <span>Emitir agora pelo sistema</span>
                                 </button>
                               )}
@@ -559,7 +571,7 @@ export const HabilitacaoPage: React.FC = () => {
                                     item.arquivoNome || `${item.nome}.pdf`
                                   )
                                 }
-                                className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:underline cursor-pointer"
+                                className="inline-flex items-center gap-1 font-bold text-[#14532D] hover:underline cursor-pointer"
                               >
                                 Visualizar
                               </button>
@@ -583,7 +595,7 @@ export const HabilitacaoPage: React.FC = () => {
             <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
               <div className="flex items-start justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[11px] font-bold text-emerald-700 uppercase">
+                  <span className="text-[11px] font-bold text-[#14532D] uppercase">
                     Item #{itemParaAnexar.codigo} • {itemParaAnexar.etapaNome.split('—')[0].trim()}
                   </span>
                   <h3 className="text-lg font-black text-[#0B192C]">
@@ -605,7 +617,7 @@ export const HabilitacaoPage: React.FC = () => {
                   <label className="text-xs font-bold text-[#0B192C] block">
                     Escolha o arquivo no seu aparelho (PDF):
                   </label>
-                  <div className="relative rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-emerald-500 transition bg-slate-50">
+                  <div className="relative rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center hover:border-[#14532D] transition bg-slate-50">
                     <input
                       type="file"
                       accept=".pdf,application/pdf"
@@ -635,7 +647,7 @@ export const HabilitacaoPage: React.FC = () => {
                     type="date"
                     value={dataVencimento}
                     onChange={(e) => setDataVencimento(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-[#0B192C] outline-none focus:border-emerald-600"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-[#0B192C] outline-none focus:border-[#14532D]"
                   />
                   <p className="text-[11px] text-slate-500">
                     Já sugerimos uma data padrão com base na validade comum deste tipo de certidão. Você pode ajustar se necessário.
@@ -654,7 +666,7 @@ export const HabilitacaoPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={salvandoArquivo || !arquivoSelecionado}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#059669] hover:bg-emerald-700 px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#14532D] hover:bg-[#0F3F22] px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition disabled:opacity-50"
                   >
                     {salvandoArquivo ? (
                       <>
