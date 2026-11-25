@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, Search } from 'lucide-react';
-import { authApi } from '../services/api';
+import api, { authApi } from '../services/api';
 import { useAuthStore } from '../store/auth.store';
 import { FORNECEDOR_ROUTES } from '../routes';
 
@@ -141,10 +141,17 @@ function extrairMensagemErro(err: any, fallback: string): string {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const resetToken = new URLSearchParams(location.search).get('token') || '';
+  const isResetPasswordMode = Boolean(resetToken);
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
   const [manterConectado, setManterConectado] = useState(false);
-  const [reset, setReset] = useState(false);
+  const [reset, setReset] = useState(() =>
+    location.pathname.includes('forgot') || location.pathname.includes('esqueci')
+  );
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [mensagem, setMensagem] = useState('');
@@ -154,8 +161,48 @@ export function LoginPage() {
     setErro('');
     setMensagem('');
 
+    if (isResetPasswordMode) {
+      if (novaSenha.length < 8) {
+        setErro('A nova senha deve ter no mínimo 8 caracteres.');
+        return;
+      }
+      if (!/[A-Za-z]/.test(novaSenha) || !/\d/.test(novaSenha)) {
+        setErro('A nova senha deve conter pelo menos uma letra e um número.');
+        return;
+      }
+      if (novaSenha !== confirmarSenha) {
+        setErro('As senhas digitadas não conferem.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await api.post('/auth/reset-password', { token: resetToken, novaSenha });
+        setMensagem('Senha redefinida com sucesso! Você já pode entrar com sua nova senha.');
+        setNovaSenha('');
+        setConfirmarSenha('');
+        setTimeout(() => navigate('/login', { replace: true }), 1800);
+      } catch (err: any) {
+        setErro(extrairMensagemErro(err, 'Não foi possível redefinir a senha. Solicite um novo link.'));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (reset) {
-      setMensagem('Solicite a redefinição de senha pelo suporte oficial da Expertise ou tente novamente com sua senha cadastrada.');
+      if (!email.trim()) {
+        setErro('Informe o e-mail cadastrado na sua conta.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await api.post('/auth/forgot-password', { email: email.trim() });
+        setMensagem('Se o e-mail estiver cadastrado, enviamos o link de redefinição. Confira sua caixa de entrada e o spam.');
+      } catch (err: any) {
+        setErro(extrairMensagemErro(err, 'Não foi possível enviar o e-mail de recuperação agora.'));
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -181,14 +228,14 @@ export function LoginPage() {
   return (
     <AccountLayout>
       <h2 className="text-3xl font-bold text-[#081C3A]">
-        {reset ? 'Recupere sua senha' : 'Acesse sua conta'}
+        {isResetPasswordMode ? 'Defina sua nova senha' : reset ? 'Recupere sua senha' : 'Acesse sua conta'}
       </h2>
       <p className="mt-1.5 text-sm text-slate-500">
-        {reset ? 'Informe o e-mail da sua conta.' : 'Entre para acompanhar suas oportunidades.'}
+        {isResetPasswordMode ? 'Crie uma nova senha com pelo menos 8 caracteres, letra e número.' : reset ? 'Informe o e-mail da sua conta para receber o link.' : 'Entre para acompanhar suas oportunidades.'}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-        <Field label="E-mail" id="email">
+        {!isResetPasswordMode && <Field label="E-mail" id="email">
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -203,9 +250,26 @@ export function LoginPage() {
               className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-[#081C3A] outline-none transition focus:border-[#0070C0]"
             />
           </div>
-        </Field>
+        </Field>}
 
-        {!reset && (
+        {isResetPasswordMode ? (
+          <div className="space-y-4">
+            <PasswordField
+              id="nova-senha"
+              label="Nova senha"
+              value={novaSenha}
+              onChange={setNovaSenha}
+              autoComplete="new-password"
+            />
+            <PasswordField
+              id="confirmar-senha"
+              label="Confirmar nova senha"
+              value={confirmarSenha}
+              onChange={setConfirmarSenha}
+              autoComplete="new-password"
+            />
+          </div>
+        ) : !reset && (
           <PasswordField
             id="password"
             label="Senha"
@@ -238,7 +302,7 @@ export function LoginPage() {
             }}
             className="text-xs font-semibold text-[#C2410C] hover:underline"
           >
-            {reset ? 'Voltar para entrar' : 'Esqueci minha senha'}
+            {isResetPasswordMode ? 'Voltar para o login' : reset ? 'Voltar para entrar' : 'Esqueci minha senha'}
           </button>
         </div>
 
@@ -247,7 +311,7 @@ export function LoginPage() {
           disabled={loading}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#C2410C] text-sm font-bold text-white shadow-sm transition hover:bg-[#9A3412] disabled:opacity-60"
         >
-          {loading ? 'Entrando...' : reset ? 'Enviar recuperação' : 'Entrar'}
+          {loading ? 'Processando...' : isResetPasswordMode ? 'Salvar nova senha' : reset ? 'Enviar recuperação' : 'Entrar'}
           <ArrowRight className="h-4 w-4" />
         </button>
 
