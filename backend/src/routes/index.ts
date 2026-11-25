@@ -1036,6 +1036,16 @@ router.post(
   ),
 );
 
+router.post(
+  '/notices/:id/analisar-pdf',
+  requirePlanFeature('radar_editais'),
+  handle(
+    notices.analisarPdf.bind(
+      notices,
+    ) as RequestHandler,
+  ),
+);
+
 router.get(
   '/notices/:id/basic-summary',
   requirePlanFeature(

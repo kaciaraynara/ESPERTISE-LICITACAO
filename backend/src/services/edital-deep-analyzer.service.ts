@@ -1,5 +1,24 @@
 import { prisma } from '../database/prisma';
 
+export interface VicioIrregularidadeEdital {
+  id: string;
+  titulo: string;
+  gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
+  trechoLiteral: string;
+  fundamentoLegal: string;
+  acaoRecomendada: string;
+}
+
+export interface AuditoriaEditalResultado {
+  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME';
+  mensagem: string;
+  totalVicios: number;
+  viciosAltos: number;
+  viciosMedios: number;
+  viciosBaixos: number;
+  apontamentos: VicioIrregularidadeEdital[];
+}
+
 export interface ExtractedSpecsFicha {
   resumoExplicado: string;
   itensDetalhados: Array<{
@@ -38,7 +57,9 @@ export interface ExtractedSpecsFicha {
     gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
     baseLegal: string;
     trechoLiteral: string;
+    acaoRecomendada?: string;
   }>;
+  auditoria: AuditoriaEditalResultado;
 }
 
 /**
@@ -115,41 +136,144 @@ export class EditalDeepAnalyzerService {
       ? true
       : null;
 
-    // 4. Riscos e Alertas Reais Fundamentados
-    const riscos: ExtractedSpecsFicha['pontosDeAtencaoERiscos'] = [];
+    // 4. Motor Rigoroso de Detecção de Vícios, Cláusulas Restritivas e Irregularidades
+    const vicios: VicioIrregularidadeEdital[] = [];
 
-    // Risco Atestado > 50%
-    if (tLower.includes('50%') || tLower.includes('60%') || tLower.includes('70%') || tLower.includes('80%')) {
-      const matchAtestado = textoCompleto.match(/(?:atestado|capacidade\s+técnica)[^\n.]{0,100}(?:5[1-9]%|[6-9][0-9]%\s*d[ao]s?\s*quantitativ[ao]s?)/i);
-      if (matchAtestado) {
-        riscos.push({
-          titulo: 'Exigência Excessiva de Quantitativo em Atestado Técnico',
+    // Helper para extrair trecho literal contextualizado
+    const extrairTrechoContextual = (regex: RegExp): string | null => {
+      const match = textoCompleto.match(regex);
+      if (!match || match.index === undefined) return null;
+      const start = Math.max(0, match.index - 30);
+      const end = Math.min(textoCompleto.length, match.index + match[0].length + 60);
+      return '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
+    };
+
+    // VÍCIO 1: Atestado de Capacidade Técnica > 50% ou sem parcela de relevância
+    const regexAtestadoExcessivo = /(?:atestado|capacidade\s+t[eé]cnica|comprova[çc][ãa]o\s+de\s+aptid[ãa]o)[^\n.]{0,100}(?:5[1-9]%|[6-9][0-9]%|100%)[^\n.]{0,100}/i;
+    if (regexAtestadoExcessivo.test(textoCompleto)) {
+      const trecho = extrairTrechoContextual(regexAtestadoExcessivo);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-atestado-50',
+          titulo: 'Exigência Excessiva de Quantitativo em Atestado Técnico (> 50%)',
           gravidade: 'ALTO',
-          baseLegal: 'Súmula 263 do TCU e Art. 67, § 2º da Lei 14.133/2021',
-          trechoLiteral: matchAtestado[0].slice(0, 200).trim(),
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 67, § 1º e § 2º da Lei 14.133/2021 e Súmula nº 263 do TCU',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital (Art. 164) requerendo a limitação da exigência a no máximo 50% das parcelas de maior relevância técnica e valor significativo.',
         });
       }
     }
 
-    // Risco Vistoria Obrigatória
-    if (exigeVistoria === true) {
-      riscos.push({
-        titulo: 'Vistoria Técnica Obrigatória sem Declaração Alternativa',
-        gravidade: 'MEDIO',
-        baseLegal: 'Art. 63, § 3º da Lei Federal nº 14.133/2021',
-        trechoLiteral: 'O edital estabelece vistoria técnica prévia, devendo ser assegurada a opção de substituição por declaração formal de conhecimento pleno das condições.',
-      });
+    // VÍCIO 2: Restrição Geográfica / Exigência de Atestado ou Sede Local
+    const regexRestricaoGeo = /(?:possuir\s+sede\s+n[ao]|obrigatoriamente\s+sediada|escrit[oó]rio\s+local|filial\s+no\s+munic[ií]pio|atestado\s+emitido\s+no\s+estado|registro\s+no\s+conselho\s+regional\s+local\s+antes\s+da\s+contrata[çc][ãa]o)[^\n.]{0,100}/i;
+    if (regexRestricaoGeo.test(textoCompleto)) {
+      const trecho = extrairTrechoContextual(regexRestricaoGeo);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-restricao-geografica',
+          titulo: 'Restrição Geográfica Indevida / Exigência de Sede ou Registro Local Prévio',
+          gravidade: 'ALTO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 9º, inciso I, alínea "a" da Lei 14.133/2021 e Súmula nº 272 do TCU',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital requerendo a anulação da exigência de localização geográfica prévia à assinatura do contrato.',
+        });
+      }
     }
 
-    // Risco Amostra na fase errada
-    if (exigeAmostra === true) {
-      riscos.push({
-        titulo: 'Exigência de Amostra ou Prova de Conceito',
-        gravidade: 'MEDIO',
-        baseLegal: 'Art. 41, II e Art. 42 da Lei Federal nº 14.133/2021',
-        trechoLiteral: 'Exigência de amostra só é lícita para o licitante provisoriamente classificado em primeiro lugar, nunca para todos os concorrentes na fase de propostas.',
-      });
+    // VÍCIO 3: Vistoria Técnica Obrigatória sem Opção de Declaração Formal
+    const regexVistoriaObrigatoria = /(?:vistoria|visita\s+t[eé]cnica)\s+obrigat[oó]ria[^\n.]{0,100}/i;
+    const temDeclaracaoSubstitutiva = /(?:declara[çc][ãa]o\s+formal|declara[çc][ãa]o\s+de\s+conhecimento|facultada\s+a\s+substitui[çc][ãa]o)/i.test(textoCompleto);
+    if (regexVistoriaObrigatoria.test(textoCompleto) && !temDeclaracaoSubstitutiva) {
+      const trecho = extrairTrechoContextual(regexVistoriaObrigatoria);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-vistoria-obrigatoria',
+          titulo: 'Vistoria Técnica Obrigatória sem Opção de Declaração Formal Substitutiva',
+          gravidade: 'MEDIO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 63, § 2º e § 3º da Lei Federal nº 14.133/2021',
+          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação requerendo a garantia legal de substituição da vistoria por declaração formal de pleno conhecimento.',
+        });
+      }
     }
+
+    // VÍCIO 4: Direcionamento de Marca / Modelo sem Justificativa ou sem "ou similar/equivalente"
+    const regexMarcaDirecionada = /(?:marca\s+[A-Z][a-zA-Z0-9]+|modelo\s+[A-Z][a-zA-Z0-9]+|prefer[eê]ncia\s+pela\s+marca)[^\n.]{0,100}/i;
+    const temSimilar = /(?:ou\s+similar|ou\s+equivalente|de\s+melhor\s+qualidade)/i.test(textoCompleto);
+    if (regexMarcaDirecionada.test(textoCompleto) && !temSimilar) {
+      const trecho = extrairTrechoContextual(regexMarcaDirecionada);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-direcionamento-marca',
+          titulo: 'Direcionamento de Marca / Modelo sem Cláusula de Equivalência ("ou similar")',
+          gravidade: 'ALTO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 41, inciso I da Lei 14.133/2021 e Súmula nº 270 do TCU',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital exigindo a inserção expressa da cláusula "ou equivalente/similar" e critérios objetivos de aceitabilidade.',
+        });
+      }
+    }
+
+    // VÍCIO 5: Exigência de Certificação ISO, CMMI ou Laudo Privado na Fase de Habilitação
+    const regexCertificacaoPrivada = /(?:certifica[çc][ãa]o\s+ISO|ISO\s*9001|ISO\s*27001|ISO\s*14001|CMMI|MPS\.BR|laudo\s+t[eé]cnico\s+pr[eé]vio)[^\n.]{0,120}(?:habilita[çc][ãa]o|proposta|desclassifica[çc][ãa]o|sob\s+pena)/i;
+    if (regexCertificacaoPrivada.test(textoCompleto)) {
+      const trecho = extrairTrechoContextual(regexCertificacaoPrivada);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-certificacao-iso',
+          titulo: 'Exigência Ilegal de Certificação Privada (ISO / CMMI) na Habilitação',
+          gravidade: 'ALTO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Rol taxativo dos Arts. 62 a 70 da Lei 14.133/2021 e Acórdãos 1.214/2013-Plenário e 1.085/2011-Plenário do TCU',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital para exclusão imediata de certificação de qualidade privada como requisito habilitatório eliminatório.',
+        });
+      }
+    }
+
+    // VÍCIO 6: Prazo de Entrega Exíguo ou Agrupamento Indevido em Lote Único
+    const regexPrazoExiguo = /(?:prazo\s+de\s+entrega|execu[çc][ãa]o)[^\n.]{0,80}(?:(?:24|48)\s*horas|1\s*dia\s*[uú]til)[^\n.]{0,80}/i;
+    if (regexPrazoExiguo.test(textoCompleto) && !/perec[ií]vel|urg[eê]ncia/i.test(textoCompleto)) {
+      const trecho = extrairTrechoContextual(regexPrazoExiguo);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-prazo-exiguo',
+          titulo: 'Prazo de Entrega Desproporcional ou Exíguo (Potencial Restrição à Ampla Disputa)',
+          gravidade: 'MEDIO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Princípio da Razoabilidade e Proporcionalidade',
+          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação para dilação do prazo de fornecimento de forma compatível com a logística do mercado.',
+        });
+      }
+    }
+
+    // VÍCIO 7: Falhas Formais do Edital (Garantia Abusiva > Art. 98)
+    const regexGarantiaAbusiva = /(?:garantia\s+contratual|garantia\s+de\s+execu[çc][ãa]o)[^\n.]{0,80}(?:1[1-9]%|[2-9][0-9]%)[^\n.]{0,80}/i;
+    if (regexGarantiaAbusiva.test(textoCompleto)) {
+      const trecho = extrairTrechoContextual(regexGarantiaAbusiva);
+      if (trecho) {
+        vicios.push({
+          id: 'vicio-garantia-excessiva',
+          titulo: 'Exigência de Garantia Contratual Acima do Limite Máximo Legal',
+          gravidade: 'MEDIO',
+          trechoLiteral: trecho,
+          fundamentoLegal: 'Art. 98 da Lei Federal nº 14.133/2021 (limite máximo de 5%, ou 10% para alta complexidade)',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital para adequar o percentual de garantia de execução aos limites previstos no Art. 98.',
+        });
+      }
+    }
+
+    // Consolidação da Auditoria Determinística com Veracidade Estrita
+    const auditoriaResultado: AuditoriaEditalResultado = {
+      status: vicios.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
+      mensagem: vicios.length > 0
+        ? `Foram identificados ${vicios.length} apontamento(s) de vícios ou cláusulas restritivas com evidência literal no texto.`
+        : 'Nenhuma cláusula restritiva ou vício formal típico foi encontrado no texto analisado.',
+      totalVicios: vicios.length,
+      viciosAltos: vicios.filter((v) => v.gravidade === 'ALTO').length,
+      viciosMedios: vicios.filter((v) => v.gravidade === 'MEDIO').length,
+      viciosBaixos: vicios.filter((v) => v.gravidade === 'BAIXO').length,
+      apontamentos: vicios,
+    };
 
     // 5. Itens Detalhados do Registro Oficial ou Extraídos
     const itensExtraidos: ExtractedSpecsFicha['itensDetalhados'] = [];
@@ -199,7 +323,14 @@ export class EditalDeepAnalyzerService {
         prazoPagamento: 'Em até 30 dias após a liquidação da despesa (Art. 141 da Lei 14.133/2021)',
         vigenciaContrato: 'Conforme Termo de Referência e Minuta Contratual',
       },
-      pontosDeAtencaoERiscos: riscos,
+      pontosDeAtencaoERiscos: vicios.map((v) => ({
+        titulo: v.titulo,
+        gravidade: v.gravidade,
+        baseLegal: v.fundamentoLegal,
+        trechoLiteral: v.trechoLiteral,
+        acaoRecomendada: v.acaoRecomendada,
+      })),
+      auditoria: auditoriaResultado,
     };
   }
 
@@ -247,6 +378,8 @@ export class EditalDeepAnalyzerService {
           isRemoteDispute: ficha.disputaEExecucao.disputaRemota,
           executionMode: ficha.disputaEExecucao.execucaoOuEntrega,
           executionEvidence: ficha.disputaEExecucao.trechoComprovante,
+          auditoriaStatus: ficha.auditoria.status,
+          totalVicios: ficha.auditoria.totalVicios,
         } as any,
       },
     });

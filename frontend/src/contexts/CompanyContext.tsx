@@ -84,14 +84,14 @@ export const DEFAULT_COMPANY: Company = {
 const DEFAULT_CONTEXT: CompanyContextData = {
   selectedCompany: DEFAULT_COMPANY,
   companyId: DEFAULT_COMPANY.id,
-  setSelectedCompany: () => {},
+  setSelectedCompany: () => { },
   switchingCompany: false,
   loadingCompanies: false,
   isLoading: false,
   isFetching: false,
   companies: [DEFAULT_COMPANY],
-  setCompanies: () => {},
-  refreshCompanies: async () => {},
+  setCompanies: () => { },
+  refreshCompanies: async () => { },
 };
 
 const CompanyContext = createContext<CompanyContextData>(DEFAULT_CONTEXT);
@@ -275,7 +275,7 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
           }
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           setSwitchingCompany(false);
         });
@@ -341,10 +341,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const fallbackComp: Company = currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
           ? normalizeCompany(currentUser.company)
           : {
-              ...DEFAULT_COMPANY,
-              id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
-              razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
-            };
+            ...DEFAULT_COMPANY,
+            id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
+            razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
+          };
         setSelectedCompanyState(fallbackComp);
         if (typeof window !== 'undefined') {
           localStorage.setItem('@Expertise:selectedCompany', JSON.stringify(fallbackComp));
@@ -367,10 +367,10 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         : currentUser?.company && (currentUser.company.id || currentUser.company.razaoSocial)
           ? normalizeCompany(currentUser.company)
           : {
-              ...DEFAULT_COMPANY,
-              id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
-              razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
-            };
+            ...DEFAULT_COMPANY,
+            id: currentUser?.id ? `comp-${currentUser.id}` : 'empresa-principal',
+            razaoSocial: currentUser?.nome ? `Empresa de ${currentUser.nome}` : 'Empresa Principal',
+          };
       setSelectedCompanyState(fallbackComp);
       setCompaniesState((prev) => (prev.length > 0 ? prev : [fallbackComp]));
       if (typeof window !== 'undefined') {

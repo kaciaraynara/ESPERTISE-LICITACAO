@@ -4,6 +4,21 @@ import { prisma } from '../database/prisma';
 import { parsePncpControlNumber, buscarItensPNCP } from './pncp.service';
 import { buscarLicitacaoPorIdOuControle } from './licitacoes.service';
 
+export interface ArquivoOficialPncp {
+  titulo: string;
+  tipoDocumento: string;
+  urlDownloadOficial: string;
+  sequencial?: number;
+  tamanhoBytes?: number;
+}
+
+export interface ResultadoExtracaoEdital {
+  text: string;
+  sourceMode: 'PDF_ANEXO_REAL' | 'PDF_ESCANEADO_SEM_TEXTO' | 'APENAS_METADADOS_PNCP';
+  arquivosOficiais: ArquivoOficialPncp[];
+  chunks: string[];
+}
+
 /**
  * Salva chunks de texto na tabela DocumentChunk vinculados ao edital.
  */
@@ -427,6 +442,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
 
     // 9. Salva os trechos na tabela de contexto/chunks do edital para evitar downloads repetidos
     await saveDocumentChunks(targetNoticeId, notice?.tenantId, extractedText, {
+      sourceMode: 'PDF_ANEXO_REAL',
       fileName: editalArquivo.titulo || 'Edital.pdf',
       fileUrl: urlArquivoPDF,
       cnpj,
@@ -475,4 +491,134 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     console.error('[PNCP Parser] Falha na extração de texto do edital:', err.message);
     return '';
   }
+}
+
+/**
+ * Retorna o texto extraído, modo de fonte real (PDF_ANEXO_REAL | PDF_ESCANEADO_SEM_TEXTO | APENAS_METADADOS_PNCP)
+ * e a lista completa de arquivos oficiais anexados no PNCP com links diretos para download.
+ */
+export async function obterTextoEAnexosOficiais(edital_id: string): Promise<ResultadoExtracaoEdital> {
+  const cleanId = String(edital_id || '').trim();
+  const PNCP_BASE = process.env.PNCP_FILES_BASE_URL || 'https://pncp.gov.br/api/pncp/v1';
+
+  let notice: any = null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanId);
+  if (isUuid) {
+    notice = await prisma.procurementNotice.findUnique({
+      where: { id: cleanId },
+      include: { items: { orderBy: { itemNumber: 'asc' } } },
+    });
+  }
+
+  if (!notice) {
+    notice = await prisma.procurementNotice.findFirst({
+      where: {
+        OR: [
+          { externalId: cleanId },
+          { dedupeKey: `pncp-${cleanId}` },
+          { dedupeKey: cleanId },
+          { noticeNumber: cleanId },
+        ],
+      },
+      include: { items: { orderBy: { itemNumber: 'asc' } } },
+    });
+  }
+
+  const targetNoticeId = notice?.id || cleanId;
+  const lookupIds = [targetNoticeId];
+  if (cleanId !== targetNoticeId) lookupIds.push(cleanId);
+  if (notice?.externalId && !lookupIds.includes(notice.externalId)) lookupIds.push(notice.externalId);
+
+  // 1. Extrai parâmetros do PNCP para buscar anexos oficiais
+  const rawExternalId = notice?.externalId || (notice?.rawPayload as any)?.numeroControlePNCP || cleanId;
+  const parsed =
+    parsePncpControlNumber(notice?.externalId) ||
+    parsePncpControlNumber(rawExternalId) ||
+    parsePncpControlNumber(cleanId);
+
+  let cnpj = parsed?.cnpj;
+  let ano = parsed?.ano ? String(parsed.ano) : '';
+  let sequencial = parsed?.sequencial ? String(parsed.sequencial) : '';
+
+  if (!cnpj && notice?.rawPayload) {
+    const raw = notice.rawPayload as any;
+    cnpj = (raw.orgaoEntidade?.cnpj || notice.buyerDocument || '').replace(/\D/g, '');
+    ano = String(raw.anoCompra || '');
+    sequencial = String(Number(raw.sequencialCompra || ''));
+  }
+
+  let arquivosOficiais: ArquivoOficialPncp[] = [];
+  if (cnpj && ano && sequencial && sequencial !== 'NaN') {
+    try {
+      const urlArquivos = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos`;
+      const resLista = await axios.get(urlArquivos, {
+        headers: { Accept: 'application/json' },
+        timeout: 15000,
+      });
+      const rawArquivos = Array.isArray(resLista.data) ? resLista.data : [];
+      arquivosOficiais = rawArquivos
+        .filter((a: any) => a.statusAtivo !== false)
+        .map((a: any) => {
+          const seq = a.sequencialArquivo || a.sequencial || 1;
+          return {
+            titulo: String(a.titulo || a.nome || 'Anexo do Edital').trim(),
+            tipoDocumento: String(a.tipoDocumentoNome || a.tipo_documento_nome || 'Documento Oficial').trim(),
+            urlDownloadOficial: `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seq}`,
+            sequencial: seq,
+            tamanhoBytes: a.tamanhoBytes || a.tamanho || undefined,
+          };
+        });
+    } catch (err: any) {
+      console.warn('[PNCP Parser] Aviso ao consultar lista de anexos no PNCP:', err.message);
+    }
+  }
+
+  // 2. Consulta chunks existentes
+  let existingChunks = await prisma.documentChunk.findMany({
+    where: {
+      sourceType: 'procurement_notice',
+      sourceId: { in: lookupIds },
+    },
+    orderBy: { chunkIndex: 'asc' },
+    take: 80,
+    select: { content: true, metadata: true },
+  });
+
+  if (existingChunks.length === 0) {
+    // Dispara extração automática se ainda não houver chunks
+    await preencherTextoEditalAutomaticamente(cleanId);
+    existingChunks = await prisma.documentChunk.findMany({
+      where: {
+        sourceType: 'procurement_notice',
+        sourceId: { in: lookupIds },
+      },
+      orderBy: { chunkIndex: 'asc' },
+      take: 80,
+      select: { content: true, metadata: true },
+    });
+  }
+
+  const fullText = existingChunks.map((c) => c.content).join('\n\n');
+  const isFallbackText = fullText.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF');
+
+  let sourceMode: ResultadoExtracaoEdital['sourceMode'] = 'APENAS_METADADOS_PNCP';
+  if (!isFallbackText && fullText.trim().length >= 100) {
+    sourceMode = 'PDF_ANEXO_REAL';
+  } else if (arquivosOficiais.length > 0) {
+    sourceMode = 'PDF_ESCANEADO_SEM_TEXTO';
+  } else {
+    sourceMode = 'APENAS_METADADOS_PNCP';
+  }
+
+  // Chunks limpos: se for PDF real, exclui chunks sintéticos
+  const cleanChunkTexts = existingChunks
+    .map((c) => c.content)
+    .filter((c) => !c.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF'));
+
+  return {
+    text: fullText,
+    sourceMode,
+    arquivosOficiais,
+    chunks: cleanChunkTexts.length > 0 ? cleanChunkTexts : existingChunks.map((c) => c.content),
+  };
 }

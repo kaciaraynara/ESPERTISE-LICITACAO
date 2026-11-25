@@ -30,6 +30,7 @@ export interface EditalOption {
 interface EditalSelectorProps {
   label?: string;
   selectedId?: string;
+  value?: string;
   onSelectEdital: (edital: EditalOption) => void;
   className?: string;
   autoSelectFirst?: boolean;
@@ -38,15 +39,18 @@ interface EditalSelectorProps {
 export const EditalSelector: React.FC<EditalSelectorProps> = ({
   label = 'Selecionar Edital Cadastrado / Monitorado',
   selectedId,
+  value,
   onSelectEdital,
   className = '',
   autoSelectFirst = false,
 }) => {
+  const currentSelectedProp = value !== undefined ? value : selectedId;
   const [editais, setEditais] = useState<EditalOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [selected, setSelected] = useState<string>(selectedId || '');
+  const [selected, setSelected] = useState<string>(currentSelectedProp || '');
   const [selectedItem, setSelectedItem] = useState<EditalOption | null>(null);
+  const [mostrarEncerrados, setMostrarEncerrados] = useState<boolean>(false);
 
   const { selectedCompany } = useCompany();
   const authUser = useAuthStore((s) => s.user);
@@ -289,8 +293,8 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
         setLoadError(failedRequests > 2);
         setLoading(false);
 
-        // Se já houver um ID pré-selecionado (selectedId ou selected), vincula imediatamente
-        const targetPreselect = selectedId || selected;
+        // Se já houver um ID pré-selecionado (currentSelectedProp ou selected), vincula imediatamente
+        const targetPreselect = currentSelectedProp || selected;
         if (targetPreselect) {
           const match = listaFinal.find(
             (ed) =>
@@ -304,7 +308,7 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
             setSelectedItem(match);
             onSelectEdital(match);
           }
-        } else if (autoSelectFirst && listaFinal.length > 0) {
+        } else if (autoSelectFirst && listaFinal.length > 0 && !currentSelectedProp) {
           const primeiro = listaFinal[0];
           setSelected(primeiro.id);
           setSelectedItem(primeiro);
@@ -318,24 +322,42 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [companyId, selectedId]);
+  }, [companyId, currentSelectedProp]);
 
   useEffect(() => {
-    if (selectedId) {
-      setSelected(selectedId);
+    if (currentSelectedProp) {
+      setSelected(currentSelectedProp);
       const match = editais.find(
         (ed) =>
-          ed.id === selectedId ||
-          ed.numeroEdital === selectedId ||
-          ed.numeroControlePNCP === selectedId ||
-          ed.id.toLowerCase() === selectedId.toLowerCase()
+          ed.id === currentSelectedProp ||
+          ed.numeroEdital === currentSelectedProp ||
+          ed.numeroControlePNCP === currentSelectedProp ||
+          ed.id.toLowerCase() === currentSelectedProp.toLowerCase()
       );
       if (match) {
         setSelectedItem(match);
-        onSelectEdital(match);
       }
     }
-  }, [selectedId, editais]);
+  }, [currentSelectedProp, editais]);
+
+  const isEncerrado = (ed: EditalOption) => {
+    if (!ed.dataCertame) return false;
+    try {
+      const dataSessao = new Date(ed.dataCertame);
+      if (isNaN(dataSessao.getTime())) return false;
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      return dataSessao < hoje;
+    } catch {
+      return false;
+    }
+  };
+
+  const editaisFiltrados = editais.filter((ed) => {
+    if (mostrarEncerrados) return true;
+    if (ed.id === selected) return true;
+    return !isEncerrado(ed);
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -355,17 +377,28 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
         <label className="text-xs font-black uppercase text-slate-700 flex items-center gap-1.5">
           <FileText size={14} className="text-[#EA580C]" />
           {label}
         </label>
-        {loading && (
-          <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-            <Loader2 size={10} className="animate-spin text-[#EA580C]" />
-            Carregando editais salvos...
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={mostrarEncerrados}
+              onChange={(e) => setMostrarEncerrados(e.target.checked)}
+              className="rounded border-slate-300 text-[#081C3A] focus:ring-0"
+            />
+            <span>Mostrar encerrados</span>
+          </label>
+          {loading && (
+            <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin text-[#EA580C]" />
+              Carregando editais...
+            </span>
+          )}
+        </div>
       </div>
 
       {!loading && loadError && (
@@ -382,10 +415,10 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
           className="w-full py-2.5 pl-3 pr-10 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C] focus:border-transparent transition-all shadow-xs cursor-pointer disabled:opacity-50"
         >
           <option value="" className="text-slate-500 font-normal">
-            -- Selecione um edital salvo para preenchimento automático --
+            -- Selecione um edital para leitura e auditoria de cláusulas --
           </option>
 
-          {editais.map((ed) => (
+          {editaisFiltrados.map((ed) => (
             <option key={ed.id} value={ed.id} className="text-slate-900 font-medium">
               {ed.fonte === 'salvo' ? '★ [Salvo no Radar] ' : ed.fonte === 'monitorado' ? '👁 [Monitorado] ' : ''}
               {ed.numeroEdital} — {ed.orgao} ({ed.modalidade})
@@ -394,25 +427,25 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
         </select>
       </div>
 
-      {!loading && editais.length === 0 && (
+      {!loading && editaisFiltrados.length === 0 && (
         <p role="status" className="text-xs text-slate-500">
-          Nenhum edital salvo no Radar ou monitorado foi encontrado. Salve editais no Radar clicando em &quot;Salvar para Disputar&quot;.
+          Nenhum edital disponível no momento. {mostrarEncerrados ? '' : 'Ative "Mostrar encerrados" ou '} salve editais no Radar clicando em &quot;Salvar para Disputar&quot;.
         </p>
       )}
 
       {selectedItem && (
-        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-3 text-xs space-y-1.5 animate-fadeIn">
+        <div className="bg-[#14532D]/5 border border-[#166534]/30 rounded-xl p-3 text-xs space-y-1.5 animate-fadeIn">
           <div className="flex items-center justify-between">
-            <span className="font-black text-emerald-800 flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-emerald-600" />
-              {selectedItem.fonte === 'salvo' ? 'Edital salvo para disputar' : 'Edital real selecionado'}
+            <span className="font-black text-[#14532D] flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-[#14532D]" />
+              {selectedItem.fonte === 'salvo' ? 'Edital salvo para disputar' : 'Edital oficial selecionado'}
             </span>
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-              {selectedItem.fonte === 'salvo' && <ShieldCheck size={11} className="text-emerald-700" />}
+            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#14532D]/10 text-[#14532D] flex items-center gap-1 border border-[#166534]/20">
+              {selectedItem.fonte === 'salvo' && <ShieldCheck size={11} className="text-[#14532D]" />}
               {selectedItem.modalidade}
             </span>
           </div>
-          <div className="text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-emerald-100">
+          <div className="text-[11px] text-slate-600 grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-[#166534]/15">
             <p className="truncate">
               <strong className="text-slate-800">Órgão:</strong> {selectedItem.orgao}
             </p>

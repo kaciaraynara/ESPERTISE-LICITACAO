@@ -10,7 +10,7 @@ import { documentGenerationService } from '../services/document-generation.servi
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { gerarEsqueletoImpugnacao } from '../services/impugnacao.service';
-import { preencherTextoEditalAutomaticamente } from '../services/pncp-parser.service';
+import { preencherTextoEditalAutomaticamente, obterTextoEAnexosOficiais, ResultadoExtracaoEdital } from '../services/pncp-parser.service';
 import { EditalDeepAnalyzerService } from '../services/edital-deep-analyzer.service';
 
 export class NoticesController {
@@ -48,14 +48,102 @@ export class NoticesController {
 
   async chunks(req: AuthRequest, res: Response) {
     try {
-      const result = await this.service.listChunks(req.params.id, req.query, buildContext(req));
+      const noticeId = req.params.id;
+
+      // 1. Obtém dados com fonte real e lista de arquivos oficiais do PNCP
+      let extraInfo: ResultadoExtracaoEdital = {
+        sourceMode: 'APENAS_METADADOS_PNCP',
+        arquivosOficiais: [],
+        text: '',
+        chunks: [],
+      };
+      try {
+        extraInfo = await obterTextoEAnexosOficiais(noticeId);
+      } catch (parserErr) {
+        console.warn('[NoticesController] Aviso ao extrair fonte e anexos oficiais:', parserErr);
+      }
+
+      // 2. Obtém auditoria determinística do edital
+      let auditoriaSpecs: any = null;
+      try {
+        auditoriaSpecs = await EditalDeepAnalyzerService.processarEditalPorId(noticeId);
+      } catch (deepErr) {
+        console.warn('[NoticesController] Aviso ao processar auditoria profunda:', deepErr);
+      }
+
+      // 3. Obtém chunks paginados
+      const result = await this.service.listChunks(noticeId, req.query, buildContext(req));
       if (!result) {
         return res.status(404).json({ success: false, message: 'Edital nao encontrado' });
       }
-      return res.json({ success: true, ...result });
+
+      return res.json({
+        success: true,
+        sourceMode: extraInfo.sourceMode,
+        arquivosOficiais: extraInfo.arquivosOficiais,
+        auditoriaDeterministica: auditoriaSpecs?.auditoria || (auditoriaSpecs ? {
+          status: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
+          mensagem: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0
+            ? `Detectados ${auditoriaSpecs.pontosDeAtencaoERiscos.length} ponto(s) de atenção.`
+            : 'Nenhuma cláusula restritiva ou vício formal típico foi encontrado no texto analisado.',
+          totalVicios: auditoriaSpecs.pontosDeAtencaoERiscos?.length || 0,
+          apontamentos: auditoriaSpecs.pontosDeAtencaoERiscos || [],
+        } : null),
+        fichaSpecs: auditoriaSpecs,
+        ...result,
+      });
     } catch (error) {
       if (error instanceof ZodError) return validationError(res, error);
       throw error;
+    }
+  }
+
+  async analisarPdf(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const { text, pdfBase64, fileName } = (req.body || {}) as { text?: string; pdfBase64?: string; fileName?: string };
+
+      let textoParaAnalisar = text || '';
+
+      if (!textoParaAnalisar && pdfBase64) {
+        try {
+          const buf = Buffer.from(pdfBase64, 'base64');
+          let pdfParseModule: any = require('pdf-parse');
+          const pdfFn = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule?.default || pdfParseModule;
+          const pdfData = await pdfFn(buf);
+          textoParaAnalisar = String(pdfData?.text || '').trim();
+        } catch (parseErr: any) {
+          return res.status(400).json({ success: false, message: 'Falha ao processar arquivo PDF: ' + parseErr.message });
+        }
+      }
+
+      if (!textoParaAnalisar || textoParaAnalisar.length < 30) {
+        return res.status(400).json({ success: false, message: 'O arquivo PDF enviado não contém texto legível ou pesquisável.' });
+      }
+
+      let notice = null;
+      if (noticeId && noticeId !== 'manual') {
+        notice = await prisma.procurementNotice.findFirst({
+          where: {
+            OR: [{ id: noticeId }, { externalId: noticeId }, { dedupeKey: `pncp-${noticeId}` }],
+          },
+          include: { items: true },
+        });
+      }
+
+      const ficha = EditalDeepAnalyzerService.analisarTextoIntegral(notice || {}, [textoParaAnalisar], notice?.items || []);
+
+      return res.json({
+        success: true,
+        sourceMode: 'PDF_ANEXO_REAL',
+        text: textoParaAnalisar,
+        fileName: fileName || 'edital-manual.pdf',
+        auditoria: ficha.auditoria,
+        fichaSpecs: ficha,
+      });
+    } catch (error: any) {
+      console.error('[NoticesController] Erro em analisarPdf:', error);
+      return res.status(500).json({ success: false, message: error?.message || 'Erro ao analisar PDF enviado' });
     }
   }
 

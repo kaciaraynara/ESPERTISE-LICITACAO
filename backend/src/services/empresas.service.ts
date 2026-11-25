@@ -113,11 +113,11 @@ export class EmpresasService {
     const existing = await prisma.company.findFirst({
       where: { id, tenantId, userId },
     });
-    
+
     if (!existing) {
       throw new ApiError('Empresa não encontrada', 404);
     }
-    
+
     // Ao buscar/selecionar a empresa, sincroniza com dados cadastrais reais da Receita
     let targetCompany = existing;
     let qsaList: any[] = [];

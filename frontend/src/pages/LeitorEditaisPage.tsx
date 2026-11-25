@@ -1,10 +1,9 @@
-import api from '@/services/api';
-import React, { useState, useEffect } from 'react';
+import api, { noticesApi } from '@/services/api';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   UploadCloud,
   CheckCircle2,
-  Clock,
   ArrowRight,
   Scale,
   Copy,
@@ -15,14 +14,42 @@ import {
   ExternalLink,
   ShieldCheck,
   RefreshCw,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FORNECEDOR_ROUTES } from '@/routes';
 import { streamAiChat } from '@/services/aiStream.service';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
-import { noticesApi } from '@/services/api';
 import { formatPncpDateBR, formatCnpj } from '@/utils/pncp';
+
+export interface VicioApontamento {
+  id?: string;
+  titulo: string;
+  gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
+  trechoLiteral: string;
+  fundamentoLegal: string;
+  acaoRecomendada?: string;
+}
+
+export interface AuditoriaData {
+  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME';
+  mensagem: string;
+  totalVicios: number;
+  viciosAltos: number;
+  viciosMedios: number;
+  viciosBaixos: number;
+  apontamentos: VicioApontamento[];
+}
+
+export interface ArquivoOficial {
+  titulo: string;
+  tipoDocumento: string;
+  urlDownloadOficial: string;
+  sequencial?: number;
+  tamanhoBytes?: number;
+}
 
 function formatBRL(valor?: number | null): string {
   if (valor === undefined || valor === null || !Number.isFinite(Number(valor)) || Number(valor) <= 0) {
@@ -59,13 +86,20 @@ export const LeitorEditaisPage: React.FC = () => {
   const [selectedEditalData, setSelectedEditalData] = useState<any>(null);
   const [carregandoEdital, setCarregandoEdital] = useState(false);
 
+  // Fonte real de dados e anexos
+  const [sourceMode, setSourceMode] = useState<'PDF_ANEXO_REAL' | 'PDF_ESCANEADO_SEM_TEXTO' | 'APENAS_METADADOS_PNCP' | null>(null);
+  const [arquivosOficiais, setArquivosOficiais] = useState<ArquivoOficial[]>([]);
+  const [auditoria, setAuditoria] = useState<AuditoriaData | null>(null);
+
   const [editalTexto, setEditalTexto] = useState('');
   const [analisando, setAnalisando] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [resultadoStreaming, setResultadoStreaming] = useState('');
   const [analiseConcluida, setAnaliseConcluida] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
-  const [abaDossie, setAbaDossie] = useState<'visao' | 'itens' | 'habilitacao' | 'roteiro'>('visao');
+  const [abaDossie, setAbaDossie] = useState<'visao' | 'itens' | 'habilitacao' | 'vicios'>('visao');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Atualiza selectedEditalId quando a URL mudar
   useEffect(() => {
@@ -78,6 +112,10 @@ export const LeitorEditaisPage: React.FC = () => {
   useEffect(() => {
     if (!selectedEditalId) {
       setSelectedEditalData(null);
+      setSourceMode(null);
+      setArquivosOficiais([]);
+      setAuditoria(null);
+      setEditalTexto('');
       return;
     }
 
@@ -87,9 +125,9 @@ export const LeitorEditaisPage: React.FC = () => {
     Promise.allSettled([
       noticesApi.getBasicSummary(selectedEditalId),
       noticesApi.getById(selectedEditalId),
-      api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=40').catch(() => null),
+      api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=80').catch(() => null),
     ])
-      .then(([basicRes, detailRes]) => {
+      .then(([basicRes, detailRes, chunksRes]) => {
         if (!active) return;
 
         let mergedData: any = null;
@@ -105,6 +143,38 @@ export const LeitorEditaisPage: React.FC = () => {
             ...detail,
             dossier: detail.dossier || mergedData?.dossier,
           };
+        }
+
+        let fetchedSourceMode: 'PDF_ANEXO_REAL' | 'PDF_ESCANEADO_SEM_TEXTO' | 'APENAS_METADADOS_PNCP' = 'APENAS_METADADOS_PNCP';
+        let fetchedArquivos: ArquivoOficial[] = [];
+        let fetchedAuditoria: AuditoriaData | null = null;
+        let textoRealExtraido = '';
+
+        if (chunksRes.status === 'fulfilled' && chunksRes.value?.data) {
+          const cd = chunksRes.value.data;
+          fetchedSourceMode = cd.sourceMode || 'APENAS_METADADOS_PNCP';
+          fetchedArquivos = Array.isArray(cd.arquivosOficiais) ? cd.arquivosOficiais : [];
+
+          if (cd.auditoriaDeterministica) {
+            fetchedAuditoria = cd.auditoriaDeterministica;
+          } else if (cd.fichaSpecs?.auditoria) {
+            fetchedAuditoria = cd.fichaSpecs.auditoria;
+          }
+
+          const rawChunks = Array.isArray(cd.data) ? cd.data : Array.isArray(cd.chunks) ? cd.chunks : [];
+          const cleanChunks = rawChunks
+            .map((c: any) => (typeof c === 'string' ? c : c.content || ''))
+            .filter((c: string) => c && !c.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF'));
+
+          if (cleanChunks.length > 0) {
+            textoRealExtraido = cleanChunks.join('\n\n');
+          }
+        }
+
+        setSourceMode(fetchedSourceMode);
+        setArquivosOficiais(fetchedArquivos);
+        if (fetchedAuditoria) {
+          setAuditoria(fetchedAuditoria);
         }
 
         if (mergedData) {
@@ -130,10 +200,10 @@ export const LeitorEditaisPage: React.FC = () => {
             : 'Até 3 dias úteis antes da abertura (Art. 164 da Lei 14.133/21)';
 
           const itensPreview = Array.isArray(mergedData.dossier?.quadroItensDetalhado) && mergedData.dossier.quadroItensDetalhado.length > 0
-            ? '\nITENS DA CONTRATAÇÃO:\n' + mergedData.dossier.quadroItensDetalhado.slice(0, 20).map((it: any) => `- Item ${it.numeroItem}: ${it.descricaoCompleta} | Qtd: ${it.quantidade} ${it.unidadeMedida} | Valor Est.: ${formatBRL(it.valorTotalEstimado)}`).join('\n')
+            ? '\nITENS DA CONTRATAÇÃO:\n' + mergedData.dossier.quadroItensDetalhado.slice(0, 25).map((it: any) => `- Item ${it.numeroItem}: ${it.descricaoCompleta} | Qtd: ${it.quantidade} ${it.unidadeMedida} | Valor Est.: ${formatBRL(it.valorTotalEstimado)}`).join('\n')
             : '';
 
-          const textoAuto = `EDITAL Nº ${numEd}
+          const textoAutoFallback = `EDITAL Nº ${numEd}
 ÓRGÃO: ${org}
 MODALIDADE: ${mod}
 REGIME JURÍDICO: Lei Federal nº 14.133/2021 (Nova Lei de Licitações)
@@ -151,7 +221,11 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
 - Regularidade Fiscal e Trabalhista: CND Federal (Receita/PGFN), CRF FGTS, CNDT, CND Estadual e Municipal.
 - Qualificação Técnica: Atestados de Capacidade Técnica (CAT) compatíveis com o objeto.`;
 
-          setEditalTexto(textoAuto);
+          if (fetchedSourceMode === 'PDF_ANEXO_REAL' && textoRealExtraido.trim().length >= 50) {
+            setEditalTexto(textoRealExtraido);
+          } else {
+            setEditalTexto(textoAutoFallback);
+          }
         }
       })
       .catch((err) => {
@@ -174,26 +248,45 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
     toast.success(`Edital nº ${edital.numeroEdital || edital.id} selecionado para leitura!`);
   };
 
-  // Exemplo pré-carregável para teste imediato de demonstração real
-  const carregarExemploEdital = () => {
-    setEditalTexto(`PREGÃO ELETRÔNICO Nº 45/2026 - UASG 153052
-ÓRGÃO: Selecione um edital monitorado acima ou cole o texto oficial do edital.
-OBJETO: Contratação de serviços de tecnologia da informação, sustentação de infraestrutura em nuvem e suporte técnico especializado sob demanda.
-REGIME LEGAL: Lei Federal nº 14.133/2021 e Decreto nº 11.462/2023.
-CRITÉRIO DE JULGAMENTO: Menor Preço Global.
-VALOR ESTIMADO TOTAL: R$ 4.850.000,00.
-DATA DA SESSÃO PÚBLICA: 18 de Novembro de 2026, às 10h00 (horário de Brasília).
-PRAZO LIMITE PARA IMPUGNAÇÃO: Até 3 (três) dias úteis anteriores à abertura da sessão (Art. 164 da Lei 14.133/21).
+  // Upload manual de PDF oficial
+  const handleUploadPdfManual = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-DA HABILITAÇÃO TÉCNICA:
-1. Comprovação de aptidão para desempenho de atividade pertinente e compatível em características, quantidades e prazos com o objeto da licitação, mediante atestados de capacidade técnica emitidos por pessoas jurídicas de direito público ou privado.
-2. Certificação ISO 27001 e CMMI nível 3 obrigatória no momento da entrega das propostas. (ALERTA: Cláusula restritiva segundo jurisprudência consolidada do TCU - Acórdão 1214/2013-Plenário).
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Por favor, selecione um arquivo em formato PDF.');
+      return;
+    }
 
-DA QUALIFICAÇÃO ECONÔMICO-FINANCEIRA:
-1. Balanço patrimonial e demonstrações contábeis do último exercício social.
-2. Índices de Liquidez Geral (LG), Solvência Geral (SG) e Liquidez Corrente (LC) superiores a 1,0.
-3. Certidão Negativa de Falência e Recuperação Judicial expedida pelo distribuidor da sede da pessoa jurídica.`);
-    toast.success('Edital de demonstração carregado com sucesso!');
+    setUploadingPdf(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64Data = (reader.result as string).split(',')[1];
+        const res = await api.post(`/notices/${selectedEditalId || 'manual'}/analisar-pdf`, {
+          pdfBase64: base64Data,
+          fileName: file.name,
+        });
+
+        if (res.data?.success && res.data?.text) {
+          setEditalTexto(res.data.text);
+          setSourceMode('PDF_ANEXO_REAL');
+          if (res.data.auditoria) {
+            setAuditoria(res.data.auditoria);
+          }
+          toast.success(`PDF "${file.name}" carregado e auditado com sucesso!`);
+        } else {
+          toast.error(res.data?.message || 'Não foi possível extrair o texto do PDF.');
+        }
+      } catch (err: any) {
+        console.error('Erro no upload de PDF:', err);
+        toast.error(err?.response?.data?.message || 'Falha ao processar o arquivo PDF enviado.');
+      } finally {
+        setUploadingPdf(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAnalisar = async (e: React.FormEvent) => {
@@ -218,15 +311,14 @@ PROIBIÇÃO ABSOLUTA: Não use introduções de IA, saudações de chatbot nem p
    - Amparo Legal (Lei Federal nº 14.133/2021) e se é SRP (Registro de Preços) ou Contratação Imediata
 
 2. OBJETO REAL & ESCOPO PRÁTICO DA CONTRATAÇÃO:
-   - Explicação em linguagem comercial e prática do que o órgão realmente precisa
-   - Relação dos itens com especificações, quantitativos e valores de referência do PNCP
-   - Valor Total Estimado da Contratação
+   - Descrição detalhada do objeto da contratação
+   - Quantitativos consolidados e unidades de medida
+   - Regime de execução ou entrega (presencial, remota ou mista)
 
-3. CRONOGRAMA CRÍTICO & PRAZOS FATAIS (LEI 14.133/2021):
-   - Data e horário de abertura da sessão de lances (Horário de Brasília)
-   - Prazo fatal para Pedido de Esclarecimentos e Impugnação do Edital (até 3 dias úteis anteriores à abertura, conforme Art. 164)
-   - Prazo limite para envio de proposta comercial e anexos
-   - Prazo para envio da proposta readequada pós-disputa (mínimo de 2 horas)
+3. CRONOGRAMA, PRAZOS FATAIS & LOGÍSTICA:
+   - Data e horário da sessão pública de lances
+   - Prazo fatal para protocolo de Impugnação ou Pedido de Esclarecimento (Art. 164)
+   - Prazo de entrega / início da prestação dos serviços e localidade
 
 4. MATRIZ DE HABILITAÇÃO OBRIGATÓRIA (CRITÉRIOS DE NÃO DESCLASSIFICAÇÃO):
    - Habilitação Jurídica e Regularidade Fiscal/Trabalhista (Arts. 66 e 68)
@@ -264,74 +356,31 @@ ${editalTexto.slice(0, 150000)}`;
       });
 
       if (streamFalhou || acumulado.trim().length === 0) {
-        const txt = editalTexto;
-        const modMatch = txt.match(/(?:MODALIDADE:\s*([^\n]+)|(PREGÃO ELETRÔNICO|CONCORRÊNCIA ELETRÔNICA|DISPENSA ELETRÔNICA|CREDENCIAMENTO)[^\n]*)/i);
-        const orgMatch = txt.match(/ÓRGÃO:\s*([^\n]+)/i);
-        const objMatch = txt.match(/OBJETO(?:\s+DA\s+CONTRATAÇÃO)?:\s*([^\n]+)/i);
-        const valMatch = txt.match(/VALOR\s+ESTIMADO(?:\s+TOTAL|\s+GLOBAL)?:\s*([^\n]+)/i);
-        const sesMatch = txt.match(/DATA\s+DA\s+SESSÃO(?:\s+PÚBLICA)?:\s*([^\n]+)/i);
+        // Fallback estruturado imediato se a stream falhar
+        const fichaRel = `PARECER TÉCNICO E AUDITORIA DO EDITAL
 
-        const modReal = (modMatch?.[1] || modMatch?.[2] || 'Pregão Eletrônico').trim();
-        const orgReal = (orgMatch?.[1] || selectedEditalData?.buyerName || 'Órgão Público Licitante').trim();
-        const objReal = (objMatch?.[1] || selectedEditalData?.object || 'Contratação conforme Termo de Referência').trim();
-        const valReal = (valMatch?.[1] || formatBRL(selectedEditalData?.estimatedValue)).trim();
-        const sesReal = (sesMatch?.[1] || 'Conforme cronograma oficial do edital').trim();
+1. ENQUADRAMENTO DO CERTAME:
+Órgão: ${selectedEditalData?.buyerName || 'Órgão Licitante Oficial'}
+Processo/Edital: ${selectedEditalData?.noticeNumber || selectedEditalId}
+Regime Jurídico: Lei Federal nº 14.133/2021
 
-        const alertas: string[] = [];
-        if (/iso\s*\d+|cmmi/i.test(txt)) {
-          alertas.push(
-            '• Exigência Restritiva Detectada (Certificação ISO 27001 / CMMI na fase de proposta ou habilitação): Conforme jurisprudência pacífica do TCU (Acórdão 1214/2013-Plenário e Acórdão 1085/2011-Plenário) e Art. 67 da Lei 14.133/2021, é ilegal exigir certificações ISO ou CMMI como requisito de habilitação ou entrega de propostas. Recomendação: Protocolar Impugnação ao Edital (Art. 164).',
-          );
-        }
-        if (/(?:atestado|capacidade\s+t[eé]cnica)[\s\S]{0,120}(?:60%|70%|75%|80%|90%|100%)/i.test(txt)) {
-          alertas.push(
-            '• Exigência Abusiva de Quantitativo em Atestado (> 50%): O Art. 67, § 2º da Lei 14.133/2021 e a Súmula 263/TCU limitam a exigência de atestados a no máximo 50% das parcelas de maior relevância (>= 4% do valor total). Recomendação: Impugnar a cláusula.',
-          );
-        }
-        if (alertas.length === 0) {
-          alertas.push(
-            '• Qualificação Técnica (Art. 67, § 2º da Lei 14.133/2021 e Súmula 263/TCU): Exigência de atestados limitada a até 50% das parcelas de maior relevância.',
-            '• Qualificação Econômico-Financeira (Art. 69 da Lei 14.133/2021 e Súmula 289/TCU): Índices de Liquidez Geral (LG), Solvência Geral (SG) e Liquidez Corrente (LC) usuais (>= 1,0).',
-            '• Exequibilidade e Diligência (Art. 59, § 2º e Art. 64 da Lei 14.133/2021; Súmula 262/TCU e Acórdão 1211/2021-TCU): Direito à diligência antes de qualquer desclassificação ou inabilitação.',
-          );
-        }
+2. OBJETO DA CONTRATAÇÃO:
+${selectedEditalData?.object || 'Conforme Termo de Referência.'}
 
-        const relatorioDeterministico = [
-          '1. DADOS FUNDAMENTAIS E ENQUADRAMENTO LEGAL',
-          `• Modalidade: ${modReal}`,
-          `• Órgão Promotor: ${orgReal}`,
-          `• Objeto: ${objReal}`,
-          `• Valor Estimado: ${valReal}`,
-          `• Regime Jurídico: Lei Federal nº 14.133/2021`,
-          '',
-          '2. CRONOGRAMA E PRAZOS FATAIS',
-          `• Sessão Pública: ${sesReal}`,
-          '• Prazo Limite para Impugnação e Esclarecimentos: Até 3 (três) dias úteis antes da data de abertura (Art. 164 da Lei 14.133/2021).',
-          '• Prazo Recursal Unificado: 3 (três) dias úteis para razões e 3 (três) dias úteis para contrarrazões (Art. 165, I e § 4º).',
-          '',
-          '3. AUDITORIA DE CLÁUSULAS RESTRITIVAS E CONFORMIDADE TCU',
-          ...alertas,
-          '',
-          '4. CHECKLIST DE HABILITAÇÃO (ARTS. 62 A 70 DA LEI 14.133/2021)',
-          '• Habilitação Jurídica (Art. 66): Contrato Social consolidado, Cartão CNPJ ativo com CNAE compatível e documento do sócio/administrador.',
-          '• Regularidade Fiscal, Social e Trabalhista (Art. 68): CND Federal/PGFN, CRF FGTS, CNDT Trabalhista, CND Estadual e Municipal.',
-          '• Qualificação Econômico-Financeira (Art. 69): Balanço Patrimonial do último exercício, índices LG/SG/LC >= 1,0 e Certidão Negativa de Falência.',
-          '• Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica compatíveis com o objeto.',
-          '',
-          '5. PRÓXIMOS PASSOS RECOMENDADOS PELA LULI',
-          '• Se houver cláusula restritiva apontada no item 3, clique em Montar Peça de Impugnação abaixo.',
-          '• Em seguida, clique em Gerar Proposta para carregar os itens, responder ao Questionário Estratégico e emitir sua Carta-Proposta e Planilha Excel.',
-        ].join('\n');
+3. STATUS DA AUDITORIA DE CLÁUSULAS:
+${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláusulas disponíveis.'}
 
-        setResultadoStreaming(relatorioDeterministico);
-        setAnaliseConcluida(true);
-        toast.success('Auditoria completa do edital concluída pela Luli!');
-      } else {
-        setAnaliseConcluida(true);
-        toast.success('Auditoria do edital concluída com sucesso!');
+4. AÇÕES RECOMENDADAS:
+- Conferir documentação de habilitação no cofre da empresa.
+- Avaliar margem mínima segura na Sala de Disputa e Precificação.`;
+        setResultadoStreaming(fichaRel);
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'O serviço de análise técnica encontrou uma instabilidade temporária. Tente novamente em instantes.');
+
+      setAnaliseConcluida(true);
+      toast.success('Auditoria de cláusulas concluída!');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao auditar o edital.');
     } finally {
       setAnalisando(false);
     }
@@ -341,90 +390,125 @@ ${editalTexto.slice(0, 150000)}`;
     if (!resultadoStreaming) return;
     navigator.clipboard.writeText(resultadoStreaming);
     setCopiado(true);
-    toast.success('Dossiê do edital copiado para a área de transferência!');
-    setTimeout(() => setCopiado(false), 3000);
+    toast.success('Relatório copiado para a área de transferência!');
+    setTimeout(() => setCopiado(false), 2000);
   };
 
   const dossier = selectedEditalData?.dossier;
   const ficha = dossier?.fichaTecnica;
   const crono = dossier?.cronogramaPrazosFatais;
-  const itens = dossier?.quadroItensDetalhado || selectedEditalData?.items || [];
+  const itens = Array.isArray(dossier?.quadroItensDetalhado)
+    ? dossier.quadroItensDetalhado
+    : Array.isArray(selectedEditalData?.items)
+      ? selectedEditalData.items
+      : [];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-6 md:p-8 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 font-sans">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 py-6 space-y-6">
+
         {/* CABEÇALHO DA PÁGINA */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
-            <div className="flex items-center gap-3">
-              <span className="p-2.5 bg-[#0A2540] text-white rounded-xl shadow-md">
-                <FileText size={24} />
+            <div className="flex items-center gap-2">
+              <span className="p-2 bg-[#0B192C] text-[#EA580C] rounded-xl shadow-xs">
+                <FileText size={20} />
               </span>
-              <div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  Leitor Inteligente de Editais
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    Lei 14.133/21
-                  </span>
-                </h1>
-                <p className="text-xs text-slate-500 font-medium">
-                  Selecione um edital cadastrado ou cole o texto para auditar cláusulas, prazos e gerar o dossiê executivo.
-                </p>
-              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-[#0B192C]">
+                Leitor & Auditor de Editais
+              </h1>
             </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Extração real dos anexos oficiais (PDF, TR e ETP), auditoria rigorosa de cláusulas restritivas e parecer executivo.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={carregarExemploEdital}
-              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition-all shadow-2xs"
-            >
-              Carregar Exemplo Real
-            </button>
-            <Link
-              to={FORNECEDOR_ROUTES.radar}
-              className="px-4 py-2 rounded-xl bg-[#0A2540] hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all"
-            >
-              Buscar no Radar de Editais
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-        </header>
-
-        {/* SELETOR DE EDITAL CADASTRADO NO TOPO */}
-        <div className="bg-white p-4.5 rounded-2xl border border-slate-200/90 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-2">
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                Etapa 1: Carregamento do Certame
-              </span>
-              <h2 className="text-sm font-bold text-slate-900">
-                Selecione um edital para sincronizar os dados oficiais e o Dossiê Executivo
-              </h2>
-            </div>
+          <div className="flex items-center gap-2">
             {carregandoEdital && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                Sincronizando dados oficiais do PNCP…
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-[#0070C0] font-bold text-xs border border-blue-200">
+                <RefreshCw size={12} className="animate-spin" />
+                Carregando anexos...
+              </span>
+            )}
+            {sourceMode === 'PDF_ANEXO_REAL' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#14532D]/10 text-[#14532D] font-bold text-xs border border-[#166534]/30">
+                <CheckCircle2 size={14} />
+                PDF Oficial Lido {arquivosOficiais.length > 0 ? `(${arquivosOficiais.length} anexo(s))` : ''}
+              </span>
+            )}
+            {sourceMode === 'PDF_ESCANEADO_SEM_TEXTO' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-900 font-bold text-xs border border-amber-300">
+                <AlertTriangle size={14} className="text-amber-600" />
+                PDF Escaneado (Sem OCR)
+              </span>
+            )}
+            {sourceMode === 'APENAS_METADADOS_PNCP' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300">
+                <Info size={14} className="text-slate-500" />
+                Dados Oficiais do PNCP
               </span>
             )}
           </div>
+        </div>
 
+        {/* SELETOR DE EDITAL */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <EditalSelector
+            value={selectedEditalId}
             selectedId={selectedEditalId}
             onSelectEdital={handleSelectEdital}
-            label="Escolha um edital monitorado ou salvo para disputar:"
+            label="Escolha um edital monitorado ou salvo para leitura:"
           />
         </div>
 
-        {/* DOSSIÊ ESTRUTURADO COMPLETO (SUBSTITUI OS 4 CARDS DECORATIVOS ESTÁTICOS) */}
+        {/* ALERTA TRANSPARENTE CASO NÃO HAJA PDF COM TEXTO LEGÍVEL NO PNCP */}
+        {selectedEditalId && sourceMode && sourceMode !== 'PDF_ANEXO_REAL' && (
+          <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-300 text-amber-950 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-xs">
+                <strong className="text-xs font-black text-amber-900 block">
+                  O portal não disponibilizou o PDF integral com texto legível via integração
+                </strong>
+                <p className="text-amber-800 leading-relaxed">
+                  Exibindo abaixo os dados oficiais, regras e itens registrados no PNCP. Você pode baixar os arquivos originais nos links abaixo ou anexar manualmente o PDF oficial para auditoria profunda de todas as cláusulas.
+                </p>
+              </div>
+            </div>
+
+            {arquivosOficiais.length > 0 && (
+              <div className="pt-2 border-t border-amber-200/80">
+                <span className="text-[11px] font-bold text-amber-900 block mb-1.5 uppercase">
+                  Anexos Oficiais Disponíveis no PNCP:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {arquivosOficiais.map((arq, idx) => (
+                    <a
+                      key={idx}
+                      href={arq.urlDownloadOficial}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-950 hover:bg-amber-100/60 text-xs font-bold transition shadow-2xs"
+                    >
+                      <ExternalLink size={12} className="text-amber-700" />
+                      <span>{arq.titulo}</span>
+                      <span className="text-[10px] text-amber-700 font-normal">({arq.tipoDocumento})</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DOSSIÊ ESTRUTURADO COMPLETO */}
         {selectedEditalData && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
             {/* CABEÇALHO DO DOSSIÊ ESTRUTURADO */}
             <div className="p-5 bg-gradient-to-r from-slate-50 via-white to-blue-50/20 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-50 text-brand-blue border border-brand-blue/20 flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-50 text-[#0070C0] border border-blue-200 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Dossiê Estruturado do Edital
                   </span>
@@ -438,14 +522,14 @@ ${editalTexto.slice(0, 150000)}`;
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-slate-500 font-medium">
                   <span>CNPJ: <strong className="font-mono text-slate-700">{ficha?.cnpjFormatado || formatCnpj(selectedEditalData.buyerDocument)}</strong></span>
                   <span>Local: <strong className="text-slate-700">{ficha?.municipioUf || selectedEditalData.municipality || 'Âmbito Nacional'}</strong></span>
-                  <span>Valor Estimado: <strong className="text-brand-blue font-bold">{ficha?.valorGlobalFormatado || formatBRL(selectedEditalData.estimatedValue)}</strong></span>
+                  <span>Valor Estimado: <strong className="text-[#0070C0] font-bold">{ficha?.valorGlobalFormatado || formatBRL(selectedEditalData.estimatedValue)}</strong></span>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <a
                   href={`/precificacao?edital=${selectedEditalId}`}
-                  className="px-3 py-1.5 bg-brand-orange hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-[#EA580C] hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                 >
                   <Calculator className="w-3.5 h-3.5" />
                   <span>Precificar</span>
@@ -459,7 +543,7 @@ ${editalTexto.slice(0, 150000)}`;
                 </a>
                 <a
                   href={`/impugnacao?edital=${selectedEditalId}`}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                 >
                   <Scale className="w-3.5 h-3.5" />
                   <span>Impugnar</span>
@@ -483,10 +567,11 @@ ${editalTexto.slice(0, 150000)}`;
               <button
                 type="button"
                 onClick={() => setAbaDossie('visao')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'visao'
-                  ? 'border-brand-blue text-brand-blue bg-white font-black'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  abaDossie === 'visao'
+                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>Ficha Técnica & Objeto</span>
@@ -495,10 +580,11 @@ ${editalTexto.slice(0, 150000)}`;
               <button
                 type="button"
                 onClick={() => setAbaDossie('itens')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'itens'
-                  ? 'border-brand-blue text-brand-blue bg-white font-black'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  abaDossie === 'itens'
+                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
               >
                 <Package className="w-3.5 h-3.5" />
                 <span>Itens ({itens.length})</span>
@@ -507,10 +593,11 @@ ${editalTexto.slice(0, 150000)}`;
               <button
                 type="button"
                 onClick={() => setAbaDossie('habilitacao')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'habilitacao'
-                  ? 'border-brand-blue text-brand-blue bg-white font-black'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  abaDossie === 'habilitacao'
+                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Habilitação Lei 14.133</span>
@@ -518,14 +605,17 @@ ${editalTexto.slice(0, 150000)}`;
 
               <button
                 type="button"
-                onClick={() => setAbaDossie('roteiro')}
-                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'roteiro'
-                  ? 'border-brand-blue text-brand-blue bg-white font-black'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
+                onClick={() => setAbaDossie('vicios')}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  abaDossie === 'vicios'
+                    ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Roteiro de Disputa (7 Etapas)</span>
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>
+                  Vícios & Irregularidades ({auditoria?.totalVicios || 0})
+                </span>
               </button>
             </div>
 
@@ -595,7 +685,7 @@ ${editalTexto.slice(0, 150000)}`;
                               <td className="py-2 px-3 font-medium text-slate-800">{it.descricaoCompleta ?? it.description ?? it.descricao}</td>
                               <td className="py-2 px-3 text-center">{it.quantidade ?? it.quantity ?? 1} {it.unidadeMedida ?? it.unit ?? 'UN'}</td>
                               <td className="py-2 px-3 text-right">{formatBRL(it.valorUnitarioEstimado ?? it.estimatedUnitValue)}</td>
-                              <td className="py-2 px-3 text-right font-bold text-brand-blue">{formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}</td>
+                              <td className="py-2 px-3 text-right font-bold text-[#0070C0]">{formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -616,7 +706,7 @@ ${editalTexto.slice(0, 150000)}`;
                       Habilitação Jurídica (Art. 66)
                     </span>
                     <p className="text-slate-600 text-xs leading-relaxed">
-                      Contrato Social em vigor, registro comercial, prova de inscrição no CNPJ e procuração do representante.
+                      Contrato Social em vigor consolidado, registro comercial, prova de inscrição no CNPJ e procuração com poderes específicos.
                     </p>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
@@ -624,7 +714,7 @@ ${editalTexto.slice(0, 150000)}`;
                       Regularidade Fiscal & Trabalhista (Art. 68)
                     </span>
                     <p className="text-slate-600 text-xs leading-relaxed">
-                      CND Federal (Receita/PGFN), Certidão do FGTS (CRF), CNDT (Justiça do Trabalho), CND Estadual e Municipal.
+                      CND Federal (Receita/PGFN), Certidão do FGTS (CRF), CNDT (Justiça do Trabalho), CND Estadual e CND Municipal.
                     </p>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
@@ -632,7 +722,7 @@ ${editalTexto.slice(0, 150000)}`;
                       Qualificação Econômico-Financeira (Art. 69)
                     </span>
                     <p className="text-slate-600 text-xs leading-relaxed">
-                      Balanço Patrimonial do último exercício, Índices contábeis (LG, SG, LC &gt;= 1,0) e Certidão de Falência.
+                      Balanço Patrimonial do último exercício social, Índices contábeis (LG, SG, LC &gt;= 1,0) e Certidão de Falência e Recuperação Judicial.
                     </p>
                   </div>
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
@@ -640,75 +730,130 @@ ${editalTexto.slice(0, 150000)}`;
                       Qualificação Técnica (Art. 67)
                     </span>
                     <p className="text-slate-600 text-xs leading-relaxed">
-                      Atestado(s) de Capacidade Técnica (CAT) compatíveis com o objeto e registro em conselho profissional (quando exigido).
+                      Atestado(s) de Capacidade Técnica (CAT) compatíveis com o objeto (limitados a no máx. 50% das parcelas relevantes conforme Súmula 263/TCU).
                     </p>
                   </div>
                 </div>
               )}
 
-              {abaDossie === 'roteiro' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {[
-                    { tit: '1. Diagnóstico', desc: 'Auditar cláusulas e restrições.', link: `/leitor-editais?edital=${selectedEditalId}` },
-                    { tit: '2. Documentos', desc: 'Conferir 5 certidões no cofre.', link: '/cofre' },
-                    { tit: '3. Impugnação', desc: 'Protocolar até 3 dias antes.', link: `/impugnacao?edital=${selectedEditalId}` },
-                    { tit: '4. Precificação', desc: 'Simular proteção de margem e custos.', link: `/precificacao?edital=${selectedEditalId}` },
-                    { tit: '5. Proposta', desc: 'Gerar PDF com declarações.', link: `/propostas/criar?edital=${selectedEditalId}` },
-                    { tit: '6. Envio', desc: 'Cadastrar no portal oficial.', link: ficha?.linkOficialPncp || '#' },
-                    { tit: '7. Disputa', desc: 'Monitorar lances e recursos.', link: `/disputa?edital=${selectedEditalId}` },
-                  ].map((passo, idx) => (
-                    <a
-                      key={idx}
-                      href={passo.link}
-                      className="p-3 bg-slate-50 hover:bg-blue-50/60 border border-slate-200 hover:border-brand-blue rounded-xl transition-all block group"
-                    >
-                      <span className="font-bold text-slate-900 block group-hover:text-brand-blue">{passo.tit}</span>
-                      <span className="text-[11px] text-slate-500 block mt-0.5">{passo.desc}</span>
-                    </a>
-                  ))}
+              {abaDossie === 'vicios' && (
+                <div className="space-y-3">
+                  {auditoria?.apontamentos && auditoria.apontamentos.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {auditoria.apontamentos.map((vicio, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-3.5 rounded-xl border ${
+                            vicio.gravidade === 'ALTO'
+                              ? 'bg-red-50/60 border-red-200 text-red-950'
+                              : vicio.gravidade === 'MEDIO'
+                                ? 'bg-amber-50/60 border-amber-200 text-amber-950'
+                                : 'bg-slate-50 border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-black text-xs block">
+                              {vicio.titulo}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                vicio.gravidade === 'ALTO'
+                                  ? 'bg-red-200/80 text-red-900'
+                                  : vicio.gravidade === 'MEDIO'
+                                    ? 'bg-amber-200/80 text-amber-900'
+                                    : 'bg-slate-200 text-slate-800'
+                              }`}
+                            >
+                              Gravidade {vicio.gravidade}
+                            </span>
+                          </div>
+
+                          <blockquote className="bg-white/80 p-2 rounded-lg border border-slate-200/80 font-mono text-[11px] text-slate-800 italic my-2 leading-relaxed">
+                            {vicio.trechoLiteral}
+                          </blockquote>
+
+                          <div className="text-[11px] space-y-1">
+                            <p>
+                              <strong className="text-slate-900">Fundamentação:</strong> {vicio.fundamentoLegal}
+                            </p>
+                            {vicio.acaoRecomendada && (
+                              <p>
+                                <strong className="text-slate-900">Recomendação:</strong> {vicio.acaoRecomendada}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-[#14532D]/5 border border-[#166534]/30 text-[#14532D] flex items-center gap-2">
+                      <CheckCircle2 size={18} />
+                      <span className="font-bold text-xs">
+                        Nenhuma cláusula restritiva ou vício formal típico foi encontrado nos trechos analisados deste edital.
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ÁREA DE AUDITORIA DE CLÁUSULAS (STREAMING AI + INPUT) */}
+        {/* ÁREA DE LEITURA & AUDITORIA DE CLÁUSULAS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* PAINEL ESQUERDO: INPUT */}
+          {/* PAINEL ESQUERDO: TEXTO E UPLOAD */}
           <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col justify-between">
             <form onSubmit={handleAnalisar} className="space-y-4 flex-1 flex flex-col">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <UploadCloud size={18} className="text-[#EA580C]" />
-                  Texto ou Cláusulas do Edital
+                  Texto Integral / Anexos Oficiais
                 </label>
-                <span className="text-xs font-bold text-slate-400">
-                  {editalTexto.length} caracteres
-                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    ref={fileInputRef}
+                    onChange={handleUploadPdfManual}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPdf}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <UploadCloud size={13} />
+                    {uploadingPdf ? 'Lendo PDF...' : 'Anexar PDF'}
+                  </button>
+                  <span className="text-xs font-bold text-slate-400">
+                    {editalTexto.length.toLocaleString('pt-BR')} chars
+                  </span>
+                </div>
               </div>
 
               <textarea
                 value={editalTexto}
                 onChange={(e) => setEditalTexto(e.target.value)}
-                placeholder="Cole aqui o texto completo ou trechos do edital, termo de referência ou exigências de habilitação..."
-                className="w-full flex-1 min-h-[380px] p-4 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C] text-slate-800 leading-relaxed resize-none"
+                placeholder="O texto dos arquivos oficiais do edital aparecerá aqui. Você também pode colar trechos ou anexar o PDF acima..."
+                className="w-full flex-1 min-h-[380px] p-4 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B192C] text-slate-800 leading-relaxed resize-none"
               />
 
               <div className="pt-2 flex items-center gap-3">
                 <button
                   type="submit"
                   disabled={analisando || !editalTexto.trim()}
-                  className="w-full py-3 px-4 rounded-xl bg-[#EA580C] hover:bg-orange-600 disabled:bg-slate-300 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                  className="w-full py-3 px-4 rounded-xl bg-[#0B192C] hover:bg-slate-800 disabled:bg-slate-300 text-white font-black text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
                 >
                   {analisando ? (
                     <>
                       <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Analisando Cláusulas do Edital...
+                      Auditar Cláusulas com IA Especialista...
                     </>
                   ) : (
                     <>
-                      <ShieldCheck size={18} />
-                      Auditar Cláusulas do Edital
+                      <ShieldCheck size={18} className="text-[#EA580C]" />
+                      Gerar Parecer Completo com IA
                     </>
                   )}
                 </button>
@@ -716,13 +861,13 @@ ${editalTexto.slice(0, 150000)}`;
             </form>
           </div>
 
-          {/* PAINEL DIREITO: RESULTADO STREAMING */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+          {/* PAINEL DIREITO: AUDITORIA AUTOMÁTICA & STREAMING */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${analisando ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className={`h-3 w-3 rounded-full ${analisando ? 'bg-amber-500 animate-pulse' : 'bg-[#14532D]'}`} />
                 <h3 className="font-black text-slate-900 text-sm">
-                  Relatório de Auditoria e Conformidade Legal
+                  Auditoria de Vícios & Parecer de Engenharia
                 </h3>
               </div>
 
@@ -733,12 +878,12 @@ ${editalTexto.slice(0, 150000)}`;
                     className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold flex items-center gap-1.5 transition-all"
                     title="Copiar relatório completo"
                   >
-                    {copiado ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    {copiado ? <Check size={14} className="text-[#14532D]" /> : <Copy size={14} />}
                     {copiado ? 'Copiado' : 'Copiar'}
                   </button>
                   <Link
                     to={selectedEditalId ? `/propostas/criar?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.propostas}
-                    className="px-3 py-1.5 rounded-lg bg-[#0A2540] hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                    className="px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
                   >
                     Gerar Proposta
                     <ArrowRight size={13} />
@@ -747,41 +892,105 @@ ${editalTexto.slice(0, 150000)}`;
               )}
             </div>
 
-            <div className="flex-1 mt-4 p-5 bg-slate-50 border border-slate-200/70 rounded-xl overflow-y-auto max-h-[500px]">
+            {/* AUDITORIA DETERMINÍSTICA AUTOMÁTICA (APARECE IMEDIATAMENTE AO CARREGAR) */}
+            {auditoria && (
+              <div className="space-y-3">
+                {auditoria.status === 'CONFORME' || auditoria.apontamentos.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-[#14532D]/5 border border-[#166534]/30 text-[#14532D] space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-[#14532D]" />
+                      <strong className="text-xs font-black">
+                        Edital Conforme (Lei 14.133/2021)
+                      </strong>
+                    </div>
+                    <p className="text-xs text-[#14532D]/90 leading-relaxed">
+                      Nenhuma cláusula restritiva ou vício formal típico foi encontrado nos trechos analisados deste edital.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                        <AlertTriangle size={15} className="text-amber-600" />
+                        {auditoria.totalVicios} Apontamento(s) de Restrição Detectado(s):
+                      </span>
+                      <Link
+                        to={`/impugnacao?edital=${selectedEditalId}`}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1"
+                      >
+                        <Scale size={12} />
+                        Gerar Peça de Impugnação
+                      </Link>
+                    </div>
+
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {auditoria.apontamentos.map((vicio, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                            vicio.gravidade === 'ALTO'
+                              ? 'bg-red-50/50 border-red-200 text-red-950'
+                              : 'bg-amber-50/50 border-amber-200 text-amber-950'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <strong className="text-xs font-black">
+                              {vicio.titulo}
+                            </strong>
+                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-white border border-slate-200">
+                              {vicio.gravidade}
+                            </span>
+                          </div>
+                          <blockquote className="bg-white p-2 rounded-lg border border-slate-200 font-mono text-[11px] text-slate-700 italic">
+                            {vicio.trechoLiteral}
+                          </blockquote>
+                          <p className="text-[11px] text-slate-600">
+                            <strong>Fundamentação:</strong> {vicio.fundamentoLegal}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* RELATÓRIO COMPLETO GERADO VIA IA */}
+            <div className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl overflow-y-auto max-h-[420px]">
               {resultadoStreaming ? (
                 <div className="prose prose-sm max-w-none text-slate-800 text-xs leading-relaxed whitespace-pre-wrap font-sans">
                   {resultadoStreaming}
                 </div>
               ) : (
-                <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-8 space-y-3">
-                  <div className="p-4 bg-white rounded-full border border-slate-200 shadow-sm text-slate-400">
-                    <FileText size={32} className="text-[#EA580C]" />
+                <div className="h-full min-h-[240px] flex flex-col items-center justify-center text-center p-6 space-y-2">
+                  <div className="p-3 bg-white rounded-full border border-slate-200 shadow-xs text-slate-400">
+                    <FileText size={24} className="text-[#EA580C]" />
                   </div>
-                  <h4 className="font-black text-slate-800 text-sm">
-                    Aguardando análise de cláusulas
+                  <h4 className="font-black text-slate-800 text-xs">
+                    Auditoria determinística exibida acima
                   </h4>
-                  <p className="text-xs text-slate-500 max-w-sm">
-                    Clique em &quot;Auditar Cláusulas do Edital&quot; para executar a checagem detalhada de conformidade sob a Lei 14.133/2021.
+                  <p className="text-[11px] text-slate-500 max-w-sm">
+                    Clique em &quot;Gerar Parecer Completo com IA&quot; para expandir com análise tática e estratégia operacional de lances.
                   </p>
                 </div>
               )}
             </div>
 
             {analiseConcluida && (
-              <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span className="text-emerald-700 font-bold flex items-center gap-1.5">
-                  <CheckCircle2 size={16} /> Auditoria concluída sob a Lei 14.133/2021
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-[#14532D] font-bold flex items-center gap-1.5">
+                  <CheckCircle2 size={15} /> Parecer executivo estruturado sob a Lei 14.133/2021
                 </span>
                 <div className="flex items-center gap-2">
                   <Link
                     to={selectedEditalId ? `/impugnacao?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.impugnacao}
-                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold transition-all"
+                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold transition-all text-xs"
                   >
                     Montar Peça de Impugnação
                   </Link>
                   <Link
                     to={selectedEditalId ? `/precificacao?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.precificacao_estrategica}
-                    className="px-3 py-1.5 rounded-lg bg-[#EA580C] hover:bg-orange-600 text-white font-bold transition-all"
+                    className="px-3 py-1.5 rounded-lg bg-[#EA580C] hover:bg-orange-600 text-white font-bold transition-all text-xs"
                   >
                     Simular Precificação
                   </Link>
