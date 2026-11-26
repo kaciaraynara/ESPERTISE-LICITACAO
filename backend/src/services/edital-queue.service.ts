@@ -3,8 +3,8 @@ import { obterTextoEAnexosOficiais } from './pncp-parser.service';
 import { EditalDeepAnalyzerService } from './edital-deep-analyzer.service';
 import { keywordsForCnae } from './cnae-to-keywords.service';
 
-const MAX_CONCURRENCY = 2; // Proteção rigorosa de memória (512MB RAM)
-const BATCH_LIMIT = 20;
+const MAX_CONCURRENCY = 1; // Proteção rigorosa de memória (512MB RAM)
+const BATCH_LIMIT = 3;
 
 let isQueueRunning = false;
 
@@ -13,6 +13,11 @@ let isQueueRunning = false;
  * Prioriza editais compatíveis com os segmentos (CNAEs) das empresas ativas.
  */
 export async function processarFilaEditaisAbertos(): Promise<{ processados: number; ignorados: number }> {
+  const memMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+  if (memMb > 300) {
+    console.warn(`[Fila Leitura Editais] Pausada preventivamente por uso de memoria (${memMb}MB).`);
+    return { processados: 0, ignorados: 0 };
+  }
   if (isQueueRunning) {
     return { processados: 0, ignorados: 0 };
   }
