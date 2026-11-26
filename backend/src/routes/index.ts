@@ -1253,6 +1253,7 @@ router.get('/licitacoes/sync-status', fornecedor, handle(licitacoes.statusSincro
 router.get('/licitacoes/ramos', fornecedor, handle(licitacoes.listarRamos as RequestHandler));
 router.post('/licitacoes/sugerir-perfil', fornecedor, handle(licitacoes.sugerirPerfil as RequestHandler));
 router.post('/licitacoes/estimar-perfil', fornecedor, handle(licitacoes.estimarPerfil as RequestHandler));
+router.post('/licitacoes/avaliar-viabilidade', fornecedor, handle(licitacoes.avaliarViabilidade as RequestHandler));
 
 router.get(
   '/licitacoes',

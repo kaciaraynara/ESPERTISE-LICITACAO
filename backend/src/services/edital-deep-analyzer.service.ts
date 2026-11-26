@@ -6,6 +6,7 @@ export interface VicioIrregularidadeEdital {
   gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
   arquivoOrigem: string;
   pagina: number | string;
+  clausula?: string | null;
   trechoLiteral: string;
   fundamentoLegal: string;
   explicacaoSimples: string;
@@ -183,10 +184,20 @@ export class EditalDeepAnalyzerService {
       }
     }
 
-    // 2. Modo de Execução / Entrega
+    // 2. Modo de Execução / Entrega (100% remoto somente com prova documental e sem entrega física/vistoria obrigatória)
     let execucaoOuEntrega: 'REMOTE' | 'PRESENTIAL' | 'HYBRID_OR_DELIVERY' | 'UNSPECIFIED' = 'UNSPECIFIED';
-    if (/(?:prestação\s+de\s+serviços\s+remota|atendimento\s+remoto|acesso\s+remoto|ambiente\s+em\s+nuvem|execução\s+à\s+distância)/i.test(textoCompleto)) {
+    const regexExecucaoRemota = /(?:prestação\s+de\s+serviços\s+remota|atendimento\s+remoto|acesso\s+remoto|ambiente\s+em\s+nuvem|software\s+como\s+serviço|saas|entrega\s+digital|execução\s+à\s+distância|100%\s+remoto)/i;
+    const regexEntregaFisica = /(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|almoxarifado|frete|entrega\s+no\s+local|vistoria\s+obrigatória)/i;
+    if (regexExecucaoRemota.test(textoCompleto) && !regexEntregaFisica.test(textoCompleto)) {
       execucaoOuEntrega = 'REMOTE';
+      if (!trechoComprovante) {
+        const matchExec = textoCompleto.match(regexExecucaoRemota);
+        if (matchExec && matchExec.index !== undefined) {
+          const start = Math.max(0, matchExec.index - 40);
+          const end = Math.min(textoCompleto.length, matchExec.index + 180);
+          trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
+        }
+      }
     } else if (/(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|almoxarifado|prazo\s+de\s+entrega)/i.test(textoCompleto)) {
       execucaoOuEntrega = 'HYBRID_OR_DELIVERY';
     }
@@ -311,8 +322,8 @@ export class EditalDeepAnalyzerService {
       ? (extrairSentencaPorRegex(textoCompleto, /(?:exclusiv[oa]\s+para\s+me|cota\s+reservada|microempresas\s+e\s+empresas\s+de\s+pequeno\s+porte)[^.\n]{0,160}/i, 140) || 'Prevê tratamento diferenciado ou exclusividade para ME/EPP (LC 123/2006).')
       : 'Disputa aberta para ampla concorrência (sem menção expressa de exclusividade ME/EPP nos trechos analisados).';
 
-    // Helper para extrair trecho literal de vício com identificação de arquivo e página exata
-    const extrairEvidenciaLocalizada = (regex: RegExp): { trecho: string; arquivo: string; pagina: string | number } | null => {
+    // Helper para extrair trecho literal de vício com identificação de arquivo, página e cláusula/subitem
+    const extrairEvidenciaLocalizada = (regex: RegExp): { trecho: string; arquivo: string; pagina: string | number; clausula: string | null } | null => {
       const match = textoCompleto.match(regex);
       if (!match || match.index === undefined) return null;
 
@@ -343,7 +354,13 @@ export class EditalDeepAnalyzerService {
         }
       }
 
-      return { trecho, arquivo, pagina };
+      const janelaClausula = textoCompleto.slice(Math.max(0, match.index - 350), match.index + 30);
+      const clauseMatches = [...janelaClausula.matchAll(/(?:Cláusula\s+[A-Za-zÀ-ÿ0-9ºª.-]+|Subitem\s+\d+(?:\.\d+)+|Item\s+\d+(?:\.\d+)+|\b\d{1,2}\.\d{1,2}(?:\.\d{1,2})*\b)/gi)];
+      const clausula = clauseMatches.length > 0
+        ? clauseMatches[clauseMatches.length - 1][0].trim()
+        : null;
+
+      return { trecho, arquivo, pagina, clausula };
     };
 
     // 7. Auditoria Determinística de Irregularidades com Prova Literal
@@ -359,6 +376,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 67, § 1º e § 2º da Lei 14.133/2021 e Súmula nº 263 do TCU',
           explicacaoSimples: 'A Administração não pode exigir atestado de capacidade técnica superior a 50% dos quantitativos da licitação.',
@@ -377,6 +395,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 9º, inciso I, alínea "a" da Lei 14.133/2021 e Súmula nº 272 do TCU',
           explicacaoSimples: 'É proibido restringir a disputa ou exigir sede ou filial prévia em município ou estado específico.',
@@ -396,6 +415,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 63, § 2º e § 3º da Lei Federal nº 14.133/2021',
           explicacaoSimples: 'A lei garante ao licitante o direito de substituir a vistoria presencial por declaração formal de conhecimento.',
@@ -415,6 +435,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 41, inciso I da Lei 14.133/2021 e Súmula nº 270 do TCU',
           explicacaoSimples: 'A indicação de marca sem justificativa técnica e sem a locução "ou equivalente" fere a isonomia.',
@@ -433,6 +454,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Arts. 62 a 70 da Lei 14.133/2021 e Súmula nº 192 / Acórdão 1.214/2013-Plenário do TCU',
           explicacaoSimples: 'Certificações privadas como ISO 9001 não podem ser exigidas como condição eliminatória de habilitação.',
@@ -451,6 +473,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Súmula nº 247 do TCU',
           explicacaoSimples: 'Itens divisíveis devem ser licitados separadamente para ampliar a competitividade.',
@@ -469,6 +492,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Princípio da Razoabilidade',
           explicacaoSimples: 'Prazos de 24h ou 48h sem urgência comprovada funcionam como restrição geográfica indireta.',
@@ -487,6 +511,7 @@ export class EditalDeepAnalyzerService {
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
+          clausula: ev.clausula,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 98 da Lei Federal nº 14.133/2021 (limite de 5%, ou 10% em alta complexidade)',
           explicacaoSimples: 'A garantia de execução não pode superar os limites máximos previstos no Art. 98 da Lei.',

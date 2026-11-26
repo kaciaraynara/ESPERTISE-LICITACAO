@@ -343,6 +343,8 @@ export const licitacoesApi = {
     api.post('/licitacoes/sugerir-perfil', body),
   estimarPerfil: (body: { palavras?: string[]; tiposObjeto?: string[]; incluirSemClassificacao?: boolean; ufs?: string[] }) =>
     api.post('/licitacoes/estimar-perfil', body),
+  avaliarViabilidade: (body: { companyId?: string; uf?: string; limit?: number; cnaePrincipal?: string; cnaesSecundarios?: string[]; palavrasChave?: string[]; companyUf?: string }) =>
+    api.post('/licitacoes/avaliar-viabilidade', body),
   buscarPorId: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}`),
   obterItens: (id: string) => api.get(`/licitacoes/${encodeURIComponent(id)}/itens`),
   monitorar: (id: string) => api.post('/licitacoes/monitor', { id }),

@@ -91,6 +91,7 @@ export interface EditalItem {
   fonte?: string;
   source?: string;
   tipoObjeto?: string | null;
+  metadata?: Record<string, any> | null;
   viabilidade?: number;
   scoreViabilidade?: number;
   matchScore?: number;
@@ -269,6 +270,7 @@ export default function LicitacoesPage({
     return 'TODAS';
   });
   const [tipoObjetoAtivo, setTipoObjetoAtivo] = useState<'TODAS' | ObjectTypeOption>('TODAS');
+  const [modoRemoto, setModoRemoto] = useState<'TODOS' | 'DISPUTA_ONLINE' | 'REMOTO_100'>('TODOS');
   const [incluirSemClassificacao, setIncluirSemClassificacao] = useState(true);
   const [dataPublicacao, setDataPublicacao] = useState('');
   const [ordenacao, setOrdenacao] = useState<'recentes' | 'encerramento' | 'maior_valor' | 'menor_valor' | 'relevancia'>('recentes');
@@ -467,6 +469,7 @@ export default function LicitacoesPage({
       if (modalidadeAtiva === 'SRP') params.srp = true;
       if (modalidadeAtiva === 'BAIXA_PROCURA') params.baixaProcura = true;
       if (tipoObjetoAtivo !== 'TODAS') params.tipoObjeto = tipoObjetoAtivo;
+      if (modoRemoto !== 'TODOS') params.modoRemoto = modoRemoto;
       if (dataPublicacao) params.dataPublicacao = dataPublicacao;
 
       const resposta = await licitacoesApi.listar(params, { signal: controller.signal });
@@ -524,6 +527,7 @@ export default function LicitacoesPage({
     fonteAtiva,
     modalidadeAtiva,
     tipoObjetoAtivo,
+    modoRemoto,
     dataPublicacao,
     exibirAviso,
   ]);
@@ -608,6 +612,7 @@ export default function LicitacoesPage({
     setApenasAbertos(true);
     setModalidadeAtiva('TODAS');
     setTipoObjetoAtivo('TODAS');
+    setModoRemoto('TODOS');
     setIncluirSemClassificacao(true);
     setDataPublicacao('');
     setOrdenacao('recentes');
@@ -738,6 +743,7 @@ export default function LicitacoesPage({
       !apenasAbertos ||
       modalidadeAtiva !== 'TODAS' ||
       tipoObjetoAtivo !== 'TODAS' ||
+      modoRemoto !== 'TODOS' ||
       dataPublicacao ||
       perfilAtivo,
   );
@@ -942,6 +948,20 @@ export default function LicitacoesPage({
               <option value="PNCP">PNCP Oficial</option>
               <option value="ComprasGov">Compras.gov.br</option>
               <option value="querido_diario">Diários Oficiais (Municípios)</option>
+            </select>
+
+            <select
+              value={modoRemoto}
+              onChange={(e) => {
+                setModoRemoto(e.target.value as 'TODOS' | 'DISPUTA_ONLINE' | 'REMOTO_100');
+                setPagina(1);
+              }}
+              aria-label="Formato de disputa e entrega"
+              className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-[#081C3A] outline-none focus:border-[#0070C0]"
+            >
+              <option value="TODOS">Todos os formatos</option>
+              <option value="DISPUTA_ONLINE">Disputa Online (Sessão Eletrônica)</option>
+              <option value="REMOTO_100">100% Remoto (Disputa e Entrega sem Presença Física)</option>
             </select>
 
             <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 cursor-pointer hover:border-[#0070C0]">
@@ -1392,6 +1412,21 @@ export default function LicitacoesPage({
                             {tipoBadge}
                           </span>
                         )}
+                        {edital.metadata?.executionMode === 'REMOTE' ? (
+                          <span
+                            title={edital.metadata?.executionEvidence || 'Execução remota comprovada no texto do edital'}
+                            className="rounded-full bg-blue-50 px-2 py-0.5 font-bold text-[#0070C0]"
+                          >
+                            100% Remoto Comprovado
+                          </span>
+                        ) : edital.metadata?.isRemoteDispute === true ? (
+                          <span
+                            title={edital.metadata?.executionEvidence || 'Disputa eletrônica comprovada no texto do edital'}
+                            className="rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-700"
+                          >
+                            Disputa Online
+                          </span>
+                        ) : null}
                         <span className="font-semibold text-slate-600">
                           {municipio ? `${municipio} - ${uf}` : uf}
                         </span>

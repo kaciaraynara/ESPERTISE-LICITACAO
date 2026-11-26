@@ -116,10 +116,9 @@ export class NoticesController {
           status: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
           mensagem: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0
             ? `Detectados ${auditoriaSpecs.pontosDeAtencaoERiscos.length} ponto(s) de atenção.`
-            : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
             : temPdfReal
-          ? 'Nenhuma cláusula restritiva encontrada nos arquivos analisados.'
-            : 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.',
+              ? 'Nenhuma cláusula restritiva encontrada nos arquivos analisados.'
+              : 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.',
           totalVicios: auditoriaSpecs.pontosDeAtencaoERiscos?.length || 0,
           apontamentos: auditoriaSpecs.pontosDeAtencaoERiscos || [],
         } : null),

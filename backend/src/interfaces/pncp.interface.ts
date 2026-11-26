@@ -26,6 +26,7 @@ export interface FiltrosBusca {
   baixaProcura?: boolean | string;
   tipoObjeto?: string;
   incluirSemClassificacao?: boolean | string;
+  modoRemoto?: string;
   ordenarPor?: 'recentes' | 'encerramento' | 'maior_valor' | 'menor_valor' | 'relevancia';
   endpoint?: 'publicacao' | 'proposta' | 'atualizacao';
   tempoReal?: boolean | string;

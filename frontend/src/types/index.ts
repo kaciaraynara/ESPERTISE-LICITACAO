@@ -305,6 +305,7 @@ export interface RadarLicitacoesFiltros {
   apenasAbertos?: boolean;
   baixaProcura?: boolean;
   srp?: boolean;
+  modoRemoto?: 'TODOS' | 'DISPUTA_ONLINE' | 'REMOTO_100' | string;
   palavraChave?: string;
   palavras?: string | string[];
   termo?: string;

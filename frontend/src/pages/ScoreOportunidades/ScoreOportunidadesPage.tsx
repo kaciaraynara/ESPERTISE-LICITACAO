@@ -27,7 +27,7 @@ import {
   Cell,
 } from 'recharts';
 import toast from 'react-hot-toast';
-import api, { certidoesApi, documentosApi, licitacoesApi, noticesApi } from '@/services/api';
+import api, { licitacoesApi, noticesApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import { BrazilMapChart } from '@/components/BrazilMapChart';
 import { exportarDossieEditalPdf, DadosDossieEditalPdf } from '@/utils/dossieEditalPdfGenerator';
@@ -194,11 +194,6 @@ function extrairPerfisCnae(company: any): {
   };
 }
 
-function contemPalavraInteira(textoNorm: string, termo: string): boolean {
-  const escaped = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(textoNorm);
-}
-
 function formatarMoeda(valor: number | null): string {
   if (valor == null || !Number.isFinite(valor) || valor <= 0) return 'A definir no edital';
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -230,7 +225,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
-  const [editaisBrutos, setEditaisBrutos] = useState<EditalBruto[]>([]);
+  const [avaliacoesBackend, setAvaliacoesBackend] = useState<EditalViabilidade[]>([]);
   const [abaAtiva, setAbaAtiva] = useState<'TODOS' | NivelViabilidade>('TODOS');
   const [estadoFiltro, setEstadoFiltro] = useState<string>('TODOS');
   const [filtroApenasRemoto, setFiltroApenasRemoto] = useState(false);
@@ -252,64 +247,70 @@ export const ScoreOportunidadesPage: React.FC = () => {
     setErro('');
     try {
       const cnaePrincipal = String(selectedCompany?.cnaePrincipal || selectedCompany?.cnae_principal || '').trim();
+      const secundarios: string[] = Array.isArray(selectedCompany?.cnaesSecundarios)
+        ? selectedCompany.cnaesSecundarios.map(String)
+        : Array.isArray((selectedCompany as any)?.cnaes_secundarios)
+          ? (selectedCompany as any).cnaes_secundarios.map(String)
+          : [];
       const companyId = selectedCompany?.id && selectedCompany.id !== 'default' ? selectedCompany.id : undefined;
-
-      const consultasEditais: Promise<any>[] = [];
       const ufParam = estadoFiltro !== 'TODOS' ? estadoFiltro : undefined;
 
-      if (perfilEmpresa.termosBusca.length > 0) {
-        for (const termo of perfilEmpresa.termosBusca.slice(0, 8)) {
-          consultasEditais.push(
-            licitacoesApi.listar({
-              apenasAbertos: true,
-              q: termo,
-              ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
-              ...(ufParam ? { uf: ufParam } : {}),
-              tamanhoPagina: 80,
-            }).catch(() => null)
-          );
-        }
-      } else {
-        consultasEditais.push(
-          licitacoesApi.listar({
-            apenasAbertos: true,
-            ...(cnaePrincipal ? { cnae: cnaePrincipal } : {}),
-            ...(ufParam ? { uf: ufParam } : {}),
-            tamanhoPagina: 120,
-          }).catch(() => null)
-        );
-      }
+      const resp = await licitacoesApi.avaliarViabilidade({
+        companyId,
+        uf: ufParam,
+        limit: 120,
+        ...(cnaePrincipal ? { cnaePrincipal } : {}),
+        ...(secundarios.length > 0 ? { cnaesSecundarios: secundarios } : {}),
+        ...(perfilEmpresa.termosBusca.length > 0 ? { palavrasChave: perfilEmpresa.termosBusca } : {}),
+        ...(ufEmpresa ? { companyUf: ufEmpresa } : {}),
+      });
 
-      const [respostasEditais, respCertidoes, respDocs] = await Promise.all([
-        Promise.all(consultasEditais),
-        certidoesApi.listar(companyId ? { empresa_id: companyId } : undefined).catch(() => null),
-        documentosApi.listar(companyId ? { empresa_id: companyId } : undefined).catch(() => null),
-      ]);
+      const agora = Date.now();
+      const rawList: any[] = Array.isArray(resp.data?.data) ? resp.data.data : [];
+      const mapped: EditalViabilidade[] = rawList.map((item) => {
+        const ed = item.edital || {};
+        const objetoTexto = String(ed.objetoCompra || ed.objeto || 'Objeto não informado').trim();
+        const orgaoTexto = String(ed.nomeOrgao || ed.orgao || 'Órgão Público').trim();
+        const valorRaw = ed.valorTotalEstimado ?? ed.valorEstimado ?? null;
+        const valor = valorRaw != null && Number(valorRaw) > 0 ? Number(valorRaw) : null;
+        const dataLimite = ed.dataEncerramentoProposta || ed.dataAberturaProposta || null;
 
-      const mapa = new Map<string, EditalBruto>();
-      for (const resp of respostasEditais) {
-        const lista = resp?.data?.data || resp?.data?.items || (Array.isArray(resp?.data) ? resp.data : []);
-        for (const item of lista) {
-          const chave = String(item.numeroControlePNCP || item.id || '');
-          if (chave && !mapa.has(chave)) {
-            mapa.set(chave, item);
+        let diasRestantes: number | null = null;
+        if (dataLimite) {
+          const dt = new Date(dataLimite).getTime();
+          if (!Number.isNaN(dt)) {
+            diasRestantes = Math.ceil((dt - agora) / (1000 * 60 * 60 * 24));
           }
         }
-      }
-      setEditaisBrutos(Array.from(mapa.values()));
 
-      const certs: any[] = respCertidoes?.data?.data || (Array.isArray(respCertidoes?.data) ? respCertidoes.data : []);
-      const docs: any[] = respDocs?.data?.data || (Array.isArray(respDocs?.data) ? respDocs.data : []);
+        const linkPortal = ed.urlOficialPncp || ed.urlOficial || ed.link || 'https://pncp.gov.br/app/editais';
 
-      const certidoesValidas = certs.filter((c) => /regular|valida|válida|emitida|ok/i.test(String(c.status || ''))).length;
-      const certidoesPendentes = certs.filter((c) => /vencid|pendent|irregular/i.test(String(c.status || ''))).length;
-
-      setDocsStatus({
-        certidoesValidas,
-        certidoesPendentes,
-        documentosCofre: docs.length,
-        carregado: true,
+        return {
+          edital: ed,
+          nivel: (item.nivel as NivelViabilidade) || 'FORA',
+          pontuacao: Number(item.pontuacao ?? 0),
+          objetoTexto,
+          orgaoTexto,
+          valor,
+          dataLimite,
+          diasRestantes,
+          motivosPositivos: Array.isArray(item.motivosPositivos) ? item.motivosPositivos : [],
+          alertas: Array.isArray(item.alertas) ? item.alertas : [],
+          linkPortal,
+          statusLeitura: item.statusLeitura === 'COMPLETO' ? 'COMPLETO' : 'PENDENTE',
+        };
       });
+
+      setAvaliacoesBackend(mapped);
+
+      if (resp.data?.docsStatus) {
+        setDocsStatus({
+          certidoesValidas: Number(resp.data.docsStatus.certidoesValidas || 0),
+          certidoesPendentes: Number(resp.data.docsStatus.certidoesPendentes || 0),
+          documentosCofre: Number(resp.data.docsStatus.documentosCofre || 0),
+          carregado: Boolean(resp.data.docsStatus.carregado),
+        });
+      }
     } catch {
       setErro('Não foi possível concluir a análise de viabilidade agora. Tente atualizar novamente.');
     } finally {
@@ -321,121 +322,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
     void carregarAnalise();
   }, [carregarAnalise]);
 
-  const avaliacoes = useMemo<EditalViabilidade[]>(() => {
-    const agora = Date.now();
-    const temPendenciaDoc = docsStatus.certidoesPendentes > 0 || (docsStatus.carregado && docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0);
-
-    return editaisBrutos
-      .map((ed): EditalViabilidade => {
-        const objetoTexto = String(ed.objetoCompra || ed.objeto || 'Objeto não informado').trim();
-        const objetoNorm = normalizar(objetoTexto);
-        const orgaoTexto = String(ed.nomeOrgao || ed.orgao || 'Órgão Público').trim();
-        const valorRaw = ed.valorTotalEstimado ?? ed.valorEstimado ?? null;
-        const valor = valorRaw != null && Number(valorRaw) > 0 ? Number(valorRaw) : null;
-        const dataLimite = ed.dataEncerramentoProposta || ed.dataEncerramento || ed.dataAberturaProposta || null;
-
-        let diasRestantes: number | null = null;
-        if (dataLimite) {
-          const dt = new Date(dataLimite).getTime();
-          if (!isNaN(dt)) {
-            diasRestantes = Math.ceil((dt - agora) / (1000 * 60 * 60 * 24));
-          }
-        }
-
-        const caiuEmPegadinha = perfilEmpresa.negativos.some((neg) => objetoNorm.includes(neg));
-        const termosEncontrados = caiuEmPegadinha
-          ? []
-          : perfilEmpresa.termosMatch.filter((t) => contemPalavraInteira(objetoNorm, t));
-        const temAderenciaCnae = termosEncontrados.length > 0;
-
-        let pontuacao = 0;
-        const motivosPositivos: string[] = [];
-        const alertas: string[] = [];
-
-        if (temAderenciaCnae) {
-          pontuacao += 45;
-          motivosPositivos.push(`Compatível com sua atividade (${termosEncontrados.slice(0, 2).join(', ')})`);
-        } else {
-          alertas.push(caiuEmPegadinha ? 'Objeto restrito por termo negativo do CNAE' : 'Objeto fora do escopo cadastrado da empresa');
-        }
-
-        if (!docsStatus.carregado) {
-          pontuacao += 10;
-        } else if (docsStatus.certidoesPendentes > 0) {
-          alertas.push(`${docsStatus.certidoesPendentes} certidão(ões) pendente(s)`);
-        } else if (docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0) {
-          pontuacao += 5;
-          alertas.push('Envie documentos no Cofre para habilitar com 100% de segurança');
-        } else {
-          pontuacao += 20;
-          motivosPositivos.push('Certidões e habilitação em conformidade');
-        }
-
-        if (diasRestantes !== null) {
-          if (diasRestantes >= 5) {
-            pontuacao += 15;
-            motivosPositivos.push(`Prazo estratégico (${diasRestantes} dias para preparar proposta)`);
-          } else if (diasRestantes >= 2) {
-            pontuacao += 8;
-            alertas.push(`Prazo exíguo (encerra em ${diasRestantes} dias)`);
-          } else if (diasRestantes >= 0) {
-            alertas.push('Sessão iminente — priorizar montagem');
-          } else {
-            pontuacao -= 30;
-            alertas.push('Prazo encerrado');
-          }
-        }
-
-        const ufEdital = String(ed.uf || '').trim().toUpperCase();
-        if (ufEmpresa && ufEdital === ufEmpresa) {
-          pontuacao += 12;
-          motivosPositivos.push(`Sede no mesmo Estado (${ufEmpresa}) — logística otimizada`);
-        } else if (ufEdital) {
-          motivosPositivos.push(`Atuação nacional (${ufEdital})`);
-        }
-
-        if (valor !== null && valor <= 80000) {
-          pontuacao += 8;
-          motivosPositivos.push('Cota exclusiva ME/EPP (até R$ 80 mil)');
-        }
-
-        let nivel: NivelViabilidade = 'FORA';
-        if (temAderenciaCnae && !caiuEmPegadinha && (diasRestantes === null || diasRestantes >= 0)) {
-          if (!temPendenciaDoc && (diasRestantes === null || diasRestantes >= 3) && pontuacao >= 65) {
-            nivel = 'PRONTO';
-          } else {
-            nivel = 'ATENCAO';
-          }
-        }
-
-        const linkPortal =
-          ed.urlOficialPncp ||
-          ed.urlOficial ||
-          ed.link ||
-          'https://pncp.gov.br/app/editais';
-
-        const statusLeitura =
-          ed.metadata?.deepReadStatus === 'DONE' || ed.metadata?.deepReadStatus === 'COMPLETO' || ed.metadata?.extractedSpecsJson
-            ? 'COMPLETO'
-            : 'PENDENTE';
-
-        return {
-          edital: ed,
-          nivel,
-          pontuacao: Math.max(0, Math.min(100, pontuacao)),
-          objetoTexto,
-          orgaoTexto,
-          valor,
-          dataLimite,
-          diasRestantes,
-          motivosPositivos,
-          alertas,
-          linkPortal,
-          statusLeitura,
-        };
-      })
-      .sort((a, b) => b.pontuacao - a.pontuacao);
-  }, [editaisBrutos, perfilEmpresa, docsStatus, ufEmpresa]);
+  const avaliacoes = avaliacoesBackend;
 
   const prontos = avaliacoes.filter((a) => a.nivel === 'PRONTO');
   const atencao = avaliacoes.filter((a) => a.nivel === 'ATENCAO');
@@ -499,7 +386,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
           ? atencao
           : abaAtiva === 'FORA'
             ? fora
-            : [...prontos, ...atencao, ...fora];
+            : [...prontos, ...atencao];
 
     if (filtroApenasRemoto) {
       base = base.filter((it) => {
@@ -535,21 +422,25 @@ export const ScoreOportunidadesPage: React.FC = () => {
         specs = data.specs || data.extractedSpecsJson || null;
 
         // Atualiza o edital na lista local
-        setEditaisBrutos((prev) =>
-          prev.map((e) => {
-            const match = String(e.numeroControlePNCP || e.id || '') === editalId;
+        setAvaliacoesBackend((prev) =>
+          prev.map((it) => {
+            const match = String(it.edital.numeroControlePNCP || it.edital.id || '') === editalId;
             if (match) {
               return {
-                ...e,
-                metadata: {
-                  ...(e.metadata || {}),
-                  deepReadStatus: 'COMPLETO',
-                  extractedSpecsJson: specs,
+                ...it,
+                statusLeitura: 'COMPLETO',
+                edital: {
+                  ...it.edital,
+                  metadata: {
+                    ...(it.edital.metadata || {}),
+                    deepReadStatus: 'COMPLETO',
+                    extractedSpecsJson: specs,
+                  },
                 },
               };
             }
-            return e;
-          })
+            return it;
+          }),
         );
         toast.success('Leitura profunda dos arquivos concluída com sucesso!', { id: toastId });
       } catch (err: any) {
@@ -880,7 +771,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
         >
-          Todas as Oportunidades ({avaliacoes.length})
+          Aderentes ao CNAE ({prontos.length + atencao.length})
         </button>
         <button
           type="button"

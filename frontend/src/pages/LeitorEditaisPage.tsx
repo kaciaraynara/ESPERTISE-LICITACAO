@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   UploadCloud,
-  CheckCircle2,
   Scale,
   Package,
   Calculator,
@@ -11,7 +10,6 @@ import {
   ExternalLink,
   RefreshCw,
   Download,
-  Gavel,
   Calendar,
   Truck,
   CreditCard,
@@ -63,7 +61,6 @@ type SecaoId =
   | 'entrega'
   | 'habilitacao'
   | 'contrato'
-  | 'vicios'
   | 'arquivos';
 
 function formatBRL(valor?: number | null): string {
@@ -337,11 +334,6 @@ export const LeitorEditaisPage: React.FC = () => {
     { id: 'habilitacao', label: 'Habilitação Exigida', icon: <FileCheck className="w-4 h-4 shrink-0" /> },
     { id: 'contrato', label: 'Pagamento e Contrato', icon: <CreditCard className="w-4 h-4 shrink-0" /> },
     {
-      id: 'vicios',
-      label: auditoria?.totalVicios ? `Riscos e Impugnação (${auditoria.totalVicios})` : 'Riscos e Impugnação',
-      icon: <Scale className="w-4 h-4 shrink-0" />,
-    },
-    {
       id: 'arquivos',
       label: arquivosOficiais.length ? `Anexos Oficiais (${arquivosOficiais.length})` : 'Anexos Oficiais',
       icon: <Download className="w-4 h-4 shrink-0" />,
@@ -440,6 +432,22 @@ export const LeitorEditaisPage: React.FC = () => {
                 ? 'O documento publicado pelo órgão está em formato de imagem sem texto selecionável. Use o botão "Anexar PDF" acima caso possua a versão pesquisável.'
                 : 'O portal oficial publicou apenas os dados resumidos deste certame, sem arquivo PDF legível. Use o botão "Anexar PDF" acima para leitura completa e auditoria de cláusulas.'}
             </span>
+          </div>
+        )}
+
+        {/* AVISO DISCRETO DE PONTOS DE ATENÇÃO -> RADAR DE NULIDADES */}
+        {selectedEditalId && !carregandoEdital && auditoria && auditoria.totalVicios > 0 && (
+          <div className="px-4 py-2.5 rounded-lg bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-3">
+            <span className="font-semibold flex items-center gap-2">
+              <Scale className="w-4 h-4 text-[#EA580C] shrink-0" />
+              {auditoria.totalVicios} ponto(s) de atenção encontrados neste edital.
+            </span>
+            <Link
+              to={`/fornecedor/radar-nulidades?edital=${encodeURIComponent(selectedEditalId)}`}
+              className="px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white font-bold text-xs transition shrink-0"
+            >
+              Ver Cláusulas no Radar de Nulidades
+            </Link>
           </div>
         )}
 
@@ -900,90 +908,7 @@ export const LeitorEditaisPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* 7. RISCOS E IMPUGNAÇÃO */}
-                {abaDossie === 'vicios' && (
-                  <div className="space-y-4 text-xs">
-                    {auditoria?.apontamentos && auditoria.apontamentos.length > 0 ? (
-                      <div className="divide-y divide-slate-200">
-                        {auditoria.apontamentos.map((vicio, idx) => (
-                          <div key={idx} className="py-4 first:pt-0 last:pb-0 space-y-2.5">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                              <div>
-                                <h3 className="font-bold text-sm text-[#0B192C]">{vicio.titulo}</h3>
-                                <span className="text-[11px] text-slate-500 font-semibold block">
-                                  {vicio.arquivoOrigem || 'Edital Oficial'} · Página {vicio.pagina || 'conforme documento'}
-                                </span>
-                              </div>
-                              <span
-                                className={`self-start sm:self-auto px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${vicio.gravidade === 'ALTO'
-                                  ? 'bg-red-100 text-red-800'
-                                  : vicio.gravidade === 'MEDIO'
-                                    ? 'bg-slate-200 text-slate-800'
-                                    : 'bg-slate-100 text-slate-700'
-                                  }`}
-                              >
-                                Gravidade {vicio.gravidade}
-                              </span>
-                            </div>
-
-                            <blockquote className="bg-slate-50 p-3 rounded-lg border border-slate-200 font-mono text-[11px] text-slate-800 leading-relaxed">
-                              "{vicio.trechoLiteral}"
-                            </blockquote>
-
-                            <div className="space-y-1 text-slate-700">
-                              <p>
-                                <strong>Por que viola a Lei:</strong>{' '}
-                                {vicio.explicacaoSimples || 'A exigência restringe o caráter competitivo assegurado pela Lei de Licitações.'}
-                              </p>
-                              <p>
-                                <strong>Fundamentação:</strong> {vicio.fundamentoLegal}
-                              </p>
-                            </div>
-
-                            <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[11px] text-slate-500">
-                                {vicio.acaoRecomendada || 'Avaliar protocolo de impugnação ao edital.'}
-                              </span>
-                              <Link
-                                to={`/impugnacao?edital=${encodeURIComponent(selectedEditalId)}&vicio=${encodeURIComponent(vicio.titulo)}&trecho=${encodeURIComponent(vicio.trechoLiteral)}&fundamento=${encodeURIComponent(vicio.fundamentoLegal)}&arquivo=${encodeURIComponent(vicio.arquivoOrigem || '')}&pagina=${encodeURIComponent(String(vicio.pagina || ''))}`}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EA580C] hover:bg-orange-600 text-white font-bold text-xs transition"
-                              >
-                                <Gavel className="w-3.5 h-3.5" />
-                                <span>Gerar Impugnação deste Item</span>
-                              </Link>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : !temPdfReal ? (
-                      <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                          <p className="font-bold text-[#0B192C]">
-                            Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados.
-                          </p>
-                          <p className="text-slate-600">
-                            Anexe o PDF do edital pelo botão &quot;Anexar PDF&quot; no topo para checar exigências restritivas e riscos antes de disputar.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-lg bg-[#14532D]/5 border border-[#14532D]/20 flex items-start gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-[#14532D] shrink-0 mt-0.5" />
-                        <div className="space-y-0.5">
-                          <p className="font-bold text-[#14532D]">
-                            Nenhuma cláusula restritiva encontrada nos arquivos analisados.
-                          </p>
-                          <p className="text-slate-600">
-                            O instrumento convocatório não apresentou exigências restritivas nos trechos auditados à luz da Lei nº 14.133/2021.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 8. ANEXOS OFICIAIS */}
+                {/* 7. ANEXOS OFICIAIS */}
                 {abaDossie === 'arquivos' && (
                   <div className="space-y-5 text-xs">
                     <div>

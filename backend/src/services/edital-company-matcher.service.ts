@@ -1,6 +1,6 @@
 import { prisma } from '../database/prisma';
-import { keywordsForCnae } from './cnae-to-keywords.service';
 import { ExtractedSpecsFicha } from './edital-deep-analyzer.service';
+import { evaluateCnaeCompatibility, extractNoticeSearchableText } from './cnae-compatibility.service';
 
 export interface ItemChecklistEmpresa {
   requisito: string;
@@ -41,6 +41,7 @@ export async function cruzarEditalComEmpresa(
       porte: true,
       cnaePrincipal: true,
       palavrasChave: true,
+      nicho: true,
       uf: true,
     },
   });
@@ -58,21 +59,15 @@ export async function cruzarEditalComEmpresa(
     },
   });
 
-  // 1. Compatibilidade de CNAE
-  const keywords = new Set<string>();
-  if (company.cnaePrincipal) {
-    keywordsForCnae(company.cnaePrincipal).forEach((k) => keywords.add(k.toLowerCase()));
-  }
-  if (Array.isArray(company.palavrasChave)) {
-    company.palavrasChave.forEach((p: string) => keywords.add(String(p).toLowerCase()));
-  }
-
-  const objLower = String(notice?.object || '').toLowerCase();
-  const termosValidos = Array.from(keywords).filter((k) => k.length >= 4);
-  const cnaeCompativel = termosValidos.length === 0 ? true : termosValidos.some((k) => objLower.includes(k));
-  const mensagemCnae = cnaeCompativel
-    ? `Compatível com a atividade econômica (${company.cnaePrincipal || 'segmento cadastrado'}) da empresa.`
-    : `Atenção: o objeto do edital não corresponde diretamente às palavras-chave do CNAE principal (${company.cnaePrincipal || 'não informado'}). Verifique se sua empresa atua neste ramo.`;
+  // 1. Compatibilidade rigorosa de CNAE (Principal + Secundários + Objeto + Itens do Edital)
+  const searchableTextNorm = extractNoticeSearchableText({
+    object: notice?.object,
+    items: notice?.items,
+    extractedItems: ficha?.secoes?.objetoContratacao?.itensDetalhados || ficha?.itensDetalhados,
+  });
+  const cnaeResult = evaluateCnaeCompatibility(company, searchableTextNorm);
+  const cnaeCompativel = cnaeResult.cnaeCompativel;
+  const mensagemCnae = cnaeResult.mensagemCnae;
 
   // 2. Porte e ME/EPP
   const porteStr = String(company.porte || 'ME/EPP').toUpperCase();

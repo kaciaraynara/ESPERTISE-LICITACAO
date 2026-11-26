@@ -2,6 +2,11 @@ import { enviarAlertaEditaisCnae } from '../services/resend.service';
 import { queryPcaFromDb } from '../services/pca-sync.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
 import { scaleCacheGet, scaleCacheSet, scaleSingleflight } from '../services/scale-cache.service';
+import { prisma } from '../database/prisma';
+import {
+  buildCompanyCnaeTerms,
+  evaluateNoticeViability,
+} from '../services/cnae-compatibility.service';
 const __radarFastCache = new Map<string, { ts: number; body: any }>();
 import { Response } from 'express';
 
@@ -114,6 +119,7 @@ function buildFiltros(source: Record<string, unknown>): FiltrosBusca {
       source.incluirSemClassificacao === undefined
         ? undefined
         : (source.incluirSemClassificacao === true || source.incluirSemClassificacao === 'true'),
+    modoRemoto: stringParam(source.modoRemoto) ?? stringParam(source.remoteMode),
     ordenarPor: (stringParam(source.ordenarPor) ?? stringParam(source.sort)) as FiltrosBusca['ordenarPor'],
     fonte: stringParam(source.fonte),
     apenasAbertos:
@@ -350,6 +356,187 @@ export class LicitacoesController {
         ufs: Array.isArray(body.ufs) ? body.ufs.map(String) : undefined,
       });
       return res.json({ success: true, data });
+    } catch (error) {
+      return sendPncpError(res, error);
+    }
+  };
+
+  public avaliarViabilidade = async (
+    req: AuthRequest,
+    res: Response,
+  ): Promise<Response> => {
+    try {
+      const body = (req.body as Record<string, unknown>) || {};
+      const requestedCompanyId = typeof body.companyId === 'string' && body.companyId.trim()
+        ? body.companyId.trim()
+        : (req.user?.companyId || null);
+      const ufParam = typeof body.uf === 'string' && body.uf.trim() && body.uf !== 'TODOS'
+        ? body.uf.trim().toUpperCase()
+        : null;
+      const limit = Math.min(200, Math.max(20, Number(body.limit) || 120));
+
+      const company = await prisma.company.findFirst({
+        where: requestedCompanyId
+          ? { id: requestedCompanyId }
+          : req.user?.id
+            ? { userId: req.user.id }
+            : undefined,
+        select: {
+          id: true,
+          razaoSocial: true,
+          porte: true,
+          uf: true,
+          cnaePrincipal: true,
+          palavrasChave: true,
+          nicho: true,
+        },
+      });
+
+      const companyProfile = {
+        cnaePrincipal: company?.cnaePrincipal || (typeof body.cnaePrincipal === 'string' ? body.cnaePrincipal : null),
+        cnaesSecundarios: Array.isArray(body.cnaesSecundarios)
+          ? body.cnaesSecundarios.map(String)
+          : [],
+        palavrasChave: Array.isArray(company?.palavrasChave)
+          ? company.palavrasChave
+          : Array.isArray(body.palavrasChave)
+            ? body.palavrasChave.map(String)
+            : [],
+        nicho: Array.isArray(company?.nicho) ? company.nicho : [],
+        uf: company?.uf || (typeof body.companyUf === 'string' ? body.companyUf : null),
+        porte: company?.porte || 'ME/EPP',
+      };
+
+      let docsStats = {
+        carregado: false,
+        documentosCofre: 0,
+        certidoesValidas: 0,
+        certidoesPendentes: 0,
+      };
+
+      if (company?.id) {
+        const docs = await prisma.document.findMany({
+          where: { companyId: company.id },
+          select: { status: true, validade: true, tipo: true },
+        });
+        const now = new Date();
+        const validos = docs.filter((d) => d.status === 'valido' && (!d.validade || new Date(d.validade) >= now));
+        const pendentes = docs.filter((d) => d.status !== 'valido' || (d.validade && new Date(d.validade) < now));
+        docsStats = {
+          carregado: true,
+          documentosCofre: docs.length,
+          certidoesValidas: validos.length,
+          certidoesPendentes: pendentes.length,
+        };
+      }
+
+      const now = new Date();
+      const termsInfo = buildCompanyCnaeTerms(companyProfile);
+      const searchTerms = termsInfo.positiveTerms.slice(0, 8);
+
+      const baseWhere: any = {
+        closingAt: { gt: now },
+        ...(ufParam ? { uf: ufParam } : {}),
+      };
+
+      const matchedNotices = searchTerms.length > 0
+        ? await prisma.procurementNotice.findMany({
+            where: {
+              ...baseWhere,
+              AND: [
+                {
+                  OR: searchTerms.map((t) => ({
+                    object: { contains: t, mode: 'insensitive' as const },
+                  })),
+                },
+              ],
+            },
+            include: { items: { select: { description: true }, take: 25 } },
+            orderBy: { publishedAt: 'desc' },
+            take: limit,
+          })
+        : [];
+
+      const seenIds = new Set(matchedNotices.map((n) => n.id));
+      const remaining = Math.max(0, limit - matchedNotices.length);
+      const fallbackNotices = remaining > 0
+        ? await prisma.procurementNotice.findMany({
+            where: baseWhere,
+            include: { items: { select: { description: true }, take: 25 } },
+            orderBy: { publishedAt: 'desc' },
+            take: Math.min(40, remaining),
+          })
+        : [];
+
+      const allNotices = [
+        ...matchedNotices,
+        ...fallbackNotices.filter((n) => !seenIds.has(n.id)),
+      ];
+
+      const avaliacoes = allNotices
+        .map((n) => {
+          const meta = (typeof n.metadata === 'object' && n.metadata ? n.metadata : {}) as Record<string, any>;
+          const extractedSpecs = meta.extractedSpecsJson || null;
+          const extractedItems = Array.isArray(extractedSpecs?.secoes?.objetoContratacao?.itensDetalhados)
+            ? extractedSpecs.secoes.objetoContratacao.itensDetalhados
+            : Array.isArray(extractedSpecs?.itensDetalhados)
+              ? extractedSpecs.itensDetalhados
+              : [];
+
+          const result = evaluateNoticeViability(
+            {
+              object: n.object,
+              uf: n.uf,
+              estimatedValue: n.estimatedValue ? Number(n.estimatedValue) : null,
+              closingAt: n.closingAt,
+              openingAt: n.openingAt,
+              items: n.items,
+              extractedItems,
+            },
+            companyProfile,
+            docsStats,
+          );
+
+          return {
+            edital: {
+              id: n.id,
+              numeroControlePNCP: n.numeroControlePncp || n.externalId || n.id,
+              objetoCompra: n.object,
+              objeto: n.object,
+              nomeOrgao: n.buyerName,
+              orgao: n.buyerName,
+              uf: n.uf,
+              municipio: n.municipality,
+              modalidade: n.modality,
+              valorTotalEstimado: n.estimatedValue ? Number(n.estimatedValue) : null,
+              valorEstimado: n.estimatedValue ? Number(n.estimatedValue) : null,
+              dataEncerramentoProposta: n.closingAt ? n.closingAt.toISOString() : null,
+              dataAberturaProposta: n.openingAt ? n.openingAt.toISOString() : null,
+              urlOficialPncp: n.url,
+              metadata: n.metadata,
+            },
+            ...result,
+            statusLeitura: meta.deepReadStatus === 'DONE' || meta.deepReadStatus === 'COMPLETO' || meta.extractedSpecsJson
+              ? 'COMPLETO'
+              : 'PENDENTE',
+          };
+        })
+        .sort((a, b) => b.pontuacao - a.pontuacao);
+
+      return res.json({
+        success: true,
+        data: avaliacoes,
+        docsStatus: docsStats,
+        empresa: company
+          ? {
+              id: company.id,
+              razaoSocial: company.razaoSocial,
+              cnaePrincipal: company.cnaePrincipal,
+              uf: company.uf,
+              porte: company.porte,
+            }
+          : null,
+      });
     } catch (error) {
       return sendPncpError(res, error);
     }

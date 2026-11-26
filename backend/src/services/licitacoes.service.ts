@@ -1157,6 +1157,7 @@ export async function listarLicitacoes(
       buyerCnpjFilter,
       tipoObjeto: filtros.tipoObjeto,
       incluirSemClassificacao: includeUnclassified,
+      modoRemoto: filtros.modoRemoto,
       ordenarPor: sortOrder,
       profileKeywords: tenantRadarProfile?.keywords,
       profileUfs: tenantRadarProfile?.uf ? [tenantRadarProfile.uf] : [],

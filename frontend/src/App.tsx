@@ -507,6 +507,7 @@ export default function App() {
 
             {/* Aliases Seguros com Preservação de Query Params */}
             <Route path="/leitor-editais" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.leitor_editais} />} />
+            <Route path="/fornecedor/nulidades" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.radar_nulidades} />} />
             <Route path="/impugnacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.impugnacao} />} />
             <Route path="/precificacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.precificacao_estrategica} />} />
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />

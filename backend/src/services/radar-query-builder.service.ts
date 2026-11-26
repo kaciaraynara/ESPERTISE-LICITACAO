@@ -20,6 +20,7 @@ export interface RadarSqlQueryInput {
   buyerCnpjFilter?: string;
   tipoObjeto?: string;
   incluirSemClassificacao?: boolean;
+  modoRemoto?: string;
   ordenarPor?: RadarSortOrder;
   profileKeywords?: string[];
   profileUfs?: string[];
@@ -269,6 +270,17 @@ export function buildRadarSqlQuery(input: RadarSqlQueryInput): BuiltRadarSqlQuer
     baseConditions.push(`srp = true`);
   } else if (modFilter.term) {
     baseConditions.push(`modality ILIKE ${addParam(`%${modFilter.term}%`)}`);
+  }
+
+  const modoRemotoNorm = String(input.modoRemoto || '').trim().toUpperCase();
+  if (modoRemotoNorm === 'DISPUTA_ONLINE') {
+    baseConditions.push(
+      `((metadata->>'isRemoteDispute' = 'true') OR modality ILIKE '%Eletrônic%' OR modality ILIKE '%Eletronic%') AND modality NOT ILIKE '%Presencial%'`,
+    );
+  } else if (modoRemotoNorm === 'REMOTO_100') {
+    baseConditions.push(
+      `metadata->>'executionMode' = 'REMOTE' AND COALESCE(metadata->>'isRemoteDispute', 'true') <> 'false'`,
+    );
   }
 
   let qTsQueryExpr: string | null = null;
