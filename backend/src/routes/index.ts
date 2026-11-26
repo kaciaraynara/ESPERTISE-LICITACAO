@@ -215,6 +215,9 @@ const fornecedor =
 const fornecedorOuAdvogado =
   requireRole('fornecedor') as RequestHandler;
 
+const superAdminOnly =
+  requireRole('admin', 'super_admin') as RequestHandler;
+
 const auditReadOnly =
   requireAuditRead as RequestHandler;
 
@@ -668,6 +671,42 @@ router.post(
       superAdminController,
     ) as RequestHandler,
   ),
+);
+
+router.get(
+  '/super/metrics',
+  superAdminOnly,
+  handle(superAdminController.getMetrics.bind(superAdminController) as RequestHandler),
+);
+
+router.get(
+  '/super/users',
+  superAdminOnly,
+  handle(superAdminController.listUsers.bind(superAdminController) as RequestHandler),
+);
+
+router.get(
+  '/super/telemetry',
+  superAdminOnly,
+  handle(superAdminController.getSystemTelemetry.bind(superAdminController) as RequestHandler),
+);
+
+router.post(
+  '/super/email',
+  superAdminOnly,
+  handle(superAdminController.sendEmail.bind(superAdminController) as RequestHandler),
+);
+
+router.post(
+  '/super/users/:userId/free-access',
+  superAdminOnly,
+  handle(superAdminController.toggleFreeAccess.bind(superAdminController) as RequestHandler),
+);
+
+router.post(
+  '/super/users/:userId/expertise-fiscal',
+  superAdminOnly,
+  handle(superAdminController.toggleExpertiseFiscal.bind(superAdminController) as RequestHandler),
 );
 
 // ==========================================
@@ -1310,7 +1349,7 @@ router.get(
 
 router.get(
   '/integracoes/catalogo',
-  fornecedor,
+  superAdminOnly,
   handle(
     integracoes.catalogo.bind(
       integracoes,
@@ -1320,7 +1359,7 @@ router.get(
 
 router.get(
   '/integracoes/health',
-  fornecedor,
+  superAdminOnly,
   handle(
     integracoes.health.bind(
       integracoes,
@@ -1330,7 +1369,7 @@ router.get(
 
 router.get(
   '/integracoes/telemetria',
-  fornecedor,
+  superAdminOnly,
   handle(
     integracoes.telemetria.bind(
       integracoes,
@@ -1340,7 +1379,7 @@ router.get(
 
 router.post(
   '/integracoes/sincronizar/pncp',
-  fornecedor,
+  superAdminOnly,
   handle(
     integracoes.sincronizarPncp.bind(
       integracoes,

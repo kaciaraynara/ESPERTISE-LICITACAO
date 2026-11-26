@@ -377,6 +377,18 @@ export const integracoesApi = {
   sincronizarPncp: () => api.post('/integracoes/sincronizar/pncp'),
 };
 
+export const superAdminApi = {
+  metrics: () => api.get('/super/metrics'),
+  users: (skip = 0, take = 50) => api.get('/super/users', { params: { skip, take } }),
+  telemetry: () => api.get('/super/telemetry'),
+  toggleFreeAccess: (userId: string, grant: boolean, plan: 'BASIC' | 'MEDIUM' | 'MASTER' = 'MASTER') =>
+    api.post(`/super/users/${encodeURIComponent(userId)}/free-access`, { grant, plan }),
+  toggleExpertiseFiscal: (userId: string, active: boolean) =>
+    api.post(`/super/users/${encodeURIComponent(userId)}/expertise-fiscal`, { active }),
+  sendEmail: (userId: string, subject: string, message: string) =>
+    api.post('/super/email', { userId, subject, message }),
+};
+
 // ─── Auditoria ───────────────────────────────────────────────────────────────
 export const auditoriaApi = {
   auditar: (licitacaoId: string, textoEdital?: string) =>

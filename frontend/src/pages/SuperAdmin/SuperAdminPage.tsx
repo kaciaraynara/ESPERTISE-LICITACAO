@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   ShieldAlert,
   Users,
@@ -10,132 +12,174 @@ import {
   Activity,
   RefreshCw,
   FileCheck,
+  Database,
+  ArrowLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { superAdminApi } from '@services/api';
+import { FORNECEDOR_ROUTES } from '@/routes';
+import IntegracoesPage from '../IntegracoesPage';
 
-interface AdminUser {
+interface BackendUser {
   id: string;
-  nome: string;
+  nome: string | null;
   email: string;
-  plano: 'BASIC' | 'MEDIUM' | 'MASTER';
-  acessoGratuitoLiberado: boolean;
-  expertiseFiscalAtivo: boolean;
-  ultimoAcesso: string;
-  status: 'Ativo' | 'Em Teste' | 'Suspenso';
+  role: string;
+  plano: string | null;
+  createdAt: string;
+  ultimoAcesso: string | null;
+  subscriptions?: Array<{
+    status: string;
+    plano: string | null;
+  }>;
 }
 
-const INITIAL_USERS: AdminUser[] = [
-  {
-    id: 'usr-1',
-    nome: 'Luis Antonio Gomes Paiva',
-    email: 'luiscidgomes2020@gmail.com',
-    plano: 'MASTER',
-    acessoGratuitoLiberado: true,
-    expertiseFiscalAtivo: true,
-    ultimoAcesso: 'Hoje às 17:42',
-    status: 'Ativo',
-  },
-  {
-    id: 'usr-2',
-    nome: 'Ana Clara Engenharia & Obras',
-    email: 'contato@anaclaraengenharia.com.br',
-    plano: 'MEDIUM',
-    acessoGratuitoLiberado: false,
-    expertiseFiscalAtivo: true,
-    ultimoAcesso: 'Ontem às 14:10',
-    status: 'Ativo',
-  },
-  {
-    id: 'usr-3',
-    nome: 'Distribuidora Norte Medicamentos',
-    email: 'licitacoes@nortemed.com.br',
-    plano: 'BASIC',
-    acessoGratuitoLiberado: false,
-    expertiseFiscalAtivo: false,
-    ultimoAcesso: '12/11/2026',
-    status: 'Em Teste',
-  },
-  {
-    id: 'usr-4',
-    nome: 'TecnoSupply Informática Ltda',
-    email: 'comercial@tecnosupply.com.br',
-    plano: 'MASTER',
-    acessoGratuitoLiberado: true,
-    expertiseFiscalAtivo: false,
-    ultimoAcesso: '10/11/2026',
-    status: 'Ativo',
-  },
-];
+interface TelemetryHealthItem {
+  service: string;
+  status: string;
+  latencyMs?: number;
+  activeRooms?: number;
+  poolHealth?: string;
+  activeSubscribers?: number;
+}
+
+interface TelemetryBugItem {
+  id: string;
+  level: string;
+  service: string;
+  message: string;
+  timestamp: string;
+}
+
+function formatDatePt(iso?: string | null): string {
+  if (!iso) return 'Sem registro';
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function SuperAdminPage() {
-  const [users, setUsers] = useState<AdminUser[]>(INITIAL_USERS);
   const [busca, setBusca] = useState('');
   const [filtroPlano, setFiltroPlano] = useState('TODOS');
-  const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'bugs'>('usuarios');
+  const [abaAtiva, setAbaAtiva] = useState<'portais' | 'usuarios' | 'bugs'>('portais');
+  const [mutatingUserId, setMutatingUserId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Métricas calculadas em tempo real
-  const totalUsuarios = users.length;
-  const assinantesAtivos = users.filter((u) => u.status === 'Ativo').length;
-  const adicionaisFiscais = users.filter((u) => u.expertiseFiscalAtivo).length;
-  
-  // Preço base R$ 249,99 + R$ 99,99 do adicional fiscal
-  const mrrBase = assinantesAtivos * 249.99;
-  const mrrFiscal = adicionaisFiscais * 99.99;
-  const mrrTotal = mrrBase + mrrFiscal;
+  const metricsQuery = useQuery({
+    queryKey: ['super-admin', 'metrics'],
+    queryFn: async () => {
+      const res = await superAdminApi.metrics();
+      return res.data?.data as {
+        totalUsers: number;
+        activeSubscribers: number;
+        trialUsers: number;
+        cancellations: number;
+        mrr: number;
+      };
+    },
+  });
 
-  const handleToggleAcessoGratuito = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const novoEstado = !u.acessoGratuitoLiberado;
-          toast.success(
-            novoEstado
-              ? `Acesso gratuito total concedido com sucesso para ${u.nome}!`
-              : `Acesso gratuito revogado para ${u.nome}.`,
-          );
-          return {
-            ...u,
-            acessoGratuitoLiberado: novoEstado,
-            plano: novoEstado ? 'MASTER' : 'BASIC',
-          };
-        }
-        return u;
-      }),
-    );
+  const usersQuery = useQuery({
+    queryKey: ['super-admin', 'users'],
+    queryFn: async () => {
+      const res = await superAdminApi.users(0, 100);
+      return (res.data?.data?.users || []) as BackendUser[];
+    },
+  });
+
+  const telemetryQuery = useQuery({
+    queryKey: ['super-admin', 'telemetry'],
+    queryFn: async () => {
+      const res = await superAdminApi.telemetry();
+      return res.data?.data as {
+        status: string;
+        uptime: string;
+        metrics: {
+          totalUsers: number;
+          activeSubscribers: number;
+          fiscalAddonSubscribers: number;
+          mrrTotal: number;
+        };
+        health: TelemetryHealthItem[];
+        recentBugs: TelemetryBugItem[];
+      };
+    },
+    refetchInterval: 30_000,
+  });
+
+  const users = usersQuery.data ?? [];
+  const totalUsuarios = telemetryQuery.data?.metrics?.totalUsers ?? metricsQuery.data?.totalUsers ?? users.length;
+  const assinantesAtivos = telemetryQuery.data?.metrics?.activeSubscribers ?? metricsQuery.data?.activeSubscribers ?? 0;
+  const adicionaisFiscais = telemetryQuery.data?.metrics?.fiscalAddonSubscribers ?? 0;
+  const mrrTotal = telemetryQuery.data?.metrics?.mrrTotal ?? metricsQuery.data?.mrr ?? 0;
+
+  const handleSincronizarTudo = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['super-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['integracoes'] }),
+    ]);
+    toast.success('Métricas e telemetria dos portais atualizadas.');
   };
 
-  const handleToggleExpertiseFiscal = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const novoEstado = !u.expertiseFiscalAtivo;
-          toast.success(
-            novoEstado
-              ? `Módulo Expertise Fiscal (+ R$ 99,99/mês) ativado para ${u.nome}!`
-              : `Módulo Expertise Fiscal desativado para ${u.nome}.`,
-          );
-          return {
-            ...u,
-            expertiseFiscalAtivo: novoEstado,
-          };
-        }
-        return u;
-      }),
-    );
+  const handleToggleAcessoGratuito = async (user: BackendUser, currentlyGranted: boolean) => {
+    setMutatingUserId(user.id);
+    try {
+      await superAdminApi.toggleFreeAccess(user.id, !currentlyGranted, 'MASTER');
+      await queryClient.invalidateQueries({ queryKey: ['super-admin'] });
+      toast.success(
+        !currentlyGranted
+          ? `Acesso gratuito Master liberado para ${user.nome || user.email}.`
+          : `Acesso gratuito revogado para ${user.nome || user.email}.`,
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao atualizar acesso gratuito.');
+    } finally {
+      setMutatingUserId(null);
+    }
   };
 
-  const handleChangePlano = (userId: string, novoPlano: 'BASIC' | 'MEDIUM' | 'MASTER') => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, plano: novoPlano } : u)),
-    );
-    toast.success(`Plano atualizado para ${novoPlano}!`);
+  const handleToggleExpertiseFiscal = async (user: BackendUser, currentlyActive: boolean) => {
+    setMutatingUserId(user.id);
+    try {
+      await superAdminApi.toggleExpertiseFiscal(user.id, !currentlyActive);
+      await queryClient.invalidateQueries({ queryKey: ['super-admin'] });
+      toast.success(
+        !currentlyActive
+          ? `Módulo Expertise Fiscal ativado para ${user.nome || user.email}.`
+          : `Módulo Expertise Fiscal desativado para ${user.nome || user.email}.`,
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao atualizar Expertise Fiscal.');
+    } finally {
+      setMutatingUserId(null);
+    }
+  };
+
+  const handleChangePlano = async (user: BackendUser, novoPlano: 'BASIC' | 'MEDIUM' | 'MASTER') => {
+    setMutatingUserId(user.id);
+    try {
+      await superAdminApi.toggleFreeAccess(user.id, true, novoPlano);
+      await queryClient.invalidateQueries({ queryKey: ['super-admin'] });
+      toast.success(`Plano atualizado para ${novoPlano}.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao atualizar plano.');
+    } finally {
+      setMutatingUserId(null);
+    }
   };
 
   const usuariosFiltrados = users.filter((u) => {
-    const matchBusca =
-      u.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      u.email.toLowerCase().includes(busca.toLowerCase());
-    const matchPlano = filtroPlano === 'TODOS' || u.plano === filtroPlano;
+    const nome = (u.nome || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const matchBusca = nome.includes(busca.toLowerCase()) || email.includes(busca.toLowerCase());
+    const planoUpper = String(u.plano || 'BASIC').toUpperCase();
+    const matchPlano = filtroPlano === 'TODOS' || planoUpper === filtroPlano;
     return matchBusca && matchPlano;
   });
 
@@ -158,20 +202,25 @@ export default function SuperAdminPage() {
               Central de Comando Super Admin
             </h1>
             <p className="mt-1 text-sm text-slate-500 font-medium">
-              Controle total da plataforma Expertise Licitatória: liberação de acessos gratuitos, gestão de planos, ativação do Expertise Fiscal e monitoramento de estabilidade.
+              Acompanhe todos os portais de ingestão, falhas de sincronização, acessos de clientes, planos e saúde do sistema nos bastidores.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              to={FORNECEDOR_ROUTES.dashboard}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar à Plataforma
+            </Link>
             <button
               type="button"
-              onClick={() => {
-                toast.success('Métricas e status dos serviços sincronizados com sucesso!');
-              }}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-[#081C3A] shadow-xs hover:bg-slate-50 transition"
+              onClick={handleSincronizarTudo}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-[#081C3A] shadow-xs hover:bg-slate-50 transition cursor-pointer"
             >
               <RefreshCw className="h-4 w-4 text-[#0070C0]" />
-              Sincronizar
+              Atualizar Dados
             </button>
           </div>
         </div>
@@ -180,14 +229,16 @@ export default function SuperAdminPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Usuários Ativos</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Usuários Cadastrados</span>
               <div className="p-2.5 bg-blue-50 text-[#0070C0] rounded-2xl">
                 <Users className="h-5 w-5" />
               </div>
             </div>
-            <p className="mt-3 text-3xl font-black text-[#081C3A]">{assinantesAtivos} <span className="text-xs font-semibold text-slate-400">/ {totalUsuarios} total</span></p>
+            <p className="mt-3 text-3xl font-black text-[#081C3A]">
+              {assinantesAtivos} <span className="text-xs font-semibold text-slate-400">/ {totalUsuarios} total</span>
+            </p>
             <p className="mt-1 text-xs font-medium text-emerald-600 flex items-center gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" /> 100% ativos na última semana
+              <CheckCircle2 className="h-3.5 w-3.5" /> Assinaturas ativas em produção
             </p>
           </div>
 
@@ -199,9 +250,7 @@ export default function SuperAdminPage() {
               </div>
             </div>
             <p className="mt-3 text-3xl font-black text-[#FF6600]">{adicionaisFiscais}</p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              R$ 99,99/mês adicionais por empresa
-            </p>
+            <p className="mt-1 text-xs font-medium text-slate-500">R$ 99,99/mês adicionais por empresa</p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -214,9 +263,7 @@ export default function SuperAdminPage() {
             <p className="mt-3 text-2xl font-black text-emerald-700">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(mrrTotal)}
             </p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              Inclui planos regulares + Expertise Fiscal
-            </p>
+            <p className="mt-1 text-xs font-medium text-slate-500">Inclui planos regulares + Expertise Fiscal</p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -226,15 +273,30 @@ export default function SuperAdminPage() {
                 <Activity className="h-5 w-5" />
               </div>
             </div>
-            <p className="mt-3 text-2xl font-black text-[#081C3A]">100% Online</p>
+            <p className="mt-3 text-2xl font-black text-[#081C3A]">
+              {telemetryQuery.data?.status === 'operational' ? 'Operacional' : 'Verificando...'}
+            </p>
             <p className="mt-1 text-xs font-medium text-emerald-600 flex items-center gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Zero falhas críticas reportadas
+              <CheckCircle2 className="h-3.5 w-3.5" /> Uptime {telemetryQuery.data?.uptime || '99.98%'}
             </p>
           </div>
         </div>
 
         {/* ABAS SUPER ADMIN */}
-        <div className="flex items-center gap-3 border-b border-slate-200">
+        <div className="flex flex-wrap items-center gap-4 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setAbaAtiva('portais')}
+            className={`pb-3 px-2 text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
+              abaAtiva === 'portais'
+                ? 'border-b-2 border-[#FF6600] text-[#081C3A]'
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <Database className="h-4 w-4" />
+            Portais, Integrações & Falhas de Sync
+          </button>
+
           <button
             type="button"
             onClick={() => setAbaAtiva('usuarios')}
@@ -258,14 +320,20 @@ export default function SuperAdminPage() {
             }`}
           >
             <Activity className="h-4 w-4" />
-            Monitoramento de Conexão e Bugs
+            Monitoramento de Serviços e Logs
           </button>
         </div>
 
-        {/* ABA 1: GESTÃO DE USUÁRIOS */}
+        {/* ABA 1: PORTAIS & SINCRONIZAÇÃO (EXCLUSIVO SUPER ADMIN) */}
+        {abaAtiva === 'portais' && (
+          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+            <IntegracoesPage />
+          </div>
+        )}
+
+        {/* ABA 2: GESTÃO DE USUÁRIOS */}
         {abaAtiva === 'usuarios' && (
           <div className="space-y-4">
-            {/* BARRA DE FILTROS */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
               <div className="relative w-full sm:w-96">
                 <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-3" />
@@ -293,191 +361,179 @@ export default function SuperAdminPage() {
               </div>
             </div>
 
-            {/* TABELA DE USUÁRIOS */}
             <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-xs">
               <table className="w-full text-left text-xs font-medium text-slate-700">
                 <thead className="bg-[#081C3A] text-white font-bold uppercase text-[10px] tracking-wider">
                   <tr>
-                    <th className="p-4">Usuário / Empresa</th>
+                    <th className="p-4">Usuário / E-mail</th>
+                    <th className="p-4">Perfil</th>
                     <th className="p-4">Plano Vigente</th>
                     <th className="p-4">Expertise Fiscal (Add-on)</th>
-                    <th className="p-4">Acesso Gratuito</th>
                     <th className="p-4">Último Acesso</th>
                     <th className="p-4 text-right">Ações Imediatas</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {usuariosFiltrados.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50 transition">
-                      <td className="p-4">
-                        <p className="font-extrabold text-[#081C3A] text-sm">{u.nome}</p>
-                        <p className="text-slate-400 text-[11px]">{u.email}</p>
-                      </td>
-
-                      <td className="p-4">
-                        <select
-                          value={u.plano}
-                          onChange={(e) =>
-                            handleChangePlano(u.id, e.target.value as 'BASIC' | 'MEDIUM' | 'MASTER')
-                          }
-                          className={`rounded-full px-3 py-1 text-[11px] font-extrabold border outline-none ${
-                            u.plano === 'MASTER'
-                              ? 'bg-amber-50 text-amber-900 border-amber-300'
-                              : u.plano === 'MEDIUM'
-                                ? 'bg-blue-50 text-[#0070C0] border-blue-200'
-                                : 'bg-slate-100 text-slate-700 border-slate-300'
-                          }`}
-                        >
-                          <option value="BASIC">Plano Básico</option>
-                          <option value="MEDIUM">Plano Intermediário</option>
-                          <option value="MASTER">Plano Master Completo</option>
-                        </select>
-                      </td>
-
-                      <td className="p-4">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleExpertiseFiscal(u.id)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border transition cursor-pointer ${
-                            u.expertiseFiscalAtivo
-                              ? 'bg-orange-50 border-orange-300 text-[#FF6600]'
-                              : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
-                          }`}
-                          title="Clique para ativar ou desativar o módulo adicional de R$ 99,99/mês"
-                        >
-                          <FileCheck className="h-3.5 w-3.5" />
-                          {u.expertiseFiscalAtivo ? 'Ativo (+ R$ 99,99)' : 'Inativo (Ativar)'}
-                        </button>
-                      </td>
-
-                      <td className="p-4">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black ${
-                            u.acessoGratuitoLiberado
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          {u.acessoGratuitoLiberado ? 'Liberado Grátis' : 'Assinatura Regular'}
-                        </span>
-                      </td>
-
-                      <td className="p-4 text-slate-500 font-medium">
-                        {u.ultimoAcesso}
-                      </td>
-
-                      <td className="p-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleAcessoGratuito(u.id)}
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
-                            u.acessoGratuitoLiberado
-                              ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          }`}
-                        >
-                          {u.acessoGratuitoLiberado ? (
-                            <>
-                              <XCircle className="h-3.5 w-3.5" />
-                              Revogar Acesso
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="h-3.5 w-3.5" />
-                              Liberar Acesso Gratuito
-                            </>
-                          )}
-                        </button>
+                  {usersQuery.isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-500">
+                        Carregando usuários reais do banco de dados...
                       </td>
                     </tr>
-                  ))}
+                  ) : usuariosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-500">
+                        Nenhum usuário encontrado para o filtro informado.
+                      </td>
+                    </tr>
+                  ) : (
+                    usuariosFiltrados.map((u) => {
+                      const planoUpper = String(u.plano || 'BASIC').toUpperCase();
+                      const currentPlan: 'BASIC' | 'MEDIUM' | 'MASTER' =
+                        planoUpper === 'MASTER' ? 'MASTER' : planoUpper === 'MEDIUM' ? 'MEDIUM' : 'BASIC';
+                      const fiscalAtivo = Boolean(
+                        u.subscriptions?.some((s) => s.status === 'active' && s.plano === 'expertise_fiscal_addon'),
+                      );
+                      const acessoAtivo = Boolean(
+                        u.subscriptions?.some((s) => s.status === 'active' && s.plano !== 'expertise_fiscal_addon'),
+                      );
+                      const busy = mutatingUserId === u.id;
+
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50 transition">
+                          <td className="p-4">
+                            <p className="font-extrabold text-[#081C3A] text-sm">{u.nome || 'Sem nome'}</p>
+                            <p className="text-slate-400 text-[11px]">{u.email}</p>
+                          </td>
+
+                          <td className="p-4">
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
+                              {u.role}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            <select
+                              disabled={busy}
+                              value={currentPlan}
+                              onChange={(e) =>
+                                handleChangePlano(u, e.target.value as 'BASIC' | 'MEDIUM' | 'MASTER')
+                              }
+                              className={`rounded-full px-3 py-1 text-[11px] font-extrabold border outline-none ${
+                                currentPlan === 'MASTER'
+                                  ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                  : currentPlan === 'MEDIUM'
+                                    ? 'bg-blue-50 text-[#0070C0] border-blue-200'
+                                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                              }`}
+                            >
+                              <option value="BASIC">Plano Básico</option>
+                              <option value="MEDIUM">Plano Intermediário</option>
+                              <option value="MASTER">Plano Master Completo</option>
+                            </select>
+                          </td>
+
+                          <td className="p-4">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleToggleExpertiseFiscal(u, fiscalAtivo)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold border transition cursor-pointer ${
+                                fiscalAtivo
+                                  ? 'bg-orange-50 border-orange-300 text-[#FF6600]'
+                                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-slate-600'
+                              }`}
+                            >
+                              <FileCheck className="h-3.5 w-3.5" />
+                              {fiscalAtivo ? 'Ativo (+ R$ 99,99)' : 'Inativo (Ativar)'}
+                            </button>
+                          </td>
+
+                          <td className="p-4 text-slate-500 font-medium">
+                            {formatDatePt(u.ultimoAcesso || u.createdAt)}
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleToggleAcessoGratuito(u, acessoAtivo)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                                acessoAtivo
+                                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              }`}
+                            >
+                              {acessoAtivo ? (
+                                <>
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  Revogar Cortesia
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="h-3.5 w-3.5" />
+                                  Liberar Acesso Master
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* ABA 2: TELEMETRIA & MONITORAMENTO DE BUGS */}
+        {/* ABA 3: MONITORAMENTO DE SERVIÇOS E LOGS */}
         {abaAtiva === 'bugs' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Portal PNCP Oficial</p>
-                <p className="text-lg font-black text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Operacional (82ms)
-                </p>
-                <p className="text-[11px] text-slate-400">Última checagem há 1 minuto</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Socket Sala de Lances</p>
-                <p className="text-lg font-black text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Conectado (14 salas)
-                </p>
-                <p className="text-[11px] text-slate-400">Transmissão em tempo real</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Banco de Dados</p>
-                <p className="text-lg font-black text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  100% Saudável
-                </p>
-                <p className="text-[11px] text-slate-400">Tempo de resposta: 12ms</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expertise Fiscal</p>
-                <p className="text-lg font-black text-emerald-700 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  Motor Tributário Ativo
-                </p>
-                <p className="text-[11px] text-slate-400">2 empresas sincronizadas</p>
-              </div>
+              {(telemetryQuery.data?.health || []).map((item) => (
+                <div key={item.service} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{item.service}</p>
+                  <p className="text-lg font-black text-emerald-700 flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    {item.status === 'online' ? 'Operacional' : item.status}
+                    {typeof item.latencyMs === 'number' ? ` (${item.latencyMs}ms)` : ''}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {typeof item.activeRooms === 'number'
+                      ? `${item.activeRooms} salas ativas`
+                      : item.poolHealth
+                        ? `Pool: ${item.poolHealth}`
+                        : typeof item.activeSubscribers === 'number'
+                          ? `${item.activeSubscribers} assinantes ativos`
+                          : 'Monitoramento contínuo'}
+                  </p>
+                </div>
+              ))}
             </div>
 
-            {/* LOG DE EVENTOS E HISTÓRICO DE ESTABILIDADE */}
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
               <h3 className="text-base font-bold text-[#081C3A] flex items-center gap-2">
                 <Activity className="h-5 w-5 text-[#0070C0]" />
-                Histórico de Eventos e Diagnóstico Preventivo
+                Histórico de Eventos do Servidor
               </h3>
 
               <div className="space-y-3">
-                <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-[#081C3A]">Rotina de Sincronização PNCP concluída com êxito</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Captadas 124 novas oportunidades públicas sem qualquer intercorrência de conexão.</p>
+                {(telemetryQuery.data?.recentBugs || []).map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-[#081C3A]">{log.service}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{log.message}</p>
+                      </div>
                     </div>
+                    <span className="text-[11px] text-slate-400 shrink-0">{formatDatePt(log.timestamp)}</span>
                   </div>
-                  <span className="text-[11px] text-slate-400 shrink-0">Há 5 min</span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-[#0070C0] shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-[#081C3A]">Motor de Proteção de Margem ativo na Sala de Lances</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">100% dos lances validados contra a margem de segurança mínima dos fornecedores.</p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-slate-400 shrink-0">Há 22 min</span>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-[#081C3A]">Auditoria Contratual e Alertas de Vigência</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Disparados avisos preventivos para 3 contratos com vencimento nos próximos 30 dias.</p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] text-slate-400 shrink-0">Há 1 hora</span>
-                </div>
+                ))}
               </div>
             </div>
           </div>

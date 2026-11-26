@@ -5,7 +5,7 @@ import { prisma } from '../database/prisma';
 import { emitEditaisAtualizados } from './realtime-editais.service';
 import { recordIngestionJob, saveIngestionCursor } from './ingestion-cursor.service';
 
-const QD_BASE_URL = process.env.QUERIDO_DIARIO_BASE_URL || 'https://queridodiario.ok.org.br/api';
+const QD_BASE_URL = process.env.QUERIDO_DIARIO_BASE_URL || 'https://api.queridodiario.org.br';
 
 interface GazetteItem {
   territory_id: string;

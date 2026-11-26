@@ -82,7 +82,6 @@ const NulidadesPage = React.lazy(() =>
   import('./pages/Nulidades/NulidadesPage').then((module) => ({ default: module.NulidadesPage })),
 );
 const LeitorEditaisPage = React.lazy(() => import('./pages/LeitorEditaisPage'));
-const IntegracoesPage = React.lazy(() => import('./pages/IntegracoesPage'));
 const CredenciamentoPage = React.lazy(() => import('./pages/CredenciamentoPage'));
 const DispensaEletronicaPage = React.lazy(() => import('./pages/DispensaEletronicaPage'));
 const RecursosPage = React.lazy(() => import('./pages/RecursosPage'));
@@ -502,8 +501,8 @@ export default function App() {
             <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
             <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
             <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
-            <Route path={FORNECEDOR_ROUTES.integracoes} element={<IntegracoesPage />} />
-            <Route path="/fornecedor/radar-telemetria" element={<RadarPage />} />
+            <Route path={FORNECEDOR_ROUTES.integracoes} element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
+            <Route path="/fornecedor/radar-telemetria" element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
             <Route path="/admin/radar" element={<RadarPage />} />
 
             {/* Aliases Seguros com Preservação de Query Params */}

@@ -493,8 +493,9 @@ export async function syncPncpPropostasAbertas(
         batch.map(async (item) => {
           try {
             return await upsertPncpNoticeItem(item, modName);
-          } catch {
+          } catch (err: any) {
             erros += 1;
+            console.warn(`[PNCP Propostas] Erro ao persistir edital ${item?.numeroControlePNCP || 'desconhecido'}:`, err?.message || err);
             return false;
           }
         }),
@@ -537,7 +538,7 @@ export async function syncPncpPropostasAbertas(
                   tamanhoPagina: PAGE_SIZE,
                   ordemOriginal: true,
                 }),
-              { context: `Propostas Dispensa UF ${uf} pág ${pagina}`, maxRetries: 1, initialDelayMs: 1000 },
+              { context: `Propostas Dispensa UF ${uf} pág ${pagina}`, maxRetries: 2, initialDelayMs: 1200 },
             );
             const items = res.data || [];
             totalEncontrados += items.length;
@@ -750,23 +751,28 @@ export async function syncPncpAtualizacoes(maxPagesPerModality = 4): Promise<{
       if (totalPaginas > 1 && maxPagesPerModality > 1) {
         const minPage = Math.max(2, totalPaginas - maxPagesPerModality + 2);
         for (let pagina = totalPaginas; pagina >= minPage; pagina--) {
-          await sleep(300);
-          const res = await fetchWithBackoff(
-            () => buscarContratacoesPNCP({
-              endpoint: 'atualizacao',
-              dataInicial,
-              dataFinal,
-              codigoModalidadeContratacao: mod.codigo,
-              pagina,
-              tamanhoPagina: PAGE_SIZE,
-              incluirEncerrados: true,
-            }),
-            { context: `Atualização ${mod.nome} pág ${pagina}`, maxRetries: 2, initialDelayMs: 1000 },
-          );
-          const items = res.data || [];
-          totalEncontrados += items.length;
-          if (items.length > 0) {
-            await persistBatch(items, mod.nome);
+          await sleep(350);
+          try {
+            const res = await fetchWithBackoff(
+              () => buscarContratacoesPNCP({
+                endpoint: 'atualizacao',
+                dataInicial,
+                dataFinal,
+                codigoModalidadeContratacao: mod.codigo,
+                pagina,
+                tamanhoPagina: PAGE_SIZE,
+                incluirEncerrados: true,
+              }),
+              { context: `Atualização ${mod.nome} pág ${pagina}`, maxRetries: 3, initialDelayMs: 1200 },
+            );
+            const items = res.data || [];
+            totalEncontrados += items.length;
+            if (items.length > 0) {
+              await persistBatch(items, mod.nome);
+            }
+          } catch (pageErr: any) {
+            failed += 1;
+            console.warn(`[PNCP Atualizacoes] Falha em ${mod.nome} pág ${pagina}:`, pageErr?.message || pageErr);
           }
         }
       }

@@ -15,6 +15,12 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
 const LGPD_TERMS_VERSION = process.env.LGPD_TERMS_VERSION?.trim() || '1.0';
+const SUPER_ADMIN_EMAILS = new Set(
+  (process.env.SUPER_ADMIN_EMAILS || 'admin@expertise.com.br,kaciaraynara@gmail.com,raynaraadsunifor@gmail.com')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 export type AuthUser = {
   id: string;
@@ -29,7 +35,9 @@ export type AuthUser = {
   email_verificado: boolean;
   ultimo_acesso: string | null;
   created_at: string;
-  role?: 'fornecedor';
+  role?: 'fornecedor' | 'admin' | 'super_admin' | string;
+  isAdmin?: boolean;
+  is_admin?: boolean;
   oab_numero?: string | null;
   oab_uf?: string | null;
   crc_numero?: string | null;
@@ -122,10 +130,13 @@ export class AuthOperationsService {
     const effectivePlan = isTrialActive ? 'master' : (user.planType || user.plano);
     const planConfig = getCommercialPlanConfig(effectivePlan);
 
+    const normalizedEmail = normalizeAuthEmail(user.emailNormalized || user.email);
+    const isSuperAdmin = SUPER_ADMIN_EMAILS.has(normalizedEmail);
+
     return {
       id: user.id,
       tenant_id: user.tenantId,
-      email: normalizeAuthEmail(user.emailNormalized || user.email),
+      email: normalizedEmail,
       apelido: user.apelido ?? null,
       nome: user.nome,
       telefone: user.telefone,
@@ -135,7 +146,9 @@ export class AuthOperationsService {
       email_verificado: user.emailVerificado,
       ultimo_acesso: user.ultimoAcesso ? user.ultimoAcesso.toISOString() : null,
       created_at: user.createdAt.toISOString(),
-      role: user.role,
+      role: isSuperAdmin ? 'super_admin' : user.role,
+      isAdmin: isSuperAdmin,
+      is_admin: isSuperAdmin,
       oab_numero: user.oabNumero ?? null,
       oab_uf: user.oabUf ?? null,
       crc_numero: user.crcNumero ?? null,

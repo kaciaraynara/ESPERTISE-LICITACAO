@@ -23,7 +23,6 @@ import {
   Calculator,
   Tag,
   Buildings,
-  PlugsConnected,
   Lightning,
   Compass,
   X,
@@ -537,14 +536,21 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
     location.pathname === FORNECEDOR_ROUTES.dashboard ||
     location.pathname === '/dashboard';
 
+  const isSuperAdmin = useMemo(() => {
+    const role = String((user as any)?.role || '').toLowerCase();
+    return Boolean((user as any)?.isAdmin) || role === 'admin' || role === 'super_admin';
+  }, [user]);
+
   const footerItems = useMemo(
     () => [
       { path: FORNECEDOR_ROUTES.empresa, label: 'Dados da Empresa', icon: Buildings },
-      { path: FORNECEDOR_ROUTES.integracoes, label: 'Integrações & Portais', icon: PlugsConnected },
       { path: FORNECEDOR_ROUTES.planos, label: 'Planos & Assinatura', icon: CreditCard },
       { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear },
+      ...(isSuperAdmin
+        ? [{ path: '/master-admin-vault', label: 'Painel Super Admin', icon: Compass }]
+        : []),
     ],
-    [],
+    [isSuperAdmin],
   );
 
   const renderSidebarContent = (collapsedView: boolean, isMobileMode: boolean) => {
