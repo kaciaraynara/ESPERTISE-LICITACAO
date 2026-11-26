@@ -1,4 +1,6 @@
 import { prisma } from '../database/prisma';
+import { classifyExecutionMode, StatusLeituraCompleta } from './execution-classifier.service';
+import { auditEditalNullities } from './nullity-auditor.service';
 
 export interface VicioIrregularidadeEdital {
   id: string;
@@ -153,54 +155,33 @@ export class EditalDeepAnalyzerService {
     const textoCompleto = cleanChunks.join('\n\n');
     const tLower = textoCompleto.toLowerCase();
 
-    // 1. Formato da Disputa e Portal
-    let disputaRemota: boolean | null = null;
-    let formatoDisputa: 'ELETRONICA' | 'PRESENCIAL' | 'NAO_ESPECIFICADO' = 'NAO_ESPECIFICADO';
-    let modoDisputaTexto = NAO_ESPECIFICADO;
-    let trechoComprovante: string | null = null;
-
-    const regexRemoto = /(?:pregão\s+eletrônico|concorrência\s+eletrônica|dispensa\s+eletrônica|sessão\s+pública\s+eletrônica|compras\.gov\.br|comprasnet|portal\s+de\s+compras\s+públicas|bll|bnc|licitanet|disputa\s+à\s+distância|sistema\s+eletrônico)/i;
-    const regexPresencial = /(?:pregão\s+presencial|concorrência\s+presencial|sessão\s+presencial|sala\s+de\s+reuniões|abertura\s+presencial\s+dos\s+envelopes)/i;
-
-    if (regexRemoto.test(textoCompleto) || regexRemoto.test(notice?.modoDisputa || '') || regexRemoto.test(notice?.modality || '')) {
-      disputaRemota = true;
-      formatoDisputa = 'ELETRONICA';
-      modoDisputaTexto = 'Disputa Eletrônica (Sessão Online)';
-      const match = textoCompleto.match(regexRemoto);
-      if (match && match.index !== undefined) {
-        const start = Math.max(0, match.index - 40);
-        const end = Math.min(textoCompleto.length, match.index + 180);
-        trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
-      }
-    } else if (regexPresencial.test(textoCompleto) || regexPresencial.test(notice?.modoDisputa || '') || regexPresencial.test(notice?.modality || '')) {
-      disputaRemota = false;
-      formatoDisputa = 'PRESENCIAL';
-      modoDisputaTexto = 'Disputa Presencial (Comparecimento Físico Exigido)';
-      const match = textoCompleto.match(regexPresencial);
-      if (match && match.index !== undefined) {
-        const start = Math.max(0, match.index - 40);
-        const end = Math.min(textoCompleto.length, match.index + 180);
-        trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
-      }
-    }
-
-    // 2. Modo de Execução / Entrega (100% remoto somente com prova documental e sem entrega física/vistoria obrigatória)
-    let execucaoOuEntrega: 'REMOTE' | 'PRESENTIAL' | 'HYBRID_OR_DELIVERY' | 'UNSPECIFIED' = 'UNSPECIFIED';
-    const regexExecucaoRemota = /(?:prestação\s+de\s+serviços\s+remota|atendimento\s+remoto|acesso\s+remoto|ambiente\s+em\s+nuvem|software\s+como\s+serviço|saas|entrega\s+digital|execução\s+à\s+distância|100%\s+remoto)/i;
-    const regexEntregaFisica = /(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|almoxarifado|frete|entrega\s+no\s+local|vistoria\s+obrigatória)/i;
-    if (regexExecucaoRemota.test(textoCompleto) && !regexEntregaFisica.test(textoCompleto)) {
-      execucaoOuEntrega = 'REMOTE';
-      if (!trechoComprovante) {
-        const matchExec = textoCompleto.match(regexExecucaoRemota);
-        if (matchExec && matchExec.index !== undefined) {
-          const start = Math.max(0, matchExec.index - 40);
-          const end = Math.min(textoCompleto.length, matchExec.index + 180);
-          trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
-        }
-      }
-    } else if (/(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|almoxarifado|prazo\s+de\s+entrega)/i.test(textoCompleto)) {
-      execucaoOuEntrega = 'HYBRID_OR_DELIVERY';
-    }
+    // 1 e 2. Classificação estrita de Disputa e Execução (somente com leitura completa)
+    const statusLeituraCompleta: StatusLeituraCompleta = possuiArquivosReaisLidos
+      ? 'CONCLUIDO'
+      : 'SEM_ARQUIVO_LEGIVEL';
+    const execClass = classifyExecutionMode(textoCompleto, statusLeituraCompleta, {
+      modality: notice?.modality,
+      modoDisputa: notice?.modoDisputa,
+      object: notice?.object,
+    });
+    const disputaRemota = execClass.isRemoteDispute;
+    const formatoDisputa: 'ELETRONICA' | 'PRESENCIAL' | 'NAO_ESPECIFICADO' =
+      disputaRemota === true ? 'ELETRONICA' : disputaRemota === false ? 'PRESENCIAL' : 'NAO_ESPECIFICADO';
+    const modoDisputaTexto =
+      disputaRemota === true
+        ? 'Disputa Eletrônica (Sessão Online)'
+        : disputaRemota === false
+          ? 'Disputa Presencial (Comparecimento Físico Exigido)'
+          : NAO_ESPECIFICADO;
+    const trechoComprovante = execClass.executionEvidence;
+    const execucaoOuEntrega: 'REMOTE' | 'PRESENTIAL' | 'HYBRID_OR_DELIVERY' | 'UNSPECIFIED' =
+      execClass.executionMode === 'REMOTO_INTEGRAL'
+        ? 'REMOTE'
+        : execClass.executionMode === 'PRESENCIAL_FISICO'
+          ? 'PRESENTIAL'
+          : execClass.executionMode === 'HIBRIDO'
+            ? 'HYBRID_OR_DELIVERY'
+            : 'UNSPECIFIED';
 
     // 3. Extrações Reais de Prazos, Entrega, Amostra, Catálogo e Vistoria
     const prazoEntregaExtraido = extrairSentencaPorRegex(
@@ -322,209 +303,18 @@ export class EditalDeepAnalyzerService {
       ? (extrairSentencaPorRegex(textoCompleto, /(?:exclusiv[oa]\s+para\s+me|cota\s+reservada|microempresas\s+e\s+empresas\s+de\s+pequeno\s+porte)[^.\n]{0,160}/i, 140) || 'Prevê tratamento diferenciado ou exclusividade para ME/EPP (LC 123/2006).')
       : 'Disputa aberta para ampla concorrência (sem menção expressa de exclusividade ME/EPP nos trechos analisados).';
 
-    // Helper para extrair trecho literal de vício com identificação de arquivo, página e cláusula/subitem
-    const extrairEvidenciaLocalizada = (regex: RegExp): { trecho: string; arquivo: string; pagina: string | number; clausula: string | null } | null => {
-      const match = textoCompleto.match(regex);
-      if (!match || match.index === undefined) return null;
-
-      const start = Math.max(0, match.index - 30);
-      const end = Math.min(textoCompleto.length, match.index + match[0].length + 90);
-      const trecho = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
-
-      const textoAnterior = textoCompleto.slice(0, match.index);
-      const pageMatches = [...textoAnterior.matchAll(/\[Página\s+(\d+)\s+de\s+([^\]]+)\]/gi)];
-
-      let pagina: string | number = 'Conforme texto oficial';
-      let arquivo = 'Edital / Termo de Referência';
-
-      if (pageMatches.length > 0) {
-        const lastPage = pageMatches[pageMatches.length - 1];
-        if (lastPage && lastPage[1]) {
-          pagina = Number(lastPage[1]) || lastPage[1];
-          if (lastPage[2]) arquivo = lastPage[2].trim();
-        }
-      } else {
-        const arqMatch = textoAnterior.match(/===\s*(?:ANEXO|DOCUMENTO|ARQUIVO INTERNO DO PACOTE):\s*([^=\n]+)\s*===/gi);
-        if (arqMatch && arqMatch.length > 0) {
-          const cleanName = arqMatch[arqMatch.length - 1]
-            .replace(/===\s*(?:ANEXO|DOCUMENTO|ARQUIVO INTERNO DO PACOTE):\s*/i, '')
-            .replace(/\s*===/, '')
-            .trim();
-          if (cleanName) arquivo = cleanName;
-        }
-      }
-
-      const janelaClausula = textoCompleto.slice(Math.max(0, match.index - 350), match.index + 30);
-      const clauseMatches = [...janelaClausula.matchAll(/(?:Cláusula\s+[A-Za-zÀ-ÿ0-9ºª.-]+|Subitem\s+\d+(?:\.\d+)+|Item\s+\d+(?:\.\d+)+|\b\d{1,2}\.\d{1,2}(?:\.\d{1,2})*\b)/gi)];
-      const clausula = clauseMatches.length > 0
-        ? clauseMatches[clauseMatches.length - 1][0].trim()
-        : null;
-
-      return { trecho, arquivo, pagina, clausula };
-    };
-
-    // 7. Auditoria Determinística de Irregularidades com Prova Literal
-    const vicios: VicioIrregularidadeEdital[] = [];
-
-    const regexAtestadoExcessivo = /(?:atestado|capacidade\s+t[eé]cnica|comprova[çc][ãa]o\s+de\s+aptid[ãa]o)[^\n.]{0,100}(?:5[1-9]%|[6-9][0-9]%|100%)[^\n.]{0,100}/i;
-    if (regexAtestadoExcessivo.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexAtestadoExcessivo);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-atestado-50',
-          titulo: 'Exigência Excessiva de Quantitativo em Atestado Técnico (> 50%)',
-          gravidade: 'ALTO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 67, § 1º e § 2º da Lei 14.133/2021 e Súmula nº 263 do TCU',
-          explicacaoSimples: 'A Administração não pode exigir atestado de capacidade técnica superior a 50% dos quantitativos da licitação.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital (Art. 164) requerendo a limitação a no máximo 50%.',
-        });
-      }
-    }
-
-    const regexRestricaoGeo = /(?:possuir\s+sede\s+n[ao]|obrigatoriamente\s+sediada|escrit[oó]rio\s+local|filial\s+no\s+munic[ií]pio|atestado\s+emitido\s+no\s+estado|registro\s+no\s+conselho\s+regional\s+local\s+antes\s+da\s+contrata[çc][ãa]o)[^\n.]{0,100}/i;
-    if (regexRestricaoGeo.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexRestricaoGeo);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-restricao-geografica',
-          titulo: 'Restrição Geográfica Indevida / Exigência de Sede Local',
-          gravidade: 'ALTO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 9º, inciso I, alínea "a" da Lei 14.133/2021 e Súmula nº 272 do TCU',
-          explicacaoSimples: 'É proibido restringir a disputa ou exigir sede ou filial prévia em município ou estado específico.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital requerendo a anulação da exigência geográfica.',
-        });
-      }
-    }
-
-    const regexVistoriaObrigatoria = /(?:vistoria|visita\s+t[eé]cnica)\s+obrigat[oó]ria[^\n.]{0,100}/i;
-    const temDeclaracaoSubstitutiva = /(?:declara[çc][ãa]o\s+formal|declara[çc][ãa]o\s+de\s+conhecimento|facultada\s+a\s+substitui[çc][ãa]o)/i.test(textoCompleto);
-    if (regexVistoriaObrigatoria.test(textoCompleto) && !temDeclaracaoSubstitutiva) {
-      const ev = extrairEvidenciaLocalizada(regexVistoriaObrigatoria);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-vistoria-obrigatoria',
-          titulo: 'Vistoria Obrigatória sem Opção de Declaração Formal Substitutiva',
-          gravidade: 'MEDIO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 63, § 2º e § 3º da Lei Federal nº 14.133/2021',
-          explicacaoSimples: 'A lei garante ao licitante o direito de substituir a vistoria presencial por declaração formal de conhecimento.',
-          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação para assegurar a substituição por declaração.',
-        });
-      }
-    }
-
-    const regexMarcaDirecionada = /(?:marca\s+[A-Z][a-zA-Z0-9]+|modelo\s+[A-Z][a-zA-Z0-9]+|prefer[eê]ncia\s+pela\s+marca)[^\n.]{0,100}/i;
-    const temSimilar = /(?:ou\s+similar|ou\s+equivalente|de\s+melhor\s+qualidade)/i.test(textoCompleto);
-    if (regexMarcaDirecionada.test(textoCompleto) && !temSimilar) {
-      const ev = extrairEvidenciaLocalizada(regexMarcaDirecionada);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-direcionamento-marca',
-          titulo: 'Direcionamento de Marca / Modelo sem Cláusula "ou equivalente"',
-          gravidade: 'ALTO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 41, inciso I da Lei 14.133/2021 e Súmula nº 270 do TCU',
-          explicacaoSimples: 'A indicação de marca sem justificativa técnica e sem a locução "ou equivalente" fere a isonomia.',
-          acaoRecomendada: 'Protocolar Impugnação exigindo a inclusão da expressão "ou equivalente".',
-        });
-      }
-    }
-
-    const regexCertificacaoPrivada = /(?:certifica[çc][ãa]o\s+ISO|ISO\s*9001|ISO\s*27001|ISO\s*14001|CMMI|MPS\.BR|laudo\s+t[eé]cnico\s+pr[eé]vio)[^\n.]{0,120}(?:habilita[çc][ãa]o|desclassifica[çc][ãa]o|sob\s+pena)/i;
-    if (regexCertificacaoPrivada.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexCertificacaoPrivada);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-certificacao-iso',
-          titulo: 'Exigência Ilegal de Certificação Privada (ISO / CMMI) na Habilitação',
-          gravidade: 'ALTO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Arts. 62 a 70 da Lei 14.133/2021 e Súmula nº 192 / Acórdão 1.214/2013-Plenário do TCU',
-          explicacaoSimples: 'Certificações privadas como ISO 9001 não podem ser exigidas como condição eliminatória de habilitação.',
-          acaoRecomendada: 'Protocolar Impugnação requerendo a exclusão da certificação como requisito habilitatório.',
-        });
-      }
-    }
-
-    const regexLoteUnicoIndevido = /(?:adjudica[çc][ãa]o\s+por\s+lote\s+[uú]nico|crit[eé]rio\s+global\s+em\s+lote\s+[uú]nico)[^\n.]{0,100}(?:sem\s+justificativa|divis[ií]veis)/i;
-    if (regexLoteUnicoIndevido.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexLoteUnicoIndevido);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-agrupamento-lote-unico',
-          titulo: 'Agrupamento Indevido de Itens Divisíveis em Lote Único',
-          gravidade: 'MEDIO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Súmula nº 247 do TCU',
-          explicacaoSimples: 'Itens divisíveis devem ser licitados separadamente para ampliar a competitividade.',
-          acaoRecomendada: 'Protocolar Impugnação pleiteando o parcelamento do objeto por itens.',
-        });
-      }
-    }
-
-    const regexPrazoExiguo = /(?:prazo\s+de\s+entrega|execu[çc][ãa]o)[^\n.]{0,80}(?:(?:24|48)\s*horas|1\s*dia\s*[uú]til)[^\n.]{0,80}/i;
-    if (regexPrazoExiguo.test(textoCompleto) && !/perec[ií]vel|urg[eê]ncia\s+m[eé]dica|pronto\s+socorro/i.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexPrazoExiguo);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-prazo-exiguo',
-          titulo: 'Prazo de Entrega Exíguo / Desproporcional',
-          gravidade: 'MEDIO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Princípio da Razoabilidade',
-          explicacaoSimples: 'Prazos de 24h ou 48h sem urgência comprovada funcionam como restrição geográfica indireta.',
-          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação solicitando prazo compatível com a logística.',
-        });
-      }
-    }
-
-    const regexGarantiaAbusiva = /(?:garantia\s+contratual|garantia\s+de\s+execu[çc][ãa]o)[^\n.]{0,80}(?:1[1-9]%|[2-9][0-9]%)[^\n.]{0,80}/i;
-    if (regexGarantiaAbusiva.test(textoCompleto)) {
-      const ev = extrairEvidenciaLocalizada(regexGarantiaAbusiva);
-      if (ev) {
-        vicios.push({
-          id: 'vicio-garantia-excessiva',
-          titulo: 'Exigência de Garantia Contratual Acima do Limite Legal',
-          gravidade: 'MEDIO',
-          arquivoOrigem: ev.arquivo,
-          pagina: ev.pagina,
-          clausula: ev.clausula,
-          trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 98 da Lei Federal nº 14.133/2021 (limite de 5%, ou 10% em alta complexidade)',
-          explicacaoSimples: 'A garantia de execução não pode superar os limites máximos previstos no Art. 98 da Lei.',
-          acaoRecomendada: 'Protocolar Impugnação para adequação do percentual de garantia.',
-        });
-      }
-    }
+    // 7. Auditoria Especialista em 2 Etapas (Zero Falsos Positivos em Modelos de Declaração)
+    const vicios: VicioIrregularidadeEdital[] = possuiArquivosReaisLidos
+      ? auditEditalNullities(textoCompleto)
+      : [];
 
     const auditoriaResultado: AuditoriaEditalResultado = {
       status: vicios.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
-      mensagem: vicios.length > 0
-        ? `Edital auditado: foram identificadas ${vicios.length} irregularidade(s) com prova literal nos documentos oficiais.`
-        : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
+      mensagem: !possuiArquivosReaisLidos
+        ? 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.'
+        : vicios.length > 0
+          ? `Edital auditado: foram identificadas ${vicios.length} irregularidade(s) com prova literal nos documentos oficiais.`
+          : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
       totalVicios: vicios.length,
       viciosAltos: vicios.filter((v) => v.gravidade === 'ALTO').length,
       viciosMedios: vicios.filter((v) => v.gravidade === 'MEDIO').length,
@@ -789,18 +579,27 @@ ${textoConsolidado}`;
       ficha = await this.refinarExtracaoComIaReal(ficha, textosChunks.join('\n\n'));
     }
 
-    // Atualiza metadados com deepReadStatus e ficha estruturada
+    // Atualiza metadados com deepReadStatus, statusLeituraCompleta, classificação estrita e ficha estruturada
+    const strictExec = classifyExecutionMode(
+      textosChunks.join('\n\n'),
+      ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
+      { modality: notice.modality, modoDisputa: notice.modoDisputa, object: notice.object },
+    );
+
     await prisma.procurementNotice.update({
       where: { id: notice.id },
       data: {
         metadata: {
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
           deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
+          statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
-          isRemoteDispute: ficha.disputaEExecucao.disputaRemota,
-          executionMode: ficha.disputaEExecucao.execucaoOuEntrega,
-          executionEvidence: ficha.disputaEExecucao.trechoComprovante,
+          isRemoteDispute: strictExec.isRemoteDispute,
+          executionMode: strictExec.executionMode,
+          executionEvidence: strictExec.executionEvidence,
+          numeroOficialEdital: notice.noticeNumber || notice.externalId || null,
+          numeroProcesso: notice.processoAdministrativo || null,
           auditoriaStatus: ficha.auditoria.status,
           totalVicios: ficha.auditoria.totalVicios,
         } as any,

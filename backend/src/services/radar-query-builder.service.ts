@@ -279,7 +279,7 @@ export function buildRadarSqlQuery(input: RadarSqlQueryInput): BuiltRadarSqlQuer
     );
   } else if (modoRemotoNorm === 'REMOTO_100') {
     baseConditions.push(
-      `metadata->>'executionMode' = 'REMOTE' AND COALESCE(metadata->>'isRemoteDispute', 'true') <> 'false'`,
+      `metadata->>'executionMode' = 'REMOTO_INTEGRAL' AND (metadata->>'statusLeituraCompleta' = 'CONCLUIDO' OR metadata->>'deepReadStatus' = 'DONE')`,
     );
   }
 

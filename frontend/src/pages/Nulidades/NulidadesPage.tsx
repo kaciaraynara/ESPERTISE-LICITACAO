@@ -383,7 +383,14 @@ export const NulidadesPage: React.FC = () => {
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold text-slate-500">
-                      Edital nº {editalInfo.noticeNumber || selectedEditalId} · {editalInfo.municipality || 'Âmbito Nacional'}{editalInfo.uf ? `/${editalInfo.uf}` : ''}
+                      {[
+                        editalInfo.modality || 'Edital Oficial',
+                        editalInfo.noticeNumber ? `nº ${editalInfo.noticeNumber}` : null,
+                        editalInfo.processoAdministrativo ? `Processo ${editalInfo.processoAdministrativo}` : null,
+                        editalInfo.municipality ? `${editalInfo.municipality}${editalInfo.uf ? `/${editalInfo.uf}` : ''}` : editalInfo.uf || null,
+                      ]
+                        .filter(Boolean)
+                        .join(' | ')}
                     </p>
                     <h2 className="text-base font-extrabold text-[#0B192C]">
                       {editalInfo.buyerName || 'Órgão Licitante'}

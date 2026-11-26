@@ -121,7 +121,7 @@ export function gerarEsqueletoImpugnacao(input: DadosEditalImpugnacao): PecaImpu
     `1. O recebimento da presente impugnação, por ser tempestiva nos termos do art. 164, caput, da Lei nº 14.133/2021;`,
     `2. A análise dos pontos impugnados, com a devida motivação administrativa;`,
     `3. A retificação do edital nos itens indicados, caso reconhecida a irregularidade;`,
-    `4. A republicação do edital e a reabertura dos prazos, quando a alteração impactar a formulação das propostas;`,
+    `4. A republicação do edital e a reabertura dos prazos legais nos termos do art. 55, § 1º, da Lei nº 14.133/2021;`,
     `5. A divulgação da resposta em sítio eletrônico oficial, observando-se o art. 164, parágrafo único, da Lei nº 14.133/2021.`,
     ...(blocoFraude.length > 0
       ? [

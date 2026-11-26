@@ -245,7 +245,6 @@ export default function LicitacoesPage({
   const [pagina, setPagina] = useState(1);
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [facets, setFacets] = useState<RadarFacets | null>(null);
-  const [tempoBuscaMs, setTempoBuscaMs] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
@@ -482,15 +481,12 @@ export default function LicitacoesPage({
         resposta?.data?.meta?.totalPaginas ?? Math.max(1, Math.ceil(totalResp / 50)),
       );
       const facetsResp: RadarFacets | null = resposta?.data?.meta?.facets ?? null;
-      const msResp: number | null =
-        typeof resposta?.data?.meta?.tempoBuscaMs === 'number' ? resposta.data.meta.tempoBuscaMs : null;
       const avisoBackend = resposta?.data?.meta?.aviso || '';
 
       setEditais(lista);
       setTotal(totalResp);
       setTotalPaginas(Math.max(1, totalPgsResp));
       setFacets(facetsResp);
-      setTempoBuscaMs(msResp);
       if (avisoBackend) exibirAviso('info', avisoBackend);
     } catch (err: any) {
       if (
@@ -1231,11 +1227,6 @@ export default function LicitacoesPage({
                 <span className="font-normal text-slate-400"> para “{palavraChaveDebounced.trim()}”</span>
               )}
             </p>
-            {tempoBuscaMs !== null && !carregando && (
-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-mono text-slate-500">
-                {tempoBuscaMs} ms
-              </span>
-            )}
           </div>
 
           <div className="flex items-center gap-2">

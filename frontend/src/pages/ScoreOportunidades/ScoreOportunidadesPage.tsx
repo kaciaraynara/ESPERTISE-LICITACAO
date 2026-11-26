@@ -152,7 +152,18 @@ function extrairPerfisCnae(company: any): {
   const nicho: string[] = Array.isArray(company.nicho) ? company.nicho : [];
   const palavrasSalvas: string[] = Array.isArray(company.palavrasChave) ? company.palavrasChave : [];
 
-  const cnaesLista = [cnaePrincipal, ...secundarios].map((c) => String(c || '').trim()).filter(Boolean);
+  const cnaesSeen = new Set<string>();
+  const cnaesLista = [cnaePrincipal, ...secundarios]
+    .map((c) => String(c || '').trim())
+    .filter((c) => {
+      if (!c) return false;
+      const key = normalizar(c).replace(/[^a-z0-9]/g, '');
+      const codePrefix = c.replace(/\D/g, '').slice(0, 7);
+      const dedupeKey = codePrefix.length >= 5 ? codePrefix : key;
+      if (cnaesSeen.has(dedupeKey)) return false;
+      cnaesSeen.add(dedupeKey);
+      return true;
+    });
   const textoBase = normalizar([...cnaesLista, ...nicho, ...palavrasSalvas].join(' '));
 
   const termosMatch = new Set<string>();
