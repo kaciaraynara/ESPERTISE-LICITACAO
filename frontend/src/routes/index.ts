@@ -1,11 +1,11 @@
-export const FORNECEDOR_PREFIX = '/fornecedor';
+﻿export const FORNECEDOR_PREFIX = '/fornecedor';
 
 export const FORNECEDOR_ROUTES = {
   dashboard: `${FORNECEDOR_PREFIX}/dashboard`,
   // As 16 Ferramentas Principais da Plataforma (Arte Oficial)
   radar: `${FORNECEDOR_PREFIX}/radar`,
   radar_nulidades: `${FORNECEDOR_PREFIX}/radar-nulidades`,
-  leitor_editais: `${FORNECEDOR_PREFIX}/fornecedor/leitor-editais`,
+  leitor_editais: `${FORNECEDOR_PREFIX}/leitor-editais`,
   impugnacao: `${FORNECEDOR_PREFIX}/impugnacao`,
   score_viabilidade: `${FORNECEDOR_PREFIX}/score-viabilidade`,
   robo_lances: `${FORNECEDOR_PREFIX}/robo-lances`,
