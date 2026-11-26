@@ -29,6 +29,7 @@ export async function cruzarEditalComEmpresa(
   ficha: ExtractedSpecsFicha | null,
   companyId?: string | null,
   userId?: string | null,
+  sourceMode?: string | null,
 ): Promise<CruzamentoEmpresaResultado | null> {
   if (!companyId && !userId) return null;
 
@@ -210,10 +211,13 @@ export async function cruzarEditalComEmpresa(
     ? `✅ Documentação em dia: todos os ${totalProntos} documentos principais estão válidos e prontos no seu cofre.`
     : `⚠️ Documentação: ${totalProntos} de ${checklist.length} prontos. Pendente/vencido: ${pendenciasNomes.slice(0, 3).join(', ')}${pendenciasNomes.length > 3 ? '...' : ''}.`;
 
+  const temPdfReal = sourceMode === 'PDF_ANEXO_REAL';
   const totalVicios = ficha?.auditoria?.totalVicios || 0;
-  const linha3 = totalVicios > 0
-    ? `⚖️ Alerta Jurídico: foram detectadas ${totalVicios} cláusula(s) restritiva(s) passíveis de impugnação antes da disputa.`
-    : `🛡️ Segurança Jurídica: nenhuma cláusula restritiva encontrada nos arquivos analisados — cenário seguro para precificar e disputar.`;
+  const linha3 = !temPdfReal
+    ? 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.'
+    : totalVicios > 0
+      ? `Alerta Jurídico: foram detectadas ${totalVicios} cláusula(s) restritiva(s) passíveis de impugnação antes da disputa.`
+      : 'Segurança Jurídica: nenhuma cláusula restritiva encontrada nos arquivos analisados — cenário seguro para precificar e disputar.';
 
   return {
     empresaId: company.id,

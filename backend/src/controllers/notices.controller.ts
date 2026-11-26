@@ -95,10 +95,18 @@ export class NoticesController {
         });
 
         cruzamentoEmpresa = await cruzarEditalComEmpresa(noticeRow || { id: noticeId }, auditoriaSpecs, companyIdParam || null, userIdParam);
+        cruzamentoEmpresa = await cruzarEditalComEmpresa(
+          noticeRow || { id: noticeId },
+          auditoriaSpecs,
+          companyIdParam || null,
+          userIdParam,
+          extraInfo.sourceMode,
+        );
       } catch (matchErr) {
         console.warn('[NoticesController] Aviso ao cruzar edital com empresa ativa:', matchErr);
       }
 
+      const temPdfReal = extraInfo.sourceMode === 'PDF_ANEXO_REAL';
       return res.json({
         success: true,
         sourceMode: extraInfo.sourceMode,
@@ -109,6 +117,9 @@ export class NoticesController {
           mensagem: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0
             ? `Detectados ${auditoriaSpecs.pontosDeAtencaoERiscos.length} ponto(s) de atenção.`
             : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
+            : temPdfReal
+          ? 'Nenhuma cláusula restritiva encontrada nos arquivos analisados.'
+            : 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.',
           totalVicios: auditoriaSpecs.pontosDeAtencaoERiscos?.length || 0,
           apontamentos: auditoriaSpecs.pontosDeAtencaoERiscos || [],
         } : null),
