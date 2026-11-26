@@ -4,101 +4,84 @@ import { prisma } from '../database/prisma';
 import { scaleSingleflight } from '../services/scale-cache.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
 
-interface GlobalRadarCache {
-  statsRadar: {
-    editaisAtivos: number;
-    valorTotalEstimado: number;
-    orgaosCompradores: number;
-  };
-  recomendacoes: Array<{
-    id: string;
-    orgao: string | null;
-    uf: string | null;
-    objeto: string;
-    valor: number | null;
-    modalidade: string | null;
-  }>;
-  expiresAt: number;
+export interface PortalDisputaInfo {
+  nome: string;
+  link: string;
+  isOficial: boolean;
 }
 
-let globalRadarCache: GlobalRadarCache | null = null;
-const RADAR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de cache para proteger o pool PostgreSQL em alta concorrência
+/**
+ * Identifica o portal oficial de disputa do edital com base em links e metadados
+ */
+export function detectarPortalDisputa(notice: any): PortalDisputaInfo {
+  const url = String(notice.url || '').toLowerCase();
+  const raw = (notice.rawPayload || {}) as any;
+  const meta = (notice.metadata || {}) as any;
+  const linkSistemaOrigem = String(raw.linkSistemaOrigem || meta.linkSistemaOrigem || raw.linkOrigem || meta.linkOrigem || '').toLowerCase();
+  const sistemaOrigemNome = String(raw.sistemaOrigem || meta.sistemaOrigem || raw.nomeSistema || meta.nomeSistema || '').toLowerCase();
+  const source = String(notice.source || '').toLowerCase();
 
-async function getGlobalRadarSummary(): Promise<Omit<GlobalRadarCache, 'expiresAt'>> {
-  if (globalRadarCache && globalRadarCache.expiresAt > Date.now()) {
+  const allText = `${url} ${linkSistemaOrigem} ${sistemaOrigemNome} ${source}`;
+
+  if (allText.includes('compras.gov') || allText.includes('comprasnet') || allText.includes('uasg')) {
     return {
-      statsRadar: globalRadarCache.statsRadar,
-      recomendacoes: globalRadarCache.recomendacoes,
+      nome: 'Compras.gov.br',
+      link: raw.linkSistemaOrigem || notice.url || 'https://www.gov.br/compras/pt-br',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('bll') || allText.includes('bllcompras')) {
+    return {
+      nome: 'BLL Compras',
+      link: raw.linkSistemaOrigem || notice.url || 'https://bllcompras.com',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('bnc') || allText.includes('bnccompras')) {
+    return {
+      nome: 'BNC Compras',
+      link: raw.linkSistemaOrigem || notice.url || 'https://bnc.org.br',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('licitanet')) {
+    return {
+      nome: 'Licitanet',
+      link: raw.linkSistemaOrigem || notice.url || 'https://licitanet.com.br',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('portaldecompraspublicas') || allText.includes('compras publicas') || allText.includes('compraspublicas')) {
+    return {
+      nome: 'Portal de Compras Públicas',
+      link: raw.linkSistemaOrigem || notice.url || 'https://www.portaldecompraspublicas.com.br',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('licitacoes-e') || allText.includes('licitacoes_e') || allText.includes('banco do brasil')) {
+    return {
+      nome: 'Licitações-e (BB)',
+      link: raw.linkSistemaOrigem || notice.url || 'https://www.licitacoes-e.com.br',
+      isOficial: true,
+    };
+  }
+  if (allText.includes('queridodiario') || allText.includes('diario oficial') || allText.includes('imprensa nacional') || allText.includes('dou')) {
+    return {
+      nome: 'Diário Oficial',
+      link: raw.linkSistemaOrigem || notice.url || 'https://queridodiario.ok.org.br',
+      isOficial: true,
     };
   }
 
-  return scaleSingleflight('dashboard:global_radar_summary', 300, async () => {
-    if (globalRadarCache && globalRadarCache.expiresAt > Date.now()) {
-      return {
-        statsRadar: globalRadarCache.statsRadar,
-        recomendacoes: globalRadarCache.recomendacoes,
-      };
-    }
+  const pncpUrl = notice.numeroControlePncp || notice.externalId
+    ? `https://pncp.gov.br/app/editais/${notice.numeroControlePncp || notice.externalId}`
+    : notice.url || 'https://pncp.gov.br';
 
-    let totalEditaisAtivos = 0;
-    let valorTotalEstimado = 0;
-    let orgaosCompradores = 0;
-    let recomendacoesRaw: any[] = [];
-
-    try {
-      const [count, aggr, buyers, recs] = await Promise.all([
-        prisma.procurementNotice.count(),
-        prisma.procurementNotice.aggregate({ _sum: { estimatedValue: true } }),
-        prisma.procurementNotice.groupBy({ by: ['buyerName'] }),
-        prisma.procurementNotice.findMany({
-          where: {
-            publishedAt: { lte: new Date() },
-            OR: [{ closingAt: { gt: new Date() } }, { closingAt: null }],
-          },
-          take: 4,
-          orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }],
-          select: {
-            id: true,
-            buyerName: true,
-            uf: true,
-            object: true,
-            estimatedValue: true,
-            modality: true,
-          },
-        }),
-      ]);
-
-      totalEditaisAtivos = typeof count === 'number' ? count : 0;
-      valorTotalEstimado = aggr?._sum?.estimatedValue != null ? Number(aggr._sum.estimatedValue) : 0;
-      orgaosCompradores = Array.isArray(buyers) ? buyers.filter((b: any) => Boolean(b.buyerName)).length : 0;
-      recomendacoesRaw = Array.isArray(recs) ? recs : [];
-    } catch {
-      // Fallback resiliente
-    }
-
-    const summary = {
-      statsRadar: {
-        editaisAtivos: totalEditaisAtivos,
-        valorTotalEstimado,
-        orgaosCompradores,
-      },
-      recomendacoes: recomendacoesRaw.map((rec: any) => ({
-        id: rec.id,
-        orgao: rec.buyerName,
-        uf: rec.uf,
-        objeto: rec.object,
-        valor: rec.estimatedValue ? Number(rec.estimatedValue) : null,
-        modalidade: rec.modality,
-      })),
-    };
-
-    globalRadarCache = {
-      ...summary,
-      expiresAt: Date.now() + RADAR_CACHE_TTL_MS,
-    };
-
-    return summary;
-  });
+  return {
+    nome: 'PNCP Oficial',
+    link: raw.linkSistemaOrigem || pncpUrl,
+    isOficial: true,
+  };
 }
 
 export class DashboardController {
@@ -109,10 +92,7 @@ export class DashboardController {
     }
 
     try {
-      const [company, globalSummary] = await Promise.all([
-        resolveAuthorizedCompany(userId, req.companyId),
-        getGlobalRadarSummary(),
-      ]);
+      const company = await resolveAuthorizedCompany(userId, req.companyId);
 
       // Se a empresa ainda não tiver sido criada para este usuário
       if (!company) {
@@ -120,201 +100,333 @@ export class DashboardController {
           success: true,
           data: {
             isContaNova: true,
-            valorTotalEmDisputa: 0,
-            taxaSucesso: 0,
-            atencaoImediataCount: 0,
-            certidoesVencendoCount: 0,
-            prazosUrgentesCount: 0,
-            catalogItemsCount: 0,
-            propostasCriadas: 0,
-            editaisMonitorados: 0,
-            analisesNulidade: 0,
-            crmOportunidades: 0,
-            crmValorEmDisputa: 0,
-            prazosEstaSemana: 0,
-            statsRadar: globalSummary.statsRadar,
-            recomendacoes: globalSummary.recomendacoes,
-            prazosCriticos: [],
+            companyName: 'Sua Empresa',
+            kpis: {
+              oportunidadesAbertasCount: 0,
+              oportunidadesAbertasValor: 0,
+              encerram5DiasCount: 0,
+              documentosTotal: 0,
+              documentosValidos: 0,
+              documentosPendentes: 0,
+              documentosResumo: 'Nenhum documento cadastrado',
+              propostasAtivasCount: 0,
+              disputasAtivasCount: 0,
+              totalAtivas: 0,
+            },
+            oportunidadesDestaque: [],
+            proximosPrazos: [],
+            documentosAtencao: [],
           },
         });
       }
 
       const metricsData = await scaleSingleflight(
         `dashboard:metrics:${userId}:${company.id}`,
-        20,
+        15,
         async () => {
           const now = new Date();
-          const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-          const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          const in5Days = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
           const in15Days = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
 
-          const [
-            editaisMonitorados,
-            analisesNulidade,
-            propostasCriadas,
-            crmOportunidades,
-            crmDisputa,
-            ganhosCount,
-          ] = await Promise.all([
-            prisma.companyMonitoredNotice.count({
-              where: { companyId: company.id },
-            }),
-            prisma.legalAnalysis.count({
-              where: { userId },
-            }),
-            prisma.proposal.count({
-              where: { companyId: company.id },
-            }),
-            prisma.biddingPipeline.count({
-              where: { userId },
-            }),
-            prisma.biddingPipeline.findMany({
-              where: {
-                userId,
-                stage: { notIn: ['GANHO', 'ADJUDICADO', 'HOMOLOGADO', 'PERDIDO', 'DESCLASSIFICADO', 'ARQUIVADO'] },
-              },
-              include: {
-                notice: { select: { estimatedValue: true } },
-              },
-            }),
-            prisma.biddingPipeline.count({
-              where: {
-                userId,
-                stage: { in: ['GANHO', 'ADJUDICADO', 'HOMOLOGADO'] },
-              },
-            }),
-          ]);
-
-          const [
-            perdidosCount,
-            catalogItemsCount,
-            certidoesVencendoCount,
-            prazosUrgentesCount,
-            prazosCriticos,
-          ] = await Promise.all([
-            prisma.biddingPipeline.count({
-              where: {
-                userId,
-                stage: { in: ['PERDIDO', 'DESCLASSIFICADO', 'ARQUIVADO'] },
-              },
-            }),
-            prisma.catalogItem.count({
-              where: { companyId: company.id },
-            }),
-            prisma.document.count({
-              where: {
-                companyId: company.id,
-                validade: { lte: in15Days },
-              },
-            }),
-            prisma.deadline.count({
-              where: {
-                companyId: company.id,
-                status: { in: ['OPEN', 'PENDENTE'] },
-                dueAt: { lte: in3Days },
-              },
-            }),
-            prisma.deadline.findMany({
-              where: {
-                companyId: company.id,
-                status: { notIn: ['DONE', 'CONCLUIDO'] },
-                dueAt: {
-                  gte: now,
-                  lte: in7Days,
-                },
-              },
-              orderBy: { dueAt: 'asc' },
-              take: 5,
-              include: {
-                procurementNotice: {
-                  select: { noticeNumber: true },
-                },
-              },
-            }),
-          ]);
-
-          const valorTotalEmDisputa = crmDisputa.reduce((acc, curr) => {
-            return acc + (curr.notice?.estimatedValue ? Number(curr.notice.estimatedValue) : 0);
-          }, 0);
-
-          const totalFinalizados = ganhosCount + perdidosCount;
-          const taxaSucesso = totalFinalizados > 0 ? Math.round((ganhosCount / totalFinalizados) * 100) : 0;
-          const atencaoImediataCount = certidoesVencendoCount + prazosUrgentesCount;
-          const isContaNova = crmOportunidades === 0 && propostasCriadas === 0 && catalogItemsCount === 0;
-
-          // Personalização estrita das recomendações por CNAE da Empresa
-          let recomendacoesPersonalizadas = globalSummary.recomendacoes;
+          // 1. Termos de aderência estrita por CNAE e palavras-chave da empresa
           const cnaeAlvo = company.cnaePrincipal;
           const palavrasEmpresa = Array.isArray(company.palavrasChave) ? company.palavrasChave : [];
           const termosCnae = cnaeAlvo ? expandirTermosCnae(cnaeAlvo) : [];
           const termosBusca = Array.from(new Set([...palavrasEmpresa, ...termosCnae])).filter(Boolean);
 
+          // Condição de data futura (ZERO EDITAL VENCIDO)
+          const whereAbertosSegmento: any = {
+            publishedAt: { lte: now },
+            AND: [
+              {
+                OR: [
+                  { closingAt: { gte: now } },
+                  { openingAt: { gte: now } },
+                ],
+              },
+            ],
+          };
+
           if (termosBusca.length > 0) {
-            try {
-              const editaisFiltrados = await prisma.procurementNotice.findMany({
-                where: {
-                  publishedAt: { lte: now },
-                  OR: [{ closingAt: { gt: now } }, { closingAt: null }],
-                  AND: [
-                    {
-                      OR: termosBusca.slice(0, 8).map((termo) => ({
-                        object: { contains: termo, mode: 'insensitive' },
-                      })),
-                    },
+            whereAbertosSegmento.AND.push({
+              OR: termosBusca.slice(0, 10).map((termo) => ({
+                object: { contains: termo, mode: 'insensitive' },
+              })),
+            });
+          }
+
+          // Execução paralela de consultas dedicadas para a empresa ativa
+          const [
+            oportunidadesAbertasCount,
+            oportunidadesAbertasAggr,
+            encerram5DiasCount,
+            editaisDestaqueRaw,
+            totalDocumentos,
+            documentosValidos,
+            documentosPendentesList,
+            propostasAtivasCount,
+            editaisMonitoradosCount,
+            deadlinesList,
+            monitoredNoticesList,
+          ] = await Promise.all([
+            // KPI 1: Quantidade de editais abertos no segmento
+            prisma.procurementNotice.count({ where: whereAbertosSegmento }),
+            // KPI 1 (Valor): Soma em R$ dos editais abertos no segmento
+            prisma.procurementNotice.aggregate({
+              where: whereAbertosSegmento,
+              _sum: { estimatedValue: true },
+            }),
+            // KPI 2: Encerram nos próximos 5 dias
+            prisma.procurementNotice.count({
+              where: {
+                ...whereAbertosSegmento,
+                AND: [
+                  ...whereAbertosSegmento.AND,
+                  {
+                    OR: [
+                      { closingAt: { gte: now, lte: in5Days } },
+                      { openingAt: { gte: now, lte: in5Days } },
+                    ],
+                  },
+                ],
+              },
+            }),
+            // Tabela: Oportunidades abertas em destaque do segmento (Top 12)
+            prisma.procurementNotice.findMany({
+              where: whereAbertosSegmento,
+              take: 12,
+              orderBy: [
+                { closingAt: { sort: 'asc', nulls: 'last' } },
+                { openingAt: { sort: 'asc', nulls: 'last' } },
+                { publishedAt: { sort: 'desc', nulls: 'last' } },
+              ],
+              select: {
+                id: true,
+                buyerName: true,
+                buyerDocument: true,
+                uf: true,
+                municipality: true,
+                object: true,
+                estimatedValue: true,
+                modality: true,
+                publishedAt: true,
+                openingAt: true,
+                closingAt: true,
+                url: true,
+                numeroControlePncp: true,
+                externalId: true,
+                rawPayload: true,
+                metadata: true,
+                source: true,
+              },
+            }),
+            // KPI 3: Documentos totais no cofre
+            prisma.document.count({
+              where: { companyId: company.id },
+            }),
+            // KPI 3: Documentos válidos e em dia
+            prisma.document.count({
+              where: {
+                companyId: company.id,
+                status: 'valido',
+                OR: [{ validade: { gt: now } }, { validade: null }],
+              },
+            }),
+            // Painel Lateral B: Documentos que exigem atenção
+            prisma.document.findMany({
+              where: {
+                companyId: company.id,
+                OR: [
+                  { status: { in: ['atencao', 'vencido'] } },
+                  { validade: { lte: in15Days } },
+                ],
+              },
+              take: 6,
+              orderBy: { validade: 'asc' },
+              select: {
+                id: true,
+                nome: true,
+                tipo: true,
+                validade: true,
+                status: true,
+              },
+            }),
+            // KPI 4: Propostas comerciais ativas
+            prisma.proposal.count({
+              where: {
+                companyId: company.id,
+                status: { not: 'CANCELADA' },
+              },
+            }),
+            // KPI 4: Editais monitorados / em disputa
+            prisma.companyMonitoredNotice.count({
+              where: { companyId: company.id },
+            }),
+            // Painel Lateral A: Deadlines cadastradas
+            prisma.deadline.findMany({
+              where: {
+                companyId: company.id,
+                status: { notIn: ['DONE', 'CONCLUIDO'] },
+                dueAt: { gte: now },
+              },
+              orderBy: { dueAt: 'asc' },
+              take: 5,
+              include: {
+                procurementNotice: { select: { id: true, noticeNumber: true, object: true } },
+              },
+            }),
+            // Painel Lateral A: Próximas sessões de editais monitorados
+            prisma.companyMonitoredNotice.findMany({
+              where: {
+                companyId: company.id,
+                procurementNotice: {
+                  OR: [
+                    { openingAt: { gte: now } },
+                    { closingAt: { gte: now } },
                   ],
                 },
-                take: 4,
-                orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }],
-                select: {
-                  id: true,
-                  buyerName: true,
-                  uf: true,
-                  object: true,
-                  estimatedValue: true,
-                  modality: true,
+              },
+              take: 5,
+              include: {
+                procurementNotice: {
+                  select: {
+                    id: true,
+                    noticeNumber: true,
+                    buyerName: true,
+                    object: true,
+                    openingAt: true,
+                    closingAt: true,
+                  },
                 },
-              });
+              },
+            }),
+          ]);
 
-              if (editaisFiltrados && editaisFiltrados.length > 0) {
-                recomendacoesPersonalizadas = editaisFiltrados.map((rec: any) => ({
-                  id: rec.id,
-                  orgao: rec.buyerName,
-                  uf: rec.uf,
-                  objeto: rec.object,
-                  valor: rec.estimatedValue ? Number(rec.estimatedValue) : null,
-                  modalidade: rec.modality,
-                }));
+          // Formatação dos editais em destaque com detecção do portal real
+          const oportunidadesDestaque = editaisDestaqueRaw.map((ed: any) => {
+            const dataSessao = ed.openingAt || ed.closingAt || null;
+            let diasRestantes: number | null = null;
+            let prazoLabel = 'Data a consultar';
+
+            if (dataSessao) {
+              const diffMs = new Date(dataSessao).getTime() - now.getTime();
+              diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+              if (diasRestantes <= 0) {
+                prazoLabel = 'Encerra hoje';
+              } else if (diasRestantes === 1) {
+                prazoLabel = 'Encerra amanhã';
+              } else {
+                prazoLabel = `Encerra em ${diasRestantes} dias`;
               }
-            } catch (err) {
-              console.warn('[DashboardController] Aviso ao buscar editais aderentes por CNAE:', err);
+            }
+
+            const portal = detectarPortalDisputa(ed);
+
+            return {
+              id: ed.id,
+              orgao: ed.buyerName || 'Órgão Licitante Oficial',
+              localizacao: `${ed.municipality ? `${ed.municipality} - ` : ''}${ed.uf || 'Nacional'}`,
+              uf: ed.uf || 'BR',
+              objeto: ed.object,
+              valorEstimado: ed.estimatedValue ? Number(ed.estimatedValue) : null,
+              modalidade: ed.modality || 'Pregão Eletrônico',
+              dataSessao,
+              diasRestantes,
+              prazoLabel,
+              portalDisputa: portal,
+            };
+          });
+
+          // Formatação dos documentos com atenção
+          const documentosAtencao = documentosPendentesList.map((doc: any) => {
+            let diasRestantes: number | null = null;
+            let statusLabel = 'Pendente';
+
+            if (doc.validade) {
+              const diffMs = new Date(doc.validade).getTime() - now.getTime();
+              diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+              if (diasRestantes <= 0) {
+                statusLabel = 'Vencido';
+              } else if (diasRestantes <= 15) {
+                statusLabel = `Vence em ${diasRestantes} dias`;
+              } else {
+                statusLabel = 'Em análise';
+              }
+            }
+
+            return {
+              id: doc.id,
+              nome: doc.nome || doc.tipo || 'Documento de Habilitação',
+              tipo: doc.tipo || 'Certidão',
+              validade: doc.validade,
+              diasRestantes,
+              statusLabel,
+            };
+          });
+
+          // Consolidação dos próximos prazos e sessões da empresa
+          const proximosPrazosMap = new Map<string, any>();
+
+          for (const d of deadlinesList) {
+            proximosPrazosMap.set(`deadline-${d.id}`, {
+              id: d.id,
+              titulo: d.title,
+              data: d.dueAt,
+              tipo: 'Prazo Legal',
+              edital: d.procurementNotice?.noticeNumber || 'Certame',
+              link: `/leitor-editais?edital=${d.procurementNotice?.id || ''}`,
+            });
+          }
+
+          for (const m of monitoredNoticesList) {
+            const ed = m.procurementNotice;
+            if (ed && (ed.openingAt || ed.closingAt)) {
+              const dataRef = ed.openingAt || ed.closingAt;
+              proximosPrazosMap.set(`session-${ed.id}`, {
+                id: ed.id,
+                titulo: `Sessão Pública - ${ed.buyerName || 'Órgão'}`,
+                data: dataRef,
+                tipo: 'Sessão de Lances',
+                edital: ed.noticeNumber || ed.id.slice(0, 8),
+                link: `/leitor-editais?edital=${ed.id}`,
+              });
             }
           }
 
+          const proximosPrazos = Array.from(proximosPrazosMap.values())
+            .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+            .slice(0, 6);
+
+          const documentosPendentes = totalDocumentos - documentosValidos;
+          let documentosResumo = 'Nenhum documento cadastrado';
+          if (totalDocumentos > 0) {
+            documentosResumo = documentosPendentes > 0
+              ? `${documentosValidos} de ${totalDocumentos} documentos em dia (${documentosPendentes} pendentes)`
+              : `${documentosValidos} de ${totalDocumentos} documentos em dia (100% regular)`;
+          }
+
           return {
-            isContaNova,
+            isContaNova: oportunidadesAbertasCount === 0 && propostasAtivasCount === 0 && totalDocumentos === 0,
             companyId: company.id,
             companyName: company.razaoSocial,
-            valorTotalEmDisputa,
-            taxaSucesso,
-            atencaoImediataCount,
-            certidoesVencendoCount,
-            prazosUrgentesCount,
-            catalogItemsCount,
-            editaisMonitorados,
-            analisesNulidade,
-            propostasCriadas,
-            crmOportunidades,
-            crmValorEmDisputa: valorTotalEmDisputa,
-            prazosEstaSemana: prazosCriticos.length,
-            statsRadar: globalSummary.statsRadar,
-            recomendacoes: recomendacoesPersonalizadas,
-            prazosCriticos: prazosCriticos.map((prazo: any) => ({
-              id: prazo.id,
-              evento: prazo.title,
-              data: prazo.dueAt,
-              tipo: prazo.type,
-              edital: prazo.procurementNotice?.noticeNumber,
-            })),
+            cnaePrincipal: company.cnaePrincipal,
+            kpis: {
+              oportunidadesAbertasCount,
+              oportunidadesAbertasValor: oportunidadesAbertasAggr._sum?.estimatedValue
+                ? Number(oportunidadesAbertasAggr._sum.estimatedValue)
+                : 0,
+              encerram5DiasCount,
+              documentosTotal: totalDocumentos,
+              documentosValidos,
+              documentosPendentes,
+              documentosResumo,
+              propostasAtivasCount,
+              disputasAtivasCount: editaisMonitoradosCount,
+              totalAtivas: propostasAtivasCount + editaisMonitoradosCount,
+            },
+            oportunidadesDestaque,
+            proximosPrazos,
+            documentosAtencao,
           };
         },
       );

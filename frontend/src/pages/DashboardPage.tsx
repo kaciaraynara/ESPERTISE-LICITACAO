@@ -1,29 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-  Target,
-  Calendar,
-  FolderOpen,
+  Briefcase,
+  Clock,
+  ShieldCheck,
   FileCheck2,
   FileText,
-  ShieldAlert,
-  TrendingUp,
-  Cpu,
-  Briefcase,
-  Calculator,
+  AlertTriangle,
+  Gavel,
   ArrowRight,
-  BarChart3,
+  ExternalLink,
   Loader2,
+  CheckCircle2,
+  Calculator,
+  TrendingUp,
   Package,
-  ShieldCheck,
+  Info,
+  X,
 } from 'lucide-react';
-import { dashboardApi, licitacoesApi } from '@/services/api';
+import { dashboardApi } from '@/services/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useCompany } from '@/contexts/CompanyContext';
 import { FORNECEDOR_ROUTES } from '@/routes';
 
 function formatarMoeda(valor: number | null | undefined): string {
-  if (!valor || Number.isNaN(Number(valor))) return 'A definir';
+  if (valor === undefined || valor === null || Number.isNaN(Number(valor)) || Number(valor) <= 0) {
+    return 'Sigiloso / Conforme TR';
+  }
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -31,26 +34,37 @@ function formatarMoeda(valor: number | null | undefined): string {
   }).format(Number(valor));
 }
 
-function formatarData(raw?: string | null): string {
-  if (!raw) return 'Consultar edital';
+function formatarDataHora(raw?: string | null): string {
+  if (!raw) return 'Data a consultar';
   const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return 'Consultar edital';
-  return d.toLocaleDateString('pt-BR');
+  if (Number.isNaN(d.getTime())) return 'Data a consultar';
+  return d.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { selectedCompany } = useCompany();
-  const nomeUsuario = (user as any)?.name || (user as any)?.nome || 'Licitante';
 
-  const [editais, setEditais] = useState<any[]>([]);
-  const [totalRadar, setTotalRadar] = useState(0);
+  // Saudação personalizada e amigável
+  const horaAtual = new Date().getHours();
+  const saudacao = horaAtual < 12 ? 'Bom dia' : horaAtual < 18 ? 'Boa tarde' : 'Boa noite';
+  const nomeCompleto = (user as any)?.name || (user as any)?.nome || 'Empresário';
+  const primeiroNome = String(nomeCompleto).trim().split(' ')[0];
+
   const [metrics, setMetrics] = useState<any>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState<boolean>(true);
+  const [portalFiltro, setPortalFiltro] = useState<string>('TODOS');
+  const [modalGuiaAberto, setModalGuiaAberto] = useState<boolean>(false);
 
   useEffect(() => {
-    document.title = 'Painel de Comando | Expertise Licitatória';
+    document.title = 'Painel Principal | Expertise Licitatória';
   }, []);
 
   useEffect(() => {
@@ -58,249 +72,522 @@ export const DashboardPage: React.FC = () => {
     (async () => {
       try {
         setCarregando(true);
-        const radarFiltros: Record<string, any> = { local: true, limite: 8 };
-
-        if (selectedCompany?.cnaePrincipal) {
-          radarFiltros.cnae = selectedCompany.cnaePrincipal;
-        }
-        if (selectedCompany?.palavrasChave?.length) {
-          radarFiltros.palavras = selectedCompany.palavrasChave;
-        }
-        if (selectedCompany?.id) {
-          radarFiltros.empresa_id = selectedCompany.id;
-        }
-
-        const [radarResp, metricsResp] = await Promise.allSettled([
-          licitacoesApi.listar(radarFiltros as any),
-          dashboardApi.getMetrics(),
-        ]);
-
+        const resp = await dashboardApi.getMetrics();
         if (!ativo) return;
-
-        if (radarResp.status === 'fulfilled') {
-          const lista = radarResp.value.data?.items || radarResp.value.data?.data || [];
-          setEditais(Array.isArray(lista) ? lista : []);
-          setTotalRadar(Number(radarResp.value.data?.total || lista.length || 0));
-        } else {
-          setEditais([]);
+        if (resp?.data?.success && resp.data.data) {
+          setMetrics(resp.data.data);
         }
-
-        if (metricsResp.status === 'fulfilled') {
-          const m = metricsResp.value.data?.data ?? null;
-          setMetrics(m);
-          if (m?.statsRadar?.editaisAtivos && Number(m.statsRadar.editaisAtivos) > 0) {
-            setTotalRadar(Number(m.statsRadar.editaisAtivos));
-          }
-        }
+      } catch (err) {
+        console.warn('[DashboardPage] Falha ao carregar métricas:', err);
       } finally {
         if (ativo) setCarregando(false);
       }
     })();
+
     return () => {
       ativo = false;
     };
-  }, [selectedCompany?.id, selectedCompany?.cnaePrincipal]);
+  }, [selectedCompany?.id]);
 
-  const totalRadarExibido = Number(metrics?.statsRadar?.editaisAtivos || totalRadar || 0);
-  const propostasCriadas = Number(metrics?.propostasCriadas || 0);
-  const atencaoImediata = Number(metrics?.atencaoImediataCount || 0);
-  const valorDisputa = Number(metrics?.valorTotalEmDisputa || 0);
+  const kpis = metrics?.kpis || {
+    oportunidadesAbertasCount: 0,
+    oportunidadesAbertasValor: 0,
+    encerram5DiasCount: 0,
+    documentosTotal: 0,
+    documentosValidos: 0,
+    documentosPendentes: 0,
+    documentosResumo: 'Carregando dados da empresa...',
+    propostasAtivasCount: 0,
+    disputasAtivasCount: 0,
+    totalAtivas: 0,
+  };
+
+  const oportunidadesDestaque: any[] = metrics?.oportunidadesDestaque || [];
+  const proximosPrazos: any[] = metrics?.proximosPrazos || [];
+  const documentosAtencao: any[] = metrics?.documentosAtencao || [];
+
+  // Filtragem multi-portal
+  const portaisDisponiveis = [
+    'TODOS',
+    'Compras.gov.br',
+    'BLL Compras',
+    'BNC Compras',
+    'Portal de Compras Públicas',
+    'Licitanet',
+    'PNCP Oficial',
+  ];
+
+  const oportunidadesFiltradas = useMemo(() => {
+    if (portalFiltro === 'TODOS') return oportunidadesDestaque;
+    return oportunidadesDestaque.filter((ed) => {
+      const nomeP = ed.portalDisputa?.nome || '';
+      return nomeP.toLowerCase().includes(portalFiltro.toLowerCase());
+    });
+  }, [oportunidadesDestaque, portalFiltro]);
 
   const ferramentas = [
-    { titulo: 'Catálogo CATMAT / Preços', icon: Package, rota: FORNECEDOR_ROUTES.catalogo },
-    { titulo: 'SICAF & Certidões', icon: ShieldCheck, rota: FORNECEDOR_ROUTES.sicaf_credenciamento },
-    { titulo: 'Análise Técnica de Edital', icon: FileText, rota: FORNECEDOR_ROUTES.lex },
-    { titulo: 'Precificação Estratégica', icon: Calculator, rota: FORNECEDOR_ROUTES.precificacao_estrategica },
-    { titulo: 'Análise de Irregularidades', icon: ShieldAlert, rota: FORNECEDOR_ROUTES.radar_nulidades },
-    { titulo: 'Sala de Disputa & Lances', icon: Cpu, rota: FORNECEDOR_ROUTES.disputa_ao_vivo },
-    { titulo: 'Histórico Concorrentes', icon: Briefcase, rota: FORNECEDOR_ROUTES.historico_concorrentes },
-    { titulo: 'Análise de Viabilidade', icon: TrendingUp, rota: FORNECEDOR_ROUTES.score_viabilidade },
+    { titulo: 'Radar de Oportunidades', desc: 'Busca inteligente unificada', icon: Briefcase, rota: FORNECEDOR_ROUTES.radar },
+    { titulo: 'Leitor & Auditor de Editais', desc: 'Extração e vícios jurídicos', icon: FileText, rota: FORNECEDOR_ROUTES.lex },
+    { titulo: 'Sala de Disputa & Lances', desc: 'Mesa de lances sem prejuízo', icon: Gavel, rota: FORNECEDOR_ROUTES.disputa_ao_vivo },
+    { titulo: 'Precificação Estratégica', desc: 'Motor tributário por CNAE', icon: Calculator, rota: FORNECEDOR_ROUTES.precificacao_estrategica },
+    { titulo: 'Habilitação & Documentos', desc: 'Validade de CNDs e certidões', icon: ShieldCheck, rota: FORNECEDOR_ROUTES.cofre },
+    { titulo: 'Elaboração de Propostas', desc: 'Minutas oficiais Lei 14.133', icon: FileCheck2, rota: FORNECEDOR_ROUTES.propostas },
+    { titulo: 'Análise de Viabilidade', desc: 'Aderência e probabilidade', icon: TrendingUp, rota: FORNECEDOR_ROUTES.score_viabilidade },
+    { titulo: 'Catálogo de Itens & Preços', desc: 'Bancos oficiais de preços', icon: Package, rota: FORNECEDOR_ROUTES.catalogo },
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+    <div className="mx-auto max-w-[1440px] space-y-6 p-4 md:p-6 font-sans text-slate-800">
+
+      {/* =========================================================================
+          PASSO 1: TOPO LIMPO & SAUDAÇÃO PERSONALIZADA (SEM BLOCO AZUL GIGANTE)
+          ========================================================================= */}
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#081C3A]">Olá, {nomeUsuario}!</h1>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Acompanhe suas oportunidades reais, prazos, referências CATMAT/CATSER e ferramentas estratégicas.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-[#0B192C]">
+              {saudacao}, {primeiroNome}!
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Painel executivo de vendas públicas da empresa{' '}
+            <strong className="text-slate-700">
+              {selectedCompany?.razaoSocial || selectedCompany?.nomeFantasia || 'ativa'}
+            </strong>
+            .
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600 self-start md:self-auto"
-        >
-          Explorar Radar de Licitações <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
 
-      {/* Trilha Guiada - Por onde começar */}
-      <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-[#081C3A] to-[#0f3460] p-4 sm:p-5 text-white shadow-sm">
-        <div className="mb-3 text-xs font-bold uppercase tracking-wider text-[#F97316]">
-          Por onde começar — Fluxo Completo em 3 Passos
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setModalGuiaAberto(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition shadow-xs cursor-pointer"
+          >
+            <Info size={14} className="text-[#0070C0]" />
+            Guia Rápido
+          </button>
+
           <button
             type="button"
             onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#EA580C] hover:bg-orange-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
           >
-            <div className="text-xs font-extrabold text-[#F97316]">Passo 1 · Encontrar Editais</div>
-            <div className="mt-1 text-xs text-slate-100">Filtre oportunidades reais no Radar por CNAE, UF ou objeto.</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(FORNECEDOR_ROUTES.catalogo)}
-            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
-          >
-            <div className="text-xs font-extrabold text-[#F97316]">Passo 2 · Consultar CATMAT & Custos</div>
-            <div className="mt-1 text-xs text-slate-100">Veja preços praticados no Compras.gov.br/PNCP e forme sua margem.</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(FORNECEDOR_ROUTES.propostas)}
-            className="rounded-xl bg-white/10 p-3 text-left transition hover:bg-white/20"
-          >
-            <div className="text-xs font-extrabold text-[#F97316]">Passo 3 · Emitir Proposta & Disputar</div>
-            <div className="mt-1 text-xs text-slate-100">Gere proposta em Word/PDF pela Lei 14.133/2021 e controle os lances.</div>
+            Buscar Oportunidades no Radar <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* 4 KPIs REAIS */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <Target className="h-4 w-4 text-[#F97316]" /> Editais Indexados (Base Real)
+      {/* =========================================================================
+          PASSO 2: 4 CARTÕES DO TOPO (100% REAIS DA EMPRESA ATIVA)
+          ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Cartão 1: Oportunidades Abertas no Seu Segmento */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Oportunidades no Seu Ramo
+              </span>
+              <span className="p-2 bg-slate-100 rounded-xl text-[#0B192C]">
+                <Briefcase size={16} />
+              </span>
+            </div>
+            <div className="mt-3">
+              <strong className="text-xl sm:text-2xl font-black text-[#0B192C] font-mono tracking-tight block">
+                {carregando ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                ) : (
+                  `${kpis.oportunidadesAbertasCount.toLocaleString('pt-BR')} editais`
+                )}
+              </strong>
+              <span className="text-xs font-bold text-[#14532D] block mt-0.5">
+                {carregando ? 'Calculando valor...' : formatarMoeda(kpis.oportunidadesAbertasValor)} em disputa
+              </span>
+            </div>
           </div>
-          <div className="mt-2 text-xl sm:text-2xl font-extrabold text-[#081C3A]">
-            {totalRadarExibido.toLocaleString('pt-BR')}
-          </div>
+          <p className="text-[11px] text-slate-500 pt-3 border-t border-slate-100 mt-3">
+            Abertos e aderentes à atividade da empresa
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <FileCheck2 className="h-4 w-4 text-emerald-600" /> Propostas Geradas
+        {/* Cartão 2: Encerram nos Próximos 5 Dias */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Encerram em até 5 Dias
+              </span>
+              <span className="p-2 bg-amber-50 rounded-xl text-amber-700">
+                <Clock size={16} />
+              </span>
+            </div>
+            <div className="mt-3">
+              <strong className="text-xl sm:text-2xl font-black text-[#0B192C] font-mono tracking-tight block">
+                {carregando ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                ) : (
+                  `${kpis.encerram5DiasCount} editais`
+                )}
+              </strong>
+              <span className="text-xs font-medium text-amber-800 block mt-0.5">
+                {kpis.encerram5DiasCount > 0 ? 'Exigem proposta imediata' : 'Nenhum prazo crítico hoje'}
+              </span>
+            </div>
           </div>
-          <div className="mt-2 text-xl sm:text-2xl font-extrabold text-[#081C3A]">{propostasCriadas}</div>
+          <p className="text-[11px] text-slate-500 pt-3 border-t border-slate-100 mt-3">
+            Prazo curto para envio de propostas
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <Calendar className="h-4 w-4 text-[#0070C0]" /> Alertas (Prazos / Certidões)
+        {/* Cartão 3: Situação da Documentação */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Situação da Documentação
+              </span>
+              <span className="p-2 bg-[#14532D]/10 rounded-xl text-[#14532D]">
+                <ShieldCheck size={16} />
+              </span>
+            </div>
+            <div className="mt-3">
+              <strong className="text-base sm:text-lg font-black text-[#0B192C] tracking-tight block">
+                {carregando ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                ) : kpis.documentosTotal > 0 ? (
+                  `${kpis.documentosValidos} de ${kpis.documentosTotal} em dia`
+                ) : (
+                  'Nenhum documento'
+                )}
+              </strong>
+              <span className="text-xs font-bold block mt-0.5">
+                {kpis.documentosPendentes > 0 ? (
+                  <span className="text-amber-700">
+                    {kpis.documentosPendentes} pendente(s) de atualização
+                  </span>
+                ) : (
+                  <span className="text-[#14532D]">Regularidade fiscal confirmada</span>
+                )}
+              </span>
+            </div>
           </div>
-          <div className="mt-2 text-xl sm:text-2xl font-extrabold text-[#081C3A]">{atencaoImediata}</div>
+          <p className="text-[11px] text-slate-500 pt-3 border-t border-slate-100 mt-3">
+            Conformidade jurídica e certidões
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <FolderOpen className="h-4 w-4 text-[#081C3A]" /> Oportunidades em Acompanhamento
+        {/* Cartão 4: Propostas e Disputas Ativas */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Propostas & Acompanhados
+              </span>
+              <span className="p-2 bg-blue-50 rounded-xl text-[#0070C0]">
+                <FileCheck2 size={16} />
+              </span>
+            </div>
+            <div className="mt-3">
+              <strong className="text-xl sm:text-2xl font-black text-[#0B192C] font-mono tracking-tight block">
+                {carregando ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                ) : (
+                  `${kpis.totalAtivas} ativos`
+                )}
+              </strong>
+              <span className="text-xs font-medium text-slate-600 block mt-0.5">
+                {kpis.propostasAtivasCount} proposta(s) e {kpis.disputasAtivasCount} certame(s)
+              </span>
+            </div>
           </div>
-          <div className="mt-2 text-base sm:text-xl font-extrabold text-emerald-700">
-            {valorDisputa > 0 ? formatarMoeda(valorDisputa) : `${metrics?.editaisMonitorados ?? 0} monitorado(s)`}
-          </div>
+          <p className="text-[11px] text-slate-500 pt-3 border-t border-slate-100 mt-3">
+            Acompanhados pela sua equipe
+          </p>
         </div>
       </div>
 
-      {/* Oportunidades em Destaque */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-base font-extrabold text-[#081C3A]">Oportunidades em Destaque</h2>
-          <button
-            type="button"
-            onClick={() => navigate(FORNECEDOR_ROUTES.radar)}
-            className="inline-flex items-center gap-1 text-xs font-bold text-[#0070C0] hover:underline"
-          >
-            Ver todas <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
+      {/* =========================================================================
+          PASSO 3 E 4: ÁREA CENTRAL (8 COLUNAS) + PAINEL LATERAL (4 COLUNAS)
+          ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {carregando ? (
-          <div className="flex items-center gap-2 py-8 text-xs text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin text-[#F97316]" /> Carregando editais reais...
-          </div>
-        ) : editais.length > 0 ? (
-          <>
-            {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-slate-100">
-              {editais.slice(0, 5).map((ed) => (
-                <div key={ed.id || ed.numeroControlePNCP} className="py-3 space-y-2">
-                  <p className="text-xs font-bold text-[#081C3A]">
-                    {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Órgão Público'}
-                  </p>
-                  <p className="text-xs text-slate-600 line-clamp-2">
-                    {ed.objeto || ed.objetoCompra || 'Objeto não informado'}
-                  </p>
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="font-semibold text-emerald-700">
-                      {formatarMoeda(ed.valorTotalEstimado ?? ed.valorEstimado)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`${FORNECEDOR_ROUTES.lex}?edital=${encodeURIComponent(ed.id || '')}`)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-[#081C3A]"
-                    >
-                      <BarChart3 className="h-3.5 w-3.5 text-[#F97316]" /> Analisar
-                    </button>
-                  </div>
-                </div>
+        {/* COLUNA ESQUERDA (8 COLUNAS): TABELA DE OPORTUNIDADES EM DESTAQUE */}
+        <div className="lg:col-span-8 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h2 className="text-base font-black text-[#0B192C]">
+                  Oportunidades em Destaque no Seu Segmento
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Certames com prazo futuro aberto e aderência à sua empresa.
+                </p>
+              </div>
+
+              <Link
+                to={FORNECEDOR_ROUTES.radar}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#0070C0] hover:text-[#0B192C] transition shrink-0"
+              >
+                Ver todos no Radar <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            {/* SELETOR DE PORTAIS DE DISPUTA UNIFICADOS */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-thin">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 shrink-0">
+                Portal:
+              </span>
+              {portaisDisponiveis.map((portal) => (
+                <button
+                  key={portal}
+                  type="button"
+                  onClick={() => setPortalFiltro(portal)}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
+                    portalFiltro === portal
+                      ? 'bg-[#0B192C] text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
+                  }`}
+                >
+                  {portal === 'TODOS' ? 'Todos os Portais' : portal}
+                </button>
               ))}
             </div>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    <th className="py-2 pr-3">Órgão</th>
-                    <th className="py-2 pr-3">Objeto</th>
-                    <th className="py-2 pr-3">Valor Estimado</th>
-                    <th className="py-2 pr-3">Abertura / Prazo</th>
-                    <th className="py-2 text-right">Ação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {editais.slice(0, 5).map((ed) => (
-                    <tr key={ed.id || ed.numeroControlePNCP} className="border-b border-slate-100">
-                      <td className="py-3 pr-3 font-bold text-[#081C3A]">
-                        {ed.orgao || ed.orgaoEntidade?.razaoSocial || 'Órgão Público'}
-                      </td>
-                      <td className="max-w-md truncate py-3 pr-3 text-slate-700">
-                        {ed.objeto || ed.objetoCompra || 'Objeto não informado'}
-                      </td>
-                      <td className="py-3 pr-3 font-semibold text-emerald-700">
-                        {formatarMoeda(ed.valorTotalEstimado ?? ed.valorEstimado)}
-                      </td>
-                      <td className="py-3 pr-3 text-slate-500">
-                        {formatarData(ed.dataAberturaProposta || ed.dataEncerramentoProposta)}
-                      </td>
-                      <td className="py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`${FORNECEDOR_ROUTES.lex}?edital=${encodeURIComponent(ed.id || '')}`)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-[#081C3A] hover:border-[#F97316] hover:bg-orange-50"
+            {/* LISTAGEM DE EDITAIS */}
+            {carregando ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-xs text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin text-[#EA580C]" />
+                Carregando certames abertos do seu segmento...
+              </div>
+            ) : oportunidadesFiltradas.length > 0 ? (
+              <div className="divide-y divide-slate-100">
+                {oportunidadesFiltradas.map((ed) => (
+                  <div
+                    key={ed.id}
+                    className="py-3.5 first:pt-0 last:pb-0 hover:bg-slate-50/60 transition-all rounded-xl p-2.5 space-y-2.5"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-black text-[#0B192C]">
+                            {ed.orgao}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            {ed.localizacao}
+                          </span>
+                          <a
+                            href={ed.portalDisputa?.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-[#0070C0] hover:underline"
+                            title="Abrir página oficial do portal"
+                          >
+                            <ExternalLink size={10} />
+                            {ed.portalDisputa?.nome}
+                          </a>
+                        </div>
+                        <p className="text-xs text-slate-700 line-clamp-2 leading-relaxed font-medium">
+                          {ed.objeto}
+                        </p>
+                      </div>
+
+                      <div className="text-right sm:shrink-0">
+                        <strong className="text-xs sm:text-sm font-black text-[#14532D] font-mono block">
+                          {formatarMoeda(ed.valorEstimado)}
+                        </strong>
+                        <span
+                          className={`text-[11px] font-bold inline-block mt-0.5 ${
+                            ed.diasRestantes !== null && ed.diasRestantes <= 5
+                              ? 'text-amber-700 font-extrabold'
+                              : 'text-slate-500'
+                          }`}
                         >
-                          <BarChart3 className="h-3.5 w-3.5 text-[#F97316]" /> Analisar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          {ed.prazoLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] text-slate-500">
+                        Sessão:{' '}
+                        <strong className="text-slate-700">
+                          {formatarDataHora(ed.dataSessao)}
+                        </strong>
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/leitor-editais?edital=${ed.id}`}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition shadow-xs inline-flex items-center gap-1"
+                        >
+                          <FileText size={13} className="text-[#0B192C]" />
+                          Analisar
+                        </Link>
+                        <Link
+                          to={`/propostas/criar?edital=${ed.id}`}
+                          className="px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs inline-flex items-center gap-1"
+                        >
+                          <FileCheck2 size={13} className="text-[#EA580C]" />
+                          Preparar Proposta
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center space-y-2">
+                <p className="text-xs text-slate-600 font-medium">
+                  Nenhum edital aberto encontrado no portal selecionado para o segmento desta empresa.
+                </p>
+                <Link
+                  to={FORNECEDOR_ROUTES.radar}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#EA580C] hover:underline"
+                >
+                  Fazer busca ampla por palavras-chave no Radar <ArrowRight size={12} />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* COLUNA DIREITA (4 COLUNAS): PAINEL LATERAL DE PENDÊNCIAS E AGENDA CRÍTICA */}
+        <div className="lg:col-span-4 space-y-4">
+
+          {/* BLOCO A: PRÓXIMOS PRAZOS E SESSÕES */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 text-[#0B192C]">
+                <Clock className="h-4 w-4 text-[#EA580C]" />
+                <h3 className="text-xs font-black uppercase tracking-wider">
+                  Próximos Prazos & Sessões
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                {proximosPrazos.length} agendado(s)
+              </span>
             </div>
-          </>
-        ) : (
-          <p className="py-6 text-xs text-slate-500">
-            Nenhum edital sincronizado no momento. Acesse o Radar de Licitações para buscar por UF ou CNAE.
-          </p>
-        )}
+
+            {proximosPrazos.length > 0 ? (
+              <div className="space-y-2">
+                {proximosPrazos.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <strong className="text-slate-900 font-bold truncate block">
+                        {item.titulo}
+                      </strong>
+                      <span className="text-[10px] font-bold text-[#0070C0] bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                        {item.tipo}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                      <span>Data: {formatarDataHora(item.data)}</span>
+                      {item.link && (
+                        <Link
+                          to={item.link}
+                          className="font-bold text-[#0B192C] hover:underline"
+                        >
+                          Ver certame ↗
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 py-3 text-center">
+                Nenhuma sessão agendada para os próximos dias. Acompanhe certames no Radar para adicioná-los à sua agenda.
+              </p>
+            )}
+          </div>
+
+          {/* BLOCO B: DOCUMENTOS QUE EXIGEM ATENÇÃO */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 text-[#0B192C]">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <h3 className="text-xs font-black uppercase tracking-wider">
+                  Documentos com Atenção
+                </h3>
+              </div>
+              <Link
+                to={FORNECEDOR_ROUTES.cofre}
+                className="text-[11px] font-bold text-[#0070C0] hover:underline"
+              >
+                Ver cofre
+              </Link>
+            </div>
+
+            {documentosAtencao.length > 0 ? (
+              <div className="space-y-2">
+                {documentosAtencao.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs"
+                  >
+                    <div className="space-y-0.5 truncate pr-2">
+                      <strong className="text-slate-800 block truncate text-xs">
+                        {doc.nome}
+                      </strong>
+                      <span className="text-[10px] text-slate-500 block">
+                        {doc.tipo}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                        doc.statusLabel === 'Vencido'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {doc.statusLabel}
+                    </span>
+                  </div>
+                ))}
+
+                <Link
+                  to={FORNECEDOR_ROUTES.cofre}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs mt-2"
+                >
+                  <ShieldCheck size={14} className="text-[#EA580C]" />
+                  Regularizar Documentos
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3 py-2 text-center">
+                <div className="inline-flex p-2.5 bg-[#14532D]/10 rounded-full text-[#14532D]">
+                  <CheckCircle2 size={20} />
+                </div>
+                <p className="text-xs text-slate-600">
+                  {kpis.documentosTotal > 0
+                    ? 'Todas as certidões e documentos cadastrados estão em dia e válidos.'
+                    : 'Nenhum documento cadastrado no cofre. Cadastre suas certidões para garantir habilitação.'}
+                </p>
+                <Link
+                  to={FORNECEDOR_ROUTES.cofre}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#0070C0] hover:underline"
+                >
+                  Cadastrar Certidões no Cofre <ArrowRight size={12} />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Ferramentas Inteligentes */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-        <h2 className="mb-4 text-base font-extrabold text-[#081C3A]">Ferramentas Inteligentes</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* =========================================================================
+          FERRAMENTAS ESTRATÉGICAS (RODAPÉ CORPORATIVO LIMPO)
+          ========================================================================= */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+        <h2 className="text-base font-black text-[#0B192C]">
+          Ferramentas Estratégicas da Plataforma
+        </h2>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {ferramentas.map((f) => {
             const Icon = f.icon;
             return (
@@ -308,17 +595,75 @@ export const DashboardPage: React.FC = () => {
                 key={f.titulo}
                 type="button"
                 onClick={() => navigate(f.rota)}
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-center transition hover:border-[#F97316] hover:bg-orange-50/40"
+                className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-[#0B192C] transition-all text-left group shadow-2xs cursor-pointer"
               >
-                <div className="rounded-xl bg-white p-2.5 text-[#F97316] shadow-xs">
-                  <Icon className="h-5 w-5" />
+                <div className="p-2 rounded-lg bg-white border border-slate-200 text-[#0B192C] group-hover:text-[#EA580C] shadow-2xs transition mb-2">
+                  <Icon size={16} />
                 </div>
-                <span className="text-xs font-bold text-[#081C3A]">{f.titulo}</span>
+                <strong className="text-xs font-bold text-slate-900 group-hover:text-[#0B192C]">
+                  {f.titulo}
+                </strong>
+                <span className="text-[11px] text-slate-500 mt-0.5">
+                  {f.desc}
+                </span>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* MODAL DISCRETO: GUIA RÁPIDO DO LICITANTE */}
+      {modalGuiaAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl border border-slate-200 space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-1.5 text-[#0B192C]">
+                <Info className="h-4 w-4 text-[#EA580C]" />
+                <h3 className="text-sm font-black uppercase">Guia Rápido de Vendas Públicas</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalGuiaAberto(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-slate-700 leading-relaxed">
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <strong className="text-slate-900 block font-bold">1. Encontre Editais no Radar</strong>
+                <p className="text-[11px] text-slate-600">
+                  Filtre certames abertos do seu segmento e salve os que deseja disputar.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <strong className="text-slate-900 block font-bold">2. Audite Regras e Forme seu Preço</strong>
+                <p className="text-[11px] text-slate-600">
+                  Use o Leitor de Editais para checar exigências e a Precificação para definir seu piso seguro de lucro.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <strong className="text-slate-900 block font-bold">3. Gere a Proposta e Dispute com Segurança</strong>
+                <p className="text-[11px] text-slate-600">
+                  Emita a proposta oficial em minutos e acompanhe os lances na Sala de Disputa sem ter prejuízo.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setModalGuiaAberto(false)}
+              className="w-full py-2 bg-[#0B192C] hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

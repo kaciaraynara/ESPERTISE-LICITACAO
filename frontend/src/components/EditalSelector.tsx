@@ -266,8 +266,8 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
               dataCertame: rawEd.dataLimite
                 ? String(rawEd.dataLimite).slice(0, 10)
                 : rawEd.dataAbertura
-                ? String(rawEd.dataAbertura).slice(0, 10)
-                : undefined,
+                  ? String(rawEd.dataAbertura).slice(0, 10)
+                  : undefined,
               objeto: rawEd.objeto || rawEd.object,
               valorEstimado: rawEd.valorEstimado != null ? Number(rawEd.valorEstimado) : undefined,
               urlOficialPncp: rawEd.urlOficialPncp,

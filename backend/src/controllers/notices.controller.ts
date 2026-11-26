@@ -21,7 +21,7 @@ export class NoticesController {
     private readonly opportunityScore = new NoticesOpportunityScoreService(),
     private readonly proposalStrategy = new NoticesProposalStrategyService(),
     private readonly pricingStrategy = new NoticesPricingStrategyService(),
-  ) {}
+  ) { }
 
   async search(req: AuthRequest, res: Response) {
     try {
