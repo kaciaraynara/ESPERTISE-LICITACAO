@@ -25,7 +25,8 @@ import {
 } from '@components/icons/phosphor-compat';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '@/utils';
-import { lexApi, licitacoesApi, empresasApi, crmApi, propostasApi } from '@services/api';
+import api, { lexApi, licitacoesApi, empresasApi, crmApi, propostasApi } from '@services/api';
+import { Download } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
 import { useCompany } from '@/contexts/CompanyContext';
 import { isUserFreePlan } from '@/components/monetization/PremiumFeatureGuard';
@@ -399,6 +400,30 @@ export default function LicitacaoDetalhePage() {
     },
   });
 
+  const [baixandoOriginal, setBaixandoOriginal] = useState(false);
+  const handleDownloadOriginal = async () => {
+    try {
+      setBaixandoOriginal(true);
+      toast.loading('Iniciando download do edital original...', { id: 'down-edital' });
+      const res = await api.get(`/notices/${encodeURIComponent(licitacaoId)}/download-original`, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const idSafe = String((lic as any)?.numero_controle_pncp || (lic as any)?.numeroEdital || (lic as any)?.numero || licitacaoId).replace(/\//g, '_');
+      const nomeArquivo = `Edital_${idSafe}.pdf`;
+      link.setAttribute('download', nomeArquivo);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success('Download do edital concluído!', { id: 'down-edital' });
+    } catch {
+      toast.error('Não foi possível transferir o edital diretamente.', { id: 'down-edital' });
+    } finally {
+      setBaixandoOriginal(false);
+    }
+  };
+
   if (!licitacaoId) return null;
 
   const lic = licitacaoQuery.data;
@@ -593,6 +618,29 @@ export default function LicitacaoDetalhePage() {
             <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 px-8 py-5">
               <button
                 type="button"
+                onClick={handleDownloadOriginal}
+                disabled={baixandoOriginal}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0B192C] hover:bg-slate-800 px-5 py-3 text-sm font-bold text-white shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Baixar arquivo original publicado pelo órgão diretamente"
+              >
+                {baixandoOriginal ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 text-[#EA580C]" />
+                )}
+                <span>Baixar Edital Original</span>
+              </button>
+
+              <Link
+                to={`/leitor-editais?edital=${encodeURIComponent(licitacaoId)}`}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-5 py-3 text-sm font-bold text-[#0B192C] shadow-xs transition"
+              >
+                <FileSearch className="h-4 w-4 text-[#EA580C]" />
+                <span>Auditar Cláusulas no Leitor</span>
+              </Link>
+
+              <button
+                type="button"
                 onClick={handleGerarPropostaComercial}
                 disabled={gerandoPropostaComercial}
                 className="inline-flex items-center gap-2 rounded-xl bg-[#FF6600] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#e55b00] active:scale-95 disabled:opacity-50 cursor-pointer"
@@ -611,7 +659,7 @@ export default function LicitacaoDetalhePage() {
                   className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
                 >
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Salvo no CRM
+                  Salvo em Disputas
                 </Link>
               ) : (
                 <button
@@ -624,7 +672,7 @@ export default function LicitacaoDetalhePage() {
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  Salvar no CRM
+                  Salvar em Disputas
                 </button>
               )}
               <button

@@ -18,6 +18,7 @@ import {
   Coins,
   Loader2,
   Globe,
+  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -31,7 +32,7 @@ import {
   Cell,
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { certidoesApi, documentosApi, licitacoesApi, noticesApi } from '@/services/api';
+import api, { certidoesApi, documentosApi, licitacoesApi, noticesApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
 import { exportarDossieEditalPdf, DadosDossieEditalPdf } from '@/utils/dossieEditalPdfGenerator';
 
@@ -603,6 +604,24 @@ export const ScoreOportunidadesPage: React.FC = () => {
     exportarDossieEditalPdf(dadosPdf);
   };
 
+  const handleDownloadOriginal = async (editalId: string, numeroEdital?: string) => {
+    try {
+      toast.loading('Baixando edital original publicado pelo órgão...', { id: 'down-orig' });
+      const res = await api.get(`/notices/${encodeURIComponent(editalId)}/download-original`, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', `Edital_${numeroEdital || editalId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success('Download do edital concluído!', { id: 'down-orig' });
+    } catch {
+      toast.error('Não foi possível transferir o edital original diretamente.', { id: 'down-orig' });
+    }
+  };
+
   return (
     <div className="space-y-6 pb-28">
       {/* CABEÇALHO DA EMPRESA */}
@@ -1103,6 +1122,16 @@ export const ScoreOportunidadesPage: React.FC = () => {
                           Baixar Dossiê em PDF
                         </>
                       )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadOriginal(idEdital, String(item.edital.numeroControlePNCP || idEdital).replace(/\//g, '_'))}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
+                      title="Baixar arquivo original publicado pelo órgão diretamente"
+                    >
+                      <Download className="h-3.5 w-3.5 text-[#0070C0]" />
+                      Baixar Edital
                     </button>
 
                     <button
