@@ -496,8 +496,8 @@ export const PrecificacaoPage: React.FC = () => {
               Regime Tributário (preenche alíquota base)
             </label>
             <select
-              value={String(custos.impostosPercentual)}
-              onChange={(e) => setCustos({ ...custos, impostosPercentual: (parseFloat(e.target.value) || 0) || 0 })}
+              value={String(Math.round((Number(custos.impostosPercentual) || 0) * 100) / 100)}
+              onChange={(e) => setCustos({ ...custos, impostosPercentual: Math.round((parseFloat(e.target.value) || 0) * 100) / 100 })}
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-800"
             >
               <option value="6">Simples Nacional — Comércio/Serviços Anexo III (6%)</option>
@@ -517,9 +517,9 @@ export const PrecificacaoPage: React.FC = () => {
                 type="number"
                 min={0}
                 max={99}
-                step="0.1"
-                value={custos.impostosPercentual}
-                onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
+                step="0.01"
+                value={Math.round((Number(custos.impostosPercentual) || 0) * 100) / 100}
+                onChange={(e) => setCustos({ ...custos, impostosPercentual: e.target.value === '' ? 0 : Math.round((Number(e.target.value) || 0) * 100) / 100 })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -531,7 +531,7 @@ export const PrecificacaoPage: React.FC = () => {
                 type="number"
                 min={0}
                 max={100}
-                step="0.1"
+                step="0.01"
                 value={custos.custoOperacionalPercentual}
                 onChange={(e) => setCustos({ ...custos, custoOperacionalPercentual: e.target.value === '' ? 0 : (Number(e.target.value) || 0) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"

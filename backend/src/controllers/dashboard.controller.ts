@@ -304,14 +304,26 @@ export class DashboardController {
             let prazoLabel = 'Data a consultar';
 
             if (dataSessao) {
-              const diffMs = new Date(dataSessao).getTime() - now.getTime();
-              diasRestantes = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-              if (diasRestantes === 0) {
+              const sessaoDate = new Date(dataSessao);
+              const fmtDiaBr = (d: Date) =>
+                new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
+              const hojeBr = fmtDiaBr(now);
+              const sessaoBr = fmtDiaBr(sessaoDate);
+
+              if (sessaoBr <= hojeBr) {
+                diasRestantes = 0;
                 prazoLabel = 'Encerra hoje';
-              } else if (diasRestantes === 1) {
-                prazoLabel = 'Encerra amanhã';
               } else {
-                prazoLabel = `Encerra em ${diasRestantes} dias`;
+                const diffDays = Math.round(
+                  (new Date(`${sessaoBr}T00:00:00Z`).getTime() - new Date(`${hojeBr}T00:00:00Z`).getTime()) /
+                    (1000 * 60 * 60 * 24),
+                );
+                diasRestantes = Math.max(1, diffDays);
+                if (diasRestantes === 1) {
+                  prazoLabel = 'Encerra amanhã';
+                } else {
+                  prazoLabel = `Encerra em ${diasRestantes} dias`;
+                }
               }
             }
 

@@ -32,6 +32,7 @@ const HEADER_TITLES: Record<string, string> = {
   '/fornecedor/defesas-recursos': 'Central de Defesas e Recursos',
   '/fornecedor/radar-nulidades': 'Radar de Nulidades',
   '/fornecedor/cofre': 'Cofre de Documentos',
+  '/fornecedor/documentos': 'Meus Documentos',
   '/fornecedor/certidoes': 'Certidões Negativas',
   '/fornecedor/habilitacao': 'Documentos de Habilitação',
   '/fornecedor/prazos': 'Prazos Fatais e Alertas',

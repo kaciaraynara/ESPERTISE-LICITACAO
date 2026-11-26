@@ -725,7 +725,7 @@ ${textoConsolidado}`;
   /**
    * Executa a análise profunda de um edital e salva na base de dados
    */
-  public static async processarEditalPorId(noticeId: string): Promise<ExtractedSpecsFicha | null> {
+  public static async processarEditalPorId(noticeId: string, force = false): Promise<ExtractedSpecsFicha | null> {
     const notice = await prisma.procurementNotice.findFirst({
       where: {
         OR: [
@@ -740,6 +740,11 @@ ${textoConsolidado}`;
     });
 
     if (!notice) return null;
+
+    const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
+    if (!force && existingMeta.deepReadStatus === 'DONE' && existingMeta.extractedSpecsJson?.secoes) {
+      return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
+    }
 
     // Busca chunks existentes do edital
     const chunks = await prisma.documentChunk.findMany({

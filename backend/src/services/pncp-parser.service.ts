@@ -745,7 +745,7 @@ export async function obterTextoEAnexosOficiais(edital_id: string): Promise<Resu
             titulo: String(a.titulo || a.nome || 'Anexo do Edital').trim(),
             tipoDocumento: String(a.tipoDocumentoNome || a.tipo_documento_nome || 'Documento Oficial').trim(),
             urlDownloadOficial: `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seq}`,
-            urlDownloadInterno: `/api/v1/notices/${encodeURIComponent(targetNoticeId)}/download-arquivo/${seq}`,
+            urlDownloadInterno: `/notices/${encodeURIComponent(targetNoticeId)}/download-arquivo/${seq}`,
             sequencial: seq,
             tamanhoBytes: a.tamanhoBytes || a.tamanho || undefined,
           };

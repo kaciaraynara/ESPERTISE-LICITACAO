@@ -315,7 +315,7 @@ export default function CalendarioDisputasPage() {
 
                       <div className="flex gap-2">
                         <Link
-                          to={`/licitante/licitacoes/${encodeURIComponent(lic.id)}`}
+                          to={`/fornecedor/licitacoes/${encodeURIComponent(lic.id)}`}
                           className="flex-1 rounded-lg border border-brand-blue/20 bg-white py-2 text-center text-xs font-bold text-brand-blue hover:bg-white transition"
                         >
                           Analisar
@@ -351,7 +351,7 @@ export default function CalendarioDisputasPage() {
                       return (
                         <Link
                           key={lic.id}
-                          to={`/licitante/licitacoes/${encodeURIComponent(lic.id)}`}
+                          to={`/fornecedor/licitacoes/${encodeURIComponent(lic.id)}`}
                           className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 p-3 hover:border-brand-blue/20 hover:bg-white transition"
                         >
                           <div className="min-w-0">
