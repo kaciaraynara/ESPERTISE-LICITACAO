@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 import { licitacoesApi, crmApi } from '../services/api';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useCompany } from '../contexts/CompanyContext';
-import DossieEditalModal from '../components/DossieEditalModal';
 import {
   RadarPerfilModal,
   type ObjectTypeOption,
@@ -279,10 +279,15 @@ export default function LicitacoesPage({
   const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
   const [searchNonce, setSearchNonce] = useState(0);
 
+  const navigate = useNavigate();
   const [salvosMap, setSalvosMap] = useState<Record<string, string>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
-  const [editalSelecionado, setEditalSelecionado] = useState<EditalItem | null>(null);
-  const setEditalParaResumo = setEditalSelecionado;
+  const abrirAnaliseCompletaEdital = (edital: EditalItem) => {
+    const editalId = String(edital.numeroControlePNCP || edital.id || '');
+    if (editalId) {
+      navigate(`/leitor-editais?edital=${encodeURIComponent(editalId)}`);
+    }
+  };
   const [cnaesExtrasApi, setCnaesExtrasApi] = useState<string[]>([]);
   const [cnaesStorageCache, setCnaesStorageCache] = useState<string[]>([]);
 
@@ -1371,7 +1376,7 @@ export default function LicitacoesPage({
                 return (
                   <div
                     key={idStr}
-                    onClick={() => setEditalSelecionado(edital)}
+                    onClick={() => abrirAnaliseCompletaEdital(edital)}
                     className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xs transition hover:border-[#0070C0] sm:flex-row sm:items-center cursor-pointer"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
@@ -1426,7 +1431,7 @@ export default function LicitacoesPage({
               return (
                 <div
                   key={idStr}
-                  onClick={() => setEditalSelecionado(edital)}
+                  onClick={() => abrirAnaliseCompletaEdital(edital)}
                   className="group relative flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#FF6600]/60 hover:shadow-md cursor-pointer overflow-hidden"
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#0070C0]" />
@@ -1617,25 +1622,6 @@ export default function LicitacoesPage({
         initialDraft={currentModalDraft}
         onApply={handleAplicarDraftPerfil}
       />
-
-      {/* Modal de Dossiê e Resumo do Edital (RESUMO DO EDITAL) */}
-      {editalSelecionado && (
-        <DossieEditalModal
-          isOpen={Boolean(editalSelecionado)}
-          onClose={() => {
-            setEditalSelecionado(null);
-            setEditalParaResumo(null);
-          }}
-          edital={editalSelecionado as any}
-          isSalvo={Boolean(editalSelecionado && salvosMap[String(editalSelecionado.id)])}
-          isSalvando={Boolean(editalSelecionado && salvandoId === String(editalSelecionado.id))}
-          onSalvar={() => {
-            if (editalSelecionado) {
-              void handleAlternarSalvar(editalSelecionado);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }

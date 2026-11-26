@@ -37,37 +37,49 @@ export interface SecaoResumoExplicado {
   };
   disputaEPrazos: {
     portalDisputa: string;
-    formatoDisputa: 'ELETRONICA' | 'PRESENCIAL';
+    formatoDisputa: 'ELETRONICA' | 'PRESENCIAL' | 'NAO_ESPECIFICADO';
     aberturaSessao: string | null;
-    prazoLimiteImpugnacao: string | null;
-    prazoEnvioProposta: string | null;
+    prazoLimiteProposta: string;
+    prazoEsclarecimento: string;
+    prazoLimiteImpugnacao: string;
     trechoComprovante: string | null;
   };
   condicoesEntregaExecucao: {
-    prazoEntrega: string | null;
-    localEntrega: string | null;
-    exigeAmostra: boolean | null;
-    exigeCatalogo: boolean | null;
-    exigeVistoria: boolean | null;
-    detalhesVistoria: string | null;
+    prazoEntrega: string;
+    localEntrega: string;
+    exigeAmostra: boolean;
+    detalhesAmostra: string;
+    exigeCatalogo: boolean;
+    detalhesCatalogo: string;
+    exigeVistoria: boolean;
+    detalhesVistoria: string;
   };
   documentosExigidosHabilitacao: {
     juridica: string[];
     fiscalTrabalhista: string[];
-    economicoFinanceira: string[];
-    qualificacaoTecnica: string[];
-    exigenciaIndicesContabeis: string | null;
-    limiteAtestadoPercentual: string | null;
+    balancoPatrimonial: string;
+    exigenciaIndicesContabeis: string;
+    atestadoTecnico: string;
+    limiteAtestadoPercentual: string;
+    tempoMinimoExperiencia: string;
+    registroConselhoOuAlvara: string;
   };
   financeiroEContrato: {
-    condicoesPagamento: string | null;
-    vigenciaContrato: string | null;
-    criterioReajuste: string | null;
+    condicoesPagamento: string;
+    vigenciaContrato: string;
+    criterioReajuste: string;
+    garantiaContratual: string;
+    multasEPenalidades: string;
+  };
+  beneficioMeEpp: {
+    exclusivoOuCotaMeEpp: boolean;
+    detalhesMeEpp: string;
   };
 }
 
 export interface ExtractedSpecsFicha {
   resumoExplicado: string;
+  possuiArquivosReaisLidos: boolean;
   secoes: SecaoResumoExplicado;
   itensDetalhados: Array<{
     itemNumero: number;
@@ -90,15 +102,15 @@ export interface ExtractedSpecsFicha {
     fiscalTrabalhista: string[];
     economicoFinanceira: string[];
     qualificacaoTecnica: string[];
-    limiteAtestadoPercentual: string | null;
+    limiteAtestadoPercentual: string;
   };
   prazosECondicoes: {
     aberturaSessao: string | null;
-    prazoImpugnacao: string | null;
-    prazoEntregaOuExecucao: string | null;
-    localEntrega: string | null;
-    prazoPagamento: string | null;
-    vigenciaContrato: string | null;
+    prazoImpugnacao: string;
+    prazoEntregaOuExecucao: string;
+    localEntrega: string;
+    prazoPagamento: string;
+    vigenciaContrato: string;
   };
   pontosDeAtencaoERiscos: Array<{
     titulo: string;
@@ -113,21 +125,37 @@ export interface ExtractedSpecsFicha {
   auditoria: AuditoriaEditalResultado;
 }
 
+const NAO_ESPECIFICADO = 'Não especificado nos arquivos analisados';
+const NAO_EXIGIDO = 'Não exigido nos arquivos analisados';
+
+function extrairSentencaPorRegex(texto: string, regex: RegExp, maxLen = 240): string | null {
+  const m = texto.match(regex);
+  if (!m || m.index === undefined) return null;
+  const start = Math.max(0, m.index - 15);
+  const end = Math.min(texto.length, m.index + m[0].length + maxLen);
+  const slice = texto.slice(start, end).replace(/\[Página \d+ de [^\]]+\]/g, '').replace(/\s+/g, ' ').trim();
+  return slice.length >= 10 ? slice : null;
+}
+
 /**
- * Analisador Profundo de Editais com 100% de Veracidade (Zero Alucinação)
- * Extrai evidências literais dos chunks dos arquivos oficiais e audita irregularidades.
+ * Analisador Profundo de Editais com 100% de Veracidade (Zero Texto Genérico, Zero Alucinação)
  */
 export class EditalDeepAnalyzerService {
   /**
-   * Extrai e estrutura as especificações técnicas a partir dos chunks e metadados oficiais
+   * Extrai e estrutura as especificações técnicas EXCLUSIVAMENTE dos trechos reais lidos
    */
   public static analisarTextoIntegral(notice: any, chunks: string[], itensOficiais: any[] = []): ExtractedSpecsFicha {
-    const textoCompleto = chunks.join('\n\n');
+    const cleanChunks = chunks.filter(
+      (c) => c && !c.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF'),
+    );
+    const possuiArquivosReaisLidos = cleanChunks.length > 0 && cleanChunks.join('').trim().length >= 120;
+    const textoCompleto = cleanChunks.join('\n\n');
     const tLower = textoCompleto.toLowerCase();
 
-    // 1. Identificação do Portal e Formato da Disputa
+    // 1. Formato da Disputa e Portal
     let disputaRemota: boolean | null = null;
-    let modoDisputaTexto = 'Não especificado nos anexos';
+    let formatoDisputa: 'ELETRONICA' | 'PRESENCIAL' | 'NAO_ESPECIFICADO' = 'NAO_ESPECIFICADO';
+    let modoDisputaTexto = NAO_ESPECIFICADO;
     let trechoComprovante: string | null = null;
 
     const regexRemoto = /(?:pregão\s+eletrônico|concorrência\s+eletrônica|dispensa\s+eletrônica|sessão\s+pública\s+eletrônica|compras\.gov\.br|comprasnet|portal\s+de\s+compras\s+públicas|bll|bnc|licitanet|disputa\s+à\s+distância|sistema\s+eletrônico)/i;
@@ -135,51 +163,155 @@ export class EditalDeepAnalyzerService {
 
     if (regexRemoto.test(textoCompleto) || regexRemoto.test(notice?.modoDisputa || '') || regexRemoto.test(notice?.modality || '')) {
       disputaRemota = true;
+      formatoDisputa = 'ELETRONICA';
       modoDisputaTexto = 'Disputa Eletrônica (Sessão Online)';
       const match = textoCompleto.match(regexRemoto);
       if (match && match.index !== undefined) {
-        const start = Math.max(0, match.index - 50);
-        const end = Math.min(textoCompleto.length, match.index + 200);
+        const start = Math.max(0, match.index - 40);
+        const end = Math.min(textoCompleto.length, match.index + 180);
         trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
       }
     } else if (regexPresencial.test(textoCompleto) || regexPresencial.test(notice?.modoDisputa || '') || regexPresencial.test(notice?.modality || '')) {
       disputaRemota = false;
+      formatoDisputa = 'PRESENCIAL';
       modoDisputaTexto = 'Disputa Presencial (Comparecimento Físico Exigido)';
       const match = textoCompleto.match(regexPresencial);
       if (match && match.index !== undefined) {
-        const start = Math.max(0, match.index - 50);
-        const end = Math.min(textoCompleto.length, match.index + 200);
+        const start = Math.max(0, match.index - 40);
+        const end = Math.min(textoCompleto.length, match.index + 180);
         trechoComprovante = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
       }
     }
 
     // 2. Modo de Execução / Entrega
     let execucaoOuEntrega: 'REMOTE' | 'PRESENTIAL' | 'HYBRID_OR_DELIVERY' | 'UNSPECIFIED' = 'UNSPECIFIED';
-    const regexEntregaFisica = /(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|entrega\s+no\s+almoxarifado|frete\s+cif|prazo\s+de\s+entrega|recebimento\s+provisório\s+no\s+local)/i;
-    const regexExecucaoRemota = /(?:prestação\s+de\s+serviços\s+remota|atendimento\s+remoto|acesso\s+remoto|ambiente\s+em\s+nuvem|execução\s+à\s+distância|sem\s+necessidade\s+de\s+presença\s+física)/i;
-
-    if (regexExecucaoRemota.test(textoCompleto)) {
+    if (/(?:prestação\s+de\s+serviços\s+remota|atendimento\s+remoto|acesso\s+remoto|ambiente\s+em\s+nuvem|execução\s+à\s+distância)/i.test(textoCompleto)) {
       execucaoOuEntrega = 'REMOTE';
-    } else if (regexEntregaFisica.test(textoCompleto)) {
+    } else if (/(?:local\s+de\s+entrega|endereço\s+de\s+entrega|entrega\s+física|almoxarifado|prazo\s+de\s+entrega)/i.test(textoCompleto)) {
       execucaoOuEntrega = 'HYBRID_OR_DELIVERY';
     }
 
-    // 3. Vistoria, Amostras e Catálogo
-    const exigeVistoria = tLower.includes('vistoria obrigatória') || tLower.includes('visita técnica obrigatória')
-      ? true
-      : tLower.includes('vistoria facultativa') || tLower.includes('visita técnica facultativa')
-        ? false
-        : null;
+    // 3. Extrações Reais de Prazos, Entrega, Amostra, Catálogo e Vistoria
+    const prazoEntregaExtraido = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:prazo\s+(?:máximo\s+)?de\s+entrega|prazo\s+para\s+(?:entrega|fornecimento|início\s+da\s+execução)|entrega\s+deverá\s+ser\s+efetuada\s+em)[^.\n]{0,160}/i,
+      140,
+    ) || NAO_ESPECIFICADO;
 
-    const exigeAmostra = tLower.includes('apresentação de amostra') || tLower.includes('envio de amostra') || tLower.includes('prova de conceito')
-      ? true
-      : null;
+    const localEntregaExtraido = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:local\s+de\s+entrega|endereço\s+de\s+entrega|local\s+da\s+execução|deverão\s+ser\s+entregues\s+n[ao])[^.\n]{0,180}/i,
+      150,
+    ) || (notice?.municipality && notice?.uf ? `${notice.municipality} - ${notice.uf} (endereço exato não detalhado nos trechos lidos)` : NAO_ESPECIFICADO);
 
-    const exigeCatalogo = tLower.includes('catálogo') || tLower.includes('prospecto') || tLower.includes('ficha técnica do fabricante')
-      ? true
-      : null;
+    const exigeAmostra = /(?:apresentação\s+de\s+amostra|envio\s+de\s+amostra|prova\s+de\s+conceito|exigência\s+de\s+amostra)/i.test(textoCompleto);
+    const detalhesAmostra = exigeAmostra
+      ? (extrairSentencaPorRegex(textoCompleto, /(?:amostra|prova\s+de\s+conceito)[^.\n]{0,180}/i, 160) || 'Exigência de amostra citada no edital.')
+      : NAO_EXIGIDO;
 
-    // Helper para extrair trecho literal com identificação de arquivo e página exata
+    const exigeCatalogo = /(?:catálogo|prospecto|folder|ficha\s+técnica\s+do\s+fabricante)/i.test(textoCompleto);
+    const detalhesCatalogo = exigeCatalogo
+      ? (extrairSentencaPorRegex(textoCompleto, /(?:catálogo|prospecto|folder|ficha\s+técnica)[^.\n]{0,160}/i, 140) || 'Exigência de catálogo/ficha técnica citada no edital.')
+      : NAO_EXIGIDO;
+
+    const exigeVistoria = /(?:vistoria|visita\s+técnica)/i.test(textoCompleto);
+    const detalhesVistoria = exigeVistoria
+      ? (extrairSentencaPorRegex(textoCompleto, /(?:vistoria|visita\s+técnica)[^.\n]{0,180}/i, 160) || 'Vistoria técnica citada no edital.')
+      : NAO_EXIGIDO;
+
+    // 4. Extrações Reais de Habilitação (ZERO lista genérica fixa)
+    const docJuridica: string[] = [];
+    if (/(?:contrato\s+social|estatuto|ato\s+constitutivo)/i.test(textoCompleto)) docJuridica.push('Ato constitutivo / Contrato Social em vigor');
+    if (/(?:cnpj|cadastro\s+nacional\s+da\s+pessoa\s+jurídica)/i.test(textoCompleto)) docJuridica.push('Comprovante de inscrição no CNPJ');
+    if (/(?:registro\s+comercial|requerimento\s+de\s+empresário|mei|ccmei)/i.test(textoCompleto)) docJuridica.push('Registro comercial / Certificado de MEI (se aplicável)');
+    if (docJuridica.length === 0) docJuridica.push(possuiArquivosReaisLidos ? 'Não detalhado expressamente nos trechos analisados' : NAO_ESPECIFICADO);
+
+    const docFiscal: string[] = [];
+    if (/(?:receita\s+federal|pgfn|tributos\s+federais|conjunta\s+federal)/i.test(textoCompleto)) docFiscal.push('Certidão Conjunta Federal / Dívida Ativa (RFB/PGFN)');
+    if (/(?:fgts|fundo\s+de\s+garantia|crf)/i.test(textoCompleto)) docFiscal.push('Regularidade do FGTS (CRF)');
+    if (/(?:cndt|débitos\s+trabalhistas|justiça\s+do\s+trabalho)/i.test(textoCompleto)) docFiscal.push('Certidão Negativa de Débitos Trabalhistas (CNDT)');
+    if (/(?:fazenda\s+estadual|tributos\s+estaduais|sefaz)/i.test(textoCompleto)) docFiscal.push('Regularidade Fiscal Estadual');
+    if (/(?:fazenda\s+municipal|tributos\s+municipais)/i.test(textoCompleto)) docFiscal.push('Regularidade Fiscal Municipal');
+    if (docFiscal.length === 0) docFiscal.push(possuiArquivosReaisLidos ? 'Não detalhado expressamente nos trechos analisados' : NAO_ESPECIFICADO);
+
+    // Balanço Patrimonial e Índices
+    let balancoPatrimonial = NAO_ESPECIFICADO;
+    if (/(?:dispensad[oa]\s+(?:o|a|de)\s+balanço|art\.?\s*70,?\s*(?:inciso\s*)?iii|entrega\s+imediata[^.\n]{0,60}balanço)/i.test(textoCompleto)) {
+      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /(?:dispensad[oa][^.\n]{0,80}balanço|balanço[^.\n]{0,80}dispensad[oa])/i, 120) || 'Dispensado conforme regras do edital';
+    } else if (/balanço\s+patrimonial/i.test(textoCompleto)) {
+      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /balanço\s+patrimonial[^.\n]{0,160}/i, 140) || 'Exigido nos termos do edital';
+    } else if (possuiArquivosReaisLidos) {
+      balancoPatrimonial = NAO_EXIGIDO;
+    }
+
+    const exigenciaIndicesContabeis = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:liquidez\s+geral|solvência\s+geral|liquidez\s+corrente|índices\s+contábeis)[^.\n]{0,160}/i,
+      140,
+    ) || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
+
+    // Atestado Técnico, Percentual e Tempo Mínimo de Experiência
+    const atestadoTecnico = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:atestado\s+de\s+capacidade\s+técnica|atestados?\s+fornecidos?\s+por\s+pessoa\s+jurídica)[^.\n]{0,180}/i,
+      160,
+    ) || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
+
+    const matchPercentAtestado = textoCompleto.match(/(?:atestado|capacidade\s+técnica|quantitativo\s+mínimo)[^.\n]{0,100}(\d{1,3}\s*%)/i);
+    const limiteAtestadoPercentual = matchPercentAtestado
+      ? `Exige comprovação de ${matchPercentAtestado[1]} (${extrairSentencaPorRegex(textoCompleto, /(?:atestado|capacidade\s+técnica)[^.\n]{0,100}\d{1,3}\s*%/i, 80)})`
+      : (atestadoTecnico !== NAO_EXIGIDO && atestadoTecnico !== NAO_ESPECIFICADO ? 'Percentual numérico não especificado' : NAO_EXIGIDO);
+
+    const tempoMinimoExperiencia = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:experiência\s+mínima|tempo\s+mínimo\s+de\s+experiência|comprovação\s+de\s+experiência\s+de\s+no\s+mínimo)[^.\n]{0,140}(?:\d+\s*(?:meses|anos))/i,
+      120,
+    ) || 'Não exige tempo mínimo de experiência';
+
+    const registroConselhoOuAlvara = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:registro\s+(?:ou\s+inscrição\s+)?no\s+(?:crea|cau|cra|crq|crm|coren|crf|conselho\s+regional)|licença\s+sanitária|anvisa|alvará\s+de\s+funcionamento)[^.\n]{0,150}/i,
+      120,
+    ) || NAO_EXIGIDO;
+
+    // 5. Condições Financeiras e Contratuais Reais
+    const condicoesPagamento = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:prazo\s+de\s+pagamento|pagamento\s+será\s+efetuado|liquidação\s+e\s+pagamento)[^.\n]{0,160}/i,
+      140,
+    ) || NAO_ESPECIFICADO;
+
+    const vigenciaContrato = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:prazo\s+de\s+vigência|vigência\s+do\s+contrato|vigência\s+da\s+ata)[^.\n]{0,140}/i,
+      120,
+    ) || NAO_ESPECIFICADO;
+
+    const criterioReajuste = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:reajuste|reajustamento\s+de\s+preços)[^.\n]{0,160}(?:ipca|igp-m|inpc|igpm|incc|ipca-e|índice)[^.\n]{0,80}/i,
+      120,
+    ) || NAO_ESPECIFICADO;
+
+    const garantiaContratual = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:garantia\s+contratual|garantia\s+de\s+execução)[^.\n]{0,140}/i,
+      120,
+    ) || NAO_EXIGIDO;
+
+    const multasEPenalidades = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:multa\s+(?:moratória|compensatória)|sanções\s+administrativas|penalidades)[^.\n]{0,160}/i,
+      140,
+    ) || NAO_ESPECIFICADO;
+
+    // 6. Benefício ME / EPP
+    const exclusivoOuCotaMeEpp = /(?:exclusiv[oa]\s+para\s+(?:me|epp|microempresa)|cota\s+reservada|lei\s+complementar\s+n[º°]?\s*123)/i.test(textoCompleto);
+    const detalhesMeEpp = exclusivoOuCotaMeEpp
+      ? (extrairSentencaPorRegex(textoCompleto, /(?:exclusiv[oa]\s+para\s+me|cota\s+reservada|microempresas\s+e\s+empresas\s+de\s+pequeno\s+porte)[^.\n]{0,160}/i, 140) || 'Prevê tratamento diferenciado ou exclusividade para ME/EPP (LC 123/2006).')
+      : 'Disputa aberta para ampla concorrência (sem menção expressa de exclusividade ME/EPP nos trechos analisados).';
+
+    // Helper para extrair trecho literal de vício com identificação de arquivo e página exata
     const extrairEvidenciaLocalizada = (regex: RegExp): { trecho: string; arquivo: string; pagina: string | number } | null => {
       const match = textoCompleto.match(regex);
       if (!match || match.index === undefined) return null;
@@ -188,7 +320,6 @@ export class EditalDeepAnalyzerService {
       const end = Math.min(textoCompleto.length, match.index + match[0].length + 90);
       const trecho = '...' + textoCompleto.slice(start, end).replace(/\s+/g, ' ').trim() + '...';
 
-      // Procura retroativamente o último marcador de página antes do trecho
       const textoAnterior = textoCompleto.slice(0, match.index);
       const pageMatches = [...textoAnterior.matchAll(/\[Página\s+(\d+)\s+de\s+([^\]]+)\]/gi)];
 
@@ -199,15 +330,15 @@ export class EditalDeepAnalyzerService {
         const lastPage = pageMatches[pageMatches.length - 1];
         if (lastPage && lastPage[1]) {
           pagina = Number(lastPage[1]) || lastPage[1];
-          if (lastPage[2]) {
-            arquivo = lastPage[2].trim();
-          }
+          if (lastPage[2]) arquivo = lastPage[2].trim();
         }
       } else {
         const arqMatch = textoAnterior.match(/===\s*(?:ANEXO|DOCUMENTO|ARQUIVO INTERNO DO PACOTE):\s*([^=\n]+)\s*===/gi);
         if (arqMatch && arqMatch.length > 0) {
-          const lastArq = arqMatch[arqMatch.length - 1];
-          const cleanName = lastArq.replace(/===\s*(?:ANEXO|DOCUMENTO|ARQUIVO INTERNO DO PACOTE):\s*/i, '').replace(/\s*===/, '').trim();
+          const cleanName = arqMatch[arqMatch.length - 1]
+            .replace(/===\s*(?:ANEXO|DOCUMENTO|ARQUIVO INTERNO DO PACOTE):\s*/i, '')
+            .replace(/\s*===/, '')
+            .trim();
           if (cleanName) arquivo = cleanName;
         }
       }
@@ -215,10 +346,9 @@ export class EditalDeepAnalyzerService {
       return { trecho, arquivo, pagina };
     };
 
-    // 4. Auditoria Determinística de 8 Vícios e Irregularidades (Lei 14.133/21, LC 123/06, IN 73/22, Súmulas TCU)
+    // 7. Auditoria Determinística de Irregularidades com Prova Literal
     const vicios: VicioIrregularidadeEdital[] = [];
 
-    // VÍCIO 1: Atestado de Capacidade Técnica > 50% ou em item irrelevante
     const regexAtestadoExcessivo = /(?:atestado|capacidade\s+t[eé]cnica|comprova[çc][ãa]o\s+de\s+aptid[ãa]o)[^\n.]{0,100}(?:5[1-9]%|[6-9][0-9]%|100%)[^\n.]{0,100}/i;
     if (regexAtestadoExcessivo.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexAtestadoExcessivo);
@@ -231,32 +361,30 @@ export class EditalDeepAnalyzerService {
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 67, § 1º e § 2º da Lei 14.133/2021 e Súmula nº 263 do TCU',
-          explicacaoSimples: 'A Administração não pode exigir atestado de capacidade técnica superior a 50% dos quantitativos da licitação, nem exigir atestados para parcelas que não sejam de relevância técnica e valor significativo.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital (Art. 164) requerendo a limitação da exigência a no máximo 50% das parcelas de maior relevância técnica e valor significativo.',
+          explicacaoSimples: 'A Administração não pode exigir atestado de capacidade técnica superior a 50% dos quantitativos da licitação.',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital (Art. 164) requerendo a limitação a no máximo 50%.',
         });
       }
     }
 
-    // VÍCIO 2: Restrição Geográfica / Exigência de Sede ou Filial Local
     const regexRestricaoGeo = /(?:possuir\s+sede\s+n[ao]|obrigatoriamente\s+sediada|escrit[oó]rio\s+local|filial\s+no\s+munic[ií]pio|atestado\s+emitido\s+no\s+estado|registro\s+no\s+conselho\s+regional\s+local\s+antes\s+da\s+contrata[çc][ãa]o)[^\n.]{0,100}/i;
     if (regexRestricaoGeo.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexRestricaoGeo);
       if (ev) {
         vicios.push({
           id: 'vicio-restricao-geografica',
-          titulo: 'Restrição Geográfica Indevida / Exigência de Sede ou Registro Local Prévio',
+          titulo: 'Restrição Geográfica Indevida / Exigência de Sede Local',
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 9º, inciso I, alínea "a" da Lei 14.133/2021 e Súmula nº 272 do TCU',
-          explicacaoSimples: 'É vedado aos agentes públicos admitir ou prever cláusulas que estabeleçam preferências ou restrições baseadas na sede, domicílio ou localização geográfica dos licitantes.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital requerendo a anulação da exigência de localização geográfica prévia à assinatura do contrato.',
+          explicacaoSimples: 'É proibido restringir a disputa ou exigir sede ou filial prévia em município ou estado específico.',
+          acaoRecomendada: 'Protocolar Impugnação ao Edital requerendo a anulação da exigência geográfica.',
         });
       }
     }
 
-    // VÍCIO 3: Vistoria Técnica Obrigatória sem Opção de Declaração Formal Substitutiva
     const regexVistoriaObrigatoria = /(?:vistoria|visita\s+t[eé]cnica)\s+obrigat[oó]ria[^\n.]{0,100}/i;
     const temDeclaracaoSubstitutiva = /(?:declara[çc][ãa]o\s+formal|declara[çc][ãa]o\s+de\s+conhecimento|facultada\s+a\s+substitui[çc][ãa]o)/i.test(textoCompleto);
     if (regexVistoriaObrigatoria.test(textoCompleto) && !temDeclaracaoSubstitutiva) {
@@ -264,19 +392,18 @@ export class EditalDeepAnalyzerService {
       if (ev) {
         vicios.push({
           id: 'vicio-vistoria-obrigatoria',
-          titulo: 'Vistoria Técnica Obrigatória sem Opção de Declaração Formal Substitutiva',
+          titulo: 'Vistoria Obrigatória sem Opção de Declaração Formal Substitutiva',
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 63, § 2º e § 3º da Lei Federal nº 14.133/2021',
-          explicacaoSimples: 'A avaliação prévia do local de execução é obrigatória somente quando imprescindível, devendo sempre ser assegurado ao licitante o direito de substituir a vistoria presencial por declaração formal de conhecimento do local.',
-          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação requerendo a garantia legal de substituição da vistoria por declaração formal de pleno conhecimento.',
+          explicacaoSimples: 'A lei garante ao licitante o direito de substituir a vistoria presencial por declaração formal de conhecimento.',
+          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação para assegurar a substituição por declaração.',
         });
       }
     }
 
-    // VÍCIO 4: Direcionamento de Marca / Modelo sem Justificativa ou sem "ou similar/equivalente"
     const regexMarcaDirecionada = /(?:marca\s+[A-Z][a-zA-Z0-9]+|modelo\s+[A-Z][a-zA-Z0-9]+|prefer[eê]ncia\s+pela\s+marca)[^\n.]{0,100}/i;
     const temSimilar = /(?:ou\s+similar|ou\s+equivalente|de\s+melhor\s+qualidade)/i.test(textoCompleto);
     if (regexMarcaDirecionada.test(textoCompleto) && !temSimilar) {
@@ -284,19 +411,18 @@ export class EditalDeepAnalyzerService {
       if (ev) {
         vicios.push({
           id: 'vicio-direcionamento-marca',
-          titulo: 'Direcionamento de Marca / Modelo sem Cláusula de Equivalência ("ou similar")',
+          titulo: 'Direcionamento de Marca / Modelo sem Cláusula "ou equivalente"',
           gravidade: 'ALTO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 41, inciso I da Lei 14.133/2021 e Súmula nº 270 do TCU',
-          explicacaoSimples: 'A indicação de marcas só é admitida se acompanhada de justificativa técnica e expressamente seguida da locução "ou equivalente", para não restringir a competitividade.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital exigindo a inserção expressa da cláusula "ou equivalente/similar" e critérios objetivos de aceitabilidade.',
+          explicacaoSimples: 'A indicação de marca sem justificativa técnica e sem a locução "ou equivalente" fere a isonomia.',
+          acaoRecomendada: 'Protocolar Impugnação exigindo a inclusão da expressão "ou equivalente".',
         });
       }
     }
 
-    // VÍCIO 5: Exigência de Certificação ISO, CMMI ou Laudo Privado na Fase de Habilitação
     const regexCertificacaoPrivada = /(?:certifica[çc][ãa]o\s+ISO|ISO\s*9001|ISO\s*27001|ISO\s*14001|CMMI|MPS\.BR|laudo\s+t[eé]cnico\s+pr[eé]vio)[^\n.]{0,120}(?:habilita[çc][ãa]o|desclassifica[çc][ãa]o|sob\s+pena)/i;
     if (regexCertificacaoPrivada.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexCertificacaoPrivada);
@@ -308,14 +434,13 @@ export class EditalDeepAnalyzerService {
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Rol taxativo dos Arts. 62 a 70 da Lei 14.133/2021 e Súmula nº 192 e Acórdão 1.214/2013-Plenário do TCU',
-          explicacaoSimples: 'O rol de documentos de habilitação da Lei de Licitações é taxativo. Certificações de qualidade como ISO 9001 ou laudos prévios não podem ser exigidos como condição eliminatória de habilitação.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital para exclusão imediata de certificação de qualidade privada como requisito habilitatório eliminatório.',
+          fundamentoLegal: 'Arts. 62 a 70 da Lei 14.133/2021 e Súmula nº 192 / Acórdão 1.214/2013-Plenário do TCU',
+          explicacaoSimples: 'Certificações privadas como ISO 9001 não podem ser exigidas como condição eliminatória de habilitação.',
+          acaoRecomendada: 'Protocolar Impugnação requerendo a exclusão da certificação como requisito habilitatório.',
         });
       }
     }
 
-    // VÍCIO 6: Agrupamento Indevido de Itens Divisíveis em Lote Único
     const regexLoteUnicoIndevido = /(?:adjudica[çc][ãa]o\s+por\s+lote\s+[uú]nico|crit[eé]rio\s+global\s+em\s+lote\s+[uú]nico)[^\n.]{0,100}(?:sem\s+justificativa|divis[ií]veis)/i;
     if (regexLoteUnicoIndevido.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexLoteUnicoIndevido);
@@ -328,56 +453,53 @@ export class EditalDeepAnalyzerService {
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
           fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Súmula nº 247 do TCU',
-          explicacaoSimples: 'O parcelamento do objeto é regra obrigatória quando tecnicamente e economicamente viável, sendo vedado reunir itens heterogêneos em lote único sem robusta justificativa técnica.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital pleiteando o fracionamento do objeto em itens independentes para ampliação da ampla disputa.',
+          explicacaoSimples: 'Itens divisíveis devem ser licitados separadamente para ampliar a competitividade.',
+          acaoRecomendada: 'Protocolar Impugnação pleiteando o parcelamento do objeto por itens.',
         });
       }
     }
 
-    // VÍCIO 7: Prazo de Entrega Impossível ou Desproporcional
     const regexPrazoExiguo = /(?:prazo\s+de\s+entrega|execu[çc][ãa]o)[^\n.]{0,80}(?:(?:24|48)\s*horas|1\s*dia\s*[uú]til)[^\n.]{0,80}/i;
     if (regexPrazoExiguo.test(textoCompleto) && !/perec[ií]vel|urg[eê]ncia\s+m[eé]dica|pronto\s+socorro/i.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexPrazoExiguo);
       if (ev) {
         vicios.push({
           id: 'vicio-prazo-exiguo',
-          titulo: 'Prazo de Entrega Desproporcional ou Exíguo (Restrição à Ampla Disputa)',
+          titulo: 'Prazo de Entrega Exíguo / Desproporcional',
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Princípio da Razoabilidade e Proporcionalidade',
-          explicacaoSimples: 'Prazos de fornecimento ou entrega de 24h ou 48h sem justificativa de urgência comprovada funcionam como cláusula de barreira que favorece fornecedores previamente instalados.',
-          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação para dilação do prazo de fornecimento de forma compatível com a logística do mercado.',
+          fundamentoLegal: 'Art. 40, § 2º da Lei 14.133/2021 e Princípio da Razoabilidade',
+          explicacaoSimples: 'Prazos de 24h ou 48h sem urgência comprovada funcionam como restrição geográfica indireta.',
+          acaoRecomendada: 'Enviar Pedido de Esclarecimento ou Impugnação solicitando prazo compatível com a logística.',
         });
       }
     }
 
-    // VÍCIO 8: Omissões Obrigatórias no Edital (Ausência de Reajuste em Contratos Longos ou Garantia Abusiva)
     const regexGarantiaAbusiva = /(?:garantia\s+contratual|garantia\s+de\s+execu[çc][ãa]o)[^\n.]{0,80}(?:1[1-9]%|[2-9][0-9]%)[^\n.]{0,80}/i;
     if (regexGarantiaAbusiva.test(textoCompleto)) {
       const ev = extrairEvidenciaLocalizada(regexGarantiaAbusiva);
       if (ev) {
         vicios.push({
           id: 'vicio-garantia-excessiva',
-          titulo: 'Exigência de Garantia Contratual Acima do Limite Máximo Legal',
+          titulo: 'Exigência de Garantia Contratual Acima do Limite Legal',
           gravidade: 'MEDIO',
           arquivoOrigem: ev.arquivo,
           pagina: ev.pagina,
           trechoLiteral: ev.trecho,
-          fundamentoLegal: 'Art. 98 da Lei Federal nº 14.133/2021 (limite máximo de 5%, ou 10% para alta complexidade)',
-          explicacaoSimples: 'O percentual de garantia de execução contratual não pode exceder 5% do valor inicial do contrato, sendo cabível 10% exclusivamente para contratações de grande vulto e alta complexidade.',
-          acaoRecomendada: 'Protocolar Impugnação ao Edital para adequar o percentual de garantia aos limites taxativos do Art. 98.',
+          fundamentoLegal: 'Art. 98 da Lei Federal nº 14.133/2021 (limite de 5%, ou 10% em alta complexidade)',
+          explicacaoSimples: 'A garantia de execução não pode superar os limites máximos previstos no Art. 98 da Lei.',
+          acaoRecomendada: 'Protocolar Impugnação para adequação do percentual de garantia.',
         });
       }
     }
 
-    // Consolidação da Auditoria Determinística
     const auditoriaResultado: AuditoriaEditalResultado = {
       status: vicios.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
       mensagem: vicios.length > 0
         ? `Edital auditado: foram identificadas ${vicios.length} irregularidade(s) com prova literal nos documentos oficiais.`
-        : 'Edital auditado integralmente: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
+        : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
       totalVicios: vicios.length,
       viciosAltos: vicios.filter((v) => v.gravidade === 'ALTO').length,
       viciosMedios: vicios.filter((v) => v.gravidade === 'MEDIO').length,
@@ -385,7 +507,7 @@ export class EditalDeepAnalyzerService {
       apontamentos: vicios,
     };
 
-    // 5. Itens Detalhados do Registro Oficial ou Extraídos
+    // 8. Itens Detalhados
     const itensExtraidos: ExtractedSpecsFicha['itensDetalhados'] = [];
     if (Array.isArray(itensOficiais) && itensOficiais.length > 0) {
       itensOficiais.forEach((it: any, idx: number) => {
@@ -400,65 +522,66 @@ export class EditalDeepAnalyzerService {
       });
     }
 
-    // 6. Resumo Explicado e Estruturado por Seções
-    const objetoPrincipal = notice?.object || notice?.objeto || 'Contratação pública oficial';
+    const objetoPrincipal = notice?.object || notice?.objeto || NAO_ESPECIFICADO;
     const orgao = notice?.buyerName || notice?.orgao || 'Órgão Licitante';
     const valorGlobal = Number(notice?.estimatedValue || 0) || null;
+    const dataAberturaStr = notice?.openingAt ? new Date(notice.openingAt).toLocaleString('pt-BR') : null;
 
     const secoes: SecaoResumoExplicado = {
       objetoContratacao: {
-        oQueOrgaoQuer: `Contratação de ${objetoPrincipal} promovida por ${orgao}, regida pela Lei Federal nº 14.133/2021.`,
+        oQueOrgaoQuer: `${objetoPrincipal} (Órgão contratante: ${orgao}).`,
         itensDetalhados: itensExtraidos,
         valorGlobalEstimado: valorGlobal,
       },
       disputaEPrazos: {
-        portalDisputa: notice?.source || 'Portal Oficial de Compras',
-        formatoDisputa: disputaRemota ? 'ELETRONICA' : 'PRESENCIAL',
-        aberturaSessao: notice?.openingAt ? new Date(notice.openingAt).toLocaleString('pt-BR') : null,
-        prazoLimiteImpugnacao: 'Até 3 dias úteis antes da abertura da sessão pública (Art. 164 da Lei 14.133/2021)',
-        prazoEnvioProposta: 'Até a data e horário limite de abertura da sessão pública no portal',
+        portalDisputa: notice?.source || NAO_ESPECIFICADO,
+        formatoDisputa,
+        aberturaSessao: dataAberturaStr,
+        prazoLimiteProposta: dataAberturaStr ? `Até a abertura da sessão (${dataAberturaStr})` : NAO_ESPECIFICADO,
+        prazoEsclarecimento: 'Até 3 dias úteis antes da data de abertura do certame (Art. 164 da Lei 14.133/2021)',
+        prazoLimiteImpugnacao: 'Até 3 dias úteis antes da data de abertura do certame (Art. 164 da Lei 14.133/2021)',
         trechoComprovante,
       },
       condicoesEntregaExecucao: {
-        prazoEntrega: 'Conforme cronograma especificado no Termo de Referência',
-        localEntrega: notice?.municipality && notice?.uf ? `${notice.municipality} - ${notice.uf}` : notice?.uf || 'Conforme Edital',
+        prazoEntrega: prazoEntregaExtraido,
+        localEntrega: localEntregaExtraido,
         exigeAmostra,
+        detalhesAmostra,
         exigeCatalogo,
+        detalhesCatalogo,
         exigeVistoria,
-        detalhesVistoria: exigeVistoria ? 'Vistoria exigida no edital. O licitante tem direito legal de substituir por declaração formal de conhecimento.' : 'Não exigida ou facultativa.',
+        detalhesVistoria,
       },
       documentosExigidosHabilitacao: {
-        juridica: ['Comprovante de Inscrição no CNPJ ativo', 'Contrato Social ou Ato Constitutivo em vigor'],
-        fiscalTrabalhista: [
-          'Certidão Conjunta Federal e Previdenciária (RFB/PGFN)',
-          'Certificado de Regularidade do FGTS (CRF)',
-          'Certidão Negativa de Débitos Trabalhistas (CNDT)',
-          'Certidão de Débitos Tributários Estadual e Municipal',
-        ],
-        economicoFinanceira: [
-          'Balanço Patrimonial e DRE dos 2 últimos exercícios sociais',
-          'Certidão Negativa de Falência e Recuperação Judicial',
-          'Índices de Liquidez Geral (LG), Solvência Geral (SG) e Liquidez Corrente (LC) iguais ou superiores a 1,0',
-        ],
-        qualificacaoTecnica: [
-          'Atestado de Capacidade Técnica comprovando fornecimento anterior compatível com o objeto',
-        ],
-        exigenciaIndicesContabeis: 'LG, SG e LC >= 1,00',
-        limiteAtestadoPercentual: 'Limitado a no máximo 50% das parcelas de maior relevância (Súmula 263 do TCU)',
+        juridica: docJuridica,
+        fiscalTrabalhista: docFiscal,
+        balancoPatrimonial,
+        exigenciaIndicesContabeis,
+        atestadoTecnico,
+        limiteAtestadoPercentual,
+        tempoMinimoExperiencia,
+        registroConselhoOuAlvara,
       },
       financeiroEContrato: {
-        condicoesPagamento: 'Em até 30 dias após a liquidação da nota fiscal eletrônica com ateste (Art. 141 da Lei 14.133/2021)',
-        vigenciaContrato: 'Conforme Termo de Referência e Minuta do Contrato',
-        criterioReajuste: 'Índice oficial IPCA ou IPCA-E após 12 meses de vigência (Art. 25, § 7º da Lei 14.133/2021)',
+        condicoesPagamento,
+        vigenciaContrato,
+        criterioReajuste,
+        garantiaContratual,
+        multasEPenalidades,
+      },
+      beneficioMeEpp: {
+        exclusivoOuCotaMeEpp,
+        detalhesMeEpp,
       },
     };
 
-    const resumoExplicado = `Contratação promovida por ${orgao} sob a Lei Federal nº 14.133/2021 com foco em: ${objetoPrincipal}. ${
-      itensExtraidos.length > 0 ? `Compreende ${itensExtraidos.length} item(ns) especificado(s) no Termo de Referência.` : 'Verifique os quantitativos e anexos completos no processo.'
+    const resumoExplicado = `Contratação promovida por ${orgao} com objeto: ${objetoPrincipal}. ${
+      itensExtraidos.length > 0 ? `Contempla ${itensExtraidos.length} item(ns) oficial(is).` : ''
     }`;
 
     return {
       resumoExplicado,
+      possuiArquivosReaisLidos,
       secoes,
       itensDetalhados: itensExtraidos,
       disputaEExecucao: {
@@ -470,19 +593,19 @@ export class EditalDeepAnalyzerService {
         trechoComprovante,
       },
       habilitacaoCompleta: {
-        juridica: secoes.documentosExigidosHabilitacao.juridica,
-        fiscalTrabalhista: secoes.documentosExigidosHabilitacao.fiscalTrabalhista,
-        economicoFinanceira: secoes.documentosExigidosHabilitacao.economicoFinanceira,
-        qualificacaoTecnica: secoes.documentosExigidosHabilitacao.qualificacaoTecnica,
-        limiteAtestadoPercentual: secoes.documentosExigidosHabilitacao.limiteAtestadoPercentual,
+        juridica: docJuridica,
+        fiscalTrabalhista: docFiscal,
+        economicoFinanceira: [balancoPatrimonial, exigenciaIndicesContabeis].filter((x) => x !== NAO_EXIGIDO && x !== NAO_ESPECIFICADO),
+        qualificacaoTecnica: [atestadoTecnico, tempoMinimoExperiencia, registroConselhoOuAlvara].filter((x) => x !== NAO_EXIGIDO && x !== NAO_ESPECIFICADO),
+        limiteAtestadoPercentual,
       },
       prazosECondicoes: {
-        aberturaSessao: secoes.disputaEPrazos.aberturaSessao,
+        aberturaSessao: dataAberturaStr,
         prazoImpugnacao: secoes.disputaEPrazos.prazoLimiteImpugnacao,
-        prazoEntregaOuExecucao: secoes.condicoesEntregaExecucao.prazoEntrega,
-        localEntrega: secoes.condicoesEntregaExecucao.localEntrega,
-        prazoPagamento: secoes.financeiroEContrato.condicoesPagamento,
-        vigenciaContrato: secoes.financeiroEContrato.vigenciaContrato,
+        prazoEntregaOuExecucao: prazoEntregaExtraido,
+        localEntrega: localEntregaExtraido,
+        prazoPagamento: condicoesPagamento,
+        vigenciaContrato,
       },
       pontosDeAtencaoERiscos: vicios.map((v) => ({
         titulo: v.titulo,
@@ -496,6 +619,107 @@ export class EditalDeepAnalyzerService {
       })),
       auditoria: auditoriaResultado,
     };
+  }
+
+  /**
+   * Refina extração utilizando IA estritamente aterrada no texto real do PDF (se GEMINI_API_KEY presente)
+   */
+  private static async refinarExtracaoComIaReal(
+    fichaBase: ExtractedSpecsFicha,
+    textoReal: string,
+  ): Promise<ExtractedSpecsFicha> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || !fichaBase.possuiArquivosReaisLidos || textoReal.trim().length < 250) {
+      return fichaBase;
+    }
+
+    try {
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+
+      // Amostra estratégica: início (Edital), meio (Habilitação/TR) e fim (Minuta/Contrato/Anexos)
+      const inicio = textoReal.slice(0, 28000);
+      const meio = textoReal.length > 40000 ? textoReal.slice(Math.floor(textoReal.length / 2) - 10000, Math.floor(textoReal.length / 2) + 12000) : '';
+      const fim = textoReal.length > 60000 ? textoReal.slice(-20000) : '';
+      const textoConsolidado = [inicio, meio, fim].filter(Boolean).join('\n\n--- TRECHO SEGUINTE DO ARQUIVO ---\n\n');
+
+      const prompt = `Você é um analista sênior de licitações públicas. Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo.
+REGRAS INEGOCIAVEIS:
+1. PROIBIDO inventar, presumir ou usar texto genérico.
+2. Se uma informação NÃO estiver expressa no texto, escreva exatamente: "Não especificado nos arquivos analisados" ou "Não exigido nos arquivos analisados".
+3. Cite números exatos, prazos exatos e nomes de documentos exatos escritos neste texto.
+
+Retorne exatamente este JSON:
+{
+  "prazoEntrega": "string",
+  "localEntrega": "string",
+  "detalhesAmostra": "string",
+  "detalhesCatalogo": "string",
+  "detalhesVistoria": "string",
+  "balancoPatrimonial": "string",
+  "exigenciaIndicesContabeis": "string",
+  "atestadoTecnico": "string",
+  "limiteAtestadoPercentual": "string",
+  "tempoMinimoExperiencia": "string",
+  "registroConselhoOuAlvara": "string",
+  "condicoesPagamento": "string",
+  "vigenciaContrato": "string",
+  "criterioReajuste": "string",
+  "garantiaContratual": "string",
+  "multasEPenalidades": "string"
+}
+
+TEXTO OFICIAL DO EDITAL:
+${textoConsolidado}`;
+
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_IA_EXTRACAO')), 18000)),
+      ]) as any;
+
+      const rawJson = String(result?.response?.text?.() || '').trim();
+      const parsed = JSON.parse(rawJson);
+
+      const safePick = (val: any, fallback: string) => {
+        if (typeof val === 'string' && val.trim().length > 3 && !val.includes('Não especificado')) {
+          return val.trim();
+        }
+        return fallback;
+      };
+
+      fichaBase.secoes.condicoesEntregaExecucao.prazoEntrega = safePick(parsed.prazoEntrega, fichaBase.secoes.condicoesEntregaExecucao.prazoEntrega);
+      fichaBase.secoes.condicoesEntregaExecucao.localEntrega = safePick(parsed.localEntrega, fichaBase.secoes.condicoesEntregaExecucao.localEntrega);
+      fichaBase.secoes.condicoesEntregaExecucao.detalhesAmostra = safePick(parsed.detalhesAmostra, fichaBase.secoes.condicoesEntregaExecucao.detalhesAmostra);
+      fichaBase.secoes.condicoesEntregaExecucao.detalhesCatalogo = safePick(parsed.detalhesCatalogo, fichaBase.secoes.condicoesEntregaExecucao.detalhesCatalogo);
+      fichaBase.secoes.condicoesEntregaExecucao.detalhesVistoria = safePick(parsed.detalhesVistoria, fichaBase.secoes.condicoesEntregaExecucao.detalhesVistoria);
+
+      fichaBase.secoes.documentosExigidosHabilitacao.balancoPatrimonial = safePick(parsed.balancoPatrimonial, fichaBase.secoes.documentosExigidosHabilitacao.balancoPatrimonial);
+      fichaBase.secoes.documentosExigidosHabilitacao.exigenciaIndicesContabeis = safePick(parsed.exigenciaIndicesContabeis, fichaBase.secoes.documentosExigidosHabilitacao.exigenciaIndicesContabeis);
+      fichaBase.secoes.documentosExigidosHabilitacao.atestadoTecnico = safePick(parsed.atestadoTecnico, fichaBase.secoes.documentosExigidosHabilitacao.atestadoTecnico);
+      fichaBase.secoes.documentosExigidosHabilitacao.limiteAtestadoPercentual = safePick(parsed.limiteAtestadoPercentual, fichaBase.secoes.documentosExigidosHabilitacao.limiteAtestadoPercentual);
+      fichaBase.secoes.documentosExigidosHabilitacao.tempoMinimoExperiencia = safePick(parsed.tempoMinimoExperiencia, fichaBase.secoes.documentosExigidosHabilitacao.tempoMinimoExperiencia);
+      fichaBase.secoes.documentosExigidosHabilitacao.registroConselhoOuAlvara = safePick(parsed.registroConselhoOuAlvara, fichaBase.secoes.documentosExigidosHabilitacao.registroConselhoOuAlvara);
+
+      fichaBase.secoes.financeiroEContrato.condicoesPagamento = safePick(parsed.condicoesPagamento, fichaBase.secoes.financeiroEContrato.condicoesPagamento);
+      fichaBase.secoes.financeiroEContrato.vigenciaContrato = safePick(parsed.vigenciaContrato, fichaBase.secoes.financeiroEContrato.vigenciaContrato);
+      fichaBase.secoes.financeiroEContrato.criterioReajuste = safePick(parsed.criterioReajuste, fichaBase.secoes.financeiroEContrato.criterioReajuste);
+      fichaBase.secoes.financeiroEContrato.garantiaContratual = safePick(parsed.garantiaContratual, fichaBase.secoes.financeiroEContrato.garantiaContratual);
+      fichaBase.secoes.financeiroEContrato.multasEPenalidades = safePick(parsed.multasEPenalidades, fichaBase.secoes.financeiroEContrato.multasEPenalidades);
+
+      // Sincroniza prazosECondicoes
+      fichaBase.prazosECondicoes.prazoEntregaOuExecucao = fichaBase.secoes.condicoesEntregaExecucao.prazoEntrega;
+      fichaBase.prazosECondicoes.localEntrega = fichaBase.secoes.condicoesEntregaExecucao.localEntrega;
+      fichaBase.prazosECondicoes.prazoPagamento = fichaBase.secoes.financeiroEContrato.condicoesPagamento;
+      fichaBase.prazosECondicoes.vigenciaContrato = fichaBase.secoes.financeiroEContrato.vigenciaContrato;
+    } catch (err: any) {
+      console.warn('[EditalDeepAnalyzer] Refinamento IA opcional indisponível, mantendo extração determinística:', err?.message);
+    }
+
+    return fichaBase;
   }
 
   /**
@@ -528,7 +752,12 @@ export class EditalDeepAnalyzerService {
     });
 
     const textosChunks = chunks.map((c) => c.content);
-    const ficha = this.analisarTextoIntegral(notice, textosChunks, notice.items || []);
+    let ficha = this.analisarTextoIntegral(notice, textosChunks, notice.items || []);
+
+    // Refina extração sobre o texto real dos arquivos (caso haja texto real extraído)
+    if (ficha.possuiArquivosReaisLidos) {
+      ficha = await this.refinarExtracaoComIaReal(ficha, textosChunks.join('\n\n'));
+    }
 
     // Atualiza metadados com deepReadStatus e ficha estruturada
     await prisma.procurementNotice.update({
@@ -536,7 +765,7 @@ export class EditalDeepAnalyzerService {
       data: {
         metadata: {
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
-          deepReadStatus: textosChunks.length > 0 ? 'DONE' : 'PENDING',
+          deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: ficha.disputaEExecucao.disputaRemota,

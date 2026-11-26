@@ -409,9 +409,7 @@ export default function LicitacaoDetalhePage() {
       const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = blobUrl;
-      const idSafe = String((lic as any)?.numero_controle_pncp || (lic as any)?.numeroEdital || (lic as any)?.numero || licitacaoId).replace(/\//g, '_');
-      const nomeArquivo = `Edital_${idSafe}.pdf`;
-      link.setAttribute('download', nomeArquivo);
+      link.setAttribute('download', `Edital_${String((lic as any)?.numero_controle_pncp || (lic as any)?.numero || licitacaoId).replace(/\//g, '_')}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);

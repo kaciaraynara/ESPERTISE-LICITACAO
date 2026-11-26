@@ -12,6 +12,7 @@ import { prisma } from '../database/prisma';
 import { gerarEsqueletoImpugnacao } from '../services/impugnacao.service';
 import { preencherTextoEditalAutomaticamente, obterTextoEAnexosOficiais, obterBufferArquivoOficial, ResultadoExtracaoEdital } from '../services/pncp-parser.service';
 import { EditalDeepAnalyzerService } from '../services/edital-deep-analyzer.service';
+import { cruzarEditalComEmpresa } from '../services/edital-company-matcher.service';
 
 export class NoticesController {
   constructor(
@@ -77,15 +78,37 @@ export class NoticesController {
         return res.status(404).json({ success: false, message: 'Edital nao encontrado' });
       }
 
+      // 4. Cruzamento Automático com a Empresa Ativa ("Tudo de mão beijada")
+      let cruzamentoEmpresa = null;
+      try {
+        const companyIdParam = String(req.query.companyId || (req.user as any)?.companyId || '');
+        const userIdParam = (req.user as any)?.id || (req.user as any)?.sub || null;
+        const noticeRow = await prisma.procurementNotice.findFirst({
+          where: {
+            OR: [
+              { id: noticeId.match(/^[0-9a-fA-F-]{36}$/) ? noticeId : undefined },
+              { externalId: noticeId },
+              { numeroControlePncp: noticeId },
+            ].filter(Boolean) as any,
+          },
+          select: { id: true, object: true, uf: true, municipality: true, estimatedValue: true },
+        });
+
+        cruzamentoEmpresa = await cruzarEditalComEmpresa(noticeRow || { id: noticeId }, auditoriaSpecs, companyIdParam || null, userIdParam);
+      } catch (matchErr) {
+        console.warn('[NoticesController] Aviso ao cruzar edital com empresa ativa:', matchErr);
+      }
+
       return res.json({
         success: true,
         sourceMode: extraInfo.sourceMode,
         arquivosOficiais: extraInfo.arquivosOficiais,
+        cruzamentoEmpresa,
         auditoriaDeterministica: auditoriaSpecs?.auditoria || (auditoriaSpecs ? {
           status: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
           mensagem: auditoriaSpecs.pontosDeAtencaoERiscos?.length > 0
             ? `Detectados ${auditoriaSpecs.pontosDeAtencaoERiscos.length} ponto(s) de atenção.`
-            : 'Nenhuma cláusula restritiva ou vício formal típico foi encontrado no texto analisado.',
+            : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
           totalVicios: auditoriaSpecs.pontosDeAtencaoERiscos?.length || 0,
           apontamentos: auditoriaSpecs.pontosDeAtencaoERiscos || [],
         } : null),

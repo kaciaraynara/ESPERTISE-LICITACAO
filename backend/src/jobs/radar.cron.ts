@@ -25,6 +25,7 @@ import {
   recordIngestionJob,
   saveIngestionCursor,
 } from '../services/ingestion-cursor.service';
+import { processarFilaEditaisAbertos } from '../services/edital-queue.service';
 
 
 const DEFAULT_CRON_SCHEDULE = '*/30 * * * *'; // A cada 30 minutos com cursor contínuo
@@ -982,6 +983,33 @@ export function setupCronJobs(): void {
   }).start();
   setupCnaeAlertCron();
   setupDailyOpportunityAlertsCron();
+  setupEditalQueueCron();
+}
+
+export function setupEditalQueueCron(): cron.ScheduledTask | null {
+  const schedule = process.env.EDITAL_QUEUE_CRON_SCHEDULE || '*/20 * * * *';
+  const validSchedule = cron.validate(schedule) ? schedule : '*/20 * * * *';
+
+  console.info(`[Fila Leitura Editais] Cron configurado para: "${validSchedule}" (Fuso: ${TIMEZONE}).`);
+
+  // Executa primeiro ciclo após 45s de boot sem travar inicialização
+  setTimeout(() => {
+    void processarFilaEditaisAbertos().catch((err) =>
+      console.warn('[Fila Leitura Editais] Erro no ciclo inicial:', err?.message),
+    );
+  }, 45000);
+
+  return cron.schedule(
+    validSchedule,
+    async () => {
+      try {
+        await processarFilaEditaisAbertos();
+      } catch (err: any) {
+        console.error('[Fila Leitura Editais] Erro no ciclo agendado:', err?.message);
+      }
+    },
+    { timezone: TIMEZONE },
+  );
 }
 /**
  * Cron de Alerta Diário de Editais por CNAE (Resend + Agente Semântico de IA)
