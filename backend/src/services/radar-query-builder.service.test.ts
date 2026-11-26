@@ -55,14 +55,16 @@ describe('radar-query-builder.service', () => {
       ['CE', 'PE'],
       ['PNCP', 'pncp'],
       'vestuario',
+      '%vestuario%',
       'uniformes',
       'fardamento',
     ]);
-    expect(built.fullWhereSql).toContain('(object_type = ANY($6::text[]) OR object_type IS NULL)');
+    expect(built.fullWhereSql).toContain('(object_type = ANY($7::text[]) OR object_type IS NULL)');
     expect(built.listParams).toEqual([
       ['CE', 'PE'],
       ['PNCP', 'pncp'],
       'vestuario',
+      '%vestuario%',
       'uniformes',
       'fardamento',
       ['BENS'],

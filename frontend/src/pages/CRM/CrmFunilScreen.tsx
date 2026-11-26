@@ -49,17 +49,17 @@ export const CrmFunilScreen: React.FC = () => {
           </div>
 
           <nav className="space-y-1 text-xs">
-            <a href="/radar" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
+            <a href="/fornecedor/radar" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
               <Search size={16} /> <span>Radar de Editais</span>
             </a>
-            <a href="/crm" className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-orange-500 text-white font-semibold shadow">
-              <BarChart3 size={16} /> <span>CRM & Funil</span>
+            <a href="/fornecedor/disputas" className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-orange-500 text-white font-semibold shadow">
+              <BarChart3 size={16} /> <span>Gestão de Disputas</span>
             </a>
-            <a href="/lex" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
-              <Scale size={16} /> <span>Análise de Editais</span>
+            <a href="/fornecedor/leitor-editais" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
+              <Scale size={16} /> <span>Leitor de Editais</span>
             </a>
-            <a href="/cofre" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
-              <ShieldCheck size={16} /> <span>Cofre de Documentos</span>
+            <a href="/fornecedor/documentos" className="flex items-center gap-3 px-3 py-2.5 rounded-md text-slate-400 hover:bg-slate-800 transition">
+              <ShieldCheck size={16} /> <span>Meus Documentos</span>
             </a>
           </nav>
         </div>

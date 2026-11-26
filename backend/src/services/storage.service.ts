@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 import path from 'path';
+import { prisma } from '../database/prisma';
 
 export interface UploadResult {
   storageKey: string;
@@ -21,6 +22,26 @@ export class StorageService {
   private readonly bucketName: string;
   private readonly isConfigured: boolean;
   private readonly localFallbackDir: string;
+  private blobTableReady = false;
+
+  private async ensureBlobTable(): Promise<boolean> {
+    if (this.blobTableReady) return true;
+    if (!process.env.DATABASE_URL) return false;
+    try {
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS storage_blobs (
+          storage_key TEXT PRIMARY KEY,
+          mime_type TEXT,
+          data BYTEA NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      this.blobTableReady = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   constructor() {
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID?.trim();
@@ -124,6 +145,25 @@ export class StorageService {
       }
     } catch {}
 
+    // Persistência segura no PostgreSQL quando S3/R2 não estiver configurado (proteção contra disco efêmero)
+    if (buffer.length <= 8 * 1024 * 1024) {
+      try {
+        const ready = await this.ensureBlobTable();
+        if (ready) {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO storage_blobs (storage_key, mime_type, data)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (storage_key) DO UPDATE SET mime_type = EXCLUDED.mime_type, data = EXCLUDED.data`,
+            storageKey,
+            mimeType || 'application/octet-stream',
+            buffer,
+          );
+        }
+      } catch (dbErr: any) {
+        console.warn('[StorageService] Aviso ao persistir blob no banco:', dbErr?.message);
+      }
+    }
+
     const url = `/api/v1/documentos/download-local/${encodeURIComponent(storageKey)}`;
 
     return {
@@ -210,6 +250,23 @@ export class StorageService {
     }
 
     if (!foundPath || !fs.existsSync(foundPath)) {
+      // Tenta recuperar do banco de dados (proteção contra reinicialização/disco efêmero)
+      try {
+        const ready = await this.ensureBlobTable();
+        if (ready) {
+          const rows = await prisma.$queryRawUnsafe<Array<{ mime_type: string | null; data: Buffer | Uint8Array }>>(
+            `SELECT mime_type, data FROM storage_blobs WHERE storage_key = $1 LIMIT 1`,
+            storageKey,
+          );
+          if (rows && rows.length > 0 && rows[0]?.data) {
+            return {
+              buffer: Buffer.from(rows[0].data),
+              mimeType: rows[0].mime_type || undefined,
+            };
+          }
+        }
+      } catch {}
+
       throw new Error('STORAGE_FILE_NOT_FOUND:Arquivo não encontrado no armazenamento.');
     }
 
@@ -239,6 +296,13 @@ export class StorageService {
     if (fs.existsSync(localFilePath)) {
       fs.unlinkSync(localFilePath);
     }
+
+    try {
+      const ready = await this.ensureBlobTable();
+      if (ready) {
+        await prisma.$executeRawUnsafe(`DELETE FROM storage_blobs WHERE storage_key = $1`, storageKey);
+      }
+    } catch {}
   }
 }
 

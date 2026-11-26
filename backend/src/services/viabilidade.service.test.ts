@@ -129,6 +129,25 @@ describe('viabilidade.service', () => {
       expect(resultado.classificacao).toBe('VIÁVEL (ALTA VIABILIDADE)');
     });
 
+    test('utiliza regime tributário e alíquota efetiva do Simples salvos na empresa ativa', async () => {
+      findCompanyFirstMock.mockResolvedValue({
+        id: 'company-simples',
+        razaoSocial: 'Comércio Alfa ME',
+        regimeTributario: 'SIMPLES_NACIONAL',
+        aliquotaEfetivaSimples: 4.5,
+      });
+
+      const resultado = await calcularViabilidadeAutentica({
+        companyId: 'company-simples',
+        estimativaEdital: 100.00,
+        custoProdutoInformado: 50.00,
+      });
+
+      expect(resultado.origemTributacao).toBe('REGIME_EMPRESA');
+      expect(resultado.regimeTributarioUtilizado).toBe('SIMPLES_NACIONAL');
+      expect(resultado.aliquotaImpostosUtilizada).toBe(4.5);
+    });
+
     test('classifica como INVIÁVEL quando o preço mínimo sustentável supera a estimativa do edital', async () => {
       findCompanyFirstMock.mockResolvedValue({
         id: 'company-2',

@@ -69,15 +69,19 @@ describe('runCndRenewalScan', () => {
       },
     ]);
 
-    await expect(runCndRenewalScan()).resolves.toEqual([
-      {
-        userId: 'user-1',
-        documentId: 'document-1',
-        companyId: 'company-1',
-        nome: 'CND Federal',
-        tipo: 'CND',
-        validade: validade.toISOString(),
-      },
-    ]);
+    const resultado = await runCndRenewalScan();
+    expect(resultado).toHaveLength(2);
+    expect(resultado[0]).toMatchObject({
+      id: 'document-1',
+      companyId: 'company-1',
+      tipo: 'CND Federal',
+      status: 'vencido',
+    });
+    expect(resultado[1]).toMatchObject({
+      id: 'document-1',
+      companyId: 'company-1',
+      tipo: 'CND',
+      status: 'EXPIRED',
+    });
   });
 });

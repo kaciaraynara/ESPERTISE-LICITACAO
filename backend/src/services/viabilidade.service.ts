@@ -139,12 +139,27 @@ export async function calcularViabilidadeAutentica(
     origemTributacao = 'INFORMADO_PELO_USUARIO';
     regimeTributarioUtilizado = params.regimeTributario || 'PERSONALIZADO';
   } else if (params.regimeTributario) {
-    percentualImpostos = obterAliquotaRegimeTributario(params.regimeTributario);
+    const regimeUpper = String(params.regimeTributario).toUpperCase();
+    if (regimeUpper.includes('SIMPLES') && company?.aliquotaEfetivaSimples && Number(company.aliquotaEfetivaSimples) > 0) {
+      percentualImpostos = Number(company.aliquotaEfetivaSimples);
+    } else {
+      percentualImpostos = obterAliquotaRegimeTributario(params.regimeTributario);
+    }
     origemTributacao = 'REGIME_EMPRESA';
-    regimeTributarioUtilizado = String(params.regimeTributario).toUpperCase();
+    regimeTributarioUtilizado = regimeUpper;
+  } else if (company?.regimeTributario) {
+    const regimeUpper = String(company.regimeTributario).toUpperCase();
+    if (regimeUpper.includes('SIMPLES') && company?.aliquotaEfetivaSimples && Number(company.aliquotaEfetivaSimples) > 0) {
+      percentualImpostos = Number(company.aliquotaEfetivaSimples);
+    } else {
+      percentualImpostos = obterAliquotaRegimeTributario(company.regimeTributario);
+    }
+    origemTributacao = 'REGIME_EMPRESA';
+    regimeTributarioUtilizado = regimeUpper;
   } else {
-    // Tenta obter do perfil da empresa ou usa o padrão Simples Nacional
-    percentualImpostos = ALIQUOTAS_REGIME_TRIBUTARIO.SIMPLES_NACIONAL;
+    percentualImpostos = company?.aliquotaEfetivaSimples && Number(company.aliquotaEfetivaSimples) > 0
+      ? Number(company.aliquotaEfetivaSimples)
+      : ALIQUOTAS_REGIME_TRIBUTARIO.SIMPLES_NACIONAL;
     origemTributacao = 'SIMPLES_NACIONAL_PADRAO';
     regimeTributarioUtilizado = 'SIMPLES_NACIONAL';
   }

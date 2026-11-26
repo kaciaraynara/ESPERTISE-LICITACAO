@@ -36,9 +36,10 @@ describe('streamChatWithProvider', () => {
 
   it('streams provider output to the supplied callback using official fallback models', async () => {
     expect(FALLBACK_MODELS).toEqual([
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
+      'gemini-flash-lite-latest',
       'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-2.5-flash-lite',
     ]);
 
     mockGenerateContentStream.mockResolvedValue({
@@ -53,17 +54,17 @@ describe('streamChatWithProvider', () => {
       (chunk) => {
         receivedChunks.push(chunk);
       },
-      { modelName: 'gemini-2.5-flash' },
+      { modelName: 'gemini-flash-lite-latest' },
     );
 
     expect(result).toMatchObject({
       content: 'Resposta grounded.',
-      provider: 'gemini (gemini-2.5-flash)',
+      provider: 'gemini (gemini-flash-lite-latest)',
     });
     expect(receivedChunks).toEqual(['Resposta grounded.']);
   });
 
-  it('ignora GEMINI_MODEL inválido (gemini-3.8, 3.6, 3.5, 3.1) e usa gemini-2.5-flash', async () => {
+  it('ignora GEMINI_MODEL inválido (gemini-3.8, 3.6, 3.5, 3.1) e usa modelo padrão estável', async () => {
     process.env.GEMINI_MODEL = 'gemini-3.8-flash';
     mockGenerateContentStream.mockResolvedValue({
       stream: (async function* () {
@@ -73,11 +74,11 @@ describe('streamChatWithProvider', () => {
 
     const result = await streamChatWithProvider(
       [{ role: 'user', content: 'Pergunta.' }],
-      () => {},
+      () => { },
     );
 
-    expect(result.provider).toBe('gemini (gemini-2.5-flash)');
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-2.5-flash' });
+    expect(result.provider).toBe('gemini (gemini-flash-lite-latest)');
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: 'gemini-flash-lite-latest' });
   });
 
   it('usa o próximo modelo estável quando o modelo configurado retorna 404', async () => {
@@ -92,25 +93,25 @@ describe('streamChatWithProvider', () => {
 
     const result = await streamChatWithProvider(
       [{ role: 'user', content: 'Pergunta.' }],
-      () => {},
+      () => { },
     );
 
-    expect(result.provider).toBe('gemini (gemini-2.5-flash)');
+    expect(result.provider).toBe('gemini (gemini-flash-lite-latest)');
     expect(mockGetGenerativeModel.mock.calls.map(([options]) => options.model)).toEqual([
       'legacy-model-name',
-      'gemini-2.5-flash',
+      'gemini-flash-lite-latest',
     ]);
   });
 
   it('lança MissingApiKeyError quando GEMINI_API_KEY está ausente ou não configurada', async () => {
     delete process.env.GEMINI_API_KEY;
     await expect(
-      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => {}),
+      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => { }),
     ).rejects.toThrow(MissingApiKeyError);
 
     process.env.GEMINI_API_KEY = 'unconfigured';
     await expect(
-      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => {}),
+      streamChatWithProvider([{ role: 'user', content: 'Audite este edital.' }], () => { }),
     ).rejects.toThrow(MissingApiKeyError);
   });
 
@@ -137,7 +138,7 @@ describe('streamChatWithProvider', () => {
     mockGenerateContentStream.mockRejectedValue(new AiTimeoutError(45000));
 
     await expect(
-      streamChatWithProvider([{ role: 'user', content: 'Pergunta.' }], () => {}),
+      streamChatWithProvider([{ role: 'user', content: 'Pergunta.' }], () => { }),
     ).rejects.toThrow(AiTimeoutError);
   });
 });

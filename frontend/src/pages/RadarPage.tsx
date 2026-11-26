@@ -289,7 +289,7 @@ export default function RadarPage() {
                     <th className="w-[16%] px-4 py-3.5">IP de Origem</th>
                     <th className="w-[18%] px-4 py-3.5">Ação</th>
                     <th className="w-[18%] px-4 py-3.5">Usuário</th>
-                    <th className="w-[30%] px-4 py-3.5">Detalhes (Payload)</th>
+                    <th className="w-[30%] px-4 py-3.5">Detalhes do Registro</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
