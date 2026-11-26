@@ -187,7 +187,7 @@ export const DashboardPage: React.FC = () => {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Oportunidades no Seu Ramo
+                Oportunidades no Seu Segmento
               </span>
               <span className="p-2 bg-slate-100 rounded-xl text-[#0B192C]">
                 <Briefcase size={16} />

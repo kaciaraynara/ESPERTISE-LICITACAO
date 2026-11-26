@@ -3,6 +3,8 @@ import { AuthRequest, resolveAuthorizedCompany } from '../shared/middlewares/aut
 import { prisma } from '../database/prisma';
 import { scaleSingleflight } from '../services/scale-cache.service';
 import { expandirTermosCnae } from '../services/cnae-dictionary.service';
+import { keywordsForCnae } from '../services/cnae-to-keywords.service';
+import { habilitacaoService } from '../services/habilitacao.service';
 
 export interface PortalDisputaInfo {
   nome: string;
@@ -132,16 +134,24 @@ export class DashboardController {
           const cnaeAlvo = company.cnaePrincipal;
           const palavrasEmpresa = Array.isArray(company.palavrasChave) ? company.palavrasChave : [];
           const termosCnae = cnaeAlvo ? expandirTermosCnae(cnaeAlvo) : [];
-          const termosBusca = Array.from(new Set([...palavrasEmpresa, ...termosCnae])).filter(Boolean);
+          const termosKws = cnaeAlvo ? keywordsForCnae(cnaeAlvo) : [];
+          const termosBusca = Array.from(new Set([...palavrasEmpresa, ...termosCnae, ...termosKws]))
+            .map((t) => String(t).trim())
+            .filter((t) => t.length >= 4);
 
-          // Condição de data futura (ZERO EDITAL VENCIDO)
+          // Condição rigorosa de data futura (ZERO EDITAL VENCIDO)
           const whereAbertosSegmento: any = {
             publishedAt: { lte: now },
             AND: [
               {
                 OR: [
                   { closingAt: { gte: now } },
-                  { openingAt: { gte: now } },
+                  {
+                    AND: [
+                      { closingAt: null },
+                      { openingAt: { gte: now } },
+                    ],
+                  },
                 ],
               },
             ],
@@ -149,7 +159,7 @@ export class DashboardController {
 
           if (termosBusca.length > 0) {
             whereAbertosSegmento.AND.push({
-              OR: termosBusca.slice(0, 10).map((termo) => ({
+              OR: termosBusca.slice(0, 12).map((termo) => ({
                 object: { contains: termo, mode: 'insensitive' },
               })),
             });
@@ -161,9 +171,7 @@ export class DashboardController {
             oportunidadesAbertasAggr,
             encerram5DiasCount,
             editaisDestaqueRaw,
-            totalDocumentos,
-            documentosValidos,
-            documentosPendentesList,
+            habStatus,
             propostasAtivasCount,
             editaisMonitoradosCount,
             deadlinesList,
@@ -171,9 +179,15 @@ export class DashboardController {
           ] = await Promise.all([
             // KPI 1: Quantidade de editais abertos no segmento
             prisma.procurementNotice.count({ where: whereAbertosSegmento }),
-            // KPI 1 (Valor): Soma em R$ dos editais abertos no segmento
+            // KPI 1 (Valor): Soma em R$ dos editais abertos no segmento (filtra valores absurdos/outliers > 500M)
             prisma.procurementNotice.aggregate({
-              where: whereAbertosSegmento,
+              where: {
+                ...whereAbertosSegmento,
+                AND: [
+                  ...whereAbertosSegmento.AND,
+                  { estimatedValue: { gt: 0, lte: 500000000 } },
+                ],
+              },
               _sum: { estimatedValue: true },
             }),
             // KPI 2: Encerram nos próximos 5 dias
@@ -185,7 +199,12 @@ export class DashboardController {
                   {
                     OR: [
                       { closingAt: { gte: now, lte: in5Days } },
-                      { openingAt: { gte: now, lte: in5Days } },
+                      {
+                        AND: [
+                          { closingAt: null },
+                          { openingAt: { gte: now, lte: in5Days } },
+                        ],
+                      },
                     ],
                   },
                 ],
@@ -220,37 +239,8 @@ export class DashboardController {
                 source: true,
               },
             }),
-            // KPI 3: Documentos totais no cofre
-            prisma.document.count({
-              where: { companyId: company.id },
-            }),
-            // KPI 3: Documentos válidos e em dia
-            prisma.document.count({
-              where: {
-                companyId: company.id,
-                status: 'valido',
-                OR: [{ validade: { gt: now } }, { validade: null }],
-              },
-            }),
-            // Painel Lateral B: Documentos que exigem atenção
-            prisma.document.findMany({
-              where: {
-                companyId: company.id,
-                OR: [
-                  { status: { in: ['atencao', 'vencido'] } },
-                  { validade: { lte: in15Days } },
-                ],
-              },
-              take: 6,
-              orderBy: { validade: 'asc' },
-              select: {
-                id: true,
-                nome: true,
-                tipo: true,
-                validade: true,
-                status: true,
-              },
-            }),
+            // KPI 3 & Painel Lateral B: Os 13 documentos reais da tela de Habilitação
+            habilitacaoService.obterStatusDocumentos(userId, company.id).catch(() => null),
             // KPI 4: Propostas comerciais ativas
             prisma.proposal.count({
               where: {
@@ -302,16 +292,21 @@ export class DashboardController {
             }),
           ]);
 
-          // Formatação dos editais em destaque com detecção do portal real
+          // Formatação dos editais em destaque com detecção do portal real e data futura estrita
           const oportunidadesDestaque = editaisDestaqueRaw.map((ed: any) => {
-            const dataSessao = ed.openingAt || ed.closingAt || null;
+            const closeDate = ed.closingAt ? new Date(ed.closingAt) : null;
+            const openDate = ed.openingAt ? new Date(ed.openingAt) : null;
+            const dataSessao = closeDate && closeDate >= now
+              ? ed.closingAt
+              : (openDate && openDate >= now ? ed.openingAt : null);
+
             let diasRestantes: number | null = null;
             let prazoLabel = 'Data a consultar';
 
             if (dataSessao) {
               const diffMs = new Date(dataSessao).getTime() - now.getTime();
-              diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-              if (diasRestantes <= 0) {
+              diasRestantes = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+              if (diasRestantes === 0) {
                 prazoLabel = 'Encerra hoje';
               } else if (diasRestantes === 1) {
                 prazoLabel = 'Encerra amanhã';
@@ -328,7 +323,7 @@ export class DashboardController {
               localizacao: `${ed.municipality ? `${ed.municipality} - ` : ''}${ed.uf || 'Nacional'}`,
               uf: ed.uf || 'BR',
               objeto: ed.object,
-              valorEstimado: ed.estimatedValue ? Number(ed.estimatedValue) : null,
+              valorEstimado: ed.estimatedValue && Number(ed.estimatedValue) <= 500000000 ? Number(ed.estimatedValue) : null,
               modalidade: ed.modality || 'Pregão Eletrônico',
               dataSessao,
               diasRestantes,
@@ -337,32 +332,39 @@ export class DashboardController {
             };
           });
 
-          // Formatação dos documentos com atenção
-          const documentosAtencao = documentosPendentesList.map((doc: any) => {
-            let diasRestantes: number | null = null;
-            let statusLabel = 'Pendente';
+          // Consolidação real dos 13 documentos da Habilitação
+          const itensHab = Array.isArray(habStatus?.itens) ? habStatus.itens : [];
+          const totalDocumentos = itensHab.length > 0 ? itensHab.length : 13;
+          const documentosValidos = itensHab.filter(
+            (it: any) => it.situacao === 'PRONTO' || it.situacao === 'VENCE_EM_BREVE',
+          ).length;
 
-            if (doc.validade) {
-              const diffMs = new Date(doc.validade).getTime() - now.getTime();
-              diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-              if (diasRestantes <= 0) {
-                statusLabel = 'Vencido';
-              } else if (diasRestantes <= 15) {
-                statusLabel = `Vence em ${diasRestantes} dias`;
-              } else {
-                statusLabel = 'Em análise';
+          const documentosAtencao = itensHab
+            .filter((it: any) => it.situacao !== 'PRONTO')
+            .slice(0, 6)
+            .map((doc: any) => {
+              let diasRestantes: number | null = null;
+              let statusLabel = doc.situacao === 'VENCIDO' ? 'Vencido' : 'Pendente';
+
+              if (doc.validade) {
+                const diffMs = new Date(doc.validade).getTime() - now.getTime();
+                diasRestantes = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                if (diasRestantes <= 0) {
+                  statusLabel = 'Vencido';
+                } else if (diasRestantes <= 15) {
+                  statusLabel = `Vence em ${diasRestantes} dias`;
+                }
               }
-            }
 
-            return {
-              id: doc.id,
-              nome: doc.nome || doc.tipo || 'Documento de Habilitação',
-              tipo: doc.tipo || 'Certidão',
-              validade: doc.validade,
-              diasRestantes,
-              statusLabel,
-            };
-          });
+              return {
+                id: doc.documentoId || String(doc.codigo),
+                nome: doc.nome || 'Documento de Habilitação',
+                tipo: doc.etapaNome || 'Habilitação',
+                validade: doc.validade || null,
+                diasRestantes,
+                statusLabel,
+              };
+            });
 
           // Consolidação dos próximos prazos e sessões da empresa
           const proximosPrazosMap = new Map<string, any>();
@@ -374,7 +376,7 @@ export class DashboardController {
               data: d.dueAt,
               tipo: 'Prazo Legal',
               edital: d.procurementNotice?.noticeNumber || 'Certame',
-              link: `/leitor-editais?edital=${d.procurementNotice?.id || ''}`,
+              link: `/fornecedor/leitor-editais?edital=${d.procurementNotice?.id || ''}`,
             });
           }
 
@@ -388,7 +390,7 @@ export class DashboardController {
                 data: dataRef,
                 tipo: 'Sessão de Lances',
                 edital: ed.noticeNumber || ed.id.slice(0, 8),
-                link: `/leitor-editais?edital=${ed.id}`,
+                link: `/fornecedor/leitor-editais?edital=${ed.id}`,
               });
             }
           }
@@ -398,12 +400,9 @@ export class DashboardController {
             .slice(0, 6);
 
           const documentosPendentes = totalDocumentos - documentosValidos;
-          let documentosResumo = 'Nenhum documento cadastrado';
-          if (totalDocumentos > 0) {
-            documentosResumo = documentosPendentes > 0
-              ? `${documentosValidos} de ${totalDocumentos} documentos em dia (${documentosPendentes} pendentes)`
-              : `${documentosValidos} de ${totalDocumentos} documentos em dia (100% regular)`;
-          }
+          const documentosResumo = documentosPendentes > 0
+            ? `${documentosValidos} de ${totalDocumentos} documentos prontos (${documentosPendentes} pendentes)`
+            : `${documentosValidos} de ${totalDocumentos} documentos em dia (100% regular)`;
 
           return {
             isContaNova: oportunidadesAbertasCount === 0 && propostasAtivasCount === 0 && totalDocumentos === 0,

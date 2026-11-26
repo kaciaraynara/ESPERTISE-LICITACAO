@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ArrowLeft } from '@phosphor-icons/react';
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { authApi, pagamentosApi } from '@services/api';
 import { useAuthStore } from '@store/auth.store';
@@ -281,7 +281,16 @@ function PlanAccessBootstrap() {
 // ----------------------------------------------------
 // PÁGINA 404 COM IDENTIDADE LIGHT PREMIUM
 // ----------------------------------------------------
+function RedirectPreserveQuery({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={`${to}${search}`} replace />;
+}
+
 function NotFoundPage() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const destino = isAuthenticated ? FORNECEDOR_ROUTES.dashboard : '/';
+  const label = isAuthenticated ? 'Voltar ao Painel' : 'Voltar ao início';
+
   return (
     <main
       id="main-content"
@@ -297,11 +306,11 @@ function NotFoundPage() {
           O endereço não corresponde a uma funcionalidade ativa do EXPERTISE Licitatória.
         </p>
         <Link
-          to="/"
+          to={destino}
           className="mt-7 inline-flex items-center gap-2 rounded-lg bg-brand-dark px-5 py-3 text-sm font-black text-white hover:bg-slate-800 transition-colors shadow-lg"
         >
           <ArrowLeft className="h-4 w-4" weight="bold" />
-          Voltar ao início
+          {label}
         </Link>
       </div>
     </main>
@@ -495,7 +504,10 @@ export default function App() {
             <Route path="/fornecedor/radar-telemetria" element={<RadarPage />} />
             <Route path="/admin/radar" element={<RadarPage />} />
 
-            {/* Aliases Seguros */}
+            {/* Aliases Seguros com Preservação de Query Params */}
+            <Route path="/leitor-editais" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.leitor_editais} />} />
+            <Route path="/impugnacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.impugnacao} />} />
+            <Route path="/precificacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.precificacao_estrategica} />} />
             <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
