@@ -630,7 +630,7 @@ export default function LicitacaoDetalhePage() {
               </button>
 
               <Link
-                to={`/leitor-editais?edital=${encodeURIComponent(licitacaoId)}`}
+                to={`/fornecedor/leitor-editais?edital=${encodeURIComponent(licitacaoId)}`}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-5 py-3 text-sm font-bold text-[#0B192C] shadow-xs transition"
               >
                 <FileSearch className="h-4 w-4 text-[#EA580C]" />

@@ -285,7 +285,7 @@ export default function LicitacoesPage({
   const abrirAnaliseCompletaEdital = (edital: EditalItem) => {
     const editalId = String(edital.numeroControlePNCP || edital.id || '');
     if (editalId) {
-      navigate(`/leitor-editais?edital=${encodeURIComponent(editalId)}`);
+      navigate(`/fornecedor/leitor-editais?edital=${encodeURIComponent(editalId)}`);
     }
   };
   const [cnaesExtrasApi, setCnaesExtrasApi] = useState<string[]>([]);

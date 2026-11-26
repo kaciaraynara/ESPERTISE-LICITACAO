@@ -416,7 +416,7 @@ export const DashboardPage: React.FC = () => {
 
                       <div className="flex items-center gap-2">
                         <Link
-                          to={`/leitor-editais?edital=${ed.id}`}
+                          to={`/fornecedor/leitor-editais?edital=${ed.id}`}
                           className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition shadow-xs inline-flex items-center gap-1"
                         >
                           <FileText size={13} className="text-[#0B192C]" />
