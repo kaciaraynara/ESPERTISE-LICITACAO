@@ -29,6 +29,7 @@ import {
 import toast from 'react-hot-toast';
 import api, { certidoesApi, documentosApi, licitacoesApi, noticesApi } from '@/services/api';
 import { useCompany } from '@/contexts/CompanyContext';
+import { BrazilMapChart } from '@/components/BrazilMapChart';
 import { exportarDossieEditalPdf, DadosDossieEditalPdf } from '@/utils/dossieEditalPdfGenerator';
 
 type NivelViabilidade = 'PRONTO' | 'ATENCAO' | 'FORA';
@@ -479,8 +480,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
       mapaUf[uf].volume += item.valor || 0;
     }
     return Object.values(mapaUf)
-      .sort((a, b) => b.volume - a.volume)
-      .slice(0, 10);
+      .sort((a, b) => b.volume - a.volume);
   }, [avaliacoes]);
 
   const dadosGraficoDonut = useMemo(() => {
@@ -775,407 +775,365 @@ export const ScoreOportunidadesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* DASHBOARD POWER BI — GRÁFICOS RECHARTS */}
+      {/* DASHBOARD POWER BI — MAPA DE ESTADOS + ADERÊNCIA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Grade Compacta dos 27 Estados (AC a TO) */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-[#0070C0]" />
-              <h2 className="text-sm font-bold text-[#081C3A]">
-                Distribuição por Estado (27 UFs) — Clique para filtrar
-              </h2>
-            </div>
-            {estadoFiltro !== 'TODOS' ? (
-              <button
-                type="button"
-                onClick={() => setEstadoFiltro('TODOS')}
-                className="text-xs font-bold text-[#EA580C] hover:underline cursor-pointer"
-              >
-                Limpar filtro ({estadoFiltro}) · Ver Todo o Brasil
-              </button>
-            ) : (
-              <span className="text-xs text-slate-500">Clique no estado para filtrar ou desmarcar</span>
-            )}
-          </div>
+        <BrazilMapChart
+          data={dadosGraficoUf}
+          selectedUf={estadoFiltro}
+          companyUf={ufEmpresa}
+          onSelectUf={setEstadoFiltro}
+          formatCurrency={formatarMoeda}
+        />
 
-          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 gap-2">
-            {UFS_BRASIL.filter((u) => u !== 'TODOS').map((uf) => {
-              const infoUf = dadosGraficoUf.find((d: any) => d.uf === uf);
-              const qtdUf = infoUf?.quantidade || 0;
-              const ativo = estadoFiltro === uf;
-              return (
-                <button
-                  key={uf}
-                  type="button"
-                  onClick={() => setEstadoFiltro(ativo ? 'TODOS' : uf)}
-                  title={infoUf ? `${uf}: ${qtdUf} edital(is) · ${formatarMoeda(infoUf.volume)}` : `${uf}: sem editais no recorte`}
-                  className={`flex flex-col items-center justify-center rounded-xl border py-2 px-1 transition cursor-pointer ${ativo
-                    ? 'bg-[#0B192C] border-[#0B192C] text-white shadow-sm'
-                    : qtdUf > 0
-                      ? 'bg-slate-50 border-slate-200 text-[#0B192C] hover:border-[#0070C0] hover:bg-blue-50/40'
-                      : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
-                    }`}
+        {/* Gráfico 2: Composição Donut */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <PieIcon className="h-4 w-4 text-[#FF6600]" />
+            <h2 className="text-sm font-bold text-[#081C3A]">Composição de Aderência</h2>
+          </div>
+          <div className="h-52 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={dadosGraficoDonut}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={80}
+                  paddingAngle={4}
+                  dataKey="value"
+                  cursor="pointer"
+                  onClick={(entry: any) => {
+                    if (entry.name === 'Aderentes e Prontos') setAbaAtiva('PRONTO');
+                    else if (entry.name === 'Requerem Ajustes') setAbaAtiva('ATENCAO');
+                    else if (entry.name === 'Fora do Escopo (CNAE)') setAbaAtiva('FORA');
+                  }}
                 >
-                  <span className="text-xs font-black tracking-tight">{uf}</span>
-                  <span className={`text-[10px] font-bold ${ativo ? 'text-orange-400' : qtdUf > 0 ? 'text-[#0070C0]' : 'text-slate-300'}`}>
-                    {qtdUf > 0 ? `${qtdUf}` : '—'}
-                  </span>
-                </button>
-              );
-            })}
+                  {dadosGraficoDonut.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#081C3A', borderRadius: 8, color: '#FFF', fontSize: 12 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-
-          {/* Gráfico 2: Composição Donut */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <PieIcon className="h-4 w-4 text-[#FF6600]" />
-              <h2 className="text-sm font-bold text-[#081C3A]">Composição de Aderência</h2>
+          <div className="flex flex-col gap-1.5 text-xs pt-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#10B981]"></span> Aderentes e Prontos</span>
+              <span className="font-bold text-[#081C3A]">{prontos.length}</span>
             </div>
-            <div className="h-52 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={dadosGraficoDonut}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                    cursor="pointer"
-                    onClick={(entry: any) => {
-                      if (entry.name === 'Aderentes e Prontos') setAbaAtiva('PRONTO');
-                      else if (entry.name === 'Requerem Ajustes') setAbaAtiva('ATENCAO');
-                      else if (entry.name === 'Fora do Escopo (CNAE)') setAbaAtiva('FORA');
-                    }}
-                  >
-                    {dadosGraficoDonut.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip
-                    contentStyle={{ backgroundColor: '#081C3A', borderRadius: 8, color: '#FFF', fontSize: 12 }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]"></span> Requerem Ajustes</span>
+              <span className="font-bold text-[#081C3A]">{atencao.length}</span>
             </div>
-            <div className="flex flex-col gap-1.5 text-xs pt-2">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#10B981]"></span> Aderentes e Prontos</span>
-                <span className="font-bold text-[#081C3A]">{prontos.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#F59E0B]"></span> Requerem Ajustes</span>
-                <span className="font-bold text-[#081C3A]">{atencao.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8]"></span> Fora do Escopo (CNAE)</span>
-                <span className="font-bold text-[#081C3A]">{fora.length}</span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8]"></span> Fora do Escopo (CNAE)</span>
+              <span className="font-bold text-[#081C3A]">{fora.length}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* STATUS DO COFRE DE CERTIDÕES */}
-        {docsStatus.carregado && (
-          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${docsStatus.certidoesPendentes > 0
-            ? 'border-amber-200 bg-amber-50 text-amber-900'
-            : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
-              ? 'border-blue-200 bg-blue-50 text-blue-950'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-            }`}>
-            <div className="flex items-start sm:items-center gap-3">
-              <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 sm:mt-0" />
-              <div className="text-xs sm:text-sm">
-                <p className="font-bold">
-                  Documentação e Certidões de {nomeEmpresa}:{' '}
-                  {docsStatus.certidoesPendentes > 0
-                    ? `${docsStatus.certidoesPendentes} certidão(ões) pendente(s) ou a renovar`
-                    : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
-                      ? 'Nenhum documento cadastrado no Cofre ainda'
-                      : `${docsStatus.certidoesValidas} certidão(ões) regular(es) e ${docsStatus.documentosCofre} documento(s) arquivado(s)`}
-                </p>
-                <p className="opacity-85 text-xs mt-0.5">
-                  Mantenha suas certidões em dia para disputar e vencer contratos com segurança jurídica.
-                </p>
-              </div>
+      {/* STATUS DO COFRE DE CERTIDÕES */}
+      {docsStatus.carregado && (
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${docsStatus.certidoesPendentes > 0
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
+            ? 'border-blue-200 bg-blue-50 text-blue-950'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+          }`}>
+          <div className="flex items-start sm:items-center gap-3">
+            <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="text-xs sm:text-sm">
+              <p className="font-bold">
+                Documentação e Certidões de {nomeEmpresa}:{' '}
+                {docsStatus.certidoesPendentes > 0
+                  ? `${docsStatus.certidoesPendentes} certidão(ões) pendente(s) ou a renovar`
+                  : docsStatus.documentosCofre === 0 && docsStatus.certidoesValidas === 0
+                    ? 'Nenhum documento cadastrado no Cofre ainda'
+                    : `${docsStatus.certidoesValidas} certidão(ões) regular(es) e ${docsStatus.documentosCofre} documento(s) arquivado(s)`}
+              </p>
+              <p className="opacity-85 text-xs mt-0.5">
+                Mantenha suas certidões em dia para disputar e vencer contratos com segurança jurídica.
+              </p>
             </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/fornecedor/cofre')}
+            className="shrink-0 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-[#081C3A] border border-slate-200 hover:border-[#0070C0] cursor-pointer"
+          >
+            Gerenciar Cofre
+          </button>
+        </div>
+      )}
+
+      {/* ABAS DE NAVEGAÇÃO EXECUTIVAS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('TODOS')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${abaAtiva === 'TODOS'
+            ? 'bg-[#081C3A] text-white shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+        >
+          Todas as Oportunidades ({avaliacoes.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('PRONTO')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'PRONTO'
+            ? 'bg-emerald-600 text-white shadow-sm'
+            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+            }`}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Aderentes e Prontos ({prontos.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('ATENCAO')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'ATENCAO'
+            ? 'bg-amber-600 text-white shadow-sm'
+            : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+            }`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Requerem Ajustes ({atencao.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('FORA')}
+          className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'FORA'
+            ? 'bg-slate-700 text-white shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+        >
+          <XCircle className="h-3.5 w-3.5" />
+          Fora do Escopo (CNAE) ({fora.length})
+        </button>
+      </div>
+
+      {erro && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+          {erro}
+        </div>
+      )}
+
+      {carregando ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 space-y-3">
+          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0070C0]" />
+          <p className="font-semibold text-[#081C3A]">
+            Cruzando oportunidades com os CNAEs, certidões e anexos reais para {nomeEmpresa}...
+          </p>
+        </div>
+      ) : listaVisivel.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
+          <p className="text-sm font-bold text-[#081C3A]">
+            Nenhuma oportunidade encontrada para os filtros selecionados.
+          </p>
+          <p className="text-xs text-slate-600">
+            Experimente mudar o filtro de Estado para "Todo o Brasil" ou desmarcar o filtro de disputa remota.
+          </p>
+          {estadoFiltro !== 'TODOS' && (
             <button
               type="button"
-              onClick={() => navigate('/fornecedor/cofre')}
-              className="shrink-0 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-[#081C3A] border border-slate-200 hover:border-[#0070C0] cursor-pointer"
+              onClick={() => setEstadoFiltro('TODOS')}
+              className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
             >
-              Gerenciar Cofre
+              Exibir Todo o Brasil
             </button>
-          </div>
-        )}
-
-        {/* ABAS DE NAVEGAÇÃO EXECUTIVAS */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
-          <button
-            type="button"
-            onClick={() => setAbaAtiva('TODOS')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${abaAtiva === 'TODOS'
-              ? 'bg-[#081C3A] text-white shadow-sm'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-          >
-            Todas as Oportunidades ({avaliacoes.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setAbaAtiva('PRONTO')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'PRONTO'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Aderentes e Prontos ({prontos.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setAbaAtiva('ATENCAO')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'ATENCAO'
-              ? 'bg-amber-600 text-white shadow-sm'
-              : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-              }`}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Requerem Ajustes ({atencao.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setAbaAtiva('FORA')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${abaAtiva === 'FORA'
-              ? 'bg-slate-700 text-white shadow-sm'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-          >
-            <XCircle className="h-3.5 w-3.5" />
-            Fora do Escopo (CNAE) ({fora.length})
-          </button>
+          )}
         </div>
+      ) : (
+        <div className="space-y-4">
+          {listaVisivel.map((item, idx) => {
+            const ed = item.edital;
+            const idEdital = encodeURIComponent(String(ed.numeroControlePNCP || ed.id || ''));
+            const corBadge =
+              item.nivel === 'PRONTO'
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                : item.nivel === 'ATENCAO'
+                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                  : 'bg-slate-100 text-slate-800 border-slate-200';
+            const textoBadge =
+              item.nivel === 'PRONTO'
+                ? 'Aderente e Pronto'
+                : item.nivel === 'ATENCAO'
+                  ? 'Requer Ajuste'
+                  : 'Fora do Escopo';
 
-        {erro && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
-            {erro}
-          </div>
-        )}
+            const specs = ed.metadata?.extractedSpecsJson;
+            const estaLendoEste = lendoEditalId === String(ed.numeroControlePNCP || ed.id || '');
 
-        {carregando ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 space-y-3">
-            <RefreshCw className="h-6 w-6 animate-spin mx-auto text-[#0070C0]" />
-            <p className="font-semibold text-[#081C3A]">
-              Cruzando oportunidades com os CNAEs, certidões e anexos reais para {nomeEmpresa}...
-            </p>
-          </div>
-        ) : listaVisivel.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
-            <p className="text-sm font-bold text-[#081C3A]">
-              Nenhuma oportunidade encontrada para os filtros selecionados.
-            </p>
-            <p className="text-xs text-slate-600">
-              Experimente mudar o filtro de Estado para "Todo o Brasil" ou desmarcar o filtro de disputa remota.
-            </p>
-            {estadoFiltro !== 'TODOS' && (
-              <button
-                type="button"
-                onClick={() => setEstadoFiltro('TODOS')}
-                className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
+            return (
+              <div
+                key={`${idEdital}-${idx}`}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0070C0] transition space-y-4"
               >
-                Exibir Todo o Brasil
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {listaVisivel.map((item, idx) => {
-              const ed = item.edital;
-              const idEdital = encodeURIComponent(String(ed.numeroControlePNCP || ed.id || ''));
-              const corBadge =
-                item.nivel === 'PRONTO'
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                  : item.nivel === 'ATENCAO'
-                    ? 'bg-amber-100 text-amber-800 border-amber-200'
-                    : 'bg-slate-100 text-slate-800 border-slate-200';
-              const textoBadge =
-                item.nivel === 'PRONTO'
-                  ? 'Aderente e Pronto'
-                  : item.nivel === 'ATENCAO'
-                    ? 'Requer Ajuste'
-                    : 'Fora do Escopo';
-
-              const specs = ed.metadata?.extractedSpecsJson;
-              const estaLendoEste = lendoEditalId === String(ed.numeroControlePNCP || ed.id || '');
-
-              return (
-                <div
-                  key={`${idEdital}-${idx}`}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-[#0070C0] transition space-y-4"
-                >
-                  {/* Topo do Card */}
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="space-y-2 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-0.5 text-xs font-bold ${corBadge}`}>
-                          {textoBadge}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                          {ed.modalidadeNome || ed.modalidade || 'Licitação'}
-                        </span>
-
-                        {/* Selo de Disputa Remota vs Presencial */}
-                        {specs?.disputaModo === 'ELETRONICO_REMOTO' || (item.objetoTexto + ' ' + (ed.modalidade || '')).toLowerCase().includes('eletrônic') ? (
-                          <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-emerald-50 text-emerald-800 border-emerald-200">
-                            Sessão Online / Remota
-                          </span>
-                        ) : specs?.disputaModo === 'PRESENCIAL' ? (
-                          <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200">
-                            Disputa Presencial
-                          </span>
-                        ) : null}
-
-                        {/* Selo ME/EPP */}
-                        {(item.valor !== null && item.valor <= 80000) && (
-                          <span className="rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
-                            Exclusivo ME/EPP
-                          </span>
-                        )}
-
-                        {/* Selo SRP */}
-                        {ed.srp && (
-                          <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
-                            Registro de Preços
-                          </span>
-                        )}
-                      </div>
-
-                      <h2 className="text-sm sm:text-base font-bold text-[#081C3A]">{item.orgaoTexto}</h2>
-                      <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{item.objetoTexto}</p>
-                    </div>
-
-                    {/* Pontuação */}
-                    <div className="shrink-0 text-right">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
-                        <span className="text-[11px] font-semibold text-slate-500">Score:</span>
-                        <span className="text-sm font-black text-[#081C3A]">{item.pontuacao}%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Metadados e Valores */}
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1 border-t border-slate-100">
-                    <span className="font-bold text-[#081C3A]">
-                      Valor de Referência: {formatarMoeda(item.valor)}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                      Encerramento: {formatarData(item.dataLimite)}
-                    </span>
-                    {ed.uf && (
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                        {ed.municipio ? `${ed.municipio}/${ed.uf}` : ed.uf}
-                      </span>
-                    )}
-                    {specs?.prazoEntregaDias && (
-                      <span className="text-slate-700">
-                        Prazo de Entrega: <strong>{specs.prazoEntregaDias} dias</strong>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Tags de Viabilidade (No máximo 3 destaques objetivos) */}
-                  <div className="flex flex-wrap gap-2">
-                    {item.motivosPositivos.slice(0, 3).map((m, mIdx) => (
-                      <span
-                        key={mIdx}
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
-                      >
-                        <CheckCircle2 className="h-3 w-3 shrink-0" /> {m}
-                      </span>
-                    ))}
-                    {item.alertas.slice(0, 2).map((al, aIdx) => (
-                      <span
-                        key={aIdx}
-                        className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
-                      >
-                        <AlertTriangle className="h-3 w-3 shrink-0" /> {al}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* BARRA DE AÇÕES INFERIOR DO CARD (Descolada do widget Luli) */}
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+                {/* Topo do Card */}
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Botão Baixar Dossiê em PDF com Trava de Leitura */}
-                      <button
-                        type="button"
-                        onClick={() => void handleBaixarDossie(item)}
-                        disabled={estaLendoEste}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#081C3A] hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer disabled:opacity-60"
-                      >
-                        {estaLendoEste ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FF6600]" />
-                            Lendo Arquivos...
-                          </>
-                        ) : (
-                          <>
-                            <FileDown className="h-3.5 w-3.5 text-[#FF6600]" />
-                            Baixar Dossiê em PDF
-                          </>
-                        )}
-                      </button>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-0.5 text-xs font-bold ${corBadge}`}>
+                        {textoBadge}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                        {ed.modalidadeNome || ed.modalidade || 'Licitação'}
+                      </span>
 
-                      <button
-                        type="button"
-                        onClick={() => void handleDownloadOriginal(idEdital, String(item.edital.numeroControlePNCP || idEdital).replace(/\//g, '_'))}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
-                        title="Baixar arquivo original publicado pelo órgão diretamente"
-                      >
-                        <Download className="h-3.5 w-3.5 text-[#0070C0]" />
-                        Baixar Edital
-                      </button>
+                      {/* Selo de Disputa Remota vs Presencial */}
+                      {specs?.disputaModo === 'ELETRONICO_REMOTO' || (item.objetoTexto + ' ' + (ed.modalidade || '')).toLowerCase().includes('eletrônic') ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-emerald-50 text-emerald-800 border-emerald-200">
+                          Sessão Online / Remota
+                        </span>
+                      ) : specs?.disputaModo === 'PRESENCIAL' ? (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border bg-amber-50 text-amber-800 border-amber-200">
+                          Disputa Presencial
+                        </span>
+                      ) : null}
 
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/fornecedor/propostas?edital=${idEdital}`)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer"
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Preparar Proposta
-                      </button>
+                      {/* Selo ME/EPP */}
+                      {(item.valor !== null && item.valor <= 80000) && (
+                        <span className="rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+                          Exclusivo ME/EPP
+                        </span>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/fornecedor/leitor-editais?edital=${idEdital}`)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:border-[#0070C0] px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
-                      >
-                        <Sparkles className="h-3.5 w-3.5 text-[#FF6600]" />
-                        Analisar Edital
-                      </button>
+                      {/* Selo SRP */}
+                      {ed.srp && (
+                        <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-semibold text-[#0070C0]">
+                          Registro de Preços
+                        </span>
+                      )}
                     </div>
 
-                    <a
-                      href={item.linkPortal}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-[#0070C0] transition"
-                    >
-                      Portal Oficial <ExternalLink className="h-3 w-3" />
-                    </a>
+                    <h2 className="text-sm sm:text-base font-bold text-[#081C3A]">{item.orgaoTexto}</h2>
+                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{item.objetoTexto}</p>
+                  </div>
+
+                  {/* Pontuação */}
+                  <div className="shrink-0 text-right">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1">
+                      <span className="text-[11px] font-semibold text-slate-500">Score:</span>
+                      <span className="text-sm font-black text-[#081C3A]">{item.pontuacao}%</span>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      );
+
+                {/* Metadados e Valores */}
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1 border-t border-slate-100">
+                  <span className="font-bold text-[#081C3A]">
+                    Valor de Referência: {formatarMoeda(item.valor)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                    Encerramento: {formatarData(item.dataLimite)}
+                  </span>
+                  {ed.uf && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                      {ed.municipio ? `${ed.municipio}/${ed.uf}` : ed.uf}
+                    </span>
+                  )}
+                  {specs?.prazoEntregaDias && (
+                    <span className="text-slate-700">
+                      Prazo de Entrega: <strong>{specs.prazoEntregaDias} dias</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Tags de Viabilidade (No máximo 3 destaques objetivos) */}
+                <div className="flex flex-wrap gap-2">
+                  {item.motivosPositivos.slice(0, 3).map((m, mIdx) => (
+                    <span
+                      key={mIdx}
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800"
+                    >
+                      <CheckCircle2 className="h-3 w-3 shrink-0" /> {m}
+                    </span>
+                  ))}
+                  {item.alertas.slice(0, 2).map((al, aIdx) => (
+                    <span
+                      key={aIdx}
+                      className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800"
+                    >
+                      <AlertTriangle className="h-3 w-3 shrink-0" /> {al}
+                    </span>
+                  ))}
+                </div>
+
+                {/* BARRA DE AÇÕES INFERIOR DO CARD (Descolada do widget Luli) */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Botão Baixar Dossiê em PDF com Trava de Leitura */}
+                    <button
+                      type="button"
+                      onClick={() => void handleBaixarDossie(item)}
+                      disabled={estaLendoEste}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#081C3A] hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer disabled:opacity-60"
+                    >
+                      {estaLendoEste ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FF6600]" />
+                          Lendo Arquivos...
+                        </>
+                      ) : (
+                        <>
+                          <FileDown className="h-3.5 w-3.5 text-[#FF6600]" />
+                          Baixar Dossiê em PDF
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadOriginal(idEdital, String(item.edital.numeroControlePNCP || idEdital).replace(/\//g, '_'))}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
+                      title="Baixar arquivo original publicado pelo órgão diretamente"
+                    >
+                      <Download className="h-3.5 w-3.5 text-[#0070C0]" />
+                      Baixar Edital
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/fornecedor/propostas?edital=${idEdital}`)}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[#FF6600] hover:bg-[#e55b00] px-4 py-2 text-xs font-bold text-white shadow-sm transition cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Preparar Proposta
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/fornecedor/leitor-editais?edital=${idEdital}`)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:border-[#0070C0] px-3.5 py-2 text-xs font-bold text-[#081C3A] transition cursor-pointer"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-[#FF6600]" />
+                      Analisar Edital
+                    </button>
+                  </div>
+
+                  <a
+                    href={item.linkPortal}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-[#0070C0] transition"
+                  >
+                    Portal Oficial <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
-      export default ScoreOportunidadesPage;
+export default ScoreOportunidadesPage;
