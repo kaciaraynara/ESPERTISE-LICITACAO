@@ -23,6 +23,12 @@ export default function ImpugnacaoPage() {
     searchParams.get('id') ||
     '';
 
+  const vicioParam = searchParams.get('vicio') || searchParams.get('titulo') || '';
+  const trechoParam = searchParams.get('trecho') || '';
+  const fundamentoParam = searchParams.get('fundamento') || '';
+  const arquivoParam = searchParams.get('arquivo') || '';
+  const paginaParam = searchParams.get('pagina') || '';
+
   const [editalSelecionado, setEditalSelecionado] = useState<EditalOption | null>(null);
   const [analisando, setAnalisando] = useState(false);
   const [streamingAuditText, setStreamingAuditText] = useState('');
@@ -40,11 +46,29 @@ export default function ImpugnacaoPage() {
     setIsAuditStreaming(true);
     setStreamingAuditText('');
 
+    let perguntaFinal = PROMPT_PADRAO_IMPUGNACAO_COMPLETA;
+    if (trechoParam || vicioParam) {
+      perguntaFinal = `Elabore uma PEÇA JURÍDICA FORMAL DE IMPUGNAÇÃO AO EDITAL com fundamento no Art. 164 da Lei Federal nº 14.133/2021 direcionada ao Pregoeiro / Comissão de Contratação.
+OBJETO DA IMPUGNAÇÃO: Ilegalidade apontada: "${vicioParam || 'Cláusula restritiva à ampla competitividade'}".
+LOCALIZAÇÃO NO EDITAL: Arquivo: ${arquivoParam || 'Edital Oficial'} | Página: ${paginaParam || 'Conforme texto oficial'}.
+TRECHO LITERAL IMPUGNADO DO EDITAL:
+"${trechoParam}"
+FUNDAMENTAÇÃO JURÍDICA ESPECÍFICA:
+${fundamentoParam || 'Artigos 9º, 40, 41, 63 e 67 da Lei Federal nº 14.133/2021 e Súmulas vinculantes do TCU'}
+
+Requisitos da Peça:
+1. Endereçamento ao Ilmo. Sr. Pregoeiro / Agente de Contratação do órgão licitante.
+2. Tempestividade expressa com fulcro no Art. 164 da Lei 14.133/2021 (tempestiva até 3 dias úteis antes da abertura).
+3. Dos Fatos e da Ilegalidade do Trecho Litigioso.
+4. Do Direito e Jurisprudência do TCU (demonstrar a lesão ao caráter competitivo).
+5. Dos Pedidos Finais: Recebimento, acolhimento, suspensão do certame e republicação com reabertura de prazo legal.`;
+    }
+
     try {
       await streamAiChat({
         endpoint: '/lex/impugnacao',
         noticeId: edital.id,
-        pergunta: PROMPT_PADRAO_IMPUGNACAO_COMPLETA,
+        pergunta: perguntaFinal,
         onChunk: (_chunk, accumulated) => {
           setStreamingAuditText(accumulated);
         },
@@ -52,7 +76,7 @@ export default function ImpugnacaoPage() {
           setStreamingAuditText(fullText);
           setIsAuditStreaming(false);
           if (fullText.trim()) {
-            toast.success('Auditoria de impugnação concluída com fundamentação legal!');
+            toast.success('Peça de impugnação fundamentada gerada com sucesso!');
           }
         },
         onError: () => {

@@ -1026,6 +1026,36 @@ router.get(
   ),
 );
 
+router.get(
+  '/notices/:id/arquivos',
+  requirePlanFeature('radar_editais'),
+  handle(
+    notices.listarArquivosOficiais.bind(
+      notices,
+    ) as RequestHandler,
+  ),
+);
+
+router.get(
+  '/notices/:id/download-arquivo/:sequencial',
+  requirePlanFeature('radar_editais'),
+  handle(
+    notices.baixarArquivoOficial.bind(
+      notices,
+    ) as RequestHandler,
+  ),
+);
+
+router.get(
+  '/notices/:id/download-original',
+  requirePlanFeature('radar_editais'),
+  handle(
+    notices.baixarArquivoPrincipal.bind(
+      notices,
+    ) as RequestHandler,
+  ),
+);
+
 router.post(
   '/notices/:id/deep-read',
   requirePlanFeature('radar_editais'),

@@ -343,11 +343,10 @@ export const DashboardPage: React.FC = () => {
                   key={portal}
                   type="button"
                   onClick={() => setPortalFiltro(portal)}
-                  className={`px-3 py-1 rounded-lg font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
-                    portalFiltro === portal
-                      ? 'bg-[#0B192C] text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${portalFiltro === portal
+                    ? 'bg-[#0B192C] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
+                    }`}
                 >
                   {portal === 'TODOS' ? 'Todos os Portais' : portal}
                 </button>
@@ -397,11 +396,10 @@ export const DashboardPage: React.FC = () => {
                           {formatarMoeda(ed.valorEstimado)}
                         </strong>
                         <span
-                          className={`text-[11px] font-bold inline-block mt-0.5 ${
-                            ed.diasRestantes !== null && ed.diasRestantes <= 5
-                              ? 'text-amber-700 font-extrabold'
-                              : 'text-slate-500'
-                          }`}
+                          className={`text-[11px] font-bold inline-block mt-0.5 ${ed.diasRestantes !== null && ed.diasRestantes <= 5
+                            ? 'text-amber-700 font-extrabold'
+                            : 'text-slate-500'
+                            }`}
                         >
                           {ed.prazoLabel}
                         </span>
@@ -538,11 +536,10 @@ export const DashboardPage: React.FC = () => {
                       </span>
                     </div>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
-                        doc.statusLabel === 'Vencido'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-amber-100 text-amber-900'
-                      }`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${doc.statusLabel === 'Vencido'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-amber-100 text-amber-900'
+                        }`}
                     >
                       {doc.statusLabel}
                     </span>

@@ -10,7 +10,7 @@ import { documentGenerationService } from '../services/document-generation.servi
 import { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { prisma } from '../database/prisma';
 import { gerarEsqueletoImpugnacao } from '../services/impugnacao.service';
-import { preencherTextoEditalAutomaticamente, obterTextoEAnexosOficiais, ResultadoExtracaoEdital } from '../services/pncp-parser.service';
+import { preencherTextoEditalAutomaticamente, obterTextoEAnexosOficiais, obterBufferArquivoOficial, ResultadoExtracaoEdital } from '../services/pncp-parser.service';
 import { EditalDeepAnalyzerService } from '../services/edital-deep-analyzer.service';
 
 export class NoticesController {
@@ -95,6 +95,60 @@ export class NoticesController {
     } catch (error) {
       if (error instanceof ZodError) return validationError(res, error);
       throw error;
+    }
+  }
+
+  async listarArquivosOficiais(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const extraInfo = await obterTextoEAnexosOficiais(noticeId);
+      return res.json({
+        success: true,
+        sourceMode: extraInfo.sourceMode,
+        arquivosOficiais: extraInfo.arquivosOficiais,
+      });
+    } catch (error: any) {
+      console.error('[NoticesController] Erro em listarArquivosOficiais:', error);
+      return res.status(500).json({ success: false, message: 'Falha ao consultar arquivos oficiais' });
+    }
+  }
+
+  async baixarArquivoOficial(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const sequencial = req.params.sequencial;
+      const arquivo = await obterBufferArquivoOficial(noticeId, sequencial);
+
+      if (!arquivo) {
+        return res.status(404).json({ success: false, message: 'Arquivo oficial não encontrado para este edital.' });
+      }
+
+      res.setHeader('Content-Type', arquivo.mimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(arquivo.fileName)}"`);
+      res.setHeader('Content-Length', arquivo.tamanhoBytes);
+      return res.send(arquivo.buffer);
+    } catch (error: any) {
+      console.error('[NoticesController] Erro ao baixar arquivo oficial:', error);
+      return res.status(500).json({ success: false, message: 'Erro ao transferir arquivo oficial' });
+    }
+  }
+
+  async baixarArquivoPrincipal(req: AuthRequest, res: Response) {
+    try {
+      const noticeId = req.params.id;
+      const arquivo = await obterBufferArquivoOficial(noticeId, 'principal');
+
+      if (!arquivo) {
+        return res.status(404).json({ success: false, message: 'Edital original não encontrado no portal oficial.' });
+      }
+
+      res.setHeader('Content-Type', arquivo.mimeType || 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(arquivo.fileName)}"`);
+      res.setHeader('Content-Length', arquivo.tamanhoBytes);
+      return res.send(arquivo.buffer);
+    } catch (error: any) {
+      console.error('[NoticesController] Erro ao baixar edital principal:', error);
+      return res.status(500).json({ success: false, message: 'Erro ao transferir edital original' });
     }
   }
 

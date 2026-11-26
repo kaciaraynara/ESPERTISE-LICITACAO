@@ -461,6 +461,9 @@ export const noticesApi = {
   getBatchOpportunityScore: (noticeIds: string[]) =>
     api.post('/notices/batch-score', { noticeIds }),
   getDownloadUrl: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/download-url`),
+  getArquivos: (id: string) => api.get(`/notices/${encodeURIComponent(id)}/arquivos`),
+  baixarArquivoUrl: (id: string, sequencial: number | string) => `/api/v1/notices/${encodeURIComponent(id)}/download-arquivo/${sequencial}`,
+  baixarEditalOriginalUrl: (id: string) => `/api/v1/notices/${encodeURIComponent(id)}/download-original`,
   getItens: (id: string) => api.get(`/editais/${encodeURIComponent(id)}/itens`),
   deepRead: (id: string, force = false) =>
     api.post(`/notices/${encodeURIComponent(id)}/deep-read`, { force }),

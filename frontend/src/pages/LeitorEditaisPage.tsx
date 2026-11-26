@@ -4,7 +4,6 @@ import {
   FileText,
   UploadCloud,
   CheckCircle2,
-  ArrowRight,
   Scale,
   Copy,
   Check,
@@ -16,10 +15,14 @@ import {
   RefreshCw,
   AlertTriangle,
   Info,
+  Download,
+  Gavel,
+  Calendar,
+  Truck,
+  CreditCard,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { FORNECEDOR_ROUTES } from '@/routes';
 import { streamAiChat } from '@/services/aiStream.service';
 import { EditalSelector, EditalOption } from '@/components/EditalSelector';
 import { formatPncpDateBR, formatCnpj } from '@/utils/pncp';
@@ -28,8 +31,11 @@ export interface VicioApontamento {
   id?: string;
   titulo: string;
   gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
+  arquivoOrigem?: string;
+  pagina?: number | string;
   trechoLiteral: string;
   fundamentoLegal: string;
+  explicacaoSimples?: string;
   acaoRecomendada?: string;
 }
 
@@ -47,6 +53,7 @@ export interface ArquivoOficial {
   titulo: string;
   tipoDocumento: string;
   urlDownloadOficial: string;
+  urlDownloadInterno?: string;
   sequencial?: number;
   tamanhoBytes?: number;
 }
@@ -59,6 +66,13 @@ function formatBRL(valor?: number | null): string {
     style: 'currency',
     currency: 'BRL',
   }).format(Number(valor));
+}
+
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function calcularPrazoImpugnacaoArt164(dataAberturaIso?: string | null): string | null {
@@ -84,6 +98,7 @@ export const LeitorEditaisPage: React.FC = () => {
 
   const [selectedEditalId, setSelectedEditalId] = useState<string>(urlEditalId);
   const [selectedEditalData, setSelectedEditalData] = useState<any>(null);
+  const [fichaSpecs, setFichaSpecs] = useState<any>(null);
   const [carregandoEdital, setCarregandoEdital] = useState(false);
 
   // Fonte real de dados e anexos
@@ -94,11 +109,12 @@ export const LeitorEditaisPage: React.FC = () => {
   const [editalTexto, setEditalTexto] = useState('');
   const [analisando, setAnalisando] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [baixandoArquivo, setBaixandoArquivo] = useState(false);
   const [resultadoStreaming, setResultadoStreaming] = useState('');
-  const [analiseConcluida, setAnaliseConcluida] = useState(false);
+  const [_analiseConcluida, setAnaliseConcluida] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
-  const [abaDossie, setAbaDossie] = useState<'visao' | 'itens' | 'habilitacao' | 'vicios'>('visao');
+  const [abaDossie, setAbaDossie] = useState<'visao' | 'disputa' | 'itens' | 'entrega' | 'habilitacao' | 'contrato' | 'vicios' | 'arquivos'>('visao');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Atualiza selectedEditalId quando a URL mudar
@@ -112,6 +128,7 @@ export const LeitorEditaisPage: React.FC = () => {
   useEffect(() => {
     if (!selectedEditalId) {
       setSelectedEditalData(null);
+      setFichaSpecs(null);
       setSourceMode(null);
       setArquivosOficiais([]);
       setAuditoria(null);
@@ -148,12 +165,17 @@ export const LeitorEditaisPage: React.FC = () => {
         let fetchedSourceMode: 'PDF_ANEXO_REAL' | 'PDF_ESCANEADO_SEM_TEXTO' | 'APENAS_METADADOS_PNCP' = 'APENAS_METADADOS_PNCP';
         let fetchedArquivos: ArquivoOficial[] = [];
         let fetchedAuditoria: AuditoriaData | null = null;
+        let fetchedSpecs: any = null;
         let textoRealExtraido = '';
 
         if (chunksRes.status === 'fulfilled' && chunksRes.value?.data) {
           const cd = chunksRes.value.data;
           fetchedSourceMode = cd.sourceMode || 'APENAS_METADADOS_PNCP';
           fetchedArquivos = Array.isArray(cd.arquivosOficiais) ? cd.arquivosOficiais : [];
+
+          if (cd.fichaSpecs) {
+            fetchedSpecs = cd.fichaSpecs;
+          }
 
           if (cd.auditoriaDeterministica) {
             fetchedAuditoria = cd.auditoriaDeterministica;
@@ -173,6 +195,7 @@ export const LeitorEditaisPage: React.FC = () => {
 
         setSourceMode(fetchedSourceMode);
         setArquivosOficiais(fetchedArquivos);
+        setFichaSpecs(fetchedSpecs);
         if (fetchedAuditoria) {
           setAuditoria(fetchedAuditoria);
         }
@@ -219,7 +242,8 @@ ${itensPreview}
 REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
 - Habilitação Jurídica: Contrato social ou ato constitutivo, CNPJ ativo e procuração.
 - Regularidade Fiscal e Trabalhista: CND Federal (Receita/PGFN), CRF FGTS, CNDT, CND Estadual e Municipal.
-- Qualificação Técnica: Atestados de Capacidade Técnica (CAT) compatíveis com o objeto.`;
+- Qualificação Econômico-Financeira: Balanço patrimonial, índices contábeis (LG, SG, LC >= 1,0) e certidão negativa de falência.
+- Qualificação Técnica: Atestados de Capacidade Técnica (CAT) compatíveis com o objeto (limitados a até 50% pela Súmula 263 do TCU).`;
 
           if (fetchedSourceMode === 'PDF_ANEXO_REAL' && textoRealExtraido.trim().length >= 50) {
             setEditalTexto(textoRealExtraido);
@@ -248,6 +272,28 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
     toast.success(`Edital nº ${edital.numeroEdital || edital.id} selecionado para leitura!`);
   };
 
+  // Download direto e seguro de arquivos
+  const handleDownloadArquivo = async (url: string, nomeArquivo: string) => {
+    try {
+      setBaixandoArquivo(true);
+      toast.loading('Iniciando download seguro...', { id: 'download-file' });
+      const res = await api.get(url, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', nomeArquivo);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success(`Download de "${nomeArquivo}" concluído!`, { id: 'download-file' });
+    } catch {
+      toast.error('Não foi possível transferir o arquivo diretamente. Tente novamente em alguns segundos.', { id: 'download-file' });
+    } finally {
+      setBaixandoArquivo(false);
+    }
+  };
+
   // Upload manual de PDF oficial
   const handleUploadPdfManual = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -273,6 +319,9 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
           setSourceMode('PDF_ANEXO_REAL');
           if (res.data.auditoria) {
             setAuditoria(res.data.auditoria);
+          }
+          if (res.data.fichaSpecs) {
+            setFichaSpecs(res.data.fichaSpecs);
           }
           toast.success(`PDF "${file.name}" carregado e auditado com sucesso!`);
         } else {
@@ -301,14 +350,14 @@ REQUISITOS DE HABILITAÇÃO EXIGIDOS (ARTS. 62 A 70 DA LEI 14.133/21):
     setAnaliseConcluida(false);
 
     try {
-      const prompt = `Elabore um PARECER TÉCNICO-OPERACIONAL E JURÍDICO DE ENGENHARIA LICITATÓRIA completo deste edital para o licitante.
-PROIBIÇÃO ABSOLUTA: Não use introduções de IA, saudações de chatbot nem preâmbulos vazios (como "Olá", "Aqui está o resumo", "Espero ajudar"). Entre direto no parecer técnico estruturado rigorosamente nos 6 blocos executivos:
+      const prompt = `Elabore um PARECER EXECUTIVO E AUDITORIA COMPLETA DESTE EDITAL para o licitante.
+PROIBIÇÃO ABSOLUTA: Não use introduções de assistente, saudações nem preâmbulos. Entre direto no parecer técnico estruturado rigorosamente:
 
 1. DADOS CADASTRAIS & ENQUADRAMENTO DO CERTAME:
    - Órgão Convocador e Unidade Compradora
    - Número do Edital e Processo Administrativo
    - Modalidade, Critério de Julgamento e Modo de Disputa (IN SEGES nº 73/2022)
-   - Amparo Legal (Lei Federal nº 14.133/2021) e se é SRP (Registro de Preços) ou Contratação Imediata
+   - Amparo Legal (Lei Federal nº 14.133/2021)
 
 2. OBJETO REAL & ESCOPO PRÁTICO DA CONTRATAÇÃO:
    - Descrição detalhada do objeto da contratação
@@ -317,22 +366,21 @@ PROIBIÇÃO ABSOLUTA: Não use introduções de IA, saudações de chatbot nem p
 
 3. CRONOGRAMA, PRAZOS FATAIS & LOGÍSTICA:
    - Data e horário da sessão pública de lances
-   - Prazo fatal para protocolo de Impugnação ou Pedido de Esclarecimento (Art. 164)
+   - Prazo fatal para protocolo de Impugnação (Art. 164 - 3 dias úteis antes)
    - Prazo de entrega / início da prestação dos serviços e localidade
 
 4. MATRIZ DE HABILITAÇÃO OBRIGATÓRIA (CRITÉRIOS DE NÃO DESCLASSIFICAÇÃO):
    - Habilitação Jurídica e Regularidade Fiscal/Trabalhista (Arts. 66 e 68)
-   - Qualificação Econômico-Financeira: Balanço patrimonial, índices contábeis (LG, SG, LC >= 1,0) ou Capital Social/Patrimônio Líquido mínimo (até 10%)
-   - Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica exigidos (limitados a até 50% das parcelas relevantes conforme Súmula 263 TCU) e registros profissionais
+   - Qualificação Econômico-Financeira: Balanço patrimonial, índices contábeis (LG, SG, LC >= 1,0) ou Capital Social/Patrimônio Líquido mínimo
+   - Qualificação Técnica (Art. 67): Atestados de Capacidade Técnica exigidos (limitados a até 50% das parcelas relevantes conforme Súmula 263 TCU)
 
 5. CONDIÇÕES DE ENTREGA, PAGAMENTO E EXECUÇÃO:
    - Prazo e local de entrega/prestação dos serviços
-   - Prazo de liquidação do empenho e cronograma de pagamento pelo órgão
-   - Exigência de garantia contratual e regras de reajuste/reequilíbrio econômico-financeiro
+   - Prazo de pagamento (em até 30 dias após liquidação da despesa conforme Art. 141)
+   - Reajuste após 12 meses (Art. 25, § 7º)
 
-6. PARECER DE RISCO, TÁTICA DE LANCES & RECOMENDAÇÃO PRÁTICA:
+6. PARECER DE RISCO & RECOMENDAÇÃO PRÁTICA:
    - Apontamento de cláusulas abusivas ou restritivas passíveis de impugnação
-   - Estratégia de precificação competitiva e proteção do valor mínimo seguro contra inexequibilidade
    - Próximo passo executivo recomendado dentro da plataforma.
 
 TEXTO DO EDITAL / DOCUMENTO:
@@ -356,7 +404,6 @@ ${editalTexto.slice(0, 150000)}`;
       });
 
       if (streamFalhou || acumulado.trim().length === 0) {
-        // Fallback estruturado imediato se a stream falhar
         const fichaRel = `PARECER TÉCNICO E AUDITORIA DO EDITAL
 
 1. ENQUADRAMENTO DO CERTAME:
@@ -390,18 +437,22 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
     if (!resultadoStreaming) return;
     navigator.clipboard.writeText(resultadoStreaming);
     setCopiado(true);
-    toast.success('Relatório copiado para a área de transferência!');
+    toast.success('Parecer copiado para a área de transferência!');
     setTimeout(() => setCopiado(false), 2000);
   };
 
   const dossier = selectedEditalData?.dossier;
   const ficha = dossier?.fichaTecnica;
   const crono = dossier?.cronogramaPrazosFatais;
-  const itens = Array.isArray(dossier?.quadroItensDetalhado)
-    ? dossier.quadroItensDetalhado
-    : Array.isArray(selectedEditalData?.items)
-      ? selectedEditalData.items
-      : [];
+  const itens = Array.isArray(fichaSpecs?.secoes?.objetoContratacao?.itensDetalhados) && fichaSpecs.secoes.objetoContratacao.itensDetalhados.length > 0
+    ? fichaSpecs.secoes.objetoContratacao.itensDetalhados
+    : Array.isArray(dossier?.quadroItensDetalhado)
+      ? dossier.quadroItensDetalhado
+      : Array.isArray(selectedEditalData?.items)
+        ? selectedEditalData.items
+        : [];
+
+  const secoes = fichaSpecs?.secoes;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 font-sans">
@@ -419,33 +470,33 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Extração real dos anexos oficiais (PDF, TR e ETP), auditoria rigorosa de cláusulas restritivas e parecer executivo.
+              Extração integral dos arquivos oficiais (PDF, Word, Termo de Referência e pacotes ZIP), download interno e auditoria de conformidade.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {carregandoEdital && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 text-[#0070C0] font-bold text-xs border border-blue-200">
                 <RefreshCw size={12} className="animate-spin" />
-                Carregando anexos...
+                Carregando documentos...
               </span>
             )}
             {sourceMode === 'PDF_ANEXO_REAL' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#14532D]/10 text-[#14532D] font-bold text-xs border border-[#166534]/30">
                 <CheckCircle2 size={14} />
-                PDF Oficial Lido {arquivosOficiais.length > 0 ? `(${arquivosOficiais.length} anexo(s))` : ''}
+                Documento Oficial Lido {arquivosOficiais.length > 0 ? `(${arquivosOficiais.length} anexo(s))` : ''}
               </span>
             )}
             {sourceMode === 'PDF_ESCANEADO_SEM_TEXTO' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-900 font-bold text-xs border border-amber-300">
                 <AlertTriangle size={14} className="text-amber-600" />
-                PDF Escaneado (Sem OCR)
+                Documento Escaneado em Imagem
               </span>
             )}
             {sourceMode === 'APENAS_METADADOS_PNCP' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300">
                 <Info size={14} className="text-slate-500" />
-                Dados Oficiais do PNCP
+                Registro Oficial do Certame
               </span>
             )}
           </div>
@@ -461,43 +512,44 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
           />
         </div>
 
-        {/* ALERTA TRANSPARENTE CASO NÃO HAJA PDF COM TEXTO LEGÍVEL NO PNCP */}
+        {/* ALERTA TRANSPARENTE CASO O ÓRGÃO NÃO TENHA PUBLICADO ARQUIVO LEGÍVEL */}
         {selectedEditalId && sourceMode && sourceMode !== 'PDF_ANEXO_REAL' && (
-          <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-300 text-amber-950 space-y-3">
-            <div className="flex items-start gap-2.5">
-              <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-xs">
-                <strong className="text-xs font-black text-amber-900 block">
-                  Dados oficiais e itens carregados do Portal Nacional (PNCP)
+          <div className="p-5 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 space-y-3 shadow-xs">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <strong className="text-sm font-black text-amber-900 block">
+                  Aviso sobre os arquivos oficiais deste certame
                 </strong>
-                <p className="text-amber-800 leading-relaxed">
-                  O órgão não disponibilizou um PDF com texto selecionável neste registro. Abaixo estão todos os dados e itens oficiais; caso tenha o arquivo em PDF no seu computador, anexe ao lado para leitura completa.
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  O órgão publicou apenas os dados resumidos abaixo, sem arquivo anexo legível no portal. Caso tenha o PDF no seu computador, anexe aqui para leitura completa.
                 </p>
               </div>
             </div>
 
-            {arquivosOficiais.length > 0 && (
-              <div className="pt-2 border-t border-amber-200/80">
-                <span className="text-[11px] font-bold text-amber-900 block mb-1.5 uppercase">
-                  Anexos Oficiais Disponíveis no PNCP:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {arquivosOficiais.map((arq, idx) => (
-                    <a
-                      key={idx}
-                      href={arq.urlDownloadOficial}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-950 hover:bg-amber-100/60 text-xs font-bold transition shadow-2xs"
-                    >
-                      <ExternalLink size={12} className="text-amber-700" />
-                      <span>{arq.titulo}</span>
-                      <span className="text-[10px] text-amber-700 font-normal">({arq.tipoDocumento})</span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingPdf}
+                className="px-4 py-2 bg-amber-900 hover:bg-amber-950 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <UploadCloud size={14} />
+                {uploadingPdf ? 'Processando Arquivo...' : 'Anexar PDF do seu Computador'}
+              </button>
+
+              {selectedEditalId && (
+                <button
+                  type="button"
+                  onClick={() => handleDownloadArquivo(`/notices/${encodeURIComponent(selectedEditalId)}/download-original`, `Edital_${selectedEditalId}.pdf`)}
+                  disabled={baixandoArquivo}
+                  className="px-4 py-2 bg-white border border-amber-300 hover:bg-amber-100/60 text-amber-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <Download size={14} className="text-amber-700" />
+                  <span>Baixar Arquivo Publicado</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -526,7 +578,19 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                 </div>
               </div>
 
+              {/* AÇÕES DIRETAS (BAIXAR EDITAL ORIGINAL, PREÇO, PROPOSTA, IMPUGNAR) */}
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadArquivo(`/notices/${encodeURIComponent(selectedEditalId)}/download-original`, `Edital_${ficha?.numeroEdital || selectedEditalId}.pdf`)}
+                  disabled={baixandoArquivo}
+                  className="px-3 py-1.5 bg-[#0B192C] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  title="Baixar arquivo original publicado pelo órgão"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#EA580C]" />
+                  <span>Baixar Edital Original</span>
+                </button>
+
                 <a
                   href={`/precificacao?edital=${selectedEditalId}`}
                   className="px-3 py-1.5 bg-[#EA580C] hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
@@ -534,13 +598,15 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   <Calculator className="w-3.5 h-3.5" />
                   <span>Precificar</span>
                 </a>
+
                 <a
                   href={`/propostas/criar?edital=${selectedEditalId}`}
-                  className="px-3 py-1.5 bg-[#0B192C] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                 >
                   <FileCheck className="w-3.5 h-3.5" />
                   <span>Proposta</span>
                 </a>
+
                 <a
                   href={`/impugnacao?edital=${selectedEditalId}`}
                   className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
@@ -548,21 +614,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   <Scale className="w-3.5 h-3.5" />
                   <span>Impugnar</span>
                 </a>
-                {ficha?.linkOficialPncp && (
-                  <a
-                    href={ficha.linkOficialPncp}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition-all"
-                    title="Ver no Portal Oficial do PNCP"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
               </div>
             </div>
 
-            {/* ABAS DO DOSSIÊ */}
+            {/* ABAS DO DOSSIÊ ESTRUTURADO */}
             <div className="px-5 border-b border-slate-200 bg-slate-50/60 flex items-center gap-1 overflow-x-auto text-xs font-bold">
               <button
                 type="button"
@@ -573,7 +628,19 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>Ficha Técnica & Objeto</span>
+                <span>1. Objeto & Resumo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAbaDossie('disputa')}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'disputa'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>2. Disputa & Prazos</span>
               </button>
 
               <button
@@ -585,7 +652,19 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   }`}
               >
                 <Package className="w-3.5 h-3.5" />
-                <span>Itens ({itens.length})</span>
+                <span>3. Itens ({itens.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAbaDossie('entrega')}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'entrega'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>4. Condições de Entrega</span>
               </button>
 
               <button
@@ -597,7 +676,19 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Habilitação Lei 14.133</span>
+                <span>5. Habilitação</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAbaDossie('contrato')}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'contrato'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>6. Pagamento & Contrato</span>
               </button>
 
               <button
@@ -610,26 +701,37 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
                 <span>
-                  Vícios & Irregularidades ({auditoria?.totalVicios || 0})
+                  7. Auditoria de Vícios ({auditoria?.totalVicios || 0})
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAbaDossie('arquivos')}
+                className={`py-2.5 px-3 border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${abaDossie === 'arquivos'
+                  ? 'border-[#0B192C] text-[#0B192C] bg-white font-black'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>8. Arquivos & Anexos ({arquivosOficiais.length})</span>
               </button>
             </div>
 
-            {/* CONTEÚDO DA ABA ATIVA */}
+            {/* CONTEÚDO DAS SEÇÕES ESTRUTURADAS */}
             <div className="p-5 text-xs">
+              {/* ABA 1: OBJETO & RESUMO */}
               {abaDossie === 'visao' && (
                 <div className="space-y-4">
-                  {/* OBJETO INTEGRAL */}
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                     <span className="font-black text-slate-800 uppercase tracking-wider text-[11px] block mb-1">
-                      Objeto da Contratação (Termo de Referência):
+                      O que o órgão quer contratar na prática:
                     </span>
-                    <p className="text-slate-700 leading-relaxed font-medium whitespace-pre-line">
-                      {dossier?.descricaoExplicativaObjeto?.objetoIntegral || selectedEditalData.object || 'Objeto não informado nos dados estruturados.'}
+                    <p className="text-slate-700 leading-relaxed font-medium whitespace-pre-line text-xs sm:text-sm">
+                      {secoes?.objetoContratacao?.oQueOrgaoQuer || dossier?.descricaoExplicativaObjeto?.objetoIntegral || selectedEditalData.object || 'Objeto oficial conforme Termo de Referência.'}
                     </p>
                   </div>
 
-                  {/* GRADE DE METADADOS */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 bg-white border border-slate-200 rounded-xl">
                       <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Modalidade</span>
@@ -643,23 +745,65 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                       <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Critério de Julgamento</span>
                       <span className="font-bold text-slate-800">{ficha?.criterioJulgamento || selectedEditalData.judgmentCriterion || 'Menor Preço'}</span>
                     </div>
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                      <span className="text-amber-800 block text-[10px] uppercase font-black tracking-wider">Prazo Impugnação (Art. 164)</span>
-                      <span className="font-bold text-amber-950">
-                        {(() => {
-                          const prazoImp =
-                            crono?.prazoLimiteImpugnacao ||
-                            calcularPrazoImpugnacaoArt164(
-                              crono?.aberturaSessaoPublica || selectedEditalData.openingAt || selectedEditalData.closingAt,
-                            );
-                          return prazoImp ? formatPncpDateBR(prazoImp, true) : '3 dias úteis antes da abertura';
-                        })()}
-                      </span>
+                    <div className="p-3 bg-white border border-slate-200 rounded-xl">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Regime Jurídico</span>
+                      <span className="font-bold text-[#14532D]">Lei Federal nº 14.133/2021</span>
                     </div>
                   </div>
                 </div>
               )}
 
+              {/* ABA 2: DISPUTA & PRAZOS */}
+              {abaDossie === 'disputa' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider block">Onde acontece a disputa</span>
+                      <p className="text-slate-900 font-bold text-sm">
+                        {secoes?.disputaEPrazos?.portalDisputa || selectedEditalData.source || 'Portal Oficial de Compras'}
+                      </p>
+                      <span className="text-[11px] text-slate-600 block">
+                        Formato: <strong className="text-slate-900">{fichaSpecs?.disputaEExecucao?.modoDisputaTexto || 'Disputa Eletrônica (Online)'}</strong>
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-slate-500 font-bold uppercase text-[10px] tracking-wider block">Abertura da Sessão Pública</span>
+                      <p className="text-slate-900 font-bold text-sm">
+                        {(() => {
+                          const aber = crono?.aberturaSessaoPublica || selectedEditalData.openingAt || selectedEditalData.closingAt;
+                          return aber ? formatPncpDateBR(aber, true) : 'Consultar cronograma do edital';
+                        })()}
+                      </p>
+                      <span className="text-[11px] text-slate-600 block">Horário oficial de Brasília</span>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-1">
+                      <span className="text-amber-800 font-black uppercase text-[10px] tracking-wider block">Prazo Limite para Impugnação</span>
+                      <p className="text-amber-950 font-black text-sm">
+                        {(() => {
+                          const rawImp = crono?.prazoLimiteImpugnacao || calcularPrazoImpugnacaoArt164(crono?.aberturaSessaoPublica || selectedEditalData.openingAt || selectedEditalData.closingAt);
+                          return rawImp ? formatPncpDateBR(rawImp, true) : 'Até 3 dias úteis antes da abertura';
+                        })()}
+                      </p>
+                      <span className="text-[10px] text-amber-800 font-bold block">Art. 164 da Lei Federal nº 14.133/2021</span>
+                    </div>
+                  </div>
+
+                  {fichaSpecs?.disputaEExecucao?.trechoComprovante && (
+                    <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Trecho literal comprobatório nos documentos oficiais:
+                      </span>
+                      <blockquote className="text-xs font-mono text-slate-800 bg-slate-50 p-3 rounded-lg border border-slate-200 italic leading-relaxed">
+                        {fichaSpecs.disputaEExecucao.trechoComprovante}
+                      </blockquote>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ABA 3: ITENS & QUANTITATIVOS */}
               {abaDossie === 'itens' && (
                 <div className="space-y-3">
                   {itens.length > 0 ? (
@@ -668,18 +812,18 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                         <thead>
                           <tr className="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-600 border-b border-slate-200">
                             <th className="py-2.5 px-3 text-center">Item</th>
-                            <th className="py-2.5 px-3 min-w-[200px]">Descrição</th>
-                            <th className="py-2.5 px-3 text-center">Qtd. / Unid.</th>
-                            <th className="py-2.5 px-3 text-right">Valor Unitário</th>
+                            <th className="py-2.5 px-3 min-w-[200px]">Descrição Oficial</th>
+                            <th className="py-2.5 px-3 text-center">Quantidade</th>
+                            <th className="py-2.5 px-3 text-right">Valor Unitário Ref.</th>
                             <th className="py-2.5 px-3 text-right">Valor Total Estimado</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700 bg-white">
                           {itens.map((it: any, idx: number) => (
                             <tr key={idx} className="hover:bg-slate-50/70">
-                              <td className="py-2 px-3 font-mono font-bold text-center">{it.numeroItem ?? it.itemNumber ?? idx + 1}</td>
-                              <td className="py-2 px-3 font-medium text-slate-800">{it.descricaoCompleta ?? it.description ?? it.descricao}</td>
-                              <td className="py-2 px-3 text-center">{it.quantidade ?? it.quantity ?? 1} {it.unidadeMedida ?? it.unit ?? 'UN'}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-center">{it.itemNumero ?? it.numeroItem ?? it.itemNumber ?? idx + 1}</td>
+                              <td className="py-2 px-3 font-medium text-slate-800">{it.descricao ?? it.descricaoCompleta ?? it.description}</td>
+                              <td className="py-2 px-3 text-center font-bold">{it.quantidade ?? it.quantity ?? 1} {it.unidade ?? it.unidadeMedida ?? 'UN'}</td>
                               <td className="py-2 px-3 text-right">{formatBRL(it.valorUnitarioEstimado ?? it.estimatedUnitValue)}</td>
                               <td className="py-2 px-3 text-right font-bold text-[#0070C0]">{formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}</td>
                             </tr>
@@ -695,66 +839,159 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                 </div>
               )}
 
-              {abaDossie === 'habilitacao' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              {/* ABA 4: CONDIÇÕES DE ENTREGA & EXECUÇÃO */}
+              {abaDossie === 'entrega' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                     <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
-                      Habilitação Jurídica (Art. 66)
+                      Prazo e Cronograma de Entrega
                     </span>
-                    <p className="text-slate-600 text-xs leading-relaxed">
-                      Contrato Social em vigor consolidado, registro comercial, prova de inscrição no CNPJ e procuração com poderes específicos.
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.condicoesEntregaExecucao?.prazoEntrega || 'Conforme cronograma especificado no Termo de Referência e Contrato.'}
                     </p>
                   </div>
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                     <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
-                      Regularidade Fiscal & Trabalhista (Art. 68)
+                      Endereço e Local de Recebimento
                     </span>
-                    <p className="text-slate-600 text-xs leading-relaxed">
-                      CND Federal (Receita/PGFN), Certidão do FGTS (CRF), CNDT (Justiça do Trabalho), CND Estadual e CND Municipal.
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.condicoesEntregaExecucao?.localEntrega || selectedEditalData.municipality || 'Conforme especificado no Termo de Referência.'}
                     </p>
                   </div>
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                     <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
-                      Qualificação Econômico-Financeira (Art. 69)
+                      Vistoria Técnica / Visita ao Local
                     </span>
-                    <p className="text-slate-600 text-xs leading-relaxed">
-                      Balanço Patrimonial do último exercício social, Índices contábeis (LG, SG, LC &gt;= 1,0) e Certidão de Falência e Recuperação Judicial.
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.condicoesEntregaExecucao?.detalhesVistoria || 'A vistoria, quando prevista, pode ser substituída por declaração formal de conhecimento do local nos termos do Art. 63, § 3º da Lei 14.133/2021.'}
                     </p>
                   </div>
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                     <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
-                      Qualificação Técnica (Art. 67)
+                      Amostras, Catálogo ou Prova de Conceito
                     </span>
-                    <p className="text-slate-600 text-xs leading-relaxed">
-                      Atestado(s) de Capacidade Técnica (CAT) compatíveis com o objeto (limitados a no máx. 50% das parcelas relevantes conforme Súmula 263/TCU).
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.condicoesEntregaExecucao?.exigeAmostra
+                        ? 'Exigência de apresentação de amostra após a fase de lances para o licitante provisoriamente classificado em primeiro lugar.'
+                        : 'Não há exigência expressa de amostra prévia nos trechos analisados.'}
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* ABA 5: HABILITAÇÃO */}
+              {abaDossie === 'habilitacao' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Habilitação Jurídica (Art. 66)
+                    </span>
+                    <ul className="list-disc list-inside text-slate-700 text-xs space-y-1">
+                      <li>Inscrição no CNPJ ativa e regular perante a Receita Federal</li>
+                      <li>Contrato Social consolidado ou Requerimento de Empresário Individual</li>
+                      <li>Documento de identidade dos sócios ou procuradores constituídos</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Regularidade Fiscal & Trabalhista (Art. 68)
+                    </span>
+                    <ul className="list-disc list-inside text-slate-700 text-xs space-y-1">
+                      <li>CND Conjunta Federal e Dívida Ativa da União (RFB/PGFN)</li>
+                      <li>Certificado de Regularidade do FGTS (CRF)</li>
+                      <li>Certidão Negativa de Débitos Trabalhistas (CNDT)</li>
+                      <li>Certidões de Débitos Estadual e Municipal do domicílio da empresa</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Qualificação Econômico-Financeira (Art. 69)
+                    </span>
+                    <ul className="list-disc list-inside text-slate-700 text-xs space-y-1">
+                      <li>Balanço Patrimonial e DRE dos 2 últimos exercícios sociais</li>
+                      <li>Certidão Negativa de Falência e Recuperação Judicial</li>
+                      <li>Índices de Liquidez Geral (LG), Solvência Geral (SG) e Liquidez Corrente (LC) &gt;= 1,00</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Qualificação Técnica (Art. 67)
+                    </span>
+                    <ul className="list-disc list-inside text-slate-700 text-xs space-y-1">
+                      <li>Atestado de Capacidade Técnica (CAT) compatível em características com o objeto</li>
+                      <li>Quantitativo limitado a no máximo 50% das parcelas de maior relevância (Súmula 263 do TCU)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 6: PAGAMENTO & CONTRATO */}
+              {abaDossie === 'contrato' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Prazo e Condições de Pagamento
+                    </span>
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.financeiroEContrato?.condicoesPagamento || 'Em até 30 dias contados da liquidação da nota fiscal com ateste de recebimento (Art. 141 da Lei 14.133/2021).'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Vigência do Contrato / Ata de Registro
+                    </span>
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.financeiroEContrato?.vigenciaContrato || 'Conforme especificado no Termo de Referência e Minuta Contratual.'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] block">
+                      Reajuste de Preços
+                    </span>
+                    <p className="text-slate-700 text-xs leading-relaxed">
+                      {secoes?.financeiroEContrato?.criterioReajuste || 'Índice oficial IPCA ou IPCA-E após o interregno de 12 meses da data da proposta (Art. 25, § 7º da Lei 14.133/2021).'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 7: VÍCIOS & IRREGULARIDADES */}
               {abaDossie === 'vicios' && (
                 <div className="space-y-3">
                   {auditoria?.apontamentos && auditoria.apontamentos.length > 0 ? (
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       {auditoria.apontamentos.map((vicio, idx) => (
                         <div
                           key={idx}
-                          className={`p-3.5 rounded-xl border ${vicio.gravidade === 'ALTO'
-                            ? 'bg-red-50/60 border-red-200 text-red-950'
+                          className={`p-4 rounded-xl border ${vicio.gravidade === 'ALTO'
+                            ? 'bg-red-50/70 border-red-200 text-red-950'
                             : vicio.gravidade === 'MEDIO'
-                              ? 'bg-amber-50/60 border-amber-200 text-amber-950'
+                              ? 'bg-amber-50/70 border-amber-200 text-amber-950'
                               : 'bg-slate-50 border-slate-200 text-slate-800'
                             }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-black text-xs block">
-                              {vicio.titulo}
-                            </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-2 mb-2">
+                            <div>
+                              <span className="font-black text-xs sm:text-sm block">
+                                {vicio.titulo}
+                              </span>
+                              <span className="text-[11px] text-slate-600 font-bold block mt-0.5">
+                                Localização: {vicio.arquivoOrigem || 'Edital Oficial'} · Página: {vicio.pagina || 'Conforme documento'}
+                              </span>
+                            </div>
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${vicio.gravidade === 'ALTO'
-                                ? 'bg-red-200/80 text-red-900'
+                              className={`self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${vicio.gravidade === 'ALTO'
+                                ? 'bg-red-200 text-red-900'
                                 : vicio.gravidade === 'MEDIO'
-                                  ? 'bg-amber-200/80 text-amber-900'
+                                  ? 'bg-amber-200 text-amber-900'
                                   : 'bg-slate-200 text-slate-800'
                                 }`}
                             >
@@ -762,30 +999,126 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                             </span>
                           </div>
 
-                          <blockquote className="bg-white/80 p-2 rounded-lg border border-slate-200/80 font-mono text-[11px] text-slate-800 italic my-2 leading-relaxed">
-                            {vicio.trechoLiteral}
+                          <blockquote className="bg-white p-3 rounded-lg border border-slate-200/80 font-mono text-[11px] text-slate-900 italic my-2 leading-relaxed">
+                            "{vicio.trechoLiteral}"
                           </blockquote>
 
-                          <div className="text-[11px] space-y-1">
+                          <div className="text-xs space-y-1.5 mt-2">
+                            <p>
+                              <strong className="text-slate-900">Por que viola a Lei:</strong> {vicio.explicacaoSimples || 'A exigência restringe o caráter competitivo assegurado pela Lei de Licitações.'}
+                            </p>
                             <p>
                               <strong className="text-slate-900">Fundamentação:</strong> {vicio.fundamentoLegal}
                             </p>
-                            {vicio.acaoRecomendada && (
-                              <p>
-                                <strong className="text-slate-900">Recomendação:</strong> {vicio.acaoRecomendada}
-                              </p>
-                            )}
+                          </div>
+
+                          <div className="pt-3 mt-3 border-t border-slate-200/70 flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[11px] font-medium text-slate-600">
+                              {vicio.acaoRecomendada || 'Protocolar impugnação ao edital requerendo a adequação do termo.'}
+                            </span>
+
+                            <Link
+                              to={`/impugnacao?edital=${encodeURIComponent(selectedEditalId)}&vicio=${encodeURIComponent(vicio.titulo)}&trecho=${encodeURIComponent(vicio.trechoLiteral)}&fundamento=${encodeURIComponent(vicio.fundamentoLegal)}&arquivo=${encodeURIComponent(vicio.arquivoOrigem || '')}&pagina=${encodeURIComponent(String(vicio.pagina || ''))}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EA580C] hover:bg-orange-600 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                            >
+                              <Gavel size={14} />
+                              <span>Gerar Impugnação deste Item</span>
+                            </Link>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 rounded-xl bg-[#14532D]/5 border border-[#166534]/30 text-[#14532D] flex items-center gap-2">
-                      <CheckCircle2 size={18} />
-                      <span className="font-bold text-xs">
-                        Nenhuma cláusula restritiva ou vício formal típico foi encontrado nos trechos analisados deste edital.
-                      </span>
+                    <div className="p-5 rounded-2xl bg-[#14532D]/10 border border-[#166534]/30 text-[#14532D] flex items-center gap-3">
+                      <div className="p-2 bg-[#14532D] text-white rounded-xl shrink-0">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-xs sm:text-sm text-[#14532D]">
+                          Edital auditado integralmente: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.
+                        </h4>
+                        <p className="text-xs text-[#166534] mt-0.5">
+                          O instrumento convocatório cumpre as exigências e limites da Lei Federal nº 14.133/2021 e jurisprudência do TCU.
+                        </p>
+                      </div>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* ABA 8: ARQUIVOS & ANEXOS */}
+              {abaDossie === 'arquivos' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider">
+                        Documentos Oficiais Publicados
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Baixe os arquivos oficiais diretamente pela plataforma sem sair para sites externos.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadArquivo(`/notices/${encodeURIComponent(selectedEditalId)}/download-original`, `Edital_${ficha?.numeroEdital || selectedEditalId}.pdf`)}
+                      disabled={baixandoArquivo}
+                      className="px-3 py-1.5 bg-[#0B192C] hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Download size={13} className="text-[#EA580C]" />
+                      <span>Baixar Edital Principal</span>
+                    </button>
+                  </div>
+
+                  {arquivosOficiais.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {arquivosOficiais.map((arq, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="p-2 bg-slate-100 text-slate-700 rounded-lg shrink-0">
+                              <FileText size={16} />
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-xs text-slate-900 block truncate" title={arq.titulo}>
+                                {arq.titulo}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block">
+                                {arq.tipoDocumento} {arq.tamanhoBytes ? `· ${formatBytes(arq.tamanhoBytes)}` : ''}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadArquivo(arq.urlDownloadInterno || `/notices/${encodeURIComponent(selectedEditalId)}/download-arquivo/${arq.sequencial || 1}`, arq.titulo || 'documento.pdf')}
+                              disabled={baixandoArquivo}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              title="Baixar diretamente na Expertise"
+                            >
+                              <Download size={12} />
+                              <span>Baixar</span>
+                            </button>
+                            <a
+                              href={arq.urlDownloadOficial}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
+                              title="Abrir no portal oficial"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 italic p-4 text-center">
+                      Nenhum anexo adicional registrado individualmente no portal do PNCP para este edital.
+                    </p>
                   )}
                 </div>
               )}
@@ -801,7 +1134,7 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <UploadCloud size={18} className="text-[#EA580C]" />
-                  Texto Integral / Anexos Oficiais
+                  Texto Integral / Documentos Oficiais
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -818,10 +1151,10 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                     className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                   >
                     <UploadCloud size={13} />
-                    {uploadingPdf ? 'Lendo PDF...' : 'Anexar PDF'}
+                    {uploadingPdf ? 'Processando...' : 'Anexar PDF'}
                   </button>
                   <span className="text-xs font-bold text-slate-400">
-                    {editalTexto.length.toLocaleString('pt-BR')} chars
+                    {editalTexto.length.toLocaleString('pt-BR')} caracteres
                   </span>
                 </div>
               </div>
@@ -842,12 +1175,12 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
                   {analisando ? (
                     <>
                       <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Auditar Cláusulas com IA Especialista...
+                      Auditando Cláusulas do Edital...
                     </>
                   ) : (
                     <>
                       <ShieldCheck size={18} className="text-[#EA580C]" />
-                      Gerar Parecer Completo com IA
+                      Gerar Parecer Completo do Edital
                     </>
                   )}
                 </button>
@@ -855,143 +1188,52 @@ ${auditoria?.mensagem || 'Auditoria de conformidade executada com base nas cláu
             </form>
           </div>
 
-          {/* PAINEL DIREITO: AUDITORIA AUTOMÁTICA & STREAMING */}
-          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className={`h-3 w-3 rounded-full ${analisando ? 'bg-amber-500 animate-pulse' : 'bg-[#14532D]'}`} />
-                <h3 className="font-black text-slate-900 text-sm">
-                  Auditoria de Vícios & Parecer de Engenharia
-                </h3>
-              </div>
-
-              {resultadoStreaming && (
+          {/* PAINEL DIREITO: RESULTADO DO PARECER EXECUTIVO */}
+          <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+            <div className="space-y-4 flex-1 flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
+                  <span className="p-1.5 bg-[#14532D]/10 text-[#14532D] rounded-lg">
+                    <CheckCircle2 size={18} />
+                  </span>
+                  <h3 className="text-sm font-black text-[#0B192C]">
+                    Parecer Executivo & Auditoria do Instrumento Convocatório
+                  </h3>
+                </div>
+
+                {resultadoStreaming && (
                   <button
+                    type="button"
                     onClick={copiarRelatorio}
-                    className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold flex items-center gap-1.5 transition-all"
-                    title="Copiar relatório completo"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer"
                   >
                     {copiado ? <Check size={14} className="text-[#14532D]" /> : <Copy size={14} />}
-                    {copiado ? 'Copiado' : 'Copiar'}
+                    {copiado ? 'Copiado!' : 'Copiar'}
                   </button>
-                  <Link
-                    to={selectedEditalId ? `/propostas/criar?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.propostas}
-                    className="px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
-                  >
-                    Gerar Proposta
-                    <ArrowRight size={13} />
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* AUDITORIA DETERMINÍSTICA AUTOMÁTICA (APARECE IMEDIATAMENTE AO CARREGAR) */}
-            {auditoria && (
-              <div className="space-y-3">
-                {auditoria.status === 'CONFORME' || auditoria.apontamentos.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-[#14532D]/5 border border-[#166534]/30 text-[#14532D] space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-[#14532D]" />
-                      <strong className="text-xs font-black">
-                        Edital Conforme (Lei 14.133/2021)
-                      </strong>
-                    </div>
-                    <p className="text-xs text-[#14532D]/90 leading-relaxed">
-                      Nenhuma cláusula restritiva ou vício formal típico foi encontrado nos trechos analisados deste edital.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                        <AlertTriangle size={15} className="text-amber-600" />
-                        {auditoria.totalVicios} Apontamento(s) de Restrição Detectado(s):
-                      </span>
-                      <Link
-                        to={`/impugnacao?edital=${selectedEditalId}`}
-                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1"
-                      >
-                        <Scale size={12} />
-                        Gerar Peça de Impugnação
-                      </Link>
-                    </div>
-
-                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                      {auditoria.apontamentos.map((vicio, idx) => (
-                        <div
-                          key={idx}
-                          className={`p-3 rounded-xl border text-xs space-y-1.5 ${vicio.gravidade === 'ALTO'
-                            ? 'bg-red-50/50 border-red-200 text-red-950'
-                            : 'bg-amber-50/50 border-amber-200 text-amber-950'
-                            }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <strong className="text-xs font-black">
-                              {vicio.titulo}
-                            </strong>
-                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-white border border-slate-200">
-                              {vicio.gravidade}
-                            </span>
-                          </div>
-                          <blockquote className="bg-white p-2 rounded-lg border border-slate-200 font-mono text-[11px] text-slate-700 italic">
-                            {vicio.trechoLiteral}
-                          </blockquote>
-                          <p className="text-[11px] text-slate-600">
-                            <strong>Fundamentação:</strong> {vicio.fundamentoLegal}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 )}
               </div>
-            )}
 
-            {/* RELATÓRIO COMPLETO GERADO VIA IA */}
-            <div className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl overflow-y-auto max-h-[420px]">
               {resultadoStreaming ? (
-                <div className="prose prose-sm max-w-none text-slate-800 text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                <div className="flex-1 overflow-y-auto max-h-[500px] p-4 bg-slate-50 border border-slate-200 rounded-xl font-sans text-xs text-slate-800 leading-relaxed whitespace-pre-line space-y-3">
                   {resultadoStreaming}
                 </div>
               ) : (
-                <div className="h-full min-h-[240px] flex flex-col items-center justify-center text-center p-6 space-y-2">
-                  <div className="p-3 bg-white rounded-full border border-slate-200 shadow-xs text-slate-400">
-                    <FileText size={24} className="text-[#EA580C]" />
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 min-h-[380px]">
+                  <Scale size={36} className="text-slate-300" />
+                  <div className="max-w-sm space-y-1">
+                    <p className="font-bold text-xs text-slate-600">
+                      Nenhum parecer gerado ainda
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Selecione um edital acima ou anexe o arquivo PDF para auditar cláusulas, prazos e exigências habilitatórias.
+                    </p>
                   </div>
-                  <h4 className="font-black text-slate-800 text-xs">
-                    Auditoria determinística exibida acima
-                  </h4>
-                  <p className="text-[11px] text-slate-500 max-w-sm">
-                    Clique em &quot;Gerar Parecer Completo com IA&quot; para expandir com análise tática e estratégia operacional de lances.
-                  </p>
                 </div>
               )}
             </div>
-
-            {analiseConcluida && (
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-[#14532D] font-bold flex items-center gap-1.5">
-                  <CheckCircle2 size={15} /> Parecer executivo estruturado sob a Lei 14.133/2021
-                </span>
-                <div className="flex items-center gap-2">
-                  <Link
-                    to={selectedEditalId ? `/impugnacao?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.impugnacao}
-                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold transition-all text-xs"
-                  >
-                    Montar Peça de Impugnação
-                  </Link>
-                  <Link
-                    to={selectedEditalId ? `/precificacao?edital=${selectedEditalId}` : FORNECEDOR_ROUTES.precificacao_estrategica}
-                    className="px-3 py-1.5 rounded-lg bg-[#EA580C] hover:bg-orange-600 text-white font-bold transition-all text-xs"
-                  >
-                    Simular Precificação
-                  </Link>
-                </div>
-              </div>
-            )}
           </div>
         </div>
+
       </div>
     </div>
   );
