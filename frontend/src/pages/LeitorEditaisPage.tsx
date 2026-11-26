@@ -316,7 +316,7 @@ NOTA OFICIAL: O órgão licitante não anexou o arquivo integral em PDF neste re
     reader.onload = async () => {
       try {
         const base64Data = (reader.result as string).split(',')[1];
-        const res = await api.post(`/ notices / ${ selectedEditalId || 'manual' }/analisar-pdf`, {
+        const res = await api.post(`/notices/${selectedEditalId || 'manual'}/analisar-pdf`, {
           pdfBase64: base64Data,
             fileName: file.name,
         });
