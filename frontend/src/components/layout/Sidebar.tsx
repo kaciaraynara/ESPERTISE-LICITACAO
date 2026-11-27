@@ -1,4 +1,4 @@
-﻿import {
+import {
   House,
   Crosshair,
   ListChecks as QuadroIcon,
@@ -213,8 +213,8 @@ export function resolveUserPlanTier(user?: User | null): CommercialPlanTier {
 
 export function getPlanDisplayLabel(tier: CommercialPlanTier): string {
   if (tier === 'MASTER') return 'Plano Master';
-  if (tier === 'AVANCADO') return 'Plano AvanÃ§ado';
-  return 'Plano BÃ¡sico';
+  if (tier === 'AVANCADO') return 'Plano Avançado';
+  return 'Plano Básico';
 }
 
 export function hasUserPlanFeature(user: User | null | undefined, requiredFeature?: string): boolean {
@@ -246,16 +246,16 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
   {
     id: 'radar',
     label: 'Radar & Oportunidades',
-    subtitle: 'CaptaÃ§Ã£o & InteligÃªncia',
+    subtitle: 'Captação & Inteligência',
     icon: Crosshair,
     items: [
-      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de LicitaÃ§Ãµes', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
-      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de HabilitaÃ§Ã£o', icon: CheckSquare, requiredFeature: 'habilitacao' },
-      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensa EletrÃ´nica', icon: Lightning, requiredFeature: 'radar_editais' },
-      { path: '/fornecedor/pca', label: 'Planos de ContrataÃ§Ãµes (PCA)', icon: Compass, requiredFeature: 'radar_editais' },
-      { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'AnÃ¡lise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
-      { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'HistÃ³rico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
-      { path: '/fornecedor/expertise-intelligence', label: 'InteligÃªncia & Malha Fina', icon: ShieldCheck, requiredFeature: 'inteligencia_concorrentes' },
+      { path: FORNECEDOR_ROUTES.radar, label: 'Radar de Licitações', icon: MagnifyingGlass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.habilitacao, label: 'Documentos de Habilitação', icon: CheckSquare, requiredFeature: 'habilitacao' },
+      { path: FORNECEDOR_ROUTES.dispensa_eletronica, label: 'Dispensa Eletrônica', icon: Lightning, requiredFeature: 'radar_editais' },
+      { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Compass, requiredFeature: 'radar_editais' },
+      { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
+      { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
+      { path: '/fornecedor/expertise-intelligence', label: 'Inteligência & Malha Fina', icon: ShieldCheck, requiredFeature: 'inteligencia_concorrentes' },
     ],
   },
   {
@@ -266,36 +266,36 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
     items: [
       { path: FORNECEDOR_ROUTES.robo_lances, label: 'Sala de Disputa & Mesa de Lances', icon: Gavel, requiredFeature: 'robo_lances' },
       { path: FORNECEDOR_ROUTES.disputas, label: 'Quadro de Etapas das Disputas', icon: QuadroIcon, requiredFeature: 'crm_kanban' },
-      { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'PrecificaÃ§Ã£o EstratÃ©gica', icon: Calculator },
-      { path: FORNECEDOR_ROUTES.catalogo, label: 'CatÃ¡logo de Produtos & PreÃ§os', icon: Tag, requiredFeature: 'catalogo_produtos' },
+      { path: FORNECEDOR_ROUTES.precificacao_estrategica, label: 'Precificação Estratégica', icon: Calculator },
+      { path: FORNECEDOR_ROUTES.catalogo, label: 'Catálogo de Produtos & Preços', icon: Tag, requiredFeature: 'catalogo_produtos' },
       { path: FORNECEDOR_ROUTES.propostas, label: 'Criar Proposta', icon: FileText, requiredFeature: 'fabrica_propostas' },
-      { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas CrÃ­ticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
+      { path: FORNECEDOR_ROUTES.prazos_alertas, label: 'Prazos & Alertas Críticos', icon: WarningCircle, requiredFeature: 'prazos_alertas' },
     ],
   },
   {
     id: 'defesas_recursos',
     label: 'Defesas e Recursos',
-    subtitle: 'SeguranÃ§a e Recursos 14.133',
+    subtitle: 'Segurança e Recursos 14.133',
     icon: Scales,
     items: [
-      { path: FORNECEDOR_ROUTES.impugnacao, label: 'ImpugnaÃ§Ã£o de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
-      { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & ContrarrazÃµes', icon: Gavel, requiredFeature: 'recursos_administrativos' },
+      { path: FORNECEDOR_ROUTES.impugnacao, label: 'Impugnação de Edital', icon: Scales, requiredFeature: 'impugnacao_edital' },
+      { path: FORNECEDOR_ROUTES.recursos, label: 'Recursos & Contrarrazões', icon: Gavel, requiredFeature: 'recursos_administrativos' },
       { path: FORNECEDOR_ROUTES.radar_nulidades, label: 'Radar de Nulidades', icon: WarningCircle, requiredFeature: 'radar_erros_edital' },
       { path: FORNECEDOR_ROUTES.leitor_editais, label: 'Leitor de Editais', icon: FileText },
     ],
   },
   {
     id: 'pos_vitoria',
-    label: 'GestÃ£o PÃ³s-VitÃ³ria & Garantias',
-    subtitle: 'ExecuÃ§Ã£o & Conformidade',
+    label: 'Gestão Pós-Vitória & Garantias',
+    subtitle: 'Execução & Conformidade',
     icon: Trophy,
     items: [
-      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & CauÃ§Ãµes Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
-      { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'GestÃ£o Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.gestao_pos_vitoria, label: 'Garantias & Cauções Retidas', icon: ShieldCheck, requiredFeature: 'gestao_contratual' },
+      { path: FORNECEDOR_ROUTES.gestao_contratual, label: 'Gestão Contratual & Aditivos', icon: Trophy, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.expertise_fiscal, label: 'Notas Fiscais e Impostos', icon: Scales, requiredFeature: 'gestao_contratual' },
       { path: FORNECEDOR_ROUTES.cofre, label: 'Meus Documentos', icon: Vault, requiredFeature: 'cofre_documentos' },
-      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de PreÃ§os & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
-      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'RelatÃ³rios e Resultados', icon: ChartLineUp, requiredFeature: 'relatorios_estrategicos' },
+      { path: FORNECEDOR_ROUTES.srp, label: 'Registro de Preços & Carona SRP', icon: Receipt, requiredFeature: 'srp_carona' },
+      { path: FORNECEDOR_ROUTES.relatorios_estrategicos, label: 'Relatórios e Resultados', icon: ChartLineUp, requiredFeature: 'relatorios_estrategicos' },
     ],
   },
 ];
@@ -363,7 +363,7 @@ function StrategicHubNode({ hub, isCollapsed, isExpanded, onToggle, onNavigate }
       <button
         type="button"
         onClick={onToggle}
-        title={isCollapsed ? `${hub.label} â€” ${hub.subtitle}` : undefined}
+        title={isCollapsed ? `${hub.label} — ${hub.subtitle}` : undefined}
         aria-expanded={isExpanded}
         className={`w-full group relative flex items-center ${isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
           } rounded-xl text-left transition-all duration-200 cursor-pointer ${isAnyChildActive
@@ -540,7 +540,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
       { path: FORNECEDOR_ROUTES.academia, label: 'Academia do Licitante', icon: GraduationCap, requiredFeature: 'academia_licitante' },
       { path: FORNECEDOR_ROUTES.empresa, label: 'Dados da Empresa', icon: Buildings },
       { path: FORNECEDOR_ROUTES.planos, label: 'Planos & Assinatura', icon: CreditCard },
-      { path: FORNECEDOR_ROUTES.configuracoes, label: 'ConfiguraÃ§Ãµes', icon: Gear },
+      { path: FORNECEDOR_ROUTES.configuracoes, label: 'Configurações', icon: Gear },
       ...(isSuperAdmin
         ? [{ path: '/master-admin-vault', label: 'Painel Super Admin', icon: Compass }]
         : []),
@@ -563,7 +563,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
               onClick={closeIfMobile}
               className={`flex items-center rounded-xl focus-visible:ring-2 focus-visible:ring-brand-orange ${collapsedView ? 'justify-center' : 'gap-2.5'
                 }`}
-              aria-label="EXPERTISE LicitatÃ³ria â€” PÃ¡gina Inicial"
+              aria-label="EXPERTISE Licitatória — Página Inicial"
             >
               <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-md">
                 <BrandLogo imageClassName="h-full w-full object-contain" />
@@ -629,7 +629,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
         <nav
           data-tour="strategic-hubs"
-          aria-label={isMobileMode ? 'NavegaÃ§Ã£o mÃ³vel' : 'NavegaÃ§Ã£o principal'}
+          aria-label={isMobileMode ? 'Navegação móvel' : 'Navegação principal'}
           className={`flex-1 overflow-y-auto overflow-x-hidden py-3 transition-all duration-300 scrollbar-thin scrollbar-thumb-white/10 ${collapsedView ? 'px-1.5' : 'px-3'
             }`}
         >
@@ -637,7 +637,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
             <Link
               to={FORNECEDOR_ROUTES.dashboard}
               onClick={closeIfMobile}
-              title={collapsedView ? 'PÃ¡gina Inicial' : undefined}
+              title={collapsedView ? 'Página Inicial' : undefined}
               className={`group relative flex items-center ${collapsedView ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-3'
                 } rounded-xl font-bold transition-all duration-150 ${isDashboardActive
                   ? 'bg-brand-orange text-white shadow-md shadow-brand-orange/20'
@@ -647,7 +647,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
               <House className="h-5 w-5 shrink-0" weight={isDashboardActive ? 'fill' : 'regular'} />
               {!collapsedView && (
                 <div className="min-w-0 flex-1 transition-opacity duration-300">
-                  <span className="block text-xs font-black tracking-tight">PÃ¡gina Inicial</span>
+                  <span className="block text-xs font-black tracking-tight">Página Inicial</span>
                 </div>
               )}
             </Link>
@@ -655,7 +655,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
           {!collapsedView && (
             <p className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 transition-opacity duration-300">
-              Centrais EstratÃ©gicas
+              Centrais Estratégicas
             </p>
           )}
 
@@ -713,14 +713,14 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
               if (closeIfMobile) closeIfMobile();
               void logout();
             }}
-            title={collapsedView ? 'Encerrar sessÃ£o' : undefined}
+            title={collapsedView ? 'Encerrar sessão' : undefined}
             className={`flex items-center rounded-xl border border-red-400/20 bg-red-500/[0.06] py-2 text-xs font-bold text-red-200 transition hover:border-red-300/30 hover:bg-red-500/15 hover:text-white cursor-pointer ${collapsedView ? 'justify-center px-2.5' : 'w-full gap-2.5 px-3'
               }`}
           >
             <SignOut className="h-4.5 w-4.5 shrink-0" weight="bold" aria-hidden="true" />
             {!collapsedView && (
               <span className="overflow-hidden whitespace-nowrap transition-opacity duration-300">
-                Encerrar sessÃ£o
+                Encerrar sessão
               </span>
             )}
           </button>
@@ -758,7 +758,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
         {renderSidebarContent(isCollapsed, false)}
       </aside>
 
-      {/* Drawer Mobile Unificado (espelha 100% os mesmos hubs, links e aÃ§Ãµes do desktop) */}
+      {/* Drawer Mobile Unificado (espelha 100% os mesmos hubs, links e ações do desktop) */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div
