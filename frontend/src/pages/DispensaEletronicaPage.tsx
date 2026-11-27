@@ -100,6 +100,13 @@ export const DispensaEletronicaPage: React.FC = () => {
     void carregarDispensas(false);
   }, [ufSelecionada]);
 
+  const formatarDataBR = (val?: string | null) => {
+    if (!val) return 'Em aberto';
+    const d = new Date(val);
+    if (Number.isNaN(d.getTime())) return String(val);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
   const formatarMoeda = (val: number | null | undefined) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val) || 0);
 
@@ -342,7 +349,7 @@ export const DispensaEletronicaPage: React.FC = () => {
                       {disp.uf || 'BR'} · {disp.municipio || 'Nacional'}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold flex items-center gap-1">
-                      <Clock size={12} /> {disp.dataAbertura || 'Em aberto'}
+                      <Clock size={12} /> {formatarDataBR(disp.dataAbertura)}
                     </span>
                   </div>
 

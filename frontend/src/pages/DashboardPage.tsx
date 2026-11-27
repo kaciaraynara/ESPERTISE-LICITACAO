@@ -423,7 +423,7 @@ export const DashboardPage: React.FC = () => {
                           Analisar
                         </Link>
                         <Link
-                          to={`/propostas/criar?edital=${ed.id}`}
+                          to={`/fornecedor/propostas/criar?edital=${ed.id}`}
                           className="px-3 py-1.5 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs inline-flex items-center gap-1"
                         >
                           <FileCheck2 size={13} className="text-[#EA580C]" />

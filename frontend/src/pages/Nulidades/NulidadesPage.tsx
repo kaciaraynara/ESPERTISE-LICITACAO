@@ -143,7 +143,8 @@ export const NulidadesPage: React.FC = () => {
 
   const handleUploadPdfManual = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedEditalId) return;
+    if (!file) return;
+    const alvoId = selectedEditalId || 'manual';
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Selecione um arquivo PDF válido.');
       return;
@@ -156,7 +157,7 @@ export const NulidadesPage: React.FC = () => {
       formData.append('file', file);
       if (selectedCompany?.id) formData.append('companyId', selectedCompany.id);
 
-      const res = await api.post(`/notices/${encodeURIComponent(selectedEditalId)}/analisar-pdf`, formData, {
+      const res = await api.post(`/notices/${encodeURIComponent(alvoId)}/analisar-pdf`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -340,7 +341,7 @@ export const NulidadesPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
-                disabled={!selectedEditalId || uploadingPdf}
+                disabled={uploadingPdf}
                 onClick={() => fileInputRef.current?.click()}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-[#0B192C] hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
               >

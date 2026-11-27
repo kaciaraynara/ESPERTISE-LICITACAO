@@ -30,7 +30,7 @@ export const PrecificacaoPage: React.FC = () => {
     { chave: 'funcionarios', rotulo: 'Funcionários (salários + encargos)', ajuda: 'Custo real de mão de obra alocada nesta proposta.' },
     { chave: 'viagemEstadias', rotulo: 'Viagem e estadias', ajuda: 'Deslocamento, hospedagem e alimentação.' },
     { chave: 'fabricacao', rotulo: 'Fabricação / produção', ajuda: 'Custo de produzir o item ou executar o serviço.' },
-    { chave: 'manutencaoSoftware', rotulo: 'Manutenção do software', ajuda: 'Licenças, infraestrutura e suporte do sistema.' },
+    { chave: 'manutencaoSoftware', rotulo: 'Infraestrutura, sistemas & ferramentas', ajuda: 'Aluguel, energia, sistemas, licencas e ferramentas operacionais.' },
     { chave: 'despesasAdministrativas', rotulo: 'Despesas administrativas', ajuda: 'Contabilidade, jurídico, internet, aluguel e afins.' },
   ];
 
@@ -694,7 +694,19 @@ export const PrecificacaoPage: React.FC = () => {
             <div className="text-xs">
               <h4 className="font-bold text-amber-900">Parâmetro de Disputa (Sala de Disputa (Planilha de Lances))</h4>
               <p className="text-amber-700 mt-1">
-                Ao exportar esta estratégia para o Envio Automático de Lances, o preço teto de parada será configurado em <strong>{formatarMoeda(calculo.precoBreakeven)}</strong>. O sistema desativará automaticamente os lances caso a disputa atinja esse limiar.
+                Piso de seguranca calculado: <strong>{formatarMoeda(calculo.precoBreakeven)}</strong>.{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('@Expertise:piso_precificacao', JSON.stringify({ breakeven: calculo.precoBreakeven, salvoEm: new Date().toISOString() }));
+                    } catch {}
+                    toast.success(`Piso minimo de ${formatarMoeda(calculo.precoBreakeven)} salvo para a Sala de Disputa.`);
+                  }}
+                  className="ml-2 inline-flex items-center px-3 py-1 rounded-lg bg-[#0B192C] hover:bg-slate-800 text-white font-bold cursor-pointer"
+                >
+                  Salvar Piso para Disputa
+                </button>
               </p>
             </div>
           </div>

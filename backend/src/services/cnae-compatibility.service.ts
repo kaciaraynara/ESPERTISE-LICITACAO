@@ -46,7 +46,7 @@ const SEGMENT_RULES: SegmentRule[] = [
       'enxoval', 'toalha', 'lencol', 'epitecido', 'bone',
     ],
     negativeBlockers: [
-      'lavadora de roupa', 'maquina de lavar', 'secadora industrial', 'calandra',
+      'lavadora de roupa', 'maquina de lavar', 'centrifuga de roupa', 'centrifuga de roupas', 'tanquinho', 'secadora industrial', 'calandra', 'passadeira', 'eletrodomestico',
       'insumo hospitalar', 'insumos hospitalares', 'medicamento', 'medicamentos',
       'seringa', 'cateter', 'cirurgico', 'cirurgica', 'odontologico', 'laboratorial',
       'pavimentacao', 'asfalto', 'rede de esgoto', 'esgotamento sanitario', 'terraplenagem',

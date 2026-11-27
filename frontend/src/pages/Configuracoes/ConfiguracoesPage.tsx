@@ -16,6 +16,7 @@ import { useBrasilApiCnpj } from '@/hooks/useBrasilApiCnpj';
 export default function ConfiguracoesPage() {
   const [abaAtiva, setAbaAtiva] = useState<'EMPRESA' | 'CERTIFICADO' | 'INTEGRACOES' | 'NOTIFICACOES'>('EMPRESA');
   const [mostrarFormularioEmpresa, setMostrarFormularioEmpresa] = useState(false);
+  const [consultarReceitaSobDemanda, setConsultarReceitaSobDemanda] = useState(false);
   const [novoCnpj, setNovoCnpj] = useState('');
   const [mostrarModalUpgrade, setMostrarModalUpgrade] = useState(false);
   const queryClient = useQueryClient();
@@ -117,7 +118,9 @@ export default function ConfiguracoesPage() {
     isLoading: isBuscandoCnpj,
     error: erroBuscaCnpj,
   } = useBrasilApiCnpj(formData.cnpj, {
+    enabled: consultarReceitaSobDemanda,
     onSuccess: (dados) => {
+      setConsultarReceitaSobDemanda(false);
       setFormData((prev) => ({
         ...prev,
         razaoSocial: dados.razaoSocial || prev.razaoSocial,
@@ -645,9 +648,7 @@ export default function ConfiguracoesPage() {
                   <option value="">Selecione...</option>
                   <option value="ATIVA">Ativa</option>
                   <option value="INATIVA">Inativa</option>
-                  <option value="EPP">Empresa de Pequeno Porte (EPP)</option>
-                  <option value="ME">Microempresa (ME)</option>
-                  <option value="DEMAIS">Demais (Geral)</option>
+                  <option value="SUSPENSA">Suspensa / Baixada</option>
                 </select>
               </div>
 
