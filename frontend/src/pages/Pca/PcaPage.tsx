@@ -39,7 +39,7 @@ export const PcaPage: React.FC = () => {
   const { selectedCompany } = useCompany();
   const [termo, setTermo] = useState('');
   const [uf, setUf] = useState('');
-  const [ano, setAno] = useState<string>('');
+  const [ano, setAno] = useState<string>('2026');
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(1);
@@ -120,9 +120,9 @@ export const PcaPage: React.FC = () => {
   const limparFiltros = () => {
     setTermo('');
     setUf('');
-    setAno('');
+    setAno('2026');
     setCnaeFiltroAtivo('');
-    void buscarPcas('', '', 1, false, { uf: '', ano: '' });
+    void buscarPcas('', '', 1, false, { uf: '', ano: '2026' });
   };
 
   const criarAlertaPca = async (item: any, idx: number) => {
@@ -243,6 +243,7 @@ export const PcaPage: React.FC = () => {
           <option value="">Todos os anos (2026–2027)</option>
           <option value="2026">PCA 2026</option>
           <option value="2027">PCA 2027</option>
+          <option value="2025">PCA 2025 (Histórico)</option>
         </select>
         <select
           value={uf}

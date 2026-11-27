@@ -311,17 +311,6 @@ export const NulidadesPage: React.FC = () => {
           >
             Auditoria de Cláusulas do Edital
           </button>
-          <button
-            type="button"
-            onClick={() => setModoAtivo('integridade')}
-            className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
-              modoAtivo === 'integridade'
-                ? 'bg-[#0B192C] text-white'
-                : 'border border-slate-200 bg-white text-[#0B192C] hover:bg-slate-50'
-            }`}
-          >
-            Integridade de Concorrentes (CNPJ)
-          </button>
         </div>
       </div>
 

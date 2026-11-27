@@ -656,7 +656,7 @@ export default function ExpertiseFiscalPage() {
                       {file ? file.name : 'Clique para selecionar arquivo .xml ou .txt'}
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      Tamanho máximo: 25MB • Verificação automática contra arquivo duplicade
+                      Tamanho máximo: 25MB • Verificação automática contra arquivo duplicado
                     </span>
                   </label>
                 </div>

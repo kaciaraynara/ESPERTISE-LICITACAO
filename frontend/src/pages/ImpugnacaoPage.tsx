@@ -4,7 +4,6 @@ import { ShieldAlert, Gavel, Scale, Loader2, CheckCircle, Copy, Download } from 
 import toast from 'react-hot-toast';
 import { EditalSelector, EditalOption } from '@components/EditalSelector';
 import KanbanImpugnacao from '@components/juridico/KanbanImpugnacao';
-import RecursoFraudeWizard from '@components/juridico/RecursoFraudeWizard';
 import { streamAiChat } from '@/services/aiStream.service';
 import { ChatMessage } from '@/components/ChatMessage';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -237,9 +236,6 @@ Estrutura Obrigatória:
           </div>
         )}
       </section>
-
-      {/* WIZARD DE MALHA SOCIETÁRIA & COMBATE A CARTÉIS */}
-      <RecursoFraudeWizard initialEditalId={editalSelecionado?.id || urlEditalId} />
 
       {/* ESTEIRA DE GESTÃO DE IMPUGNAÇÕES */}
       <KanbanImpugnacao />
