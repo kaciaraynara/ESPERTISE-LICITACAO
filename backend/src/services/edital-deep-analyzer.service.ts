@@ -403,7 +403,7 @@ export class EditalDeepAnalyzerService {
 
     const resumoExplicado = [
       `1. O QUE O \u00d3RG\u00c3O CONTRATA: ${orgao} busca: ${objetoPrincipal}.${itensExtraidos.length > 0 ? ` (${itensExtraidos.length} item(ns) oficial(is) mapeado(s)).` : ''}`,
-      `2. DISPUTA E PRAZOS: Modalidade ${modalidade} (${modoDisputaTexto}). Impugna\u00e7\u00e3o: ${secoes.disputaEPrazos.prazoLimiteImpugnacao}.`,
+      `2. DISPUTA E PRAZOS: Modalidade ${notice?.modality || 'Licita\u00e7\u00e3o'} (${modoDisputaTexto}). Impugna\u00e7\u00e3o: ${secoes.disputaEPrazos.prazoLimiteImpugnacao}.`,
       `3. HABILITA\u00c7\u00c3O E CAPACIDADE T\u00c9CNICA: ${atestadoTecnico}. Balan\u00e7o: ${balancoPatrimonial}. Garantias: ${garantiaContratual}.`,
       `4. ENTREGA E EXECU\u00c7\u00c3O: Prazo de ${prazoEntregaExtraido}. Local: ${localEntregaExtraido}. Pagamento: ${condicoesPagamento}.`,
       vicios.length > 0 ? `5. ALERTAS DE AUDITORIA: ${vicios.length} ponto(s) de aten\u00e7\u00e3o/v\u00edcio detectado(s) na leitura integral.` : '5. ALERTAS DE AUDITORIA: Conferir detalhadamente os anexos t\u00e9cnicos e a planilha de custos.'
