@@ -41,6 +41,7 @@ type ProviderRunner = (
 
 export interface AiGroundingUserContext {
   tenantId?: string | null;
+  companyId?: string | null;
   user?: {
     id?: string | null;
     email?: string | null;
@@ -98,6 +99,7 @@ interface RetrievalResult {
   notices: any[];
   chunks: any[];
   rules: any[];
+  activeCompany?: any | null;
   sourceIds: string[];
   chunkIds: string[];
   ruleCodes: string[];
@@ -515,7 +517,8 @@ export class AiGroundingService {
       ? await this.findChunksByNoticeIds(notices.map((n) => n.id), tenantId)
       : [];
 
-    if (!chunks.length && (requestedNoticeId || notices.length > 0)) {
+    const onlyFallbackChunks = chunks.length > 0 && chunks.every((c: any) => Boolean(c?.metadata?.structuredFallback));
+    if ((!chunks.length || onlyFallbackChunks) && (requestedNoticeId || notices.length > 0)) {
       const targetNoticeId = notices[0]?.id || requestedNoticeId;
       try {
         const autoText = await preencherTextoEditalAutomaticamente(targetNoticeId);
@@ -565,6 +568,7 @@ export class AiGroundingService {
     }
 
     const rules: any[] = await this.findRules(tenantId);
+    const activeCompany = await this.findActiveCompany(context);
     const sourceIds = unique([
       ...notices.map((n) => String(n.id)),
       ...chunks.filter((c) => c.sourceType === 'procurement_notice').map((c) => String(c.sourceId)),
@@ -576,6 +580,7 @@ export class AiGroundingService {
       notices,
       chunks,
       rules,
+      activeCompany,
       sourceIds,
       chunkIds,
       ruleCodes,
@@ -668,9 +673,30 @@ export class AiGroundingService {
         ],
       },
       orderBy: [{ sourceId: 'asc' }, { chunkIndex: 'asc' }],
-      take: MAX_CHUNKS,
       select: retrievalChunkSelect(),
     });
+  }
+
+  private async findActiveCompany(context: AiGroundingUserContext) {
+    try {
+      if (context.companyId && __isUuid(context.companyId)) {
+        const comp = await this.client.company.findUnique({
+          where: { id: context.companyId },
+          select: { id: true, razaoSocial: true, nomeFantasia: true, cnpj: true, cnaePrincipal: true, municipio: true, uf: true, palavrasChave: true },
+        });
+        if (comp) return comp;
+      }
+      if (context.tenantId) {
+        return await this.client.company.findFirst({
+          where: { tenantId: context.tenantId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, razaoSocial: true, nomeFantasia: true, cnpj: true, cnaePrincipal: true, municipio: true, uf: true, palavrasChave: true },
+        });
+      }
+    } catch {
+      // Nao interrompe o atendimento se nao houver empresa vinculada
+    }
+    return null;
   }
 
   private async findChunksByQuery(keywords: string[], tenantId: string | null) {
@@ -1191,18 +1217,39 @@ function buildGroundedPrompt(
   conversationContext?: string | null,
   providedDocumentText?: string | null,
 ) {
+  const companyBlock = retrieval.activeCompany
+    ? [
+        `Razao Social: ${retrieval.activeCompany.razaoSocial}`,
+        `CNPJ: ${retrieval.activeCompany.cnpj}`,
+        `Cidade/UF: ${[retrieval.activeCompany.municipio, retrieval.activeCompany.uf].filter(Boolean).join('/') || 'Nao informada'}`,
+        `CNAE Principal: ${retrieval.activeCompany.cnaePrincipal || 'Nao informado'}`,
+      ].join('\n')
+    : 'Empresa ativa nao identificada no contexto.';
+
   const notices = retrieval.notices
-    .map((notice, index) =>
-      [
+    .map((notice, index) => {
+      const meta = (notice.metadata || {}) as Record<string, any>;
+      const ficha = meta.extractedSpecsJson;
+      const inventario = Array.isArray(meta.arquivosInventario)
+        ? meta.arquivosInventario.map((a: any) => `${a.nome} (${a.status})`).join(', ')
+        : 'Nao inventariado';
+      const pontosCriticos = Array.isArray(ficha?.pontosDeAtencaoERiscos) && ficha.pontosDeAtencaoERiscos.length > 0
+        ? ficha.pontosDeAtencaoERiscos.map((p: any) => `- [${p.gravidade}] ${p.titulo} (Pag. ${p.pagina}): ${p.trechoLiteral}`).join('\n')
+        : 'Auditar diretamente nos trechos abaixo.';
+
+      return [
         `Fonte ${index + 1}: ${buildNoticeLabel(notice)}`,
         `ID: ${notice.id}`,
+        `Numero Oficial: ${notice.noticeNumber ?? notice.externalId ?? 'nao informado'}`,
         `Objeto: ${notice.object}`,
-        `Órgão: ${notice.buyerName ?? 'não informado'}`,
-        `Modalidade: ${notice.modality ?? 'não informada'}`,
-        `Data Abertura: ${notice.openingAt ?? 'não informada'}`,
-        `Valor Estimado: ${notice.estimatedValue ?? 'não informado'}`,
-      ].join('\n'),
-    )
+        `Orgao: ${notice.buyerName ?? 'nao informado'}`,
+        `Modalidade: ${notice.modality ?? 'nao informada'}`,
+        `Data Abertura: ${notice.openingAt ?? 'nao informada'}`,
+        `Valor Estimado: ${notice.estimatedValue ?? 'nao informado'}`,
+        `Arquivos Lidos: ${inventario}`,
+        `Pontos Criticos Detectados na Ficha:\n${pontosCriticos}`,
+      ].join('\n');
+    })
     .join('\n\n');
 
   const chunks = retrieval.chunks
@@ -1255,6 +1302,9 @@ function buildGroundedPrompt(
     '[CÁLCULOS DETERMINÍSTICOS DO SISTEMA (NÃO ALTERAR)]',
     calculosText,
     '',
+    '[EMPRESA ATIVA DO USUARIO (USAR PARA QUALIFICACAO, CRUZAMENTO DE CNAE E PECAS JURIDICAS)]',
+    companyBlock,
+    '',
     '[DADOS ESTRUTURADOS DO EDITAL]',
     notices || 'Nenhum edital estruturado.',
     '',
@@ -1273,10 +1323,12 @@ function groundedSystemPrompt(purpose?: string) {
   const base = [SYSTEM_PROMPT_LEX];
   base.push(
     '',
-    '[MODO DE GROUNDING ATIVO]',
-    '- Responda com base estrita nos dados fornecidos.',
-    '- Presumir fatos inexistentes é proibido.',
-    '- Use os cálculos determinísticos fornecidos como verdade matemática.',
+    '[MODO DE GROUNDING ATIVO - AUDITORIA ESPECIALISTA]',
+    '- Responda com base estrita nos trechos reais do edital e nos dados da empresa ativa.',
+    '- Sempre cite Item/Subitem, Arquivo e Pagina exatos ao apontar exigencias (caucao Art. 58, lote unico Sumula 247 TCU, prova de conceito, planilha de custos, qualificacao tecnica Art. 67, diligencias Art. 64).',
+    '- Nunca use respostas genericas ou a palavra "ramo".',
+    '- Ao redigir impugnacao ou esclarecimento, preencha obrigatoriamente com Razao Social, CNPJ e Cidade/UF reais da Empresa Ativa (proibido usar colchetes como [NOME DA SUA EMPRESA] ou [Inserir CNPJ]).',
+    '- Use os calculos deterministicos fornecidos como verdade matematica.',
   );
   return base.join('\n');
 }

@@ -376,8 +376,25 @@ export default function LicitacoesPage({
     ]
       .filter(Boolean)
       .map((item: any) => (typeof item === 'string' ? item : item?.descricao || item?.text || ''))
+      .map((txt: string) => txt.trim())
       .filter(Boolean);
-    return Array.from(new Set(todos)).slice(0, 8);
+
+    const mapaUnico = new Map<string, string>();
+    for (const item of todos) {
+      const chave = item
+        .replace(/^\d[\d./-]*\s*-\s*/, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!chave) continue;
+      const existente = mapaUnico.get(chave);
+      if (!existente || (!/^\d/.test(existente) && /^\d/.test(item))) {
+        mapaUnico.set(chave, item);
+      }
+    }
+    return Array.from(mapaUnico.values()).slice(0, 8);
   }, [selectedCompany, cnaesStorageCache, cnaesExtrasApi]);
 
   const companyProfileDraft: RadarPerfilDraft = useMemo(() => {

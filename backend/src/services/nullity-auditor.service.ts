@@ -248,6 +248,93 @@ export function auditEditalNullities(textoCompleto: string): VicioEspecialista[]
           acaoRecomendada: 'Protocolar Impugnação requerendo a redução da garantia ao teto legal do Art. 98.',
         });
       }
+      // 8. Garantia de proposta / caucao acima de 1% ou exigencia previa
+      if (/(?:garantia\s+(?:de|da)\s+proposta|cau[cç][aã]o\s+de\s+proposta)[^.]{0,140}(?:[2-9]\s*%|\d{2,}\s*%)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-garantia-proposta-acima-1',
+          titulo: 'Garantia de Proposta / Caucao Acima do Limite Legal de 1%',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 58, paragrafo 1o da Lei no 14.133/2021',
+          explicacaoSimples:
+            'O edital fixa garantia de proposta em percentual superior a 1% do valor estimado da contratacao. O Art. 58, paragrafo 1o da Lei 14.133/2021 estabelece teto absoluto de 1% para a garantia de proposta. Exigencia superior cria barreira financeira ilegal antes mesmo da fase de lances e afasta pequenas e medias empresas. Recomenda-se impugnar imediatamente para reducao ao teto legal.',
+          acaoRecomendada: 'Protocolar Impugnacao exigindo adequacao da garantia de proposta ao limite maximo de 1%.',
+        });
+      }
+
+      // 9. Experiencia previa exclusiva com orgaos publicos
+      if (/(?:atestado|experi[eê]ncia|comprova[cç][aã]o)[^.]{0,140}(?:exclusivamente\s+(?:em|com|por)\s+[oó]rg[aã]os?\s+p[uú]blicos?|somente\s+(?:de|por)\s+pessoa\s+jur[ií]dica\s+de\s+direito\s+p[uú]blico|vedad[oa]\s+atestado\s+de\s+empresa\s+privada)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-exclusividade-orgao-publico',
+          titulo: 'Restricao Ilegal: Exigencia de Atestado Exclusivo de Orgao Publico',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 67, inciso II da Lei no 14.133/2021 e Jurisprudencia Consolidada do TCU',
+          explicacaoSimples:
+            'A clausula restringe a comprovacao de capacidade tecnica a atestados emitidos exclusivamente por orgaos ou entidades publicas, vedando atestados de pessoas juridicas de direito privado. A Lei no 14.133/2021 admite expressamente atestados fornecidos por pessoas juridicas de direito publico ou privado. Essa restricao elimina empresas tecnicamente aptas que atuam no setor privado e fere a isonomia. Cabe impugnacao direta do subitem.',
+          acaoRecomendada: 'Protocolar Impugnacao requerendo a aceitacao expressa de atestados emitidos por pessoas juridicas de direito privado.',
+        });
+      }
+
+      // 10. Lote unico / preco global sem justificativa de indivisibilidade
+      if (/(?:lote\s+[uú]nico|grupo\s+[uú]nico)[^.]{0,140}(?:menor\s+pre[cç]o\s+global|adjudica[cç][aã]o\s+global)/i.test(para)) {
+        registerOnce({
+          id: 'atencao-lote-unico',
+          titulo: 'Aglutinacao em Lote Unico / Preco Global (Risco de Restricao a Competitividade)',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 40, paragrafo 3o da Lei no 14.133/2021 e Sumula no 247 do TCU',
+          explicacaoSimples:
+            'O certame reune o objeto em lote unico com julgamento pelo menor preco global. Conforme a Sumula 247 do TCU, e obrigatoria a adjudicacao por item quando o objeto for divisivel e nao houver prejuizo tecnico ou perda de economia de escala. A aglutinacao imotivada impede empresas especializadas em parte dos servicos ou itens de participar da disputa. Recomenda-se verificar o ETP e pedir esclarecimento ou impugnar se houver divisibilidade tecnica.',
+          acaoRecomendada: 'Solicitar via Esclarecimento a justificativa tecnica do ETP para o nao parcelamento ou impugnar pelo parcelamento por item.',
+        });
+      }
+
+      // 11. Prova de conceito exigindo solucao pronta ou prazo exiguo
+      if (/(?:prova\s+de\s+conceito|poc\b)[^.]{0,160}(?:24\s*horas|48\s*horas|1\s*dia\s*[uú]til|integralmente\s+operacional|todos\s+os\s+licitantes)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-poc-restritiva',
+          titulo: 'Prova de Conceito (POC) Desproporcional ou com Prazo Exiguo',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 17, paragrafo 3o e Art. 41, inciso II da Lei no 14.133/2021',
+          explicacaoSimples:
+            'O edital impoe Prova de Conceito com prazo exiguo, exigencia a todos os licitantes simultaneamente ou cobranca de sistema ja customizado antes da contratacao. Pela Lei no 14.133/2021 e jurisprudencia do TCU, a POC so pode ser exigida do licitante provisoriamente classificado em primeiro lugar e em prazo razoavel, com criterios objetivos. Exigir customizacao previa onera indevidamente a disputa. Cabe impugnacao ou esclarecimento.',
+          acaoRecomendada: 'Protocolar Impugnacao ou Esclarecimento para limitar a POC ao 1o colocado, com roteiro objetivo e prazo razoavel.',
+        });
+      }
+
+      // 12. Capital social + patrimonio liquido cumulativos ou acima de 10%
+      if (
+        /(?:capital\s+social|patrim[oô]nio\s+l[ií]quido)[^.]{0,140}(?:1[1-9]|[2-9]\d)\s*%/i.test(para) ||
+        (/capital\s+social/i.test(para) && /patrim[oô]nio\s+l[ií]quido/i.test(para) && /cumulativ/i.test(para))
+      ) {
+        registerOnce({
+          id: 'vicio-economico-financeiro',
+          titulo: 'Exigencia Econ.-Financeira Ilegal (Cumulativa ou Acima de 10%)',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 69, paragrafo 4o da Lei no 14.133/2021 e Sumula no 275 do TCU',
+          explicacaoSimples:
+            'A clausula exige capital social ou patrimonio liquido minimo acima de 10% do valor estimado ou de forma cumulativa. O Art. 69, paragrafo 4o da Lei 14.133/2021 limita a exigencia a ate 10% e veda a cumulacao conforme a Sumula 275 do TCU. Essa pratica exclui empresas saudaveis financeiramente. Recomenda-se impugnar o subitem para adequacao ao teto legal de 10% de forma alternativa.',
+          acaoRecomendada: 'Protocolar Impugnacao exigindo adequacao ao limite maximo de 10% e vedacao de cumulatividade.',
+        });
+      }
     }
   }
 

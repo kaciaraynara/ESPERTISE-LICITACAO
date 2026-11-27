@@ -97,7 +97,12 @@ export function classifyExecutionMode(
     };
   }
 
-  if (matchRemotoTexto && matchRemotoTexto.index !== undefined && isRemoteDispute !== false) {
+  const temBemFisicoSemSoftware =
+    /\b(?:aquisi[cç][aã]o|fornecimento)\s+de\b/i.test(textoParaAnalise) &&
+    !matchRemotoTexto &&
+    !matchRemotoMeta;
+
+  if (!temBemFisicoSemSoftware && matchRemotoTexto && matchRemotoTexto.index !== undefined && isRemoteDispute !== false) {
     return {
       executionMode: 'REMOTO_INTEGRAL',
       isRemoteDispute: true,

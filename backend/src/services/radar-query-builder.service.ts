@@ -279,7 +279,22 @@ export function buildRadarSqlQuery(input: RadarSqlQueryInput): BuiltRadarSqlQuer
     );
   } else if (modoRemotoNorm === 'REMOTO_100') {
     baseConditions.push(
-      `metadata->>'executionMode' = 'REMOTO_INTEGRAL' AND (metadata->>'statusLeituraCompleta' = 'CONCLUIDO' OR metadata->>'deepReadStatus' = 'DONE')`,
+      `metadata->>'executionMode' = 'REMOTO_INTEGRAL'
+       AND metadata->>'statusLeituraCompleta' = 'CONCLUIDO'
+       AND (
+         COALESCE(object_type, '') NOT IN ('BENS', 'OBRAS')
+         OR object ILIKE '%software%'
+         OR object ILIKE '%saas%'
+         OR object ILIKE '%licen%'
+         OR object ILIKE '%nuvem%'
+       )
+       AND object NOT ILIKE '%nobreak%'
+       AND object NOT ILIKE '%instala%na sede%'
+       AND object NOT ILIKE '%orienta%operacional%'
+       AND object NOT ILIKE '%almoxarifado%'
+       AND object NOT ILIKE '%veicul%'
+       AND object NOT ILIKE '%mobili%'
+       AND object NOT ILIKE '%medicament%'`,
     );
   }
 

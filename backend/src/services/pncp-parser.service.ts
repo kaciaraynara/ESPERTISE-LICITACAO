@@ -526,7 +526,6 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
         sourceId: { in: lookupIds },
       },
       orderBy: { chunkIndex: 'asc' },
-      take: 80,
       select: { content: true, metadata: true },
     });
 
@@ -590,21 +589,21 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       return await buildAndPersistFallback();
     }
 
-    // Seleciona até 6 anexos prioritários (Edital, Termo de Referência, ETP, Minuta, Planilhas)
+    // Ordena por prioridade e processa TODOS os anexos ativos publicados pelo orgao (sem limite fixo)
     const scoreArquivo = (a: any) => {
       const txt = `${a.tipoDocumentoNome || a.tipo_documento_nome || ''} ${a.titulo || a.nome || ''}`.toLowerCase();
-      if (txt.includes('edital')) return 5;
-      if (txt.includes('termo de refer') || txt.includes('projeto b')) return 4;
-      if (txt.includes('estudo t') || txt.includes('etp')) return 3;
+      if (txt.includes('edital')) return 6;
+      if (txt.includes('termo de refer') || txt.includes('projeto b')) return 5;
+      if (txt.includes('estudo t') || txt.includes('etp') || txt.includes('matriz')) return 4;
+      if (txt.includes('prova de conceito') || txt.includes('poc') || txt.includes('planilha') || txt.includes('custo')) return 3;
       if (txt.includes('minuta') || txt.includes('contrato')) return 2;
-      if (txt.includes('planilha') || txt.includes('anexo')) return 1;
+      if (txt.includes('anexo')) return 1;
       return 0;
     };
 
     const candidatos = [...arquivos]
       .filter((a: any) => a.statusAtivo !== false)
-      .sort((a: any, b: any) => scoreArquivo(b) - scoreArquivo(a))
-      .slice(0, 6);
+      .sort((a: any, b: any) => scoreArquivo(b) - scoreArquivo(a));
     if (candidatos.length === 0 && arquivos[0]) candidatos.push(arquivos[0]);
 
     const editalArquivo = candidatos[0];
@@ -612,24 +611,82 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     const urlArquivoPDF = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seqArquivo}`;
 
     const textosAnexos: string[] = [];
+    const arquivosInventario: Array<{
+      nome: string;
+      tipo: string;
+      sequencial: number;
+      status: 'EXTRAIDO' | 'SEM_TEXTO' | 'ERRO';
+      caracteres: number;
+    }> = [];
+
     for (const arq of candidatos) {
-      const seq = arq.sequencialArquivo || arq.sequencial || 1;
+      const seq = Number(arq.sequencialArquivo || arq.sequencial || 1);
       const urlArq = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seq}`;
       const nomeArq = String(arq.titulo || arq.nome || 'anexo.pdf');
+      const tipoArq = String(arq.tipoDocumentoNome || arq.tipo_documento_nome || 'Documento');
 
       try {
-        const docRes = await axios.get(urlArq, { responseType: 'arraybuffer', timeout: 35000 });
+        const docRes = await axios.get(urlArq, { responseType: 'arraybuffer', timeout: 45000 });
         const txt = await extrairBufferRecursivo(Buffer.from(docRes.data), nomeArq);
         if (txt && txt.length >= 50) {
           textosAnexos.push(`=== ANEXO: ${nomeArq} ===\n${txt}`);
+          arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'EXTRAIDO', caracteres: txt.length });
+        } else {
+          arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'SEM_TEXTO', caracteres: 0 });
         }
       } catch (downErr: any) {
+        arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'ERRO', caracteres: 0 });
         console.warn(`[PNCP Parser] Falha ao baixar anexo ${nomeArq}:`, downErr.message);
       }
     }
 
-    // Proteção de memória: limita texto total extraído a 250.000 caracteres
-    const extractedText = textosAnexos.join('\n\n').slice(0, 250000);
+    // Segunda tentativa automatica via link externo direto (quando PNCP nao entrega texto)
+    if (textosAnexos.length === 0 && notice) {
+      const raw = (notice.rawPayload || {}) as Record<string, any>;
+      const urlsExtras = [notice.url, raw.linkSistemaOrigem, raw.linkProcessoEletronico]
+        .filter((u): u is string => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+      for (const uExtra of urlsExtras) {
+        try {
+          const headOrGet = await axios.get(uExtra, { responseType: 'arraybuffer', timeout: 30000, maxRedirects: 4 });
+          const cType = String(headOrGet.headers['content-type'] || '').toLowerCase();
+          if (cType.includes('pdf') || cType.includes('zip') || new RegExp('\\.(pdf|zip|docx?)(\\?|$)', 'i').test(uExtra)) {
+            const nomeExtra = uExtra.split('/').pop()?.split('?')[0] || 'edital-origem.pdf';
+            const txtExtra = await extrairBufferRecursivo(Buffer.from(headOrGet.data), nomeExtra);
+            if (txtExtra && txtExtra.length >= 50) {
+              textosAnexos.push(`=== ANEXO ORIGEM: ${nomeExtra} ===\n${txtExtra}`);
+              arquivosInventario.push({ nome: nomeExtra, tipo: 'Link Origem', sequencial: 99, status: 'EXTRAIDO', caracteres: txtExtra.length });
+              break;
+            }
+          }
+        } catch {
+          // Segue para proxima tentativa
+        }
+      }
+    }
+
+    if (notice?.id) {
+      const nomesExtraidos = arquivosInventario
+        .filter((a) => a.status === 'EXTRAIDO')
+        .map((a) => `${a.tipo} ${a.nome}`.toLowerCase());
+      const temEdital = nomesExtraidos.some((n) => n.includes('edital'));
+      const temTr = nomesExtraidos.some((n) => n.includes('termo de refer') || n.includes('projeto b'));
+      const currentMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
+      await prisma.procurementNotice.update({
+        where: { id: notice.id },
+        data: {
+          metadata: {
+            ...currentMeta,
+            arquivosInventario,
+            totalAnexosDisponiveis: arquivos.length,
+            totalAnexosLidos: arquivosInventario.filter((a) => a.status === 'EXTRAIDO').length,
+            faltamAnexosTecnicos: temEdital && !temTr,
+          } as any,
+        },
+      });
+    }
+
+    // Mantem todo o texto extraido integralmente sem truncar paginas finais
+    const extractedText = textosAnexos.join('\n\n');
     if (!extractedText || extractedText.length < 50) {
       console.warn('[PNCP Parser] Anexos sem texto extraível legível. Aplicando escopo estruturado.');
       return await buildAndPersistFallback();
@@ -664,12 +721,12 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
           fileName: editalArquivo.titulo || 'Edital.pdf',
           fileUrl: urlArquivoPDF,
           mimeType: 'application/pdf',
-          extractedText: extractedText.slice(0, 250000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 250000)).digest('hex'),
+          extractedText: extractedText,
+          contentHash: createHash('sha256').update(extractedText).digest('hex'),
         },
         update: {
-          extractedText: extractedText.slice(0, 250000),
-          contentHash: createHash('sha256').update(extractedText.slice(0, 250000)).digest('hex'),
+          extractedText: extractedText,
+          contentHash: createHash('sha256').update(extractedText).digest('hex'),
         },
       });
     }
@@ -777,7 +834,6 @@ export async function obterTextoEAnexosOficiais(edital_id: string): Promise<Resu
         sourceId: { in: lookupIds },
       },
       orderBy: { chunkIndex: 'asc' },
-      take: 80,
       select: { content: true, metadata: true },
     });
   }

@@ -17,6 +17,7 @@ export class AIController {
       noticeId?: string;
       licitacaoId?: string;
       edital_id?: string;
+      companyId?: string;
       stream?: boolean;
       options?: {
         timeoutMs?: number;
@@ -79,8 +80,13 @@ export class AIController {
 }
 
 function buildGroundingContext(req: AuthRequest) {
+  const headerCompanyId = req.headers['x-company-id'];
+  const bodyCompanyId = (req.body as any)?.companyId;
   return {
     tenantId: req.user?.tenantId ?? null,
+    companyId: typeof bodyCompanyId === 'string' && bodyCompanyId.trim()
+      ? bodyCompanyId.trim()
+      : (typeof headerCompanyId === 'string' && headerCompanyId.trim() ? headerCompanyId.trim() : null),
     user: {
       id: req.user?.id ?? null,
       email: req.user?.email ?? null,

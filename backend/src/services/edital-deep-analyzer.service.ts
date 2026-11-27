@@ -245,9 +245,11 @@ export class EditalDeepAnalyzerService {
     // Atestado Técnico, Percentual e Tempo Mínimo de Experiência
     const atestadoTecnico = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:atestado\s+de\s+capacidade\s+técnica|atestados?\s+fornecidos?\s+por\s+pessoa\s+jurídica)[^.\n]{0,180}/i,
-      160,
-    ) || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
+      new RegExp('(?:atestado\\s+de\\s+capacidade\\s+t[eé]cnica|atestados?\\s+fornecidos?\\s+por\\s+pessoa\\s+jur[ií]dica|comprova[cç][aã]o\\s+de\\s+aptid[aã]o|qualifica[cç][aã]o\\s+t[eé]cnica|acervo\\s+t[eé]cnico|experi[eê]ncia\\s+anterior)[^.\\n]{0,220}', 'i'),
+      200,
+    ) || (possuiArquivosReaisLidos
+      ? (/habilita[cç][aã]o/i.test(textoCompleto) ? 'Verificar clausula de qualificacao tecnica no Termo de Referencia (nao localizada automaticamente no corpo principal)' : NAO_ESPECIFICADO)
+      : NAO_ESPECIFICADO);
 
     const matchPercentAtestado = textoCompleto.match(/(?:atestado|capacidade\s+técnica|quantitativo\s+mínimo)[^.\n]{0,100}(\d{1,3}\s*%)/i);
     const limiteAtestadoPercentual = matchPercentAtestado
@@ -285,11 +287,20 @@ export class EditalDeepAnalyzerService {
       120,
     ) || NAO_ESPECIFICADO;
 
-    const garantiaContratual = extrairSentencaPorRegex(
+    const garantiaProposta = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:garantia\s+contratual|garantia\s+de\s+execução)[^.\n]{0,140}/i,
-      120,
-    ) || NAO_EXIGIDO;
+      new RegExp('(?:garantia\\s+(?:de|da)\\s+proposta|cau[cç][aã]o\\s+de\\s+proposta|art\\.?\\s*58)[^.\\n]{0,180}', 'i'),
+      160,
+    );
+    const garantiaExec = extrairSentencaPorRegex(
+      textoCompleto,
+      new RegExp('(?:garantia\\s+contratual|garantia\\s+de\\s+execu[cç][aã]o)[^.\\n]{0,160}', 'i'),
+      150,
+    );
+    const garantiaContratual = [
+      garantiaProposta ? `Garantia de Proposta (Caucao): ${garantiaProposta}` : '',
+      garantiaExec ? `Garantia Contratual: ${garantiaExec}` : '',
+    ].filter(Boolean).join(' | ') || (possuiArquivosReaisLidos ? NAO_ESPECIFICADO : NAO_ESPECIFICADO);
 
     const multasEPenalidades = extrairSentencaPorRegex(
       textoCompleto,
@@ -422,16 +433,103 @@ export class EditalDeepAnalyzerService {
         prazoPagamento: condicoesPagamento,
         vigenciaContrato,
       },
-      pontosDeAtencaoERiscos: vicios.map((v) => ({
-        titulo: v.titulo,
-        gravidade: v.gravidade,
-        baseLegal: v.fundamentoLegal,
-        arquivoOrigem: v.arquivoOrigem,
-        pagina: v.pagina,
-        trechoLiteral: v.trechoLiteral,
-        explicacaoSimples: v.explicacaoSimples,
-        acaoRecomendada: v.acaoRecomendada,
-      })),
+      pontosDeAtencaoERiscos: (() => {
+        const extras: Array<{
+          titulo: string;
+          gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
+          baseLegal: string;
+          arquivoOrigem: string;
+          pagina: number | string;
+          trechoLiteral: string;
+          explicacaoSimples: string;
+          acaoRecomendada: string;
+        }> = [];
+
+        const pushInvestigacao = (
+          regex: RegExp,
+          titulo: string,
+          gravidade: 'ALTO' | 'MEDIO' | 'BAIXO',
+          baseLegal: string,
+          explicacaoSimples: string,
+          acaoRecomendada: string,
+        ) => {
+          const m = textoCompleto.match(regex);
+          if (!m || m.index === undefined) return;
+          const antes = textoCompleto.slice(0, m.index);
+          const pags = [...antes.matchAll(/\[P[aá]gina\s+(\d+)\s+de\s+([^\]]+)\]/gi)];
+          const ultimaPag = pags.length > 0 ? pags[pags.length - 1] : null;
+          const trecho = textoCompleto.slice(Math.max(0, m.index - 40), Math.min(textoCompleto.length, m.index + m[0].length + 180)).replace(/\s+/g, ' ').trim();
+          extras.push({
+            titulo,
+            gravidade,
+            baseLegal,
+            arquivoOrigem: ultimaPag ? ultimaPag[2].trim() : 'Edital / Termo de Referencia',
+            pagina: ultimaPag ? Number(ultimaPag[1]) || ultimaPag[1] : 'Conforme edital',
+            trechoLiteral: trecho,
+            explicacaoSimples,
+            acaoRecomendada,
+          });
+        };
+
+        pushInvestigacao(
+          new RegExp('(?:garantia\\s+(?:de|da)\\s+proposta|cau[cç][aã]o)[^.\\n]{0,120}', 'i'),
+          'Exigencia Elevada: Garantia de Proposta / Caucao Previa',
+          'ALTO',
+          'Art. 58 da Lei 14.133/2021 (limitada a 1% do valor estimado)',
+          'O edital exige garantia financeira previa para participacao. Verifique o valor a imobilizar (caucao, seguro-garantia ou fianca bancaria) antes de entrar na disputa.',
+          'Provisionar seguro-garantia ou caucao antes da sessao e conferir se o percentual nao ultrapassa 1%.'
+        );
+
+        pushInvestigacao(
+          new RegExp('(?:lote\\s+[uú]nico|menor\\s+pre[cç]o\\s+global)[^.\\n]{0,120}', 'i'),
+          'Atencao: Julgamento em Lote Unico / Preco Global',
+          'MEDIO',
+          'Sumula 247 do TCU e Art. 40, paragrafo 3o da Lei 14.133/2021',
+          'A contratacao agrupa o objeto em lote unico. Quando os servicos ou itens forem divisiveis sem perda tecnica, a ausencia de justificativa no ETP pode restringir a competicao.',
+          'Conferir no Estudo Tecnico Preliminar se ha justificativa tecnica para o nao parcelamento.'
+        );
+
+        pushInvestigacao(
+          new RegExp('(?:prova\\s+de\\s+conceito|amostra\\s+t[eé]cnica|demonstra[cç][aã]o\\s+(?:do\\s+sistema|de\\s+funcionalidades))[^.\\n]{0,120}', 'i'),
+          'Exigencia Elevada: Prova de Conceito (POC) / Amostra',
+          'ALTO',
+          'Art. 17, paragrafo 3o e Art. 41, II da Lei 14.133/2021',
+          'O certame preve demonstracao pratica ou prova de conceito. Verifique se os criterios sao objetivos, se o prazo e suficiente e se nao exige sistema totalmente customizado antes da contratacao.',
+          'Conferir o roteiro de avaliacao da POC e o prazo concedido ao primeiro colocado.'
+        );
+
+        pushInvestigacao(
+          new RegExp('(?:planilha\\s+(?:detalhada\\s+)?de\\s+custos|composi[cç][aã]o\\s+(?:detalhada\\s+)?de\\s+custos|exequibilidade\\s+da\\s+proposta)[^.\\n]{0,120}', 'i'),
+          'Exigencia Elevada: Planilha Detalhada de Custos e Exequibilidade',
+          'MEDIO',
+          'Art. 59 da Lei 14.133/2021',
+          'O edital exige detalhamento analitico de composicao de custos ou demonstracao de exequibilidade. Erros na planilha podem gerar desclassificacao se nao houver diligencia.',
+          'Estruturar previamente a planilha aberta de custos, encargos, tributos e BDI.'
+        );
+
+        pushInvestigacao(
+          new RegExp('(?:dilig[eê]ncia|complementa[cç][aã]o\\s+de\\s+document|saneamento\\s+de\\s+falha)[^.\\n]{0,120}', 'i'),
+          'Ponto Positivo: Previsao de Diligencia e Formalismo Moderado',
+          'BAIXO',
+          'Art. 64 da Lei 14.133/2021 e Acordao 1.211/2021-Plenario TCU',
+          'O edital preve abertura para diligencia e saneamento de falhas formais ou documentacao complementar que comprove condicao preexistente.',
+          'Usar esta clausula como defesa caso haja erro formal sanavel na habilitacao.'
+        );
+
+        return [
+          ...vicios.map((v) => ({
+            titulo: v.titulo,
+            gravidade: v.gravidade,
+            baseLegal: v.fundamentoLegal,
+            arquivoOrigem: v.arquivoOrigem,
+            pagina: v.pagina,
+            trechoLiteral: v.trechoLiteral,
+            explicacaoSimples: v.explicacaoSimples,
+            acaoRecomendada: v.acaoRecomendada,
+          })),
+          ...extras,
+        ];
+      })(),
       auditoria: auditoriaResultado,
     };
   }
@@ -557,18 +655,17 @@ ${textoConsolidado}`;
     if (!notice) return null;
 
     const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
-    if (!force && existingMeta.deepReadStatus === 'DONE' && existingMeta.extractedSpecsJson?.secoes) {
+    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 2 && existingMeta.extractedSpecsJson?.secoes) {
       return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
     }
 
-    // Busca chunks existentes do edital
+    const chunkLookupIds = [notice.id, notice.externalId, notice.numeroControlePncp].filter(Boolean) as string[];
     const chunks = await prisma.documentChunk.findMany({
       where: {
         sourceType: 'procurement_notice',
-        sourceId: notice.id,
+        sourceId: { in: chunkLookupIds },
       },
       orderBy: { chunkIndex: 'asc' },
-      take: 80,
     });
 
     const textosChunks = chunks.map((c) => c.content);
@@ -593,6 +690,7 @@ ${textoConsolidado}`;
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
           deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
           statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
+          fichaVersion: 2,
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: strictExec.isRemoteDispute,
