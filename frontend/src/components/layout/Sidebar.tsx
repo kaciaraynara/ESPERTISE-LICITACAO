@@ -532,7 +532,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: SidebarPr
 
   const isSuperAdmin = useMemo(() => {
     const role = String((user as any)?.role || '').toLowerCase();
-    return Boolean((user as any)?.isAdmin) || role === 'admin' || role === 'super_admin';
+    return role === 'super_admin' || String((user as any)?.email || '').toLowerCase() === 'kaciaraynara@gmail.com';
   }, [user]);
 
   const footerItems = useMemo(

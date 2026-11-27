@@ -291,9 +291,9 @@ export async function syncPcaRecentDays(options: {
     }
 
     // 2. Se base local ainda estiver enxuta, popula via catálogo oficial /pca/ multi-classificação + janelas âncora ativas
-    const currentTotal = await (prisma as any).annualProcurementPlanItem.count().catch(() => 0);
-    if (fetched === 0 || currentTotal < 500) {
-      const anoAtual = new Date().getFullYear();
+    const anoAtual = Math.max(2026, new Date().getFullYear());
+    const currentTotal = await (prisma as any).annualProcurementPlanItem.count({ where: { year: { gte: anoAtual } } }).catch(() => 0);
+    if (currentTotal < 500) {
       const anosCatalogo = [anoAtual, anoAtual + 1];
       const orderedClasses = DEFAULT_PCA_CLASSES.map(
         (_, idx) => DEFAULT_PCA_CLASSES[(pcaSweepClassIndex + idx) % DEFAULT_PCA_CLASSES.length],

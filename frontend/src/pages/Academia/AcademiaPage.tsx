@@ -147,13 +147,6 @@ export const AcademiaPage: React.FC = () => {
                   Assistir Agora
                 </button>
               )}
-              <Link
-                to="/parceiro/academia"
-                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 hover:bg-white/20 px-5 py-2.5 text-sm font-bold text-white transition"
-              >
-                <Users className="h-4 w-4" />
-                Portal de Professores & Parceiros
-              </Link>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 shrink-0">

@@ -401,9 +401,13 @@ export class EditalDeepAnalyzerService {
       },
     };
 
-    const resumoExplicado = `Contratação promovida por ${orgao} com objeto: ${objetoPrincipal}. ${
-      itensExtraidos.length > 0 ? `Contempla ${itensExtraidos.length} item(ns) oficial(is).` : ''
-    }`;
+    const resumoExplicado = [
+      `1. O QUE O \u00d3RG\u00c3O CONTRATA: ${orgao} busca: ${objetoPrincipal}.${itensExtraidos.length > 0 ? ` (${itensExtraidos.length} item(ns) oficial(is) mapeado(s)).` : ''}`,
+      `2. DISPUTA E PRAZOS: Modalidade ${modalidade} (${modoDisputaTexto}). Impugna\u00e7\u00e3o: ${secoes.disputaEPrazos.prazoLimiteImpugnacao}.`,
+      `3. HABILITA\u00c7\u00c3O E CAPACIDADE T\u00c9CNICA: ${atestadoTecnico}. Balan\u00e7o: ${balancoPatrimonial}. Garantias: ${garantiaContratual}.`,
+      `4. ENTREGA E EXECU\u00c7\u00c3O: Prazo de ${prazoEntregaExtraido}. Local: ${localEntregaExtraido}. Pagamento: ${condicoesPagamento}.`,
+      vicios.length > 0 ? `5. ALERTAS DE AUDITORIA: ${vicios.length} ponto(s) de aten\u00e7\u00e3o/v\u00edcio detectado(s) na leitura integral.` : '5. ALERTAS DE AUDITORIA: Conferir detalhadamente os anexos t\u00e9cnicos e a planilha de custos.'
+    ].join('\n\n');
 
     return {
       resumoExplicado,
@@ -586,7 +590,8 @@ Retorne exatamente este JSON:
   "vigenciaContrato": "string",
   "criterioReajuste": "string",
   "garantiaContratual": "string",
-  "multasEPenalidades": "string"
+  "multasEPenalidades": "string",
+  "parecerExecutivoCompleto": "Resumo explicativo completo em 4 a 5 paragrafos claros para o licitante cobrindo: objeto pratico, regras da disputa, exigencias de habilitacao/capacidade tecnica/garantias/POC/planilha de custos, condicoes de entrega/pagamento e riscos reais encontrados com citacao de itens e paginas"
 }
 
 TEXTO OFICIAL DO EDITAL:
@@ -631,6 +636,9 @@ ${blocoTexto}`;
       fichaBase.secoes.financeiroEContrato.criterioReajuste = safePick(parsed.criterioReajuste, fichaBase.secoes.financeiroEContrato.criterioReajuste);
       fichaBase.secoes.financeiroEContrato.garantiaContratual = safePick(parsed.garantiaContratual, fichaBase.secoes.financeiroEContrato.garantiaContratual);
       fichaBase.secoes.financeiroEContrato.multasEPenalidades = safePick(parsed.multasEPenalidades, fichaBase.secoes.financeiroEContrato.multasEPenalidades);
+        if (typeof parsed.parecerExecutivoCompleto === 'string' && parsed.parecerExecutivoCompleto.trim().length > 80) {
+          fichaBase.resumoExplicado = parsed.parecerExecutivoCompleto.trim();
+        }
 
       // Sincroniza prazosECondicoes
       fichaBase.prazosECondicoes.prazoEntregaOuExecucao = fichaBase.secoes.condicoesEntregaExecucao.prazoEntrega;
@@ -664,7 +672,7 @@ ${blocoTexto}`;
     if (!notice) return null;
 
     const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
-    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 2 && existingMeta.extractedSpecsJson?.secoes) {
+    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 3 && existingMeta.extractedSpecsJson?.secoes) {
       return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
     }
 
@@ -699,7 +707,7 @@ ${blocoTexto}`;
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
           deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
           statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
-          fichaVersion: 2,
+          fichaVersion: 3,
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: strictExec.isRemoteDispute,

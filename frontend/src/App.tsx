@@ -141,7 +141,7 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   const role = String((user as any)?.role || '').toLowerCase();
-  const isAdmin = Boolean((user as any)?.isAdmin) || role === 'admin' || role === 'super_admin';
+  const isAdmin = role === 'super_admin' || String((user as any)?.email || '').toLowerCase() === 'kaciaraynara@gmail.com';
   if (!isAdmin) {
     return <Navigate to={resolveAuthenticatedHome()} replace />;
   }
