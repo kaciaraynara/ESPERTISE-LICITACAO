@@ -155,10 +155,11 @@ export default function EmpresaPage() {
         .split(/[,;]+/)
         .map((item) => item.trim())
         .filter((item) => item.length >= 2);
+      const stopSocietario = new Set(['ltda', 'eireli', 'me', 'epp', 'empresa', 'comercio', 'servicos', 'produtos', 'artigos', 'geral', 'outras', 'atividades', 'especificados', 'anteriormente', 'para']);
       const palavrasDerivadas = String(formFields.cnae_principal || formFields.razao_social || '')
         .split(/[-,\s/]+/)
         .map((item) => item.trim().toLowerCase())
-        .filter((item) => item.length >= 4);
+        .filter((item) => item.length >= 4 && !stopSocietario.has(item));
 
       const payload = {
         cnpj: cnpjLimpo,

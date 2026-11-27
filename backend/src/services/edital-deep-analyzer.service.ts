@@ -554,16 +554,19 @@ export class EditalDeepAnalyzerService {
         generationConfig: { responseMimeType: 'application/json' },
       });
 
-      // Amostra estratégica: início (Edital), meio (Habilitação/TR) e fim (Minuta/Contrato/Anexos)
-      const inicio = textoReal.slice(0, 28000);
-      const meio = textoReal.length > 40000 ? textoReal.slice(Math.floor(textoReal.length / 2) - 10000, Math.floor(textoReal.length / 2) + 12000) : '';
-      const fim = textoReal.length > 60000 ? textoReal.slice(-20000) : '';
-      const textoConsolidado = [inicio, meio, fim].filter(Boolean).join('\n\n--- TRECHO SEGUINTE DO ARQUIVO ---\n\n');
+      // Map-Reduce: envia o texto integral ate 280k chars por bloco (sem perder secao intermediaria)
+      const blocos: string[] = [];
+      const TAM_BLOCO = 240000;
+      for (let i = 0; i < textoReal.length; i += TAM_BLOCO) {
+        blocos.push(textoReal.slice(i, i + TAM_BLOCO));
+      }
 
-      const prompt = `Você é um analista sênior de licitações públicas. Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo.
+      const parsed: Record<string, any> = {};
+      for (const blocoTexto of blocos.slice(0, 4)) {
+        const prompt = `Você é um analista sênior de licitações públicas. Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo.
 REGRAS INEGOCIAVEIS:
 1. PROIBIDO inventar, presumir ou usar texto genérico.
-2. Se uma informação NÃO estiver expressa no texto, escreva exatamente: "Não especificado nos arquivos analisados" ou "Não exigido nos arquivos analisados".
+2. Se uma informação NÃO estiver expressa neste bloco de texto, escreva exatamente: "Não especificado nos arquivos analisados". Só escreva "Não exigido" se o edital expressamente dispensar o requisito.
 3. Cite números exatos, prazos exatos e nomes de documentos exatos escritos neste texto.
 
 Retorne exatamente este JSON:
@@ -587,15 +590,21 @@ Retorne exatamente este JSON:
 }
 
 TEXTO OFICIAL DO EDITAL:
-${textoConsolidado}`;
+${blocoTexto}`;
 
-      const result = await Promise.race([
-        model.generateContent(prompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_IA_EXTRACAO')), 18000)),
-      ]) as any;
+        const result = await Promise.race([
+          model.generateContent(prompt),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_IA_EXTRACAO')), 45000)),
+        ]) as any;
 
-      const rawJson = String(result?.response?.text?.() || '').trim();
-      const parsed = JSON.parse(rawJson);
+        const rawJson = String(result?.response?.text?.() || '').trim();
+        const parte = JSON.parse(rawJson);
+        for (const [k, v] of Object.entries(parte || {})) {
+          if (typeof v === 'string' && v.trim().length > 3 && !v.includes('Não especificado')) {
+            parsed[k] = parsed[k] && !String(parsed[k]).includes(v.trim()) ? `${parsed[k]} | ${v.trim()}` : v.trim();
+          }
+        }
+      }
 
       const safePick = (val: any, fallback: string) => {
         if (typeof val === 'string' && val.trim().length > 3 && !val.includes('Não especificado')) {

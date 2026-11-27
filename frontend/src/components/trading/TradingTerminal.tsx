@@ -279,10 +279,8 @@ export const TradingTerminal: React.FC = () => {
     const inicializarDisputa = async () => {
       try {
         setCarregandoItens(true);
-        const cnaeAtivo = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal;
-        const resLic = await licitacoesApi.listar({ cnae: cnaeAtivo, local: true } as any);
-        const licList = resLic?.data?.items || resLic?.data?.data || [];
-        if (Array.isArray(licList) && licList.length > 0 && active) {
+        const licList: any[] = [];
+        if (false && Array.isArray(licList) && licList.length > 0 && active) {
           const primeiroEdital = licList[0];
           setEdital(primeiroEdital);
           const portalUrlOficial = buildOfficialPncpPortalUrl(primeiroEdital);

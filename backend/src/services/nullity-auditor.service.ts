@@ -316,6 +316,129 @@ export function auditEditalNullities(textoCompleto: string): VicioEspecialista[]
         });
       }
 
+      // 13. Indices contabeis restritivos (LG, SG, LC > 1,0)
+      if (/(?:liquidez\s+(?:geral|corrente)|solv[e\u00ea]ncia\s+geral|\b(?:ilg|ilc|isg|lg|lc|sg)\b)[^.\n]{0,90}(?:>|maior(?:\s+ou\s+igual)?\s+a|superior\s+a|igual\s+ou\s+superior\s+a)\s*(?:1[.,][1-9]|[2-9][.,]\d)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-indices-contabeis',
+          titulo: '\u00cdndices Cont\u00e1beis Restritivos (Superior a 1,0 sem Justificativa)',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 69, \u00a7 5\u00ba da Lei n\u00ba 14.133/2021 e S\u00famula n\u00ba 289 do TCU',
+          explicacaoSimples:
+            'O edital exige \u00edndices cont\u00e1beis (Liquidez Geral, Liquidez Corrente ou Solv\u00eancia Geral) superiores a 1,0. Pela Lei n\u00ba 14.133/2021 e S\u00famula 289 do TCU, a ado\u00e7\u00e3o de \u00edndices acima do usual exige justificativa t\u00e9cnica expressa nos autos do processo administrativo. Exig\u00eancias desproporcionais alijam empresas solventes da disputa. Cabe pedido de esclarecimento sobre a justificativa ou impugna\u00e7\u00e3o.',
+          acaoRecomendada: 'Solicitar a justificativa t\u00e9cnica do \u00edndice cont\u00e1bil ou impugnar para adequa\u00e7\u00e3o a 1,0.',
+        });
+      }
+
+      // 14. Balanco patrimonial em entrega imediata / dispensa / MEI
+      if (
+        /(?:entrega\s+imediata|pronta\s+entrega|dispensa\s+de\s+licita[c\u00e7][a\u00e3]o|exclusiv[oa]\s+para\s+mei)/i.test(textoCompleto) &&
+        /balan[c\u00e7]o\s+patrimonial/i.test(para) &&
+        !/(?:dispensad[oa]|facultad[oa]|n[a\u00e3]o\s+ser[a\u00e1]\s+exigido)/i.test(para)
+      ) {
+        registerOnce({
+          id: 'vicio-balanco-dispensavel',
+          titulo: 'Exig\u00eancia Indevida de Balan\u00e7o Patrimonial (Entrega Imediata / Dispensa / MEI)',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 70, inciso III da Lei n\u00ba 14.133/2021',
+          explicacaoSimples:
+            'O instrumento exige apresenta\u00e7\u00e3o de balan\u00e7o patrimonial mesmo tratando-se de contrata\u00e7\u00e3o para entrega imediata, dispensa ou participa\u00e7\u00e3o de MEI. O Art. 70, III da Lei n\u00ba 14.133/2021 autoriza a dispensa dessa documenta\u00e7\u00e3o nessas hip\u00f3teses para ampliar a competitividade. A manuten\u00e7\u00e3o da exig\u00eancia cria burocracia desnecess\u00e1ria contra pequenos fornecedores. Recomenda-se impugnar ou pedir retifica\u00e7\u00e3o.',
+          acaoRecomendada: 'Protocolar Impugna\u00e7\u00e3o ou Esclarecimento requerendo a dispensa do balan\u00e7o conforme Art. 70, III.',
+        });
+      }
+
+      // 15. Vedacao imotivada a participacao de consorcios
+      if (/(?:vedada\s+a\s+participa[c\u00e7][a\u00e3]o\s+de\s+(?:empresas\s+em\s+)?cons[o\u00f3]rcio|n[a\u00e3]o\s+ser[a\u00e1]\s+permitida\s+a\s+participa[c\u00e7][a\u00e3]o\s+de\s+cons[o\u00f3]rcio)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-vedacao-consorcio',
+          titulo: 'Veda\u00e7\u00e3o \u00e0 Participa\u00e7\u00e3o de Cons\u00f3rcios (Requer Justificativa Formal)',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 15 da Lei n\u00ba 14.133/2021',
+          explicacaoSimples:
+            'O edital pro\u00edbe a participa\u00e7\u00e3o de empresas reunidas em cons\u00f3rcio. Na Lei n\u00ba 14.133/2021, a participa\u00e7\u00e3o em cons\u00f3rcio \u00e9 a regra, e sua veda\u00e7\u00e3o exige justificativa t\u00e9cnica formal nos autos demonstrando que a restri\u00e7\u00e3o n\u00e3o prejudica a competitividade. Em objetos de maior porte ou multidisciplinares, a veda\u00e7\u00e3o reduz concorrentes. Recomenda-se solicitar a justificativa ou impugnar.',
+          acaoRecomendada: 'Pedir esclarecimento sobre a motiva\u00e7\u00e3o t\u00e9cnica da veda\u00e7\u00e3o ou impugnar para admiss\u00e3o de cons\u00f3rcios.',
+        });
+      }
+
+      // 16. Limitacao temporal de atestado ou exigencia > 3 anos em servicos continuos
+      if (/(?:experi[e\u00ea]ncia\s+m[i\u00ed]nima|tempo\s+m[i\u00ed]nimo|atestado)[^.\n]{0,120}(?:[4-9]\s*anos|1[0-9]\s*anos|emitido\s+h[a\u00e1]\s+no\s+m[a\u00e1]ximo|nos\s+[u\u00fa]ltimos\s+12\s+meses)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-atestado-temporal',
+          titulo: 'Limita\u00e7\u00e3o Temporal Abusiva em Atestado ou Experi\u00eancia > 3 Anos',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 67, \u00a7 5\u00ba da Lei n\u00ba 14.133/2021 e S\u00famula n\u00ba 263 do TCU',
+          explicacaoSimples:
+            'A cl\u00e1usula imp\u00f5e prazo m\u00ednimo de experi\u00eancia superior a 3 anos ou restringe a data de emiss\u00e3o dos atestados t\u00e9cnicos. O Art. 67, \u00a7 5\u00ba da Lei n\u00ba 14.133/2021 limita a exig\u00eancia de experi\u00eancia pr\u00e9via em servi\u00e7os cont\u00ednuos ao m\u00e1ximo de 3 anos, e a jurisprud\u00eancia do TCU veda limitar a validade temporal de atestados. A regra restringe indevidamente o mercado. Cabe impugna\u00e7\u00e3o.',
+          acaoRecomendada: 'Protocolar Impugna\u00e7\u00e3o exigindo adequa\u00e7\u00e3o ao limite m\u00e1ximo de 3 anos e remo\u00e7\u00e3o de limite de data em atestados.',
+        });
+      }
+
+      // 17. Amostra na habilitacao ou para todos os licitantes
+      if (/(?:amostra|prot[o\u00f3]tipo)[^.\n]{0,140}(?:na\s+fase\s+de\s+habilita[c\u00e7][a\u00e3]o|junto\s+com\s+os\s+documentos\s+de\s+habilita[c\u00e7][a\u00e3]o|todos\s+os\s+licitantes\s+dever[a\u00e3]o\s+apresentar)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-amostra-habilitacao',
+          titulo: 'Exig\u00eancia Ilegal de Amostra na Habilita\u00e7\u00e3o ou Antes da Classifica\u00e7\u00e3o',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 17, \u00a7 3\u00ba e Art. 41, inciso II da Lei n\u00ba 14.133/2021',
+          explicacaoSimples:
+            'O edital condiciona a habilita\u00e7\u00e3o ou exige apresenta\u00e7\u00e3o pr\u00e9via de amostras por todos os participantes antes do julgamento das propostas. A Lei n\u00ba 14.133/2021 permite a exig\u00eancia de amostra apenas do licitante provisoriamente classificado em primeiro lugar. Impor custo de envio a todos os concorrentes fere a economicidade e restringe a participa\u00e7\u00e3o. Cabe impugna\u00e7\u00e3o.',
+          acaoRecomendada: 'Protocolar Impugna\u00e7\u00e3o para limitar a entrega de amostra exclusivamente ao licitante provisoriamente vencedor.',
+        });
+      }
+
+      // 18. Reconhecimento de firma em cartorio ou copia autenticada fisica
+      if (/(?:reconhecimento\s+de\s+firma|firma\s+reconhecida\s+em\s+cart[o\u00f3]rio|c[o\u00f3]pia\s+autenticada\s+em\s+cart[o\u00f3]rio|autentica[c\u00e7][a\u00e3]o\s+cartor[a\u00e1]ria\s+obrigat[o\u00f3]ria)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-cartorio-firma',
+          titulo: 'Formalismo Excessivo: Exig\u00eancia de Cart\u00f3rio / Reconhecimento de Firma',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 12, incisos IV e V da Lei n\u00ba 14.133/2021',
+          explicacaoSimples:
+            'A cl\u00e1usula exige reconhecimento de firma ou autentica\u00e7\u00e3o f\u00edsica em cart\u00f3rio sem previs\u00e3o legal excepcional. O Art. 12, incisos IV e V da Lei n\u00ba 14.133/2021 veda a exig\u00eancia de reconhecimento de firma salvo d\u00favida fundada de autenticidade, privilegiando documentos digitais e declara\u00e7\u00e3o de autenticidade. Trata-se de burocracia ilegal pass\u00edvel de impugna\u00e7\u00e3o ou dilig\u00eancia.',
+          acaoRecomendada: 'Impugnar ou pedir esclarecimento requerendo aceita\u00e7\u00e3o de assinatura eletr\u00f4nica e documentos digitais sem cart\u00f3rio.',
+        });
+      }
+
+      // 19. Prazo de impugnacao menor que 3 dias uteis
+      if (/(?:impugna[c\u00e7][a\u00e3]o|pedido\s+de\s+esclarecimento)[^.\n]{0,110}(?:at[e\u00e9]\s+[12]\s+dias?\s+[u\u00fa]teis|prazo\s+de\s+(?:24|48)\s*horas)/i.test(para)) {
+        registerOnce({
+          id: 'vicio-prazo-impugnacao',
+          titulo: 'Prazo de Impugna\u00e7\u00e3o Inferior ao M\u00ednimo Legal de 3 Dias \u00dateis',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 164, caput da Lei n\u00ba 14.133/2021',
+          explicacaoSimples:
+            'O edital reduz o prazo para protocolar impugna\u00e7\u00f5es ou esclarecimentos para menos de 3 dias \u00fateis antes da abertura do certame. O Art. 164 da Lei n\u00ba 14.133/2021 garante expressamente o prazo de at\u00e9 3 dias \u00fateis anteriores \u00e0 data de abertura. A redu\u00e7\u00e3o limita o direito de controle de legalidade pelos licitantes. Cabe impugna\u00e7\u00e3o imediata.',
+          acaoRecomendada: 'Protocolar Impugna\u00e7\u00e3o exigindo o restabelecimento do prazo legal de 3 dias \u00fateis do Art. 164.',
+        });
+      }
+
       // 12. Capital social + patrimonio liquido cumulativos ou acima de 10%
       if (
         /(?:capital\s+social|patrim[oô]nio\s+l[ií]quido)[^.]{0,140}(?:1[1-9]|[2-9]\d)\s*%/i.test(para) ||

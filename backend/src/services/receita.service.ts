@@ -35,6 +35,10 @@ export interface ReceitaEmpresaQsa {
   naturezaJuridica: string | null;
   municipio: string | null;
   uf: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  telefone?: string | null;
   qsa: ReceitaSocioQsa[];
   consultadoEm: string;
 }
@@ -47,6 +51,10 @@ interface BrasilApiCnpjResponse {
   natureza_juridica?: string | null;
   municipio?: string | null;
   uf?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  ddd_telefone_1?: string | null;
   qsa?: BrasilApiQsaSocio[] | null;
 }
 
@@ -267,6 +275,10 @@ function mapBrasilApiCnpjResponse(data: BrasilApiCnpjResponse, cnpj: string): Re
     naturezaJuridica: normalizeNullableString(data.natureza_juridica),
     municipio: normalizeNullableString(data.municipio),
     uf: normalizeNullableString(data.uf),
+    cep: normalizeNullableString(data.cep),
+    logradouro: normalizeNullableString(data.logradouro),
+    numero: normalizeNullableString(data.numero),
+    telefone: normalizeNullableString(data.ddd_telefone_1),
     qsa: Array.isArray(data.qsa) ? data.qsa.map(mapBrasilApiQsaSocio).filter((socio) => socio.nome) : [],
     consultadoEm: new Date().toISOString(),
   };

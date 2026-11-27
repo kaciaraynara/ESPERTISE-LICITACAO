@@ -39,7 +39,7 @@ async function saveDocumentChunks(
   const chunkSize = 1800;
   const chunkOverlap = 200;
   const chunks: string[] = [];
-  for (let i = 0; i < text.length && chunks.length < 80; i += (chunkSize - chunkOverlap)) {
+  for (let i = 0; i < text.length; i += (chunkSize - chunkOverlap)) {
     const part = text.slice(i, i + chunkSize).trim();
     if (part) chunks.push(part);
   }
@@ -55,28 +55,30 @@ async function saveDocumentChunks(
       },
     });
 
-    await prisma.documentChunk.createMany({
-      data: chunks.map((chunk, index) => {
-        // Tenta identificar se o chunk tem marcador de página
-        const matchPage = chunk.match(/\[Página\s+(\d+)\s+de\s+([^\]]+)\]/i);
-        const chunkMeta = {
-          ...metadata,
-          pageNumber: matchPage ? matchPage[1] : metadata.pageNumber || null,
-          fileName: matchPage ? matchPage[2].trim() : metadata.fileName || null,
-        };
-
-        return {
-          tenantId: tenantId ?? null,
-          sourceType: 'procurement_notice',
-          sourceId,
-          chunkIndex: index,
-          contentHash: createHash('sha256').update(chunk).digest('hex'),
-          content: chunk,
-          tokenCount: Math.ceil(chunk.length / 4),
-          metadata: chunkMeta,
-        };
-      }),
+    const rows = chunks.map((chunk, index) => {
+      const matchPage = chunk.match(/\[Página\s+(\d+)\s+de\s+([^\]]+)\]/i);
+      const chunkMeta = {
+        ...metadata,
+        pageNumber: matchPage ? matchPage[1] : metadata.pageNumber || null,
+        fileName: matchPage ? matchPage[2].trim() : metadata.fileName || null,
+      };
+      return {
+        tenantId: tenantId ?? null,
+        sourceType: 'procurement_notice',
+        sourceId,
+        chunkIndex: index,
+        contentHash: createHash('sha256').update(chunk).digest('hex'),
+        content: chunk,
+        tokenCount: Math.ceil(chunk.length / 4),
+        metadata: chunkMeta,
+      };
     });
+
+    for (let offset = 0; offset < rows.length; offset += 100) {
+      await prisma.documentChunk.createMany({
+        data: rows.slice(offset, offset + 100),
+      });
+    }
   } catch (err: any) {
     console.warn('[PNCP Parser] Falha ao salvar chunks na tabela DocumentChunk:', err.message);
   }
@@ -314,7 +316,6 @@ async function extrairBufferRecursivo(buf: Buffer, nome: string, depth = 0): Pro
           if (innerTxt && innerTxt.length >= 30) {
             parts.push(`=== ARQUIVO INTERNO DO PACOTE: ${entryName} ===\n${innerTxt}`);
           }
-          if (parts.join('\n\n').length > 180000) break;
         }
       }
 

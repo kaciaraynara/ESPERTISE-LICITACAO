@@ -143,8 +143,7 @@ export const NulidadesPage: React.FC = () => {
 
   const handleUploadPdfManual = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const alvoId = selectedEditalId || 'manual';
+    if (!file || !selectedEditalId) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       toast.error('Selecione um arquivo PDF válido.');
       return;
@@ -157,7 +156,7 @@ export const NulidadesPage: React.FC = () => {
       formData.append('file', file);
       if (selectedCompany?.id) formData.append('companyId', selectedCompany.id);
 
-      const res = await api.post(`/notices/${encodeURIComponent(alvoId)}/analisar-pdf`, formData, {
+      const res = await api.post(`/notices/${encodeURIComponent(selectedEditalId)}/analisar-pdf`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -268,8 +267,8 @@ export const NulidadesPage: React.FC = () => {
     resultado?.nivelRisco === 'Elevado'
       ? '#dc2626'
       : resultado?.nivelRisco === 'Moderado'
-      ? '#f59e0b'
-      : '#16a34a';
+        ? '#f59e0b'
+        : '#16a34a';
 
   const temPdfReal = sourceMode === 'PDF_ANEXO_REAL';
 
@@ -303,13 +302,22 @@ export const NulidadesPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setModoAtivo('edital')}
-            className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
-              modoAtivo === 'edital'
-                ? 'bg-[#0B192C] text-white'
-                : 'border border-slate-200 bg-white text-[#0B192C] hover:bg-slate-50'
-            }`}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${modoAtivo === 'edital'
+              ? 'bg-[#0B192C] text-white'
+              : 'border border-slate-200 bg-white text-[#0B192C] hover:bg-slate-50'
+              }`}
           >
             Auditoria de Cláusulas do Edital
+          </button>
+          <button
+            type="button"
+            onClick={() => setModoAtivo('integridade')}
+            className={`rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${modoAtivo === 'integridade'
+              ? 'bg-[#0B192C] text-white'
+              : 'border border-slate-200 bg-white text-[#0B192C] hover:bg-slate-50'
+              }`}
+          >
+            Integridade de Concorrentes (CNPJ)
           </button>
         </div>
       </div>
@@ -330,7 +338,7 @@ export const NulidadesPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
-                disabled={uploadingPdf}
+                disabled={!selectedEditalId || uploadingPdf}
                 onClick={() => fileInputRef.current?.click()}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-[#0B192C] hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
               >
@@ -390,13 +398,12 @@ export const NulidadesPage: React.FC = () => {
                   {auditoria && (
                     <div className="flex items-center gap-2 shrink-0">
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-extrabold ${
-                          auditoria.totalVicios > 0
-                            ? 'bg-red-100 text-red-800'
-                            : temPdfReal
-                              ? 'bg-[#14532D]/10 text-[#14532D]'
-                              : 'bg-slate-100 text-slate-700'
-                        }`}
+                        className={`rounded-full px-3 py-1 text-xs font-extrabold ${auditoria.totalVicios > 0
+                          ? 'bg-red-100 text-red-800'
+                          : temPdfReal
+                            ? 'bg-[#14532D]/10 text-[#14532D]'
+                            : 'bg-slate-100 text-slate-700'
+                          }`}
                       >
                         {auditoria.totalVicios > 0
                           ? `${auditoria.totalVicios} irregularidade(s) detectada(s)`
@@ -588,11 +595,10 @@ export const NulidadesPage: React.FC = () => {
                     key={t.id}
                     type="button"
                     onClick={() => setAbaIntegridade(t.id as any)}
-                    className={`rounded-xl px-4 py-2 text-xs font-bold cursor-pointer ${
-                      abaIntegridade === t.id
-                        ? 'bg-[#081C3A] text-white'
-                        : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
-                    }`}
+                    className={`rounded-xl px-4 py-2 text-xs font-bold cursor-pointer ${abaIntegridade === t.id
+                      ? 'bg-[#081C3A] text-white'
+                      : 'border border-slate-200 bg-white text-[#081C3A] hover:bg-slate-50'
+                      }`}
                   >
                     {t.label}
                   </button>
