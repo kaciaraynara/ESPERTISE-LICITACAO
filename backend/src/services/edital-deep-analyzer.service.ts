@@ -147,6 +147,14 @@ export class EditalDeepAnalyzerService {
   /**
    * Extrai e estrutura as especificações técnicas EXCLUSIVAMENTE dos trechos reais lidos
    */
+  private static extrairCapituloEdital(texto: string, regexTitulo: RegExp, maxLen = 420): string | null {
+    const m = texto.match(regexTitulo);
+    if (!m || m.index === undefined) return null;
+    const trecho = texto.slice(m.index, m.index + maxLen + 80).replace(/\s+/g, ' ').trim();
+    if (trecho.length < 35) return null;
+    return trecho.length > maxLen ? trecho.slice(0, maxLen).trimEnd() + '...' : trecho;
+  }
+
   public static analisarTextoIntegral(notice: any, chunks: string[], itensOficiais: any[] = []): ExtractedSpecsFicha {
     const cleanChunks = chunks.filter(
       (c) => c && !c.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF'),
@@ -271,21 +279,21 @@ export class EditalDeepAnalyzerService {
     // 5. Condições Financeiras e Contratuais Reais
     const condicoesPagamento = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:prazo\s+de\s+pagamento|pagamento\s+será\s+efetuado|liquidação\s+e\s+pagamento)[^.\n]{0,160}/i,
+      /(?:prazo\s+de\s+pagamento|pagamento\s+ser\u00e1\s+efetuado|liquida\u00e7\u00e3o\s+e\s+pagamento)[^.\n]{0,160}/i,
       140,
-    ) || NAO_ESPECIFICADO;
+    ) || this.extrairCapituloEdital(textoCompleto, /(?:DO\s+PAGAMENTO|DAS\s+CONDI\u00c7\u00d5ES\s+DE\s+PAGAMENTO|FORMA\s+DE\s+PAGAMENTO)\b/i, 360) || NAO_ESPECIFICADO;
 
     const vigenciaContrato = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:prazo\s+de\s+vigência|vigência\s+do\s+contrato|vigência\s+da\s+ata)[^.\n]{0,140}/i,
+      /(?:prazo\s+de\s+vig\u00eancia|vig\u00eancia\s+do\s+contrato|vig\u00eancia\s+da\s+ata)[^.\n]{0,140}/i,
       120,
-    ) || NAO_ESPECIFICADO;
+    ) || this.extrairCapituloEdital(textoCompleto, /(?:DA\s+VIG\u00caNCIA|PRAZO\s+DE\s+VIG\u00caNCIA)\b/i, 320) || NAO_ESPECIFICADO;
 
     const criterioReajuste = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:reajuste|reajustamento\s+de\s+preços)[^.\n]{0,160}(?:ipca|igp-m|inpc|igpm|incc|ipca-e|índice)[^.\n]{0,80}/i,
+      /(?:reajuste|reajustamento\s+de\s+pre\u00e7os)[^.\n]{0,160}(?:ipca|igp-m|inpc|igpm|incc|ipca-e|\u00edndice)[^.\n]{0,80}/i,
       120,
-    ) || NAO_ESPECIFICADO;
+    ) || this.extrairCapituloEdital(textoCompleto, /(?:DO\s+REAJUSTE|REAJUSTAMENTO\s+DE\s+PRE\u00c7OS)\b/i, 320) || NAO_ESPECIFICADO;
 
     const garantiaProposta = extrairSentencaPorRegex(
       textoCompleto,
@@ -304,9 +312,9 @@ export class EditalDeepAnalyzerService {
 
     const multasEPenalidades = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:multa\s+(?:moratória|compensatória)|sanções\s+administrativas|penalidades)[^.\n]{0,160}/i,
+      /(?:multa\s+(?:morat\u00f3ria|compensat\u00f3ria)|san\u00e7\u00f5es\s+administrativas|penalidades)[^.\n]{0,160}/i,
       140,
-    ) || NAO_ESPECIFICADO;
+    ) || this.extrairCapituloEdital(textoCompleto, /(?:DAS\s+SAN\u00c7\u00d5ES|DAS\s+PENALIDADES|INFRA\u00c7\u00d5ES\s+E\s+SAN\u00c7\u00d5ES)\b/i, 380) || NAO_ESPECIFICADO;
 
     // 6. Benefício ME / EPP
     const exclusivoOuCotaMeEpp = /(?:exclusiv[oa]\s+para\s+(?:me|epp|microempresa)|cota\s+reservada|lei\s+complementar\s+n[º°]?\s*123)/i.test(textoCompleto);
@@ -672,7 +680,7 @@ ${blocoTexto}`;
     if (!notice) return null;
 
     const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
-    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 3 && existingMeta.extractedSpecsJson?.secoes) {
+    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 4 && existingMeta.extractedSpecsJson?.secoes) {
       return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
     }
 
@@ -707,7 +715,7 @@ ${blocoTexto}`;
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
           deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
           statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
-          fichaVersion: 3,
+          fichaVersion: 4,
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: strictExec.isRemoteDispute,

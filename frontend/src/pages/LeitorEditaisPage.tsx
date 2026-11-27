@@ -601,6 +601,16 @@ export const LeitorEditaisPage: React.FC = () => {
                           selectedEditalData?.object ||
                           'Objeto oficial conforme registro do certame.'}
                       </p>
+                      {fichaSpecs?.resumoExplicado && (
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                            Parecer Executivo & Leitura Pr\u00e1tica do Edital
+                          </h3>
+                          <p className="text-xs sm:text-sm text-slate-700 whitespace-pre-line leading-relaxed bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            {fichaSpecs.resumoExplicado}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
