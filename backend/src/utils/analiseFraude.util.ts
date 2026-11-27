@@ -293,7 +293,7 @@ function detectarIndiciosOperacionais(empresas: ReceitaEmpresaQsa[]): IndicioOpe
         tipo: 'PARENTESCO_PROVAVEL',
         severidade: 'MEDIO',
         descricao: `Poss\u00edvel v\u00ednculo familiar entre s\u00f3cios de concorrentes no mesmo munic\u00edpio (sobrenome "${sobrenome}"). Validar se h\u00e1 veda\u00e7\u00e3o ou conluio na disputa.`,
-        empresas: grupo.map((g) => ({ cnpj: g.cnpj, razaoSocial: g.razaoSocial })),
+        empresas: grupo.map((g) => ({ cnpj: g.emp.cnpj, razaoSocial: g.emp.razaoSocial })),
       });
     }
   }
