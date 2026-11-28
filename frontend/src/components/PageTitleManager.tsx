@@ -49,7 +49,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/(fornecedor\/)?editais-monitorados\/?$/, 'Editais Monitorados'],
   [/^\/(fornecedor\/)?historico-concorrentes\/?$/, 'Histórico de Concorrentes'],
   [/^\/(fornecedor\/)?investigacao\/?$/, 'Inteligência Competitiva'],
-  [/^\/(fornecedor\/)?expertise-intelligence\/?$/, 'Expertise Intelligence'],
+  [/^\/(fornecedor\/)?expertise-intelligence\/?$/, 'Auditoria de Concorrentes'],
   [/^\/(fornecedor\/)?relatorios(-estrategicos)?\/?$/, 'Relatórios Estratégicos'],
   [/^\/(fornecedor\/)?planos\/?$/, 'Planos'],
   [/^\/(fornecedor\/)?configuracoes\/?$/, 'Configurações'],

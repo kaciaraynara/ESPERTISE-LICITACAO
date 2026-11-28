@@ -33,20 +33,12 @@ const PrazosAlertasPage = React.lazy(() =>
 const GestaoContratualPage = React.lazy(() =>
   import('./pages/GestaoContratualPage').then((module) => ({ default: module.GestaoContratualPage })),
 );
-const InvestigacaoConcorrencialPage = React.lazy(() =>
-  import('./pages/InvestigacaoConcorrencial/InvestigacaoConcorrencialPage').then((module) => ({
-    default: module.InvestigacaoConcorrencialPage,
-  })),
-);
 const RelatoriosPage = React.lazy(() =>
   import('./pages/Relatorios/RelatoriosPage').then((module) => ({ default: module.RelatoriosPage })),
 );
 const PropostasPage = React.lazy(() => import('./pages/Propostas/PropostasPage'));
 const CriarPropostaPage = React.lazy(() => import('./pages/Propostas/CriarPropostaPage'));
 const PropostaDetalhePage = React.lazy(() => import('./pages/Propostas/PropostaDetalhePage'));
-const LexAnalisePage = React.lazy(() =>
-  import('./pages/Lex/LexAnalisePage').then((module) => ({ default: module.LexAnalisePage })),
-);
 const ExpertiseIntelligencePage = React.lazy(() =>
   import('./pages/ExpertiseIntelligence/ExpertiseIntelligencePage').then((module) => ({
     default: module.ExpertiseIntelligencePage,
@@ -62,9 +54,6 @@ const AnaliseViabilidadeDetalhePage = React.lazy(() =>
   })),
 );
 const CrmKanbanPage = React.lazy(() => import('./pages/CrmKanbanPage'));
-const CrmFunilScreen = React.lazy(() =>
-  import('./pages/CRM/CrmFunilScreen').then((module) => ({ default: module.CrmFunilScreen })),
-);
 const PrecificacaoPage = React.lazy(() =>
   import('./pages/Precificacao/PrecificacaoPage').then((module) => ({ default: module.PrecificacaoPage })),
 );
@@ -86,11 +75,9 @@ const CredenciamentoPage = React.lazy(() => import('./pages/CredenciamentoPage')
 const DispensaEletronicaPage = React.lazy(() => import('./pages/DispensaEletronicaPage'));
 const RecursosPage = React.lazy(() => import('./pages/RecursosPage'));
 const HabilitacaoPage = React.lazy(() => import('./pages/HabilitacaoPage'));
-const CertidoesPage = React.lazy(() => import('./pages/CertidoesPage'));
 const ImpugnacaoPage = React.lazy(() => import('./pages/ImpugnacaoPage'));
 const RoboPage = React.lazy(() => import('./pages/RoboPage'));
 const DisputaAoVivoPage = React.lazy(() => import('./pages/DisputaAoVivoPage'));
-const ContenciosoHubPage = React.lazy(() => import('./pages/Contencioso/ContenciosoHubPage'));
 const GestaoPosVitoriaPage = React.lazy(() => import('./pages/GestaoPosVitoriaPage'));
 const PcaPage = React.lazy(() => import('./pages/Pca/PcaPage'));
 const SrpPage = React.lazy(() =>
@@ -383,7 +370,7 @@ export default function App() {
               <Route path="/fornecedor/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
               <Route path="/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
               <Route path="/disputas" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
-              <Route path="/crm-legacy" element={protectFeature('crm_kanban', 'Gestão de Disputas', <CrmFunilScreen />)} />
+              <Route path="/crm-legacy" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
               <Route path={FORNECEDOR_ROUTES.precificacao_estrategica} element={protectFeature('precificacao_estrategica', 'Precificação Estratégica', <PrecificacaoPage />)} />
 
               {/* As 16 Ferramentas Principais da Plataforma (Arte Oficial) */}

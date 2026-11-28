@@ -67,22 +67,42 @@ export const HistoricoConcorrentesPage: React.FC = () => {
   const [dossies, setDossies] = useState<DossieItem[]>([]);
   const { selectedCompany } = useCompany();
   const [sugeridos, setSugeridos] = useState<Array<{ cnpj: string; razaoSocial: string; uf?: string; porte?: string; totalVitorias?: number }>>([]);
+  const [buscaSugestao, setBuscaSugestao] = useState('');
+  const [orgaoBusca, setOrgaoBusca] = useState('');
+  const [objetoBusca, setObjetoBusca] = useState('');
+  const [carregandoMercado, setCarregandoMercado] = useState(false);
+  const [mercadoResultado, setMercadoResultado] = useState<any | null>(null);
 
   useEffect(() => {
-    const cnae = (selectedCompany as any)?.cnaePrincipal || (selectedCompany as any)?.cnae_principal || '';
-    const uf = (selectedCompany as any)?.estado || (selectedCompany as any)?.uf || '';
+    const compAny = selectedCompany as any;
+    const cnae = String(compAny?.cnaePrincipal || compAny?.cnae_principal || compAny?.palavrasChave?.[0] || compAny?.nicho?.[0] || '').trim();
+    const uf = String(compAny?.estado || compAny?.uf || '').trim();
     if (!cnae) return;
-    concorrentesApi.descoberta({ cnae: String(cnae), uf: uf ? String(uf) : undefined })
-      .then((res) => {
-        const lista = res?.data?.data?.concorrentesCnae || [];
-        if (Array.isArray(lista) && lista.length > 0) {
-          setSugeridos(lista.slice(0, 6));
-          const iniciais = lista.slice(0, 3).map((x: any) => formatCnpjMask(x.cnpj));
-          setCnpjs((prev) => (prev.every((c) => !c.trim()) ? iniciais : prev));
-          consultarConcorrentes(iniciais, true);
+
+    let active = true;
+    (async () => {
+      try {
+        let res = await concorrentesApi.descoberta({ cnae, uf: uf || undefined });
+        let lista = res?.data?.data?.concorrentesCnae || [];
+        if ((!Array.isArray(lista) || lista.length === 0) && uf) {
+          res = await concorrentesApi.descoberta({ cnae });
+          lista = res?.data?.data?.concorrentesCnae || [];
         }
-      })
-      .catch(() => null);
+        if (!active) return;
+        if (Array.isArray(lista) && lista.length > 0) {
+          setSugeridos(lista.slice(0, 12));
+          const iniciais = lista.slice(0, 3).map((x: any) => formatCnpjMask(x.cnpj));
+          setCnpjs(iniciais);
+          await consultarConcorrentes(iniciais, true);
+        }
+      } catch {
+        // Silencioso no auto-carregamento
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [selectedCompany]);
 
   const atualizarCnpj = (idx: number, valor: string) => {
@@ -128,6 +148,29 @@ export const HistoricoConcorrentesPage: React.FC = () => {
     }
   };
 
+  const investigarMercadoOrgao = async () => {
+    const org = orgaoBusca.trim();
+    const obj = objetoBusca.trim();
+    if (!org && !obj) {
+      toast.error('Informe o nome ou CNPJ do órgão comprador, ou o objeto do edital.');
+      return;
+    }
+    setCarregandoMercado(true);
+    try {
+      const cnpjLimpo = sanitizeCnpj(org);
+      const resp = await concorrentesApi.mercado({
+        ...(cnpjLimpo.length === 14 ? { cnpjOrgao: cnpjLimpo } : { orgao: org || undefined }),
+        objeto: obj || undefined,
+      });
+      setMercadoResultado(resp.data?.data || null);
+      toast.success('Levantamento real de mercado do órgão concluído.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Não foi possível consultar o mercado deste órgão agora.');
+    } finally {
+      setCarregandoMercado(false);
+    }
+  };
+
   const totalContratos = dossies.reduce((s, d) => s + (d.estatisticas?.totalContratos || 0), 0);
   const valorGlobal = dossies.reduce((s, d) => s + (d.estatisticas?.valorTotalContratado || 0), 0);
   const totalÓrgãos = dossies.reduce(
@@ -164,7 +207,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-extrabold text-[#081C3A]">Histórico de Concorrentes</h1>
             <p className="text-xs text-slate-500">
-              Conheça os concorrentes, onde atuam, suas vitórias e principais contratações reais no PNCP
+              Descubra quem vence licitações no seu segmento, para quais órgãos vende e quais valores pratica antes da disputa.
             </p>
           </div>
         </div>
@@ -187,24 +230,42 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         </div>
 
         {sugeridos.length > 0 && (
-          <div className="mb-4 w-full rounded-xl border border-blue-200 bg-blue-50/70 p-3">
-            <p className="mb-2 text-xs font-semibold text-blue-900">
-              Concorrentes do seu segmento com atuação em licitações (PNCP / Compras.gov.br) — clique para incluir:
-            </p>
+          <div className="mb-4 w-full rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-blue-900">
+                Vencedores reais do seu segmento (PNCP / Compras.gov.br) — clique para incluir no comparativo:
+              </p>
+              <input
+                type="text"
+                value={buscaSugestao}
+                onChange={(e) => setBuscaSugestao(e.target.value)}
+                placeholder="Filtrar por nome ou CNPJ..."
+                className="rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs text-slate-800 outline-none focus:border-[#081C3A]"
+              />
+            </div>
             <div className="flex flex-wrap gap-2">
-              {sugeridos.map((s) => (
-                <button
-                  key={s.cnpj}
-                  type="button"
-                  onClick={() => {
-                    const masked = formatCnpjMask(s.cnpj);
-                    setCnpjs((prev) => (prev.includes(masked) ? prev : [...prev.filter(Boolean), masked].slice(0, 6)));
-                  }}
-                  className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 transition"
-                >
-                  + {s.razaoSocial.slice(0, 32)} {s.uf ? `(${s.uf})` : ''} {s.totalVitorias ? `· ${s.totalVitorias} vitórias` : ''}
-                </button>
-              ))}
+              {sugeridos
+                .filter((s) => {
+                  const q = buscaSugestao.trim().toLowerCase();
+                  if (!q) return true;
+                  return s.razaoSocial.toLowerCase().includes(q) || s.cnpj.includes(q.replace(/\D/g, ''));
+                })
+                .slice(0, 8)
+                .map((s) => (
+                  <button
+                    key={s.cnpj}
+                    type="button"
+                    onClick={() => {
+                      const masked = formatCnpjMask(s.cnpj);
+                      const next = cnpjs.includes(masked) ? cnpjs : [...cnpjs.filter(Boolean), masked].slice(0, 6);
+                      setCnpjs(next);
+                      void consultarConcorrentes(next, false);
+                    }}
+                    className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-medium text-blue-900 hover:bg-blue-100 transition cursor-pointer"
+                  >
+                    + {s.razaoSocial.slice(0, 32)} {s.uf ? `(${s.uf})` : ''} {s.totalVitorias ? `· ${s.totalVitorias} vitórias` : ''}
+                  </button>
+                ))}
             </div>
           </div>
         )}
@@ -242,6 +303,136 @@ export const HistoricoConcorrentesPage: React.FC = () => {
             Consultar Histórico Real
           </button>
         </div>
+      </div>
+
+      {/* Investigar por Órgão / Edital */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-extrabold text-[#081C3A]">
+              Investigar por Órgão / Edital
+            </h2>
+            <p className="text-xs text-slate-500">
+              Descubra quem costuma ganhar neste órgão comprador e qual desconto real sobre o valor estimado foi praticado.
+            </p>
+          </div>
+          {mercadoResultado?.descontoMedioMercado != null && (
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-800">
+              Desconto médio real no órgão: {Number(mercadoResultado.descontoMedioMercado).toFixed(2)}%
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <input
+            type="text"
+            value={orgaoBusca}
+            onChange={(e) => setOrgaoBusca(e.target.value)}
+            placeholder="Nome ou CNPJ do órgão comprador (ex: Prefeitura de Fortaleza)"
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#081C3A]"
+          />
+          <input
+            type="text"
+            value={objetoBusca}
+            onChange={(e) => setObjetoBusca(e.target.value)}
+            placeholder="Objeto ou item do edital (opcional, ex: uniforme, software)"
+            className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#081C3A]"
+          />
+          <button
+            type="button"
+            disabled={carregandoMercado}
+            onClick={investigarMercadoOrgao}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#081C3A] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+          >
+            {carregandoMercado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-[#F97316]" />}
+            Investigar Mercado Real
+          </button>
+        </div>
+
+        {mercadoResultado && (
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+            {Array.isArray(mercadoResultado.rankingDominante) && mercadoResultado.rankingDominante.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Fornecedores Dominantes no Órgão ({mercadoResultado.rankingDominante.length})
+                </h3>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  {mercadoResultado.rankingDominante.slice(0, 6).map((f: any, idx: number) => (
+                    <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1">
+                      <div className="font-bold text-[#081C3A] truncate" title={f.razaoSocial}>{f.razaoSocial}</div>
+                      <div className="text-[11px] text-slate-500 font-mono">{formatCnpjMask(f.cnpj)}</div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-semibold text-slate-700">{f.totalVitorias} vitória(s)</span>
+                        <span className="font-bold text-emerald-700">{formatarMoeda(f.valorAcumulado)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        Ticket médio: {formatarMoeda(f.ticketMedio)} ·{' '}
+                        {f.descontoMedioReal != null ? `Desconto real: ${Number(f.descontoMedioReal).toFixed(2)}%` : 'Valor estimado não divulgado'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Contratos e Preços Praticados no Mercado ({mercadoResultado.contratosMercado?.length || 0})
+              </h3>
+              {Array.isArray(mercadoResultado.contratosMercado) && mercadoResultado.contratosMercado.length > 0 ? (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                        <th className="py-2 px-3">Órgão</th>
+                        <th className="py-2 px-3">Vencedor</th>
+                        <th className="py-2 px-3">Objeto</th>
+                        <th className="py-2 px-3">Data</th>
+                        <th className="py-2 px-3 text-right">Valor Homologado</th>
+                        <th className="py-2 px-3 text-right">Desconto Real</th>
+                        <th className="py-2 px-3 text-center">Link</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {mercadoResultado.contratosMercado.slice(0, 20).map((c: any, idx: number) => (
+                        <tr key={`${c.id}-${idx}`} className="hover:bg-slate-50/70">
+                          <td className="py-2.5 px-3 font-medium text-slate-800 max-w-[180px] truncate" title={c.orgao}>{c.orgao}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-[#081C3A] max-w-[180px] truncate" title={c.fornecedorNome}>{c.fornecedorNome}</div>
+                            <div className="text-[10px] font-mono text-slate-500">{formatCnpjMask(c.fornecedorCnpj)}</div>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-700 max-w-[240px] truncate" title={c.objeto}>{c.objeto}</td>
+                          <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">
+                            {c.dataAssinatura ? new Date(c.dataAssinatura).toLocaleDateString('pt-BR') : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-[#081C3A] whitespace-nowrap">
+                            {formatarMoeda(c.valorHomologado)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <span className={c.descontoPercentual != null ? 'font-bold text-emerald-700' : 'text-slate-500'}>
+                              {c.statusDesconto}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {c.urlOficial ? (
+                              <a href={c.urlOficial} target="_blank" rel="noreferrer" className="text-[#0070C0] hover:underline inline-flex">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Nenhum contrato/homologação encontrado no PNCP ou Compras.gov.br para os filtros informados.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 5 KPIs do Mockup */}
@@ -282,7 +473,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         {[
           { id: 'ranking', label: 'Ranking de Concorrentes', icon: Award },
-          { id: 'regiao', label: 'Órgãos e Atuacao', icon: MapPin },
+          { id: 'regiao', label: 'Órgãos e Atuação', icon: MapPin },
           { id: 'atividades', label: 'Modalidades Frequentes', icon: Layers },
           { id: 'potencial', label: 'Análise de Potencial', icon: TrendingUp },
         ].map((tab) => {
@@ -311,7 +502,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-sm font-extrabold text-[#081C3A]">
-              Órgãos com Maior Concentracao de Contratos
+              Órgãos com Maior Concentração de Contratos
             </h2>
             {dadosGraficoÓrgãos.length > 0 ? (
               <div className="h-64 w-full">
@@ -326,7 +517,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="text-xs text-slate-500">Sem distribuicao por orgao nos contratos retornados.</p>
+              <p className="text-xs text-slate-500">Sem distribuição por órgão nos contratos retornados.</p>
             )}
           </div>
 
@@ -350,7 +541,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500">Nenhuma modalidade registrada neste periodo.</p>
+              <p className="text-xs text-slate-500">Nenhuma modalidade registrada neste período.</p>
             )}
           </div>
 
@@ -387,7 +578,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                             alto ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                           }`}
                         >
-                          {alto ? 'Alto' : 'Medio'}
+                          {alto ? 'Alto' : 'Médio'}
                         </span>
                       </td>
                       <td className="py-3 pr-3 font-semibold">{d.estatisticas?.totalContratos || 0}</td>
@@ -408,7 +599,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
                 {dossies.flatMap((d) => d.contratos || []).slice(0, 6).map((c) => (
                   <div key={c.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs">
                     <span className="truncate pr-4 font-medium text-slate-700">
-                      {c.orgao || 'Órgão'} — {c.objeto || 'Objeto nao informado'}
+                      {c.orgao || 'Órgão'} — {c.objeto || 'Objeto não informado'}
                     </span>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="font-bold text-[#081C3A]">{formatarMoeda(c.valor)}</span>
@@ -426,7 +617,7 @@ export const HistoricoConcorrentesPage: React.FC = () => {
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-          Adicione um ou mais CNPJs acima e clique em <strong>Consultar Histórico Real</strong> para montar os graficos e o ranking.
+          Adicione um ou mais CNPJs acima e clique em <strong>Consultar Histórico Real</strong> para montar os gráficos e o ranking.
         </div>
       )}
     </div>

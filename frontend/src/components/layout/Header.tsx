@@ -49,7 +49,7 @@ const HEADER_TITLES: Record<string, string> = {
   '/fornecedor/sicaf-credenciamento': 'SICAF e Certificação',
   '/fornecedor/integracoes': 'Integrações Oficiais',
   '/fornecedor/propostas/criar': 'Nova Proposta Comercial',
-  '/fornecedor/expertise-intelligence': 'Inteligência & Malha Fina',
+  '/fornecedor/expertise-intelligence': 'Auditoria de Concorrentes',
 };
 
 export function Header({ onToggleMobileMenu, mobileMenuOpen }: HeaderProps) {

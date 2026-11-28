@@ -486,9 +486,13 @@ export const noticesApi = {
 export const concorrentesApi = {
   descoberta: (params: { cnae?: string; uf?: string; orgaoCnpj?: string }) =>
     api.get('/concorrentes/descoberta', { params }),
+  mercado: (params: { orgao?: string; cnpjOrgao?: string; objeto?: string; cnae?: string }) =>
+    api.get('/concorrentes/mercado', { params }),
   getDossie: (cnpj: string) => api.get(`/concorrentes/${encodeURIComponent(cnpj)}/dossie`),
   malhaFina: (body: { cnpjs: string[]; licitacaoId?: string }) =>
     api.post('/concorrentes/malha-fina', body),
+  extrairAta: (body: { fileBase64?: string; fileName?: string; noticeId?: string; ownCnpj?: string }) =>
+    api.post('/concorrentes/extrair-ata', body, { timeout: 60000 }),
 };
 
 // ─── Gestão Contratual Pós-Vitória (Contratos, Vigências e Reajuste) ─────────

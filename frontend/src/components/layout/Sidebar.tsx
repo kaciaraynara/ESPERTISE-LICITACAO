@@ -255,7 +255,7 @@ export const STRATEGIC_HUBS: StrategicHubConfig[] = [
       { path: '/fornecedor/pca', label: 'Planos de Contratações (PCA)', icon: Compass, requiredFeature: 'radar_editais' },
       { path: FORNECEDOR_ROUTES.score_viabilidade, label: 'Análise de Viabilidade', icon: ChartLineUp, requiredFeature: 'score_oportunidade' },
       { path: FORNECEDOR_ROUTES.historico_concorrentes, label: 'Histórico de Concorrentes', icon: Eye, requiredFeature: 'historico_concorrentes' },
-      { path: '/fornecedor/expertise-intelligence', label: 'Inteligência & Malha Fina', icon: ShieldCheck, requiredFeature: 'inteligencia_concorrentes' },
+      { path: '/fornecedor/expertise-intelligence', label: 'Auditoria de Concorrentes', icon: ShieldCheck, requiredFeature: 'inteligencia_concorrentes' },
     ],
   },
   {

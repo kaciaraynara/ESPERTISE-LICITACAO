@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { prisma } from '../database/prisma';
 import { consultarComprasGovContratos } from './intelligence.service';
 
 type FonteDossie = 'pncp' | 'portal_transparencia' | 'comprasgov';
@@ -531,5 +532,432 @@ function classifyExternalError(error: unknown): {
   return {
     reason: 'unknown',
     message: error instanceof Error ? error.message : 'UNKNOWN_ERROR',
+  };
+}
+
+export interface ContratoMercadoItem {
+  id: string;
+  fonte: 'pncp' | 'comprasgov';
+  orgao: string;
+  cnpjOrgao: string | null;
+  numeroContrato: string | null;
+  numeroControlePncp: string | null;
+  objeto: string;
+  dataAssinatura: string | null;
+  fornecedorNome: string;
+  fornecedorCnpj: string;
+  valorHomologado: number;
+  valorEstimado: number | null;
+  descontoPercentual: number | null;
+  statusDesconto: string;
+  urlOficial: string | null;
+}
+
+export interface FornecedorDominanteItem {
+  cnpj: string;
+  razaoSocial: string;
+  totalVitorias: number;
+  valorAcumulado: number;
+  ticketMedio: number;
+  descontoMedioReal: number | null;
+  amostrasComDesconto: number;
+}
+
+export interface MercadoOrgaoResultado {
+  filtro: {
+    orgao: string | null;
+    cnpjOrgao: string | null;
+    objeto: string | null;
+    cnae: string | null;
+  };
+  contratosMercado: ContratoMercadoItem[];
+  rankingDominante: FornecedorDominanteItem[];
+  descontosDisponiveisCount: number;
+  descontoMedioMercado: number | null;
+  geradoEm: string;
+}
+
+/**
+ * Calcula o desconto real exclusivamente quando valorEstimado > 0 e valorHomologado > 0 existem na fonte oficial.
+ */
+export function calcularDescontoReal(
+  valorEstimado?: number | null,
+  valorHomologado?: number | null,
+): { descontoPercentual: number | null; statusDesconto: string } {
+  const est = Number(valorEstimado);
+  const hom = Number(valorHomologado);
+  if (!Number.isFinite(est) || est <= 0 || !Number.isFinite(hom) || hom <= 0) {
+    return { descontoPercentual: null, statusDesconto: 'Valor estimado não divulgado' };
+  }
+  const pct = Math.round((((est - hom) / est) * 100) * 100) / 100;
+  return {
+    descontoPercentual: pct,
+    statusDesconto: pct >= 0 ? `${pct.toFixed(2)}% abaixo do estimado` : `${Math.abs(pct).toFixed(2)}% acima do estimado`,
+  };
+}
+
+/**
+ * Agrupa contratos reais por fornecedor vencedor para montar o ranking dominante do órgão/segmento.
+ */
+export function buildRankingDominante(contratos: ContratoMercadoItem[]): FornecedorDominanteItem[] {
+  const mapa = new Map<
+    string,
+    {
+      cnpj: string;
+      razaoSocial: string;
+      totalVitorias: number;
+      valorAcumulado: number;
+      descontos: number[];
+    }
+  >();
+
+  for (const c of contratos) {
+    const cnpj = onlyDigits(c.fornecedorCnpj);
+    const key = cnpj || c.fornecedorNome.toUpperCase();
+    const entry = mapa.get(key) ?? {
+      cnpj: cnpj || 'Não informado',
+      razaoSocial: c.fornecedorNome || 'Fornecedor Vencedor',
+      totalVitorias: 0,
+      valorAcumulado: 0,
+      descontos: [],
+    };
+    entry.totalVitorias += 1;
+    entry.valorAcumulado = roundMoney(entry.valorAcumulado + (Number(c.valorHomologado) || 0));
+    if (c.descontoPercentual !== null && Number.isFinite(c.descontoPercentual)) {
+      entry.descontos.push(c.descontoPercentual);
+    }
+    mapa.set(key, entry);
+  }
+
+  return Array.from(mapa.values())
+    .map((e) => ({
+      cnpj: e.cnpj,
+      razaoSocial: e.razaoSocial,
+      totalVitorias: e.totalVitorias,
+      valorAcumulado: e.valorAcumulado,
+      ticketMedio: e.totalVitorias > 0 ? roundMoney(e.valorAcumulado / e.totalVitorias) : 0,
+      descontoMedioReal:
+        e.descontos.length > 0
+          ? Math.round((e.descontos.reduce((s, d) => s + d, 0) / e.descontos.length) * 100) / 100
+          : null,
+      amostrasComDesconto: e.descontos.length,
+    }))
+    .sort((a, b) => b.totalVitorias - a.totalVitorias || b.valorAcumulado - a.valorAcumulado);
+}
+
+export async function investigarMercadoPorOrgaoOuObjeto(params: {
+  orgao?: string;
+  cnpjOrgao?: string;
+  objeto?: string;
+  cnae?: string;
+}): Promise<MercadoOrgaoResultado> {
+  const orgaoInput = String(params.orgao || '').trim();
+  let cnpjOrgao = onlyDigits(params.cnpjOrgao || '');
+  if (cnpjOrgao.length !== 14 && /^\d{14}$/.test(onlyDigits(orgaoInput))) {
+    cnpjOrgao = onlyDigits(orgaoInput);
+  }
+  const objetoInput = String(params.objeto || '').trim();
+  const cnaeInput = String(params.cnae || '').trim();
+
+  // 1. Resolve CNPJ do órgão e editais com valor estimado no PostgreSQL
+  const noticeWhere: any[] = [];
+  if (cnpjOrgao.length === 14) {
+    noticeWhere.push({ buyerDocument: cnpjOrgao });
+  } else if (orgaoInput.length >= 3) {
+    noticeWhere.push({ buyerName: { contains: orgaoInput, mode: 'insensitive' } });
+  }
+  if (objetoInput.length >= 3) {
+    noticeWhere.push({ object: { contains: objetoInput, mode: 'insensitive' } });
+  }
+
+  const editaisRelacionados = noticeWhere.length > 0
+    ? await prisma.procurementNotice
+        .findMany({
+          where: { AND: noticeWhere },
+          orderBy: { publishedAt: 'desc' },
+          take: 40,
+          select: {
+            id: true,
+            numeroControlePncp: true,
+            externalId: true,
+            buyerName: true,
+            buyerDocument: true,
+            object: true,
+            estimatedValue: true,
+            url: true,
+          },
+        })
+        .catch(() => [])
+    : [];
+
+  if (cnpjOrgao.length !== 14) {
+    const foundBuyer = editaisRelacionados.find((e) => onlyDigits(e.buyerDocument || '').length === 14);
+    if (foundBuyer?.buyerDocument) {
+      cnpjOrgao = onlyDigits(foundBuyer.buyerDocument);
+    }
+  }
+
+  const estimativasPorPncp = new Map<string, number>();
+  const estimativasPorObjeto = new Map<string, number>();
+  for (const ed of editaisRelacionados) {
+    const val = Number(ed.estimatedValue || 0);
+    if (val > 0) {
+      if (ed.numeroControlePncp) estimativasPorPncp.set(ed.numeroControlePncp, val);
+      if (ed.externalId) estimativasPorPncp.set(ed.externalId, val);
+      if (ed.object) estimativasPorObjeto.set(ed.object.toLowerCase().slice(0, 60), val);
+    }
+  }
+
+  const contratosMercado: ContratoMercadoItem[] = [];
+  const hoje = new Date();
+  const inicio = new Date(hoje.getTime() - 365 * 24 * 60 * 60 * 1000);
+  const fmtIso = (d: Date) => d.toISOString().slice(0, 10);
+  const fmtPncp = (d: Date) => fmtIso(d).replace(/-/g, '');
+
+  // 2. Consulta Compras.gov.br (itens homologados PNCP 14.133) + PNCP Contratos
+  const tasks: Array<Promise<void>> = [];
+
+  if (cnpjOrgao.length === 14) {
+    tasks.push(
+      axios
+        .get(
+          `https://dadosabertos.compras.gov.br/modulo-contratacoes/3_consultarResultadoItensContratacoes_PNCP_14133`,
+          {
+            params: {
+              pagina: 1,
+              tamanhoPagina: 30,
+              dataResultadoPncpInicial: fmtIso(inicio),
+              dataResultadoPncpFinal: fmtIso(hoje),
+              orgaoEntidadeCnpj: cnpjOrgao,
+            },
+            timeout: 9000,
+          },
+        )
+        .then((res) => {
+          const lista = Array.isArray(res.data?.resultado) ? res.data.resultado : [];
+          for (const c of lista) {
+            const desc = String(c.descricaoItem || c.nomeMaterialOuServico || c.objetoCompra || 'Item homologado').trim();
+            if (objetoInput.length >= 3 && !desc.toLowerCase().includes(objetoInput.toLowerCase())) continue;
+            const pncpCtrl = String(c.numeroControlePNCPCompra || '').trim() || null;
+            const valorHomologado = Number(c.valorTotalHomologado || c.valorUnitarioHomologado || 0);
+            const valorEstDireto = Number(c.valorTotalEstimado || c.valorUnitarioEstimado || 0);
+            const valorEstimado =
+              valorEstDireto > 0
+                ? valorEstDireto
+                : (pncpCtrl ? estimativasPorPncp.get(pncpCtrl) : undefined) ??
+                  estimativasPorObjeto.get(desc.toLowerCase().slice(0, 60)) ??
+                  null;
+            const descCalc = calcularDescontoReal(valorEstimado, valorHomologado);
+            const fornCnpj = onlyDigits(String(c.niFornecedor || ''));
+            if (!fornCnpj && !c.nomeRazaoSocialFornecedor) continue;
+
+            contratosMercado.push({
+              id: String(c.idCompra || pncpCtrl || `cg-${contratosMercado.length}`),
+              fonte: 'comprasgov',
+              orgao: String(c.orgaoEntidadeRazaoSocial || editaisRelacionados[0]?.buyerName || `Órgão ${cnpjOrgao}`),
+              cnpjOrgao,
+              numeroContrato: c.numeroControlePNCPCompra || null,
+              numeroControlePncp: pncpCtrl,
+              objeto: desc,
+              dataAssinatura: c.dataResultado || c.dataResultadoPncp || null,
+              fornecedorNome: String(c.nomeRazaoSocialFornecedor || `Empresa ${fornCnpj}`).trim(),
+              fornecedorCnpj: fornCnpj,
+              valorHomologado: roundMoney(valorHomologado),
+              valorEstimado: valorEstimado ? roundMoney(valorEstimado) : null,
+              descontoPercentual: descCalc.descontoPercentual,
+              statusDesconto: descCalc.statusDesconto,
+              urlOficial: pncpCtrl ? `https://pncp.gov.br/app/editais?q=${encodeURIComponent(pncpCtrl)}` : null,
+            });
+          }
+        })
+        .catch(() => undefined),
+    );
+
+    tasks.push(
+      pncpConsultaApi
+        .get('/contratos', {
+          params: {
+            dataInicial: fmtPncp(inicio),
+            dataFinal: fmtPncp(hoje),
+            pagina: 1,
+            tamanhoPagina: 25,
+            cnpjOrgao,
+          },
+        })
+        .then((res) => {
+          const lista = Array.isArray(res.data?.data) ? res.data.data : [];
+          for (const raw of lista) {
+            const obj = String(raw.objetoContrato || raw.objeto || 'Contrato Público').trim();
+            if (objetoInput.length >= 3 && !obj.toLowerCase().includes(objetoInput.toLowerCase())) continue;
+            const pncpCtrl = String(raw.numeroControlePncpCompra || raw.numeroControlePNCP || '').trim() || null;
+            const valorHomologado = Number(raw.valorGlobal || raw.valorInicial || 0);
+            const valorEstimado =
+              (pncpCtrl ? estimativasPorPncp.get(pncpCtrl) : undefined) ??
+              estimativasPorObjeto.get(obj.toLowerCase().slice(0, 60)) ??
+              null;
+            const descCalc = calcularDescontoReal(valorEstimado, valorHomologado);
+            const fornCnpj = onlyDigits(String(raw.niFornecedor || ''));
+
+            contratosMercado.push({
+              id: String(raw.numeroControlePncp || raw.id || `pncp-${contratosMercado.length}`),
+              fonte: 'pncp',
+              orgao: String(raw.orgaoEntidade?.razaoSocial || editaisRelacionados[0]?.buyerName || `Órgão ${cnpjOrgao}`),
+              cnpjOrgao,
+              numeroContrato: raw.numeroContratoEmpenho || raw.numeroContrato || null,
+              numeroControlePncp: pncpCtrl,
+              objeto: obj,
+              dataAssinatura: raw.dataAssinatura || raw.dataPublicacaoPncp || null,
+              fornecedorNome: String(raw.nomeRazaoSocialFornecedor || `Empresa ${fornCnpj || 'Vencedora'}`).trim(),
+              fornecedorCnpj: fornCnpj,
+              valorHomologado: roundMoney(valorHomologado),
+              valorEstimado: valorEstimado ? roundMoney(valorEstimado) : null,
+              descontoPercentual: descCalc.descontoPercentual,
+              statusDesconto: descCalc.statusDesconto,
+              urlOficial: buildPncpContratoUrl(raw),
+            });
+          }
+        })
+        .catch(() => undefined),
+    );
+  }
+
+  await Promise.allSettled(tasks);
+
+  const rankingDominante = buildRankingDominante(contratosMercado);
+  const comDesconto = contratosMercado.filter((c) => c.descontoPercentual !== null);
+  const descontoMedioMercado =
+    comDesconto.length > 0
+      ? Math.round((comDesconto.reduce((s, c) => s + Number(c.descontoPercentual), 0) / comDesconto.length) * 100) / 100
+      : null;
+
+  return {
+    contratosMercado: contratosMercado.slice(0, 50),
+    rankingDominante: rankingDominante.slice(0, 20),
+    descontosDisponiveisCount: comDesconto.length,
+    descontoMedioMercado,
+    filtro: {
+      orgao: orgaoInput || null,
+      cnpjOrgao: cnpjOrgao || null,
+      objeto: objetoInput || null,
+      cnae: cnaeInput || null,
+    },
+    geradoEm: new Date().toISOString(),
+  };
+}
+
+export interface ParticipanteExtraidoAta {
+  cnpj: string;
+  cnpjFormatado: string;
+  razaoSocial: string | null;
+}
+
+/**
+ * Valida os 2 dígitos verificadores de um CNPJ (Módulo 11 oficial da Receita Federal).
+ */
+export function validarCnpjDigitos(raw: string): boolean {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+
+  const calcDigit = (base: string, weights: number[]): number => {
+    let sum = 0;
+    for (let i = 0; i < weights.length; i += 1) {
+      sum += Number(base[i]) * weights[i];
+    }
+    const rem = sum % 11;
+    return rem < 2 ? 0 : 11 - rem;
+  };
+
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const d1 = calcDigit(digits.slice(0, 12), w1);
+  if (d1 !== Number(digits[12])) return false;
+  const d2 = calcDigit(digits.slice(0, 13), w2);
+  return d2 === Number(digits[13]);
+}
+
+function formatarCnpjMask(digits: string): string {
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+}
+
+function limparRazaoSocialCandidata(raw: string): string | null {
+  const cleaned = raw
+    .replace(/^\s*\d+\s*[-–—.)]+\s*/, '')
+    .replace(/\b(CNPJ|CPF|LICITANTE|FORNECEDOR|RAZ[ÃA]O SOCIAL|PROPONENTE|VENCEDOR(?:A)?|ITEM|LOTE|VALOR)\b[:\s-]*/gi, ' ')
+    .replace(/^\s*EMPRESA\s*:\s*/i, '')
+    .replace(/^[\s\-–—:|/.,;()]+|[\s\-–—:|/,;()]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleaned.length < 4 || cleaned.length > 120) return null;
+  if (!/[A-Za-zÀ-ÖØ-öø-ÿ]{3,}/.test(cleaned)) return null;
+  if (/^\d+([.,]\d+)?$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+/**
+ * Extrai CNPJs válidos (14 dígitos + dígito verificador) de texto de Ata de Sessão / Termo de Julgamento,
+ * removendo duplicidades e o CNPJ da própria empresa usuária quando informado.
+ */
+export function extrairCnpjsDeTextoAta(
+  texto: string,
+  ownCnpj?: string | null,
+): ParticipanteExtraidoAta[] {
+  const source = String(texto || '');
+  if (!source.trim()) return [];
+
+  const ownNormalized = String(ownCnpj || '').replace(/\D/g, '');
+  const regex = /(?<!\d)(?:\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{14})(?!\d)/g;
+  const seen = new Map<string, ParticipanteExtraidoAta>();
+
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) {
+    const rawMatch = match[0];
+    const digits = rawMatch.replace(/\D/g, '');
+    if (!validarCnpjDigitos(digits)) continue;
+    if (ownNormalized.length === 14 && digits === ownNormalized) continue;
+
+    if (seen.has(digits)) continue;
+
+    // Tenta extrair Razão Social na mesma linha (antes ou depois do CNPJ)
+    const lineStart = source.lastIndexOf('\n', match.index) + 1;
+    const nextNewline = source.indexOf('\n', match.index + rawMatch.length);
+    const lineEnd = nextNewline === -1 ? source.length : nextNewline;
+    const before = source.slice(lineStart, match.index);
+    const after = source.slice(match.index + rawMatch.length, lineEnd);
+
+    let razaoSocial =
+      limparRazaoSocialCandidata(after) ??
+      limparRazaoSocialCandidata(before);
+
+    if (!razaoSocial && lineStart > 1) {
+      const prevLineStart = source.lastIndexOf('\n', lineStart - 2) + 1;
+      const prevLine = source.slice(prevLineStart, lineStart - 1);
+      if (/raz[ãa]o\s+social|fornecedor|licitante|empresa/i.test(prevLine)) {
+        razaoSocial = limparRazaoSocialCandidata(prevLine);
+      }
+    }
+
+    seen.set(digits, {
+      cnpj: digits,
+      cnpjFormatado: formatarCnpjMask(digits),
+      razaoSocial,
+    });
+  }
+
+  return Array.from(seen.values());
+}
+
+/**
+ * Extrai texto de um buffer PDF usando pdf-parse com compatibilidade CJS/ESM.
+ */
+export async function extrairTextoPdfBuffer(buf: Buffer): Promise<{ text: string; numPages: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pdfParseModule: any = require('pdf-parse');
+  const pdfFn = typeof pdfParseModule === 'function' ? pdfParseModule : pdfParseModule?.default || pdfParseModule;
+  const data = await pdfFn(buf);
+  return {
+    text: String(data?.text || '').trim(),
+    numPages: Number(data?.numpages || 1),
   };
 }

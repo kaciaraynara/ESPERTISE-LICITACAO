@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert,
   Plus,
@@ -12,9 +13,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Cpu,
+  Upload,
+  FileText,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api from '@/services/api';
+import api, { concorrentesApi } from '@/services/api';
+import { useCompany } from '@/contexts/CompanyContext';
 import { formatCnpjMask, isValidCnpj, sanitizeCnpj } from '@/utils/cnpj';
 
 function escapeHtml(text: string): string {
@@ -26,11 +30,15 @@ function escapeHtml(text: string): string {
 }
 
 export const ExpertiseIntelligencePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { selectedCompany } = useCompany();
+  const ataInputRef = useRef<HTMLInputElement | null>(null);
   const [cnpjs, setCnpjs] = useState<string[]>(['', '']);
   const [processoRef, setProcessoRef] = useState('');
   const [codigoCatmat, setCodigoCatmat] = useState('');
   const [aba, setAba] = useState<'geral' | 'motores' | 'grafo' | 'cruzamento' | 'defesa'>('geral');
   const [carregando, setCarregando] = useState(false);
+  const [extraindoAta, setExtraindoAta] = useState(false);
   const [resultado, setResultado] = useState<any | null>(null);
 
   const atualizarCnpj = (idx: number, val: string) => {
@@ -52,8 +60,9 @@ export const ExpertiseIntelligencePage: React.FC = () => {
     setCnpjs(cnpjs.filter((_, i) => i !== idx));
   };
 
-  const executarInteligencia = async () => {
-    const validos = cnpjs
+  const executarInteligencia = async (cnpjsOverride?: string[] | React.MouseEvent) => {
+    const listaBase = Array.isArray(cnpjsOverride) ? cnpjsOverride : cnpjs;
+    const validos = listaBase
       .map((c) => sanitizeCnpj(c))
       .filter((c) => isValidCnpj(c, { optional: false }));
 
@@ -80,6 +89,109 @@ export const ExpertiseIntelligencePage: React.FC = () => {
     } finally {
       setCarregando(false);
     }
+  };
+
+  const handleImportarAtaPdf = async (file?: File) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      toast.error('Selecione um arquivo PDF válido da Ata da Sessão ou Termo de Julgamento.');
+      return;
+    }
+
+    setExtraindoAta(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Falha ao ler arquivo PDF'));
+        reader.readAsDataURL(file);
+      });
+
+      const resp = await concorrentesApi.extrairAta({
+        fileBase64: base64,
+        fileName: file.name,
+        ownCnpj: selectedCompany?.cnpj,
+      });
+
+      const extraidos: string[] = (resp.data?.data?.cnpjs || []).slice(0, 12);
+      if (extraidos.length === 0) {
+        toast.error('Nenhum CNPJ de concorrente válido foi encontrado neste PDF.');
+        return;
+      }
+
+      setCnpjs(extraidos);
+      toast.success(`${extraidos.length} CNPJ(s) extraído(s) da Ata. Iniciando auditoria automática...`);
+      await executarInteligencia(extraidos);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao processar o PDF da Ata.');
+    } finally {
+      setExtraindoAta(false);
+      if (ataInputRef.current) ataInputRef.current.value = '';
+    }
+  };
+
+  const temAchadosRelevantes = Boolean(
+    resultado &&
+      ((Array.isArray(resultado.indiciosOperacionais) && resultado.indiciosOperacionais.length > 0) ||
+        (Array.isArray(resultado.indicios) && resultado.indicios.length > 0) ||
+        (Array.isArray(resultado.conexoes) && resultado.conexoes.length > 0)),
+  );
+
+  const handleGerarRecursoComProvas = () => {
+    if (!resultado) return;
+    const linhasFatos: string[] = [];
+
+    if (Array.isArray(resultado.empresas) && resultado.empresas.length > 0) {
+      linhasFatos.push(
+        'EMPRESAS AUDITADAS:',
+        ...resultado.empresas.map(
+          (e: any) =>
+            `- ${e.razaoSocial} (CNPJ ${formatCnpjMask(e.cnpj)}) | Endereço RFB: ${e.endereco || 'Não informado'} | Sócios: ${(e.socios || []).join(', ') || 'Não informados'} | TCU: ${e.tcuStatus} | CGU: ${e.cguStatus}`,
+        ),
+      );
+    }
+
+    if (Array.isArray(resultado.indiciosOperacionais) && resultado.indiciosOperacionais.length > 0) {
+      linhasFatos.push(
+        '',
+        'INDÍCIOS OPERACIONAIS DETECTADOS (RECEITA FEDERAL / QSA):',
+        ...resultado.indiciosOperacionais.map(
+          (op: any) => `- [${op.severidade}] ${op.titulo}: ${op.descricao} (${op.baseLegal})`,
+        ),
+      );
+    }
+
+    if (Array.isArray(resultado.indicios) && resultado.indicios.length > 0) {
+      linhasFatos.push(
+        '',
+        'ACHADOS DE INTEGRIDADE E CONEXÕES SOCIETÁRIAS:',
+        ...resultado.indicios.map((ind: any) => `- [${ind.severidade}] ${ind.titulo}: ${ind.detalhe}`),
+      );
+    }
+
+    if (Array.isArray(resultado.conexoes) && resultado.conexoes.length > 0) {
+      linhasFatos.push(
+        '',
+        'CONEXÕES MAPEADAS:',
+        ...resultado.conexoes.map((c: any) => `- ${c.tipo}: ${c.origem} <-> ${c.destino} (${c.detalhe})`),
+      );
+    }
+
+    linhasFatos.push(
+      '',
+      'FUNDAMENTAÇÃO JURÍDICA SUGERIDA:',
+      '- Art. 14, Art. 155 e Art. 165 da Lei nº 14.133/2021; Art. 36 da Lei nº 12.529/2011; Acórdão nº 1.793/2011-Plenário TCU (indícios múltiplos de conluio, identidade de endereço, telefone, sócios ou parentesco).',
+    );
+
+    const payload = {
+      orgao: '',
+      numeroProcesso: processoRef.trim() || '',
+      objeto: 'Apuração de indícios objetivos de vínculo societário/operacional entre licitantes',
+      motivos: linhasFatos.join('\n'),
+    };
+
+    sessionStorage.setItem('expertise_recurso_provas_auditoria', JSON.stringify(payload));
+    navigate('/fornecedor/recursos', { state: { provasAuditoria: payload } });
   };
 
   const baixarRelatorioPdf = () => {
@@ -149,14 +261,30 @@ export const ExpertiseIntelligencePage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-[#081C3A]">
-              Expertise Intelligence — Radar de Integridade Licitatoria
+              Auditoria de Concorrentes
             </h1>
             <p className="text-xs text-slate-500">
-              Cruzamento automatizado de QSA, vinculos societarios, sancoes (CGU/TCU) e anomalias economicas sob a Lei 14.133/2021
+              Investigue concorrentes da sessão (sócios em comum, mesmo endereço, parentesco e sanções no TCU/CGU) para embasar inabilitação ou recurso (Art. 165).
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <input
+            ref={ataInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => handleImportarAtaPdf(e.target.files?.[0])}
+          />
+          <button
+            type="button"
+            onClick={() => ataInputRef.current?.click()}
+            disabled={extraindoAta || carregando}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#F97316] px-3.5 py-2 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-60"
+          >
+            {extraindoAta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Importar Ata da Sessão (PDF)
+          </button>
           <button
             type="button"
             onClick={adicionarCnpj}
@@ -165,6 +293,16 @@ export const ExpertiseIntelligencePage: React.FC = () => {
             <Plus className="h-4 w-4" />
             Adicionar CNPJ
           </button>
+          {temAchadosRelevantes && (
+            <button
+              type="button"
+              onClick={handleGerarRecursoComProvas}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-600 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100"
+            >
+              <FileText className="h-4 w-4" />
+              Gerar Recurso com Estas Provas (Art. 165)
+            </button>
+          )}
           {resultado && (
             <button
               type="button"
@@ -376,7 +514,7 @@ export const ExpertiseIntelligencePage: React.FC = () => {
                 {Array.isArray(resultado.indiciosOperacionais) && resultado.indiciosOperacionais.length > 0 && (
                   <div>
                     <h2 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
-                      <ShieldAlert className="h-4 w-4 text-[#F97316]" /> Malha Fina 2.0 — Indícios Operacionais
+                      <ShieldAlert className="h-4 w-4 text-[#F97316]" /> Auditoria de Concorrentes — Indícios Operacionais
                     </h2>
                     <div className="space-y-2 text-xs">
                       {resultado.indiciosOperacionais.map((op: any, i: number) => {

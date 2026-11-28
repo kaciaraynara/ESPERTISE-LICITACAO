@@ -15,7 +15,13 @@ import { Response } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../shared/middlewares/auth.middleware';
 import { normalizarCnpj } from '../services/cnpj.service';
-import { ConcorrentesService } from '../services/concorrentes.service';
+import {
+  ConcorrentesService,
+  extrairCnpjsDeTextoAta,
+  extrairTextoPdfBuffer,
+  investigarMercadoPorOrgaoOuObjeto,
+} from '../services/concorrentes.service';
+import { prisma } from '../database/prisma';
 import { ReceitaFederalServiceError, ReceitaService } from '../services/receita.service';
 import { analisarConluioSocietario } from '../utils/analiseFraude.util';
 
@@ -331,6 +337,9 @@ export class ConcorrentesController {
             .join(', '),
           enderecoChave: enderecoNormalizado,
           cep: brasilData?.cep || '',
+          telefones: [brasilData?.ddd_telefone_1, brasilData?.ddd_telefone_2]
+            .map((t) => String(t || '').replace(/\D/g, ''))
+            .filter((t) => t.length >= 8),
           socios,
           tcuStatus,
           tcuAlerta,
@@ -429,6 +438,90 @@ export class ConcorrentesController {
         }
       }
 
+      const indiciosOperacionais: Array<{
+        tipo: 'MESMO_ENDERECO' | 'MESMO_CEP' | 'MESMO_TELEFONE' | 'PARENTESCO_PROVAVEL';
+        severidade: 'ALTA' | 'MEDIA';
+        titulo: string;
+        descricao: string;
+        baseLegal: string;
+        empresasEnvolvidas: string[];
+      }> = [];
+
+      const sufixosNome = new Set(['JUNIOR', 'FILHO', 'NETO', 'SOBRINHO', 'SEGUNDO', 'TERCEIRO']);
+      const extrairSobrenome = (nome: string): string => {
+        const tokens = nome
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/[^A-Z\s]/g, ' ')
+          .split(/\s+/)
+          .filter(Boolean);
+        while (tokens.length > 1 && sufixosNome.has(tokens[tokens.length - 1])) {
+          tokens.pop();
+        }
+        return tokens.length >= 2 ? tokens[tokens.length - 1] : '';
+      };
+
+      for (let i = 0; i < empresas.length; i++) {
+        for (let j = i + 1; j < empresas.length; j++) {
+          const empA = empresas[i];
+          const empB = empresas[j];
+
+          if (empA.enderecoChave && empB.enderecoChave && empA.enderecoChave === empB.enderecoChave) {
+            indiciosOperacionais.push({
+              tipo: 'MESMO_ENDERECO',
+              severidade: 'ALTA',
+              titulo: 'Mesmo endereço físico na Receita Federal',
+              descricao: `${empA.razaoSocial} (${empA.cnpj}) e ${empB.razaoSocial} (${empB.cnpj}) compartilham o mesmo endereço (${empA.endereco}).`,
+              baseLegal: 'Acórdão nº 1.793/2011-Plenário TCU e Art. 14 da Lei 14.133/2021',
+              empresasEnvolvidas: [empA.cnpj, empB.cnpj],
+            });
+          } else if (empA.cep && empB.cep && empA.cep === empB.cep) {
+            indiciosOperacionais.push({
+              tipo: 'MESMO_CEP',
+              severidade: 'MEDIA',
+              titulo: 'Mesmo CEP de sede',
+              descricao: `${empA.razaoSocial} (${empA.cnpj}) e ${empB.razaoSocial} (${empB.cnpj}) estão registradas no mesmo CEP (${empA.cep}).`,
+              baseLegal: 'Acórdão nº 1.793/2011-Plenário TCU',
+              empresasEnvolvidas: [empA.cnpj, empB.cnpj],
+            });
+          }
+
+          const telComum = (empA.telefones || []).find((t: string) => (empB.telefones || []).includes(t));
+          if (telComum) {
+            indiciosOperacionais.push({
+              tipo: 'MESMO_TELEFONE',
+              severidade: 'ALTA',
+              titulo: 'Telefone de contato idêntico na RFB',
+              descricao: `${empA.razaoSocial} (${empA.cnpj}) e ${empB.razaoSocial} (${empB.cnpj}) informam o mesmo telefone (${telComum}) no cadastro da Receita Federal.`,
+              baseLegal: 'Acórdão nº 1.793/2011-Plenário TCU e Art. 36 da Lei 12.529/2011',
+              empresasEnvolvidas: [empA.cnpj, empB.cnpj],
+            });
+          }
+
+          const parentescoDetectado = new Set<string>();
+          for (const sA of empA.socios || []) {
+            const sobA = extrairSobrenome(sA);
+            if (!sobA || sobA.length < 3) continue;
+            for (const sB of empB.socios || []) {
+              if (sA === sB) continue;
+              const sobB = extrairSobrenome(sB);
+              if (sobA === sobB && !parentescoDetectado.has(sobA)) {
+                parentescoDetectado.add(sobA);
+                indiciosOperacionais.push({
+                  tipo: 'PARENTESCO_PROVAVEL',
+                  severidade: 'MEDIA',
+                  titulo: `Provável parentesco entre sócios (${sobA})`,
+                  descricao: `${sA} (${empA.razaoSocial}) e ${sB} (${empB.razaoSocial}) compartilham o sobrenome "${sobA}".`,
+                  baseLegal: 'Acórdão nº 1.793/2011-Plenário TCU e Acórdão nº 2.971/2014-Plenário TCU',
+                  empresasEnvolvidas: [empA.cnpj, empB.cnpj],
+                });
+              }
+            }
+          }
+        }
+      }
+
       const pesos = indicios.reduce(
         (acc, item) => acc + (item.severidade === 'ELEVADO' ? 28 : item.severidade === 'MODERADO' ? 15 : 6),
         0
@@ -465,6 +558,7 @@ export class ConcorrentesController {
           empresas,
           conexoes,
           indicios,
+          indiciosOperacionais,
           motores: motoRes,
           precoReferencia: precoRef,
           linhasDefesa,
@@ -535,6 +629,27 @@ export class ConcorrentesController {
     }
   }
 
+  async mercado(req: AuthRequest, res: Response) {
+    try {
+      const orgao = String(req.query.orgao || '').trim() || undefined;
+      const cnpjOrgao = String(req.query.cnpjOrgao || '').trim() || undefined;
+      const objeto = String(req.query.objeto || '').trim() || undefined;
+      const cnae = String(req.query.cnae || '').trim() || undefined;
+
+      if (!orgao && !cnpjOrgao && !objeto) {
+        return res.status(400).json({
+          success: false,
+          message: 'Informe o nome/CNPJ do órgão comprador ou o objeto do edital para investigar o mercado.',
+        });
+      }
+
+      const data = await investigarMercadoPorOrgaoOuObjeto({ orgao, cnpjOrgao, objeto, cnae });
+      return res.json({ success: true, data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || 'Erro ao consultar mercado do órgão.' });
+    }
+  }
+
   async descoberta(req: AuthRequest, res: Response) {
     try {
       const cnae = String(req.query.cnae || '').trim();
@@ -555,6 +670,91 @@ export class ConcorrentesController {
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err?.message || 'Erro ao descobrir concorrentes' });
+    }
+  }
+
+  async extrairAta(req: AuthRequest, res: Response) {
+    try {
+      const fileBuffer = (req as any).file?.buffer as Buffer | undefined;
+      const fileBase64Raw = String(req.body?.fileBase64 || '').trim();
+      const fileName = String((req as any).file?.originalname || req.body?.fileName || 'ata-sessao.pdf').trim();
+      const noticeId = String(req.body?.noticeId || '').trim();
+      let ownCnpj = String(req.body?.ownCnpj || '').replace(/\D/g, '');
+
+      if (!ownCnpj && req.user?.tenantId) {
+        const company = await prisma.company.findFirst({
+          where: { tenantId: req.user.tenantId },
+          select: { cnpj: true },
+        }).catch(() => null);
+        if (company?.cnpj) {
+          ownCnpj = String(company.cnpj).replace(/\D/g, '');
+        }
+      }
+
+      let textoExtraido = '';
+      let numPages = 0;
+      let origem = 'pdf_upload';
+
+      if (fileBuffer && fileBuffer.length > 0) {
+        const parsed = await extrairTextoPdfBuffer(fileBuffer);
+        textoExtraido = parsed.text;
+        numPages = parsed.numPages;
+      } else if (fileBase64Raw) {
+        const cleanedB64 = fileBase64Raw.replace(/^data:application\/pdf;base64,/i, '').replace(/\s+/g, '');
+        const buffer = Buffer.from(cleanedB64, 'base64');
+        if (!buffer.length) {
+          return res.status(400).json({ success: false, message: 'Arquivo PDF inválido ou vazio.' });
+        }
+        const parsed = await extrairTextoPdfBuffer(buffer);
+        textoExtraido = parsed.text;
+        numPages = parsed.numPages;
+      } else if (noticeId) {
+        origem = 'notice_chunks';
+        const chunks = await prisma.documentChunk.findMany({
+          where: { sourceId: noticeId },
+          orderBy: { chunkIndex: 'asc' },
+          select: { content: true },
+          take: 100,
+        });
+        textoExtraido = chunks.map((c) => c.content).join('\n');
+        if (!textoExtraido.trim()) {
+          const notice = await prisma.procurementNotice.findUnique({
+            where: { id: noticeId },
+            select: { object: true, buyerName: true, buyerDocument: true },
+          });
+          textoExtraido = [notice?.buyerName, notice?.buyerDocument, notice?.object].filter(Boolean).join('\n');
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Envie o arquivo PDF da Ata da Sessão (fileBase64) ou informe o noticeId.',
+        });
+      }
+
+      if (!textoExtraido.trim()) {
+        return res.status(422).json({
+          success: false,
+          message: 'Não foi possível extrair texto pesquisável do PDF informado (arquivo pode ser imagem escaneada).',
+        });
+      }
+
+      const participantes = extrairCnpjsDeTextoAta(textoExtraido, ownCnpj || null);
+      return res.json({
+        success: true,
+        data: {
+          origem,
+          fileName,
+          numPages,
+          totalExtraidos: participantes.length,
+          participantes,
+          cnpjs: participantes.map((p) => p.cnpjFormatado),
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        message: err?.message || 'Erro ao extrair CNPJs da Ata da Sessão.',
+      });
     }
   }
 

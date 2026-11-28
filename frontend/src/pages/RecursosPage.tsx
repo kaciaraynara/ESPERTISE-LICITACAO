@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Upload,
   FileText,
@@ -21,6 +22,7 @@ import {
 } from '../utils/legalPdfGenerator';
 
 export default function RecursosPage() {
+  const location = useLocation();
   const { selectedCompany } = useCompany();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -34,6 +36,28 @@ export default function RecursosPage() {
   const [minutaGerada, setMinutaGerada] = useState('');
   const [copiado, setCopiado] = useState(false);
   const [gerandoIa, setGerandoIa] = useState(false);
+
+  useEffect(() => {
+    const statePayload = (location.state as any)?.provasAuditoria;
+    let payload = statePayload;
+    if (!payload) {
+      try {
+        const raw = sessionStorage.getItem('expertise_recurso_provas_auditoria');
+        if (raw) payload = JSON.parse(raw);
+      } catch {
+        payload = null;
+      }
+    }
+    if (payload && (payload.motivos || payload.numeroProcesso || payload.orgao)) {
+      if (payload.orgao) setOrgao(String(payload.orgao));
+      if (payload.numeroProcesso) setNumeroProcesso(String(payload.numeroProcesso));
+      if (payload.objeto) setObjeto(String(payload.objeto));
+      if (payload.motivos) setMotivos(String(payload.motivos));
+      setEtapaAnalise(3);
+      sessionStorage.removeItem('expertise_recurso_provas_auditoria');
+      toast.success('Provas da Auditoria de Concorrentes carregadas na minuta de Recurso (Art. 165).');
+    }
+  }, [location.state]);
 
   const handleSelecionarArquivo = (file?: File) => {
     if (!file) return;

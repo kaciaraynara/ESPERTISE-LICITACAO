@@ -30,6 +30,13 @@ router.get(
 );
 
 router.get(
+  '/mercado',
+  fornecedor,
+  planCompetitorHistoryFeature,
+  handle(controller.mercado.bind(controller) as unknown as RequestHandler),
+);
+
+router.get(
   '/:cnpj/dossie',
   fornecedor,
     handle(controller.dossie.bind(controller) as RequestHandler),
@@ -39,6 +46,12 @@ router.post(
   '/integridade',
   fornecedor,
   handle(controller.integridade.bind(controller) as unknown as RequestHandler),
+);
+
+router.post(
+  '/extrair-ata',
+  fornecedor,
+  handle(controller.extrairAta.bind(controller) as unknown as RequestHandler),
 );
 
 router.post(
