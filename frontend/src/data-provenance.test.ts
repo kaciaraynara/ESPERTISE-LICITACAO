@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { concorrentesApi, dashboardApi } from './services/api';
-import RadarDeEditais from './pages/RadarDeEditais';
+import LicitacoesPage from './pages/LicitacoesPage';
 import { HistoricoConcorrentesPage } from './pages/HistoricoConcorrentesPage';
 import { ScoreOportunidadesPage } from './pages/ScoreOportunidades/ScoreOportunidadesPage';
 import DashboardPage from './pages/DashboardPage';
@@ -17,8 +17,8 @@ describe('Data Provenance & Security of Metrics Contracts', () => {
     expect(typeof dashboardApi.getMetrics).toBe('function');
   });
 
-  it('RadarDeEditais is a valid React component function that does not return null', () => {
-    expect(typeof RadarDeEditais).toBe('function');
+  it('LicitacoesPage is a valid React component function that does not return null', () => {
+    expect(typeof LicitacoesPage).toBe('function');
   });
 
   it('HistoricoConcorrentesPage is a valid React component function', () => {

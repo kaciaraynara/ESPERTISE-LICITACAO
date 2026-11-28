@@ -148,7 +148,7 @@ export const LeitorEditaisPage: React.FC = () => {
     Promise.allSettled([
       noticesApi.getBasicSummary(selectedEditalId),
       noticesApi.getById(selectedEditalId),
-      api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=80' + companyQuery).catch(() => null),
+      api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=500' + companyQuery).catch(() => null),
     ])
       .then(([basicRes, detailRes, chunksRes]) => {
         if (!active) return;
@@ -601,16 +601,62 @@ export const LeitorEditaisPage: React.FC = () => {
                           selectedEditalData?.object ||
                           'Objeto oficial conforme registro do certame.'}
                       </p>
-                      {fichaSpecs?.resumoExplicado && (
+                      {fichaSpecs?.explicacaoProfessor ? (
+                        <div className="mt-5 pt-5 border-t border-slate-200 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                              <h3 className="text-sm font-black uppercase tracking-wider text-[#0B192C]">
+                                Explicação Completa do Edital (Aula Prática do Certame)
+                              </h3>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Tradução didática de todas as regras do certame baseada exclusivamente nos documentos oficiais lidos.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3">
+                            {[
+                              fichaSpecs.explicacaoProfessor.bloco1ObjetoPratico,
+                              fichaSpecs.explicacaoProfessor.bloco2DisputaEPrazos,
+                              fichaSpecs.explicacaoProfessor.bloco3HabilitacaoCompleta,
+                              fichaSpecs.explicacaoProfessor.bloco4GarantiasECustosOcultos,
+                              fichaSpecs.explicacaoProfessor.bloco5EntregaPagamentoVigenciaPenalidades,
+                              fichaSpecs.explicacaoProfessor.bloco6BeneficiosMeEppEstrategia,
+                              fichaSpecs.explicacaoProfessor.bloco7PontosCriticosEFormalismo,
+                            ]
+                              .filter(Boolean)
+                              .map((bloco: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 className="text-xs sm:text-sm font-extrabold text-[#0B192C]">
+                                      {bloco.titulo}
+                                    </h4>
+                                    {bloco.referenciaFonte && (
+                                      <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full">
+                                        {bloco.referenciaFonte}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs sm:text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+                                    {bloco.resumoDidatico}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ) : fichaSpecs?.resumoExplicado ? (
                         <div className="mt-4 pt-4 border-t border-slate-100">
                           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                            Parecer Executivo & Leitura Pr\u00e1tica do Edital
+                            Parecer Executivo & Leitura Prática do Edital
                           </h3>
                           <p className="text-xs sm:text-sm text-slate-700 whitespace-pre-line leading-relaxed bg-slate-50 border border-slate-200 rounded-xl p-4">
                             {fichaSpecs.resumoExplicado}
                           </p>
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
@@ -700,13 +746,13 @@ export const LeitorEditaisPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {fichaSpecs?.disputaEExecucao?.trechoComprovante && (
+                    {(fichaSpecs?.trechosLiterais?.disputaEPrazos || fichaSpecs?.disputaEExecucao?.trechoComprovante) && (
                       <div className="pt-4 border-t border-slate-100 space-y-1.5">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                           Trecho comprobatório no documento oficial
                         </span>
                         <blockquote className="text-xs font-mono text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200 leading-relaxed">
-                          {fichaSpecs.disputaEExecucao.trechoComprovante}
+                          {fichaSpecs?.trechosLiterais?.disputaEPrazos || fichaSpecs?.disputaEExecucao?.trechoComprovante}
                         </blockquote>
                       </div>
                     )}
@@ -802,6 +848,17 @@ export const LeitorEditaisPage: React.FC = () => {
                         {secoes?.condicoesEntregaExecucao?.detalhesCatalogo || 'Não exigido nos arquivos analisados.'}
                       </p>
                     </div>
+
+                    {fichaSpecs?.trechosLiterais?.entregaEExecucao && (
+                      <div className="pt-4 space-y-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Trecho Literal Extraído do Capítulo Oficial
+                        </span>
+                        <blockquote className="text-xs font-mono text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200 leading-relaxed whitespace-pre-line">
+                          {fichaSpecs.trechosLiterais.entregaEExecucao}
+                        </blockquote>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -869,6 +926,53 @@ export const LeitorEditaisPage: React.FC = () => {
                         {secoes?.documentosExigidosHabilitacao?.registroConselhoOuAlvara || 'Não exigido nos arquivos analisados'}
                       </p>
                     </div>
+
+                    {(fichaSpecs?.trechosLiterais?.habilitacaoJuridica ||
+                      fichaSpecs?.trechosLiterais?.regularidadeFiscal ||
+                      fichaSpecs?.trechosLiterais?.qualificacaoEconomica ||
+                      fichaSpecs?.trechosLiterais?.qualificacaoTecnica) && (
+                        <div className="pt-4 space-y-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                            Trechos Literais Extraídos dos Capítulos de Habilitação
+                          </span>
+                          <div className="space-y-2">
+                            {[
+                              { label: 'Habilitação Jurídica', txt: fichaSpecs?.trechosLiterais?.habilitacaoJuridica },
+                              { label: 'Regularidade Fiscal', txt: fichaSpecs?.trechosLiterais?.regularidadeFiscal },
+                              { label: 'Econômico-Financeira', txt: fichaSpecs?.trechosLiterais?.qualificacaoEconomica },
+                              { label: 'Qualificação Técnica', txt: fichaSpecs?.trechosLiterais?.qualificacaoTecnica },
+                            ]
+                              .filter((x) => Boolean(x.txt))
+                              .map((item, idx) => (
+                                <blockquote key={idx} className="text-xs font-mono text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed">
+                                  <strong className="font-sans text-[#0B192C] block mb-1">{item.label}:</strong>
+                                  {item.txt}
+                                </blockquote>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {(selectedEditalData?.metadata?.faltamAnexosTecnicos ||
+                      /remetido ao termo|não especificado|verificar cláusula/i.test(
+                        `${secoes?.documentosExigidosHabilitacao?.atestadoTecnico || ''} ${secoes?.documentosExigidosHabilitacao?.balancoPatrimonial || ''}`,
+                      )) && (
+                        <div className="mt-4 p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
+                          <p className="font-bold">Lacuna detectada nos arquivos publicados pelo órgão</p>
+                          <p>
+                            {selectedEditalData?.metadata?.faltamAnexosTecnicos
+                              ? 'O Edital principal foi publicado sem o Termo de Referência / Projeto Básico completo no portal de origem.'
+                              : 'Alguma exigência de habilitação remete a anexo técnico não detalhado no corpo principal publicado.'}{' '}
+                            Recomendamos protocolar pedido de esclarecimento antes da disputa.
+                          </p>
+                          <Link
+                            to={`/fornecedor/impugnacao?edital=${encodeURIComponent(selectedEditalId)}`}
+                            className="inline-block font-bold text-[#EA580C] hover:underline mt-1"
+                          >
+                            Gerar Pedido de Esclarecimento →
+                          </Link>
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -910,6 +1014,35 @@ export const LeitorEditaisPage: React.FC = () => {
                         {secoes?.financeiroEContrato?.multasEPenalidades || 'Não especificado nos arquivos analisados.'}
                       </p>
                     </div>
+
+                    {fichaSpecs?.trechosLiterais?.pagamentoEContrato && (
+                      <div className="pt-4 space-y-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Trechos Literais de Pagamento, Vigência e Sanções
+                        </span>
+                        <blockquote className="text-xs font-mono text-slate-700 bg-slate-50 p-3.5 rounded-lg border border-slate-200 leading-relaxed whitespace-pre-line">
+                          {fichaSpecs.trechosLiterais.pagamentoEContrato}
+                        </blockquote>
+                      </div>
+                    )}
+
+                    {(selectedEditalData?.metadata?.faltamAnexosTecnicos ||
+                      /não especificado/i.test(
+                        `${secoes?.financeiroEContrato?.condicoesPagamento || ''} ${secoes?.financeiroEContrato?.vigenciaContrato || ''}`,
+                      )) && (
+                        <div className="mt-4 p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-1">
+                          <p className="font-bold">Minuta Contratual / Pagamento ausente ou parcial no portal</p>
+                          <p>
+                            Os termos completos de pagamento ou vigência não constam nos anexos disponíveis. Solicite esclarecimento oficial ao órgão antes de precificar.
+                          </p>
+                          <Link
+                            to={`/fornecedor/impugnacao?edital=${encodeURIComponent(selectedEditalId)}`}
+                            className="inline-block font-bold text-[#EA580C] hover:underline mt-1"
+                          >
+                            Gerar Pedido de Esclarecimento →
+                          </Link>
+                        </div>
+                      )}
                   </div>
                 )}
 

@@ -43,6 +43,7 @@ export const PcaPage: React.FC = () => {
   const [pagina, setPagina] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(1);
+  const [resumoGlobal, setResumoGlobal] = useState<{ imediatos: number; estrategicos: number; valorTotal: number } | null>(null);
   const [cnaeFiltroAtivo, setCnaeFiltroAtivo] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export const PcaPage: React.FC = () => {
       setPcas(arr);
       setTotal(Number(resp.data?.total ?? arr.length));
       setTotalPaginas(Math.max(1, Number(resp.data?.totalPaginas || 1)));
+      setResumoGlobal(resp.data?.resumo || null);
     } catch {
       const msg = 'Não foi possível consultar os PCAs do PNCP agora. Tente atualizar em instantes.';
       setErroBusca(msg);
@@ -149,9 +151,9 @@ export const PcaPage: React.FC = () => {
   const formatarMoeda = (v: number) =>
     v > 0 ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : 'A definir no TR';
 
-  const imediatos = pcas.filter((p) => p.janelaTatica === 'IMEDIATA').length;
-  const estrategicos = pcas.filter((p) => p.janelaTatica === 'ESTRATEGICA').length;
-  const valorTotal = pcas.reduce((s, p) => s + Number(p.valorTotalEstimado || 0), 0);
+  const imediatos = resumoGlobal?.imediatos ?? pcas.filter((p) => p.janelaTatica === 'IMEDIATA').length;
+  const estrategicos = resumoGlobal?.estrategicos ?? pcas.filter((p) => p.janelaTatica === 'ESTRATEGICA').length;
+  const valorTotal = resumoGlobal?.valorTotal ?? pcas.reduce((s, p) => s + Number(p.valorTotalEstimado || 0), 0);
 
   const renderBadgeJanela = (janela?: string) => {
     if (janela === 'IMEDIATA') {

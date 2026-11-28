@@ -1095,10 +1095,18 @@ export function setupCnaeAlertCron() {
         if (editaisCandidatos.length === 0) continue;
 
         const editaisValidados = [];
+        const agora = new Date();
 
         for (const edital of editaisCandidatos) {
           const objTexto = edital.objeto || (edital as any).object;
           if (!objTexto) continue;
+          const rawClosing = (edital as any).closingAt || (edital as any).dataEncerramentoProposta || (edital as any).dataEncerramento;
+          if (rawClosing) {
+            const closingDate = new Date(rawClosing);
+            if (!Number.isNaN(closingDate.getTime()) && closingDate < agora) {
+              continue;
+            }
+          }
           const valEstimado = edital.valorEstimado ?? edital.valorTotalEstimado ?? null;
 
           try {
@@ -1109,7 +1117,7 @@ export function setupCnaeAlertCron() {
               valorEstimado: valEstimado ? Number(valEstimado) : null,
             });
 
-            if (analise.aderente) {
+            if (analise.aderente === true) {
               editaisValidados.push({
                 titulo: `${edital.numeroEdital || edital.numeroCompra || 'Edital'} - ${analise.resumoObjeto}`,
                 orgao: edital.orgao || 'Órgão Convocador',
@@ -1125,8 +1133,8 @@ export function setupCnaeAlertCron() {
             console.warn(`[Radar Cron] Falha ao analisar edital ${edital.id} para CNAE ${empresa.cnaePrincipal}:`, agentErr);
           }
 
-          // Limite de 5 editais mais relevantes por e-mail para evitar sobrecarga
-          if (editaisValidados.length >= 5) break;
+          // Limite estrito de 4 editais mais relevantes por e-mail
+          if (editaisValidados.length >= 4) break;
         }
 
         // 6. Disparo via Resend (Apenas se houver editais validados)
@@ -1136,7 +1144,7 @@ export function setupCnaeAlertCron() {
               email,
               empresaNome: empresa.razaoSocial || 'Licitante',
               cnae: empresa.cnaePrincipal,
-              editais: editaisValidados,
+              editais: editaisValidados.slice(0, 4),
             });
 
             totalDisparos++;

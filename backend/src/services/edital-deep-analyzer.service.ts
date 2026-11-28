@@ -80,8 +80,36 @@ export interface SecaoResumoExplicado {
   };
 }
 
+export interface BlocoExplicacaoProfessor {
+  titulo: string;
+  resumoDidatico: string;
+  referenciaFonte: string;
+}
+
+export interface ExplicacaoProfessorCompleta {
+  bloco1ObjetoPratico: BlocoExplicacaoProfessor;
+  bloco2DisputaEPrazos: BlocoExplicacaoProfessor;
+  bloco3HabilitacaoCompleta: BlocoExplicacaoProfessor;
+  bloco4GarantiasECustosOcultos: BlocoExplicacaoProfessor;
+  bloco5EntregaPagamentoVigenciaPenalidades: BlocoExplicacaoProfessor;
+  bloco6BeneficiosMeEppEstrategia: BlocoExplicacaoProfessor;
+  bloco7PontosCriticosEFormalismo: BlocoExplicacaoProfessor;
+}
+
+export interface TrechosLiteraisCapitulos {
+  disputaEPrazos: string | null;
+  entregaEExecucao: string | null;
+  habilitacaoJuridica: string | null;
+  regularidadeFiscal: string | null;
+  qualificacaoEconomica: string | null;
+  qualificacaoTecnica: string | null;
+  pagamentoEContrato: string | null;
+}
+
 export interface ExtractedSpecsFicha {
   resumoExplicado: string;
+  explicacaoProfessor: ExplicacaoProfessorCompleta;
+  trechosLiterais: TrechosLiteraisCapitulos;
   possuiArquivosReaisLidos: boolean;
   secoes: SecaoResumoExplicado;
   itensDetalhados: Array<{
@@ -147,12 +175,42 @@ export class EditalDeepAnalyzerService {
   /**
    * Extrai e estrutura as especificações técnicas EXCLUSIVAMENTE dos trechos reais lidos
    */
+  private static localizarPaginaEArquivo(texto: string, index: number): string {
+    const antes = texto.slice(0, index);
+    const matches = [...antes.matchAll(/\[P[aá]gina\s+(\d+)\s+de\s+([^\]]+)\]/gi)];
+    if (matches.length === 0) return 'Documento oficial do certame';
+    const last = matches[matches.length - 1];
+    return `${last[2].trim()} | Pág. ${last[1]}`;
+  }
+
+  private static extrairCapituloComReferencia(
+    texto: string,
+    regexes: RegExp[],
+    maxLen = 650,
+  ): { texto: string; referencia: string; formatado: string } | null {
+    for (const rx of regexes) {
+      const m = texto.match(rx);
+      if (!m || m.index === undefined) continue;
+      const referencia = this.localizarPaginaEArquivo(texto, m.index);
+      const rawSlice = texto
+        .slice(m.index, m.index + maxLen + 120)
+        .replace(/\[P[aá]gina\s+\d+\s+de\s+[^\]]+\]/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (rawSlice.length < 30) continue;
+      const textoLimpo = rawSlice.length > maxLen ? rawSlice.slice(0, maxLen).trimEnd() + '...' : rawSlice;
+      return {
+        texto: textoLimpo,
+        referencia,
+        formatado: `[${referencia}] ${textoLimpo}`,
+      };
+    }
+    return null;
+  }
+
   private static extrairCapituloEdital(texto: string, regexTitulo: RegExp, maxLen = 420): string | null {
-    const m = texto.match(regexTitulo);
-    if (!m || m.index === undefined) return null;
-    const trecho = texto.slice(m.index, m.index + maxLen + 80).replace(/\s+/g, ' ').trim();
-    if (trecho.length < 35) return null;
-    return trecho.length > maxLen ? trecho.slice(0, maxLen).trimEnd() + '...' : trecho;
+    const res = this.extrairCapituloComReferencia(texto, [regexTitulo], maxLen);
+    return res ? res.formatado : null;
   }
 
   public static analisarTextoIntegral(notice: any, chunks: string[], itensOficiais: any[] = []): ExtractedSpecsFicha {
@@ -219,12 +277,49 @@ export class EditalDeepAnalyzerService {
       ? (extrairSentencaPorRegex(textoCompleto, /(?:vistoria|visita\s+técnica)[^.\n]{0,180}/i, 160) || 'Vistoria técnica citada no edital.')
       : NAO_EXIGIDO;
 
-    // 4. Extrações Reais de Habilitação (ZERO lista genérica fixa)
+    // 4. Extrações Reais de Habilitação por Capítulos e Cláusulas (ZERO lista genérica fixa)
+    const capHabJuridica = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:HABILITA[CÇ][AÃ]O\s+JUR[IÍ]DICA|DA\s+HABILITA[CÇ][AÃ]O\s+JUR[IÍ]DICA)\b/i,
+      /(?:DOCUMENTOS\s+DE\s+HABILITA[CÇ][AÃ]O|DOS\s+DOCUMENTOS\s+DE\s+HABILITA[CÇ][AÃ]O|9\.\s*DA\s+HABILITA[CÇ][AÃ]O)\b/i,
+    ]);
+    const capFiscal = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:REGULARIDADE\s+FISCAL|HABILITA[CÇ][AÃ]O\s+FISCAL,?\s+SOCIAL\s+E\s+TRABALHISTA)\b/i,
+      /(?:PROVA\s+DE\s+INSCRI[CÇ][AÃ]O\s+NO\s+CADASTRO|CERTID[OÕ]ES\s+DE\s+REGULARIDADE\s+FISCAL)\b/i,
+    ]);
+    const capEconomica = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:QUALIFICA[CÇ][AÃ]O\s+ECON[OÔ]MICO[\s-]+FINANCEIRA|HABILITA[CÇ][AÃ]O\s+ECON[OÔ]MICO[\s-]+FINANCEIRA)\b/i,
+      /(?:BALAN[CÇ]O\s+PATRIMONIAL\s+E\s+DEMONSTRA[CÇ][OÕ]ES|CERTID[AÃ]O\s+NEGATIVA\s+DE\s+FAL[EÊ]NCIA)\b/i,
+    ]);
+    const capTecnica = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:QUALIFICA[CÇ][AÃ]O\s+T[EÉ]CNICA|CAPACIDADE\s+T[EÉ]CNICA|HABILITA[CÇ][AÃ]O\s+T[EÉ]CNICA)\b/i,
+      /(?:ATESTADO(?:S)?\s+DE\s+CAPACIDADE\s+T[EÉ]CNICA)\b/i,
+    ]);
+    const capPagamento = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DO\s+PAGAMENTO|DAS\s+CONDI[CÇ][OÕ]ES\s+DE\s+PAGAMENTO|FORMA\s+DE\s+PAGAMENTO|LIQUIDA[CÇ][AÃ]O\s+E\s+PAGAMENTO|CRIT[EÉ]RIOS\s+DE\s+MEDI[CÇ][AÃ]O\s+E\s+DE\s+PAGAMENTO)\b/i,
+    ]);
+    const capVigencia = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DA\s+VIG[EÊ]NCIA|PRAZO\s+DE\s+VIG[EÊ]NCIA|VIG[EÊ]NCIA\s+DO\s+CONTRATO|VIG[EÊ]NCIA\s+DA\s+ATA)\b/i,
+    ]);
+    const capReajuste = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DO\s+REAJUSTE|REAJUSTAMENTO\s+DE\s+PRE[CÇ]OS|REEQUIL[IÍ]BRIO\s+ECON[OÔ]MICO)\b/i,
+    ]);
+    const capSancoes = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DAS\s+SAN[CÇ][OÕ]ES|DAS\s+PENALIDADES|INFRA[CÇ][OÕ]ES\s+E\s+SAN[CÇ][OÕ]ES|SAN[CÇ][OÕ]ES\s+ADMINISTRATIVAS)\b/i,
+    ]);
+    const capEntrega = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DA\s+ENTREGA|CONDI[CÇ][OÕ]ES\s+DE\s+ENTREGA|EXECU[CÇ][AÃ]O\s+DO\s+OBJETO|MODELO\s+DE\s+EXECU[CÇ][AÃ]O)\b/i,
+    ]);
+    const capDisputa = this.extrairCapituloComReferencia(textoCompleto, [
+      /(?:DA\s+ABERTURA\s+DA\s+SESS[AÃ]O|DO\s+MODO\s+DE\s+DISPUTA|FASE\s+DE\s+LANCES|ENVIO\s+DA\s+PROPOSTA)\b/i,
+    ]);
+
     const docJuridica: string[] = [];
     if (/(?:contrato\s+social|estatuto|ato\s+constitutivo)/i.test(textoCompleto)) docJuridica.push('Ato constitutivo / Contrato Social em vigor');
     if (/(?:cnpj|cadastro\s+nacional\s+da\s+pessoa\s+jurídica)/i.test(textoCompleto)) docJuridica.push('Comprovante de inscrição no CNPJ');
     if (/(?:registro\s+comercial|requerimento\s+de\s+empresário|mei|ccmei)/i.test(textoCompleto)) docJuridica.push('Registro comercial / Certificado de MEI (se aplicável)');
-    if (docJuridica.length === 0) docJuridica.push(possuiArquivosReaisLidos ? 'Não detalhado expressamente nos trechos analisados' : NAO_ESPECIFICADO);
+    if (/(?:cédula\s+de\s+identidade|documento\s+de\s+identidade|procuração)/i.test(textoCompleto)) docJuridica.push('Documento de identificação do representante / procuração');
+    if (docJuridica.length === 0 && capHabJuridica) docJuridica.push(capHabJuridica.formatado);
+    if (docJuridica.length === 0) docJuridica.push(possuiArquivosReaisLidos ? 'Remetido ao Termo de Referência / verificar anexos do órgão' : NAO_ESPECIFICADO);
 
     const docFiscal: string[] = [];
     if (/(?:receita\s+federal|pgfn|tributos\s+federais|conjunta\s+federal)/i.test(textoCompleto)) docFiscal.push('Certidão Conjunta Federal / Dívida Ativa (RFB/PGFN)');
@@ -232,32 +327,44 @@ export class EditalDeepAnalyzerService {
     if (/(?:cndt|débitos\s+trabalhistas|justiça\s+do\s+trabalho)/i.test(textoCompleto)) docFiscal.push('Certidão Negativa de Débitos Trabalhistas (CNDT)');
     if (/(?:fazenda\s+estadual|tributos\s+estaduais|sefaz)/i.test(textoCompleto)) docFiscal.push('Regularidade Fiscal Estadual');
     if (/(?:fazenda\s+municipal|tributos\s+municipais)/i.test(textoCompleto)) docFiscal.push('Regularidade Fiscal Municipal');
-    if (docFiscal.length === 0) docFiscal.push(possuiArquivosReaisLidos ? 'Não detalhado expressamente nos trechos analisados' : NAO_ESPECIFICADO);
+    if (/(?:cumprimento\s+do\s+disposto\s+no\s+inciso\s+xxxiii|art\.?\s*7[º°],?\s*xxxiii|menor\s+de\s+18)/i.test(textoCompleto)) docFiscal.push('Declaração de cumprimento ao Art. 7º, XXXIII da CF (não emprego de menor)');
+    if (docFiscal.length === 0 && capFiscal) docFiscal.push(capFiscal.formatado);
+    if (docFiscal.length === 0) docFiscal.push(possuiArquivosReaisLidos ? 'Remetido ao Termo de Referência / verificar anexos do órgão' : NAO_ESPECIFICADO);
 
-    // Balanço Patrimonial e Índices
+    // Balanço Patrimonial, Capital/PL e Índices
     let balancoPatrimonial = NAO_ESPECIFICADO;
     if (/(?:dispensad[oa]\s+(?:o|a|de)\s+balanço|art\.?\s*70,?\s*(?:inciso\s*)?iii|entrega\s+imediata[^.\n]{0,60}balanço)/i.test(textoCompleto)) {
-      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /(?:dispensad[oa][^.\n]{0,80}balanço|balanço[^.\n]{0,80}dispensad[oa])/i, 120) || 'Dispensado conforme regras do edital';
+      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /(?:dispensad[oa][^.\n]{0,80}balanço|balanço[^.\n]{0,80}dispensad[oa])/i, 160) || 'Dispensado conforme regras do edital';
     } else if (/balanço\s+patrimonial/i.test(textoCompleto)) {
-      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /balanço\s+patrimonial[^.\n]{0,160}/i, 140) || 'Exigido nos termos do edital';
+      balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /balanço\s+patrimonial[^.\n]{0,200}/i, 180) || 'Exigido nos termos do edital';
+    } else if (capEconomica) {
+      balancoPatrimonial = capEconomica.formatado;
     } else if (possuiArquivosReaisLidos) {
       balancoPatrimonial = NAO_EXIGIDO;
     }
 
-    const exigenciaIndicesContabeis = extrairSentencaPorRegex(
+    const capitalOuPl = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:liquidez\s+geral|solvência\s+geral|liquidez\s+corrente|índices\s+contábeis)[^.\n]{0,160}/i,
-      140,
-    ) || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
+      /(?:capital\s+social\s+m[ií]nimo|patrim[oô]nio\s+l[ií]quido\s+m[ií]nimo|fal[eê]ncia\s+e\s+concordata|recupera[cç][aã]o\s+judicial)[^.\n]{0,180}/i,
+      160,
+    );
+    const exigenciaIndicesContabeis = [
+      extrairSentencaPorRegex(
+        textoCompleto,
+        /(?:liquidez\s+geral|solvência\s+geral|liquidez\s+corrente|índices\s+contábeis)[^.\n]{0,180}/i,
+        160,
+      ),
+      capitalOuPl,
+    ].filter(Boolean).join(' | ') || (capEconomica ? capEconomica.formatado : (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO));
 
     // Atestado Técnico, Percentual e Tempo Mínimo de Experiência
     const atestadoTecnico = extrairSentencaPorRegex(
       textoCompleto,
-      new RegExp('(?:atestado\\s+de\\s+capacidade\\s+t[eé]cnica|atestados?\\s+fornecidos?\\s+por\\s+pessoa\\s+jur[ií]dica|comprova[cç][aã]o\\s+de\\s+aptid[aã]o|qualifica[cç][aã]o\\s+t[eé]cnica|acervo\\s+t[eé]cnico|experi[eê]ncia\\s+anterior)[^.\\n]{0,220}', 'i'),
-      200,
-    ) || (possuiArquivosReaisLidos
-      ? (/habilita[cç][aã]o/i.test(textoCompleto) ? 'Verificar clausula de qualificacao tecnica no Termo de Referencia (nao localizada automaticamente no corpo principal)' : NAO_ESPECIFICADO)
-      : NAO_ESPECIFICADO);
+      new RegExp('(?:atestado\\s+de\\s+capacidade\\s+t[eé]cnica|atestados?\\s+fornecidos?\\s+por\\s+pessoa\\s+jur[ií]dica|comprova[cç][aã]o\\s+de\\s+aptid[aã]o|qualifica[cç][aã]o\\s+t[eé]cnica|acervo\\s+t[eé]cnico|experi[eê]ncia\\s+anterior)[^.\\n]{0,240}', 'i'),
+      220,
+    ) || (capTecnica ? capTecnica.formatado : (possuiArquivosReaisLidos
+      ? (/habilita[cç][aã]o/i.test(textoCompleto) ? 'Verificar cláusula de qualificação técnica no Termo de Referência (não localizada automaticamente no corpo principal)' : NAO_ESPECIFICADO)
+      : NAO_ESPECIFICADO));
 
     const matchPercentAtestado = textoCompleto.match(/(?:atestado|capacidade\s+técnica|quantitativo\s+mínimo)[^.\n]{0,100}(\d{1,3}\s*%)/i);
     const limiteAtestadoPercentual = matchPercentAtestado
@@ -272,28 +379,28 @@ export class EditalDeepAnalyzerService {
 
     const registroConselhoOuAlvara = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:registro\s+(?:ou\s+inscrição\s+)?no\s+(?:crea|cau|cra|crq|crm|coren|crf|conselho\s+regional)|licença\s+sanitária|anvisa|alvará\s+de\s+funcionamento)[^.\n]{0,150}/i,
-      120,
+      /(?:registro\s+(?:ou\s+inscrição\s+)?no\s+(?:crea|cau|cra|crq|crm|coren|crf|cro|conselho\s+regional)|licença\s+sanitária|anvisa|alvará\s+de\s+funcionamento)[^.\n]{0,160}/i,
+      140,
     ) || NAO_EXIGIDO;
 
     // 5. Condições Financeiras e Contratuais Reais
     const condicoesPagamento = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:prazo\s+de\s+pagamento|pagamento\s+ser\u00e1\s+efetuado|liquida\u00e7\u00e3o\s+e\s+pagamento)[^.\n]{0,160}/i,
-      140,
-    ) || this.extrairCapituloEdital(textoCompleto, /(?:DO\s+PAGAMENTO|DAS\s+CONDI\u00c7\u00d5ES\s+DE\s+PAGAMENTO|FORMA\s+DE\s+PAGAMENTO)\b/i, 360) || NAO_ESPECIFICADO;
+      /(?:prazo\s+de\s+pagamento|pagamento\s+ser[aá]\s+efetuado|liquida[cç][aã]o\s+e\s+pagamento|pagamento\s+ocorrer[aá]\s+em|at[eé]\s+\d+\s*(?:\([^)]+\)\s*)?dias\s*(?:úteis|corridos)?[^.\n]{0,80}(?:nota\s+fiscal|fatura|atesto))[^.\n]{0,180}/i,
+      160,
+    ) || (capPagamento ? capPagamento.formatado : NAO_ESPECIFICADO);
 
     const vigenciaContrato = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:prazo\s+de\s+vig\u00eancia|vig\u00eancia\s+do\s+contrato|vig\u00eancia\s+da\s+ata)[^.\n]{0,140}/i,
-      120,
-    ) || this.extrairCapituloEdital(textoCompleto, /(?:DA\s+VIG\u00caNCIA|PRAZO\s+DE\s+VIG\u00caNCIA)\b/i, 320) || NAO_ESPECIFICADO;
+      /(?:prazo\s+de\s+vig[eê]ncia|vig[eê]ncia\s+do\s+contrato|vig[eê]ncia\s+da\s+ata|ata\s+de\s+registro\s+de\s+pre[cç]os\s+ter[aá]\s+validade)[^.\n]{0,160}/i,
+      140,
+    ) || (capVigencia ? capVigencia.formatado : NAO_ESPECIFICADO);
 
     const criterioReajuste = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:reajuste|reajustamento\s+de\s+pre\u00e7os)[^.\n]{0,160}(?:ipca|igp-m|inpc|igpm|incc|ipca-e|\u00edndice)[^.\n]{0,80}/i,
-      120,
-    ) || this.extrairCapituloEdital(textoCompleto, /(?:DO\s+REAJUSTE|REAJUSTAMENTO\s+DE\s+PRE\u00c7OS)\b/i, 320) || NAO_ESPECIFICADO;
+      /(?:reajuste|reajustamento\s+de\s+pre[cç]os)[^.\n]{0,180}(?:ipca|igp-m|inpc|igpm|incc|ipca-e|índice|12\s*\(doze\)\s*meses)[^.\n]{0,80}/i,
+      150,
+    ) || (capReajuste ? capReajuste.formatado : NAO_ESPECIFICADO);
 
     const garantiaProposta = extrairSentencaPorRegex(
       textoCompleto,
@@ -302,19 +409,19 @@ export class EditalDeepAnalyzerService {
     );
     const garantiaExec = extrairSentencaPorRegex(
       textoCompleto,
-      new RegExp('(?:garantia\\s+contratual|garantia\\s+de\\s+execu[cç][aã]o)[^.\\n]{0,160}', 'i'),
+      new RegExp('(?:garantia\\s+contratual|garantia\\s+de\\s+execu[cç][aã]o|art\\.?\\s*96)[^.\\n]{0,160}', 'i'),
       150,
     );
     const garantiaContratual = [
-      garantiaProposta ? `Garantia de Proposta (Caucao): ${garantiaProposta}` : '',
-      garantiaExec ? `Garantia Contratual: ${garantiaExec}` : '',
-    ].filter(Boolean).join(' | ') || (possuiArquivosReaisLidos ? NAO_ESPECIFICADO : NAO_ESPECIFICADO);
+      garantiaProposta ? `Garantia de Proposta (Caução Art. 58): ${garantiaProposta}` : '',
+      garantiaExec ? `Garantia Contratual (Art. 96): ${garantiaExec}` : '',
+    ].filter(Boolean).join(' | ') || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
 
     const multasEPenalidades = extrairSentencaPorRegex(
       textoCompleto,
-      /(?:multa\s+(?:morat\u00f3ria|compensat\u00f3ria)|san\u00e7\u00f5es\s+administrativas|penalidades)[^.\n]{0,160}/i,
-      140,
-    ) || this.extrairCapituloEdital(textoCompleto, /(?:DAS\s+SAN\u00c7\u00d5ES|DAS\s+PENALIDADES|INFRA\u00c7\u00d5ES\s+E\s+SAN\u00c7\u00d5ES)\b/i, 380) || NAO_ESPECIFICADO;
+      /(?:multa\s+(?:morat[oó]ria|compensat[oó]ria)|san[cç][oõ]es\s+administrativas|penalidades)[^.\n]{0,180}/i,
+      160,
+    ) || (capSancoes ? capSancoes.formatado : NAO_ESPECIFICADO);
 
     // 6. Benefício ME / EPP
     const exclusivoOuCotaMeEpp = /(?:exclusiv[oa]\s+para\s+(?:me|epp|microempresa)|cota\s+reservada|lei\s+complementar\s+n[º°]?\s*123)/i.test(textoCompleto);
@@ -409,16 +516,87 @@ export class EditalDeepAnalyzerService {
       },
     };
 
+    const isLoteUnico = /(?:lote\s+[uú]nico|menor\s+pre[cç]o\s+global|pre[cç]o\s+global)/i.test(textoCompleto);
+    const prazoPropostaAjustada = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:proposta\s+(?:readequada|ajustada|atualizada)|envio\s+da\s+proposta\s+final)[^.\n]{0,140}/i,
+      120,
+    ) || 'Conforme prazo definido pelo pregoeiro na sessão (regra geral: mín. 2 horas).';
+    const planilhaCustosInfo = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:planilha\s+(?:detalhada\s+)?de\s+custos|composi[cç][aã]o\s+(?:detalhada\s+)?de\s+custos|\bbdi\b)[^.\n]{0,160}/i,
+      140,
+    );
+    const indicacaoMarca = extrairSentencaPorRegex(
+      textoCompleto,
+      /(?:marca\s+de\s+refer[eê]ncia|vedad[ao]\s+indica[cç][aã]o\s+de\s+marca|ou\s+similar|equivalente)[^.\n]{0,140}/i,
+      120,
+    ) || 'Sem indicação restritiva de marca identificada nos trechos lidos.';
+
+    const trechosLiterais: TrechosLiteraisCapitulos = {
+      disputaEPrazos: capDisputa?.formatado || trechoComprovante || null,
+      entregaEExecucao: capEntrega?.formatado || null,
+      habilitacaoJuridica: capHabJuridica?.formatado || null,
+      regularidadeFiscal: capFiscal?.formatado || null,
+      qualificacaoEconomica: capEconomica?.formatado || null,
+      qualificacaoTecnica: capTecnica?.formatado || null,
+      pagamentoEContrato: [capPagamento?.formatado, capVigencia?.formatado, capSancoes?.formatado].filter(Boolean).join('\n\n') || null,
+    };
+
+    const explicacaoProfessor: ExplicacaoProfessorCompleta = {
+      bloco1ObjetoPratico: {
+        titulo: '1. O que o órgão quer contratar na prática',
+        resumoDidatico: `${orgao} pretende contratar: ${objetoPrincipal}. ${itensExtraidos.length > 0 ? `Foram mapeados ${itensExtraidos.length} item(ns) oficial(is).` : 'Itens não detalhados na API do portal.'} Critério: ${isLoteUnico ? 'Lote Único / Preço Global (exige cotação completa do grupo)' : (notice?.judgmentCriterion || 'Menor Preço por Item')}. Valor estimado: ${valorGlobal ? `R$ ${valorGlobal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Sigiloso ou consultar Termo de Referência'}. Marca/Modelo: ${indicacaoMarca}`,
+        referenciaFonte: possuiArquivosReaisLidos ? 'Edital / Termo de Referência (Preâmbulo e Objeto)' : 'Metadados oficiais do PNCP (PDF não lido)',
+      },
+      bloco2DisputaEPrazos: {
+        titulo: '2. Como funciona a disputa e quais são os prazos fatais',
+        resumoDidatico: `Modalidade ${notice?.modality || 'Licitação'} no portal ${notice?.source || 'Oficial'} (${modoDisputaTexto}). Abertura: ${dataAberturaStr || 'Consultar edital'}. Prazo fatal para pedidos de esclarecimento e impugnação: até 3 dias úteis antes da abertura (Art. 164 da Lei 14.133/2021). Após a fase de lances, atenção ao envio de proposta ajustada/planilha: ${prazoPropostaAjustada}`,
+        referenciaFonte: capDisputa?.referencia || (possuiArquivosReaisLidos ? 'Capítulo da Sessão Pública / Lances' : 'Pendente leitura integral do PDF'),
+      },
+      bloco3HabilitacaoCompleta: {
+        titulo: '3. Tudo o que o órgão exige na Habilitação (sem esconder nada)',
+        resumoDidatico: `Jurídica (Art. 66): ${docJuridica.join('; ')}. Fiscal/Trabalhista (Art. 68): ${docFiscal.join('; ')}. Econômico-Financeira (Art. 69): Balanço: ${balancoPatrimonial}; Índices/Capital: ${exigenciaIndicesContabeis}. Técnica (Art. 67): ${atestadoTecnico} (${limiteAtestadoPercentual}; ${tempoMinimoExperiencia}; Conselho/Alvará: ${registroConselhoOuAlvara}).`,
+        referenciaFonte: [capHabJuridica?.referencia, capEconomica?.referencia, capTecnica?.referencia].filter(Boolean).join(' · ') || (possuiArquivosReaisLidos ? 'Capítulo de Habilitação' : 'Pendente leitura integral do PDF'),
+      },
+      bloco4GarantiasECustosOcultos: {
+        titulo: '4. Garantias financeiras, custos ocultos e exigências operacionais',
+        resumoDidatico: `Garantias: ${garantiaContratual}. Planilha de Custos / BDI: ${planilhaCustosInfo || (possuiArquivosReaisLidos ? 'Não há exigência expressa de planilha aberta de BDI localizada automaticamente' : NAO_ESPECIFICADO)}. Vistoria técnica: ${detalhesVistoria}. Amostra / Prova de Conceito: ${detalhesAmostra}. Catálogo: ${detalhesCatalogo}.`,
+        referenciaFonte: possuiArquivosReaisLidos ? 'Cláusulas de Garantia, Proposta e Termo de Referência' : 'Pendente leitura integral do PDF',
+      },
+      bloco5EntregaPagamentoVigenciaPenalidades: {
+        titulo: '5. Entrega, execução, pagamento, vigências e penalidades',
+        resumoDidatico: `Prazo de entrega/início: ${prazoEntregaExtraido}. Local: ${localEntregaExtraido}. Pagamento: ${condicoesPagamento}. Vigência: ${vigenciaContrato}. Reajuste: ${criterioReajuste}. Multas e sanções: ${multasEPenalidades}.`,
+        referenciaFonte: [capEntrega?.referencia, capPagamento?.referencia, capVigencia?.referencia, capSancoes?.referencia].filter(Boolean).join(' · ') || (possuiArquivosReaisLidos ? 'Termo de Referência e Minuta Contratual' : 'Pendente leitura integral do PDF'),
+      },
+      bloco6BeneficiosMeEppEstrategia: {
+        titulo: '6. Benefícios ME/EPP e estratégia prática',
+        resumoDidatico: `${detalhesMeEpp} Lembre-se da preferência do empate ficto (até 5% no pregão / 10% nas demais modalidades — Arts. 44 e 45 da LC 123/2006) e do prazo de 5 dias úteis para regularização fiscal tardia caso haja restrição em certidão (Art. 43, §1º).`,
+        referenciaFonte: possuiArquivosReaisLidos ? 'Regras de Tratamento Diferenciado ME/EPP (LC 123/2006)' : 'Regra geral LC 123/2006 (confirmar no PDF)',
+      },
+      bloco7PontosCriticosEFormalismo: {
+        titulo: '7. Pontos críticos, armadilhas e formalismo moderado',
+        resumoDidatico: vicios.length > 0
+          ? `Atenção máxima: foram localizadas ${vicios.length} cláusula(s) potencialmente restritiva(s): ${vicios.map((v) => `${v.titulo} (${v.arquivoOrigem}, Pág. ${v.pagina})`).join('; ')}. Caso alguma falha documental formal ocorra na sessão, invoque o Art. 64 da Lei 14.133/2021 e o Acórdão 1.211/2021-TCU (diligência de condição pré-existente).`
+          : (possuiArquivosReaisLidos
+            ? 'Nenhuma das 7 irregularidades automáticas clássicas foi disparada, mas confira atentamente o Termo de Referência quanto a prazos curtos, exigências de marca e planilhas. Em falhas formais sanáveis na sessão, invoque o Art. 64 da Lei 14.133/2021 e o Acórdão 1.211/2021-TCU.'
+            : 'Auditoria jurídica completa pendente: anexe o PDF integral do edital e do Termo de Referência antes de precificar para não assumir riscos ocultos.'),
+        referenciaFonte: vicios.length > 0 ? vicios.map((v) => `${v.arquivoOrigem} | Pág. ${v.pagina}`).join(' · ') : (possuiArquivosReaisLidos ? 'Auditoria Integral dos Documentos' : 'Leitura Pendente'),
+      },
+    };
+
     const resumoExplicado = [
-      `1. O QUE O \u00d3RG\u00c3O CONTRATA: ${orgao} busca: ${objetoPrincipal}.${itensExtraidos.length > 0 ? ` (${itensExtraidos.length} item(ns) oficial(is) mapeado(s)).` : ''}`,
-      `2. DISPUTA E PRAZOS: Modalidade ${notice?.modality || 'Licita\u00e7\u00e3o'} (${modoDisputaTexto}). Impugna\u00e7\u00e3o: ${secoes.disputaEPrazos.prazoLimiteImpugnacao}.`,
-      `3. HABILITA\u00c7\u00c3O E CAPACIDADE T\u00c9CNICA: ${atestadoTecnico}. Balan\u00e7o: ${balancoPatrimonial}. Garantias: ${garantiaContratual}.`,
-      `4. ENTREGA E EXECU\u00c7\u00c3O: Prazo de ${prazoEntregaExtraido}. Local: ${localEntregaExtraido}. Pagamento: ${condicoesPagamento}.`,
-      vicios.length > 0 ? `5. ALERTAS DE AUDITORIA: ${vicios.length} ponto(s) de aten\u00e7\u00e3o/v\u00edcio detectado(s) na leitura integral.` : '5. ALERTAS DE AUDITORIA: Conferir detalhadamente os anexos t\u00e9cnicos e a planilha de custos.'
+      `1. O QUE O ÓRGÃO CONTRATA: ${explicacaoProfessor.bloco1ObjetoPratico.resumoDidatico}`,
+      `2. DISPUTA E PRAZOS: ${explicacaoProfessor.bloco2DisputaEPrazos.resumoDidatico}`,
+      `3. HABILITAÇÃO COMPLETA: ${explicacaoProfessor.bloco3HabilitacaoCompleta.resumoDidatico}`,
+      `4. GARANTIAS E CUSTOS: ${explicacaoProfessor.bloco4GarantiasECustosOcultos.resumoDidatico}`,
+      `5. ENTREGA, PAGAMENTO E CONTRATO: ${explicacaoProfessor.bloco5EntregaPagamentoVigenciaPenalidades.resumoDidatico}`,
     ].join('\n\n');
 
     return {
       resumoExplicado,
+      explicacaoProfessor,
+      trechosLiterais,
       possuiArquivosReaisLidos,
       secoes,
       itensDetalhados: itensExtraidos,
@@ -561,12 +739,9 @@ export class EditalDeepAnalyzerService {
     try {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { responseMimeType: 'application/json' },
-      });
+      const modelos = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'];
 
-      // Map-Reduce: envia o texto integral ate 280k chars por bloco (sem perder secao intermediaria)
+      // Map-Reduce: envia o texto integral ate 240k chars por bloco (sem perder secao intermediaria)
       const blocos: string[] = [];
       const TAM_BLOCO = 240000;
       for (let i = 0; i < textoReal.length; i += TAM_BLOCO) {
@@ -575,11 +750,12 @@ export class EditalDeepAnalyzerService {
 
       const parsed: Record<string, any> = {};
       for (const blocoTexto of blocos.slice(0, 4)) {
-        const prompt = `Você é um analista sênior de licitações públicas. Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo.
+        const prompt = `Você é um professor especialista em licitações públicas brasileiras (Lei 14.133/2021 e LC 123/2006) orientando um empresário antes da disputa.
+Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo, traduzindo o juridiquês para a prática do licitante sem inventar nada.
 REGRAS INEGOCIAVEIS:
 1. PROIBIDO inventar, presumir ou usar texto genérico.
 2. Se uma informação NÃO estiver expressa neste bloco de texto, escreva exatamente: "Não especificado nos arquivos analisados". Só escreva "Não exigido" se o edital expressamente dispensar o requisito.
-3. Cite números exatos, prazos exatos e nomes de documentos exatos escritos neste texto.
+3. Cite números exatos, prazos exatos, nomes de documentos exatos e SEMPRE informe Arquivo, Página e Item/Cláusula onde encontrou (ex: "Edital.pdf | Pág. 12 | Item 9.4").
 
 Retorne exatamente este JSON:
 {
@@ -599,22 +775,58 @@ Retorne exatamente este JSON:
   "criterioReajuste": "string",
   "garantiaContratual": "string",
   "multasEPenalidades": "string",
-  "parecerExecutivoCompleto": "Resumo explicativo completo em 4 a 5 paragrafos claros para o licitante cobrindo: objeto pratico, regras da disputa, exigencias de habilitacao/capacidade tecnica/garantias/POC/planilha de custos, condicoes de entrega/pagamento e riscos reais encontrados com citacao de itens e paginas"
+  "bloco1ObjetoPratico": { "resumoDidatico": "O que o órgão quer contratar na prática, itens/lotes, critério de julgamento, lote único vs por item, valor estimado e indicação de marca/modelo", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco2DisputaEPrazos": { "resumoDidatico": "Portal oficial, modo de disputa, data/hora, prazo de esclarecimento/impugnação Art. 164 e prazo pós-lance para proposta ajustada e planilha", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco3HabilitacaoCompleta": { "resumoDidatico": "Habilitação jurídica Art. 66, fiscal/trabalhista Art. 68, econômico-financeira Art. 69 (balanço, índices, capital/PL mínimo) e técnica Art. 67 (atestado, % mínimo, conselho, RT) sem esconder nada", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco4GarantiasECustosOcultos": { "resumoDidatico": "Garantia de proposta/caução Art. 58, garantia contratual Art. 96, planilha de custos/BDI, vistoria Art. 63 e amostra/POC", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco5EntregaPagamentoVigenciaPenalidades": { "resumoDidatico": "Prazo/local de entrega ou execução remota, condições de pagamento, vigência do contrato/ata, índice de reajuste e multas", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco6BeneficiosMeEppEstrategia": { "resumoDidatico": "Exclusividade até R$ 80 mil, cota reservada 25%, empate ficto e regularização tardia da LC 123/2006", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "bloco7PontosCriticosEFormalismo": { "resumoDidatico": "O que pode inabilitar na prática, cláusulas restritivas com trecho literal e abertura para diligência pelo Art. 64 e Acórdão 1.211/2021-TCU", "referenciaFonte": "Arquivo | Pág. | Item" },
+  "parecerExecutivoCompleto": "Resumo explicativo completo para o licitante cobrindo os 7 pontos acima com clareza"
 }
 
 TEXTO OFICIAL DO EDITAL:
 ${blocoTexto}`;
 
-        const result = await Promise.race([
-          model.generateContent(prompt),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_IA_EXTRACAO')), 45000)),
-        ]) as any;
+        let result: any = null;
+        let lastModelErr: any = null;
+        for (const modelName of modelos) {
+          try {
+            const model = genAI.getGenerativeModel({
+              model: modelName,
+              generationConfig: { responseMimeType: 'application/json' },
+            });
+            result = await Promise.race([
+              model.generateContent(prompt),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_IA_EXTRACAO')), 45000)),
+            ]);
+            break;
+          } catch (mErr: any) {
+            lastModelErr = mErr;
+          }
+        }
+        if (!result) throw lastModelErr || new Error('GEMINI_MODELS_UNAVAILABLE');
 
         const rawJson = String(result?.response?.text?.() || '').trim();
         const parte = JSON.parse(rawJson);
         for (const [k, v] of Object.entries(parte || {})) {
           if (typeof v === 'string' && v.trim().length > 3 && !v.includes('Não especificado')) {
             parsed[k] = parsed[k] && !String(parsed[k]).includes(v.trim()) ? `${parsed[k]} | ${v.trim()}` : v.trim();
+          } else if (v && typeof v === 'object' && typeof (v as any).resumoDidatico === 'string') {
+            const resumo = String((v as any).resumoDidatico || '').trim();
+            const ref = String((v as any).referenciaFonte || '').trim();
+            if (resumo.length > 10 && !resumo.includes('Não especificado')) {
+              if (!parsed[k]) {
+                parsed[k] = { resumoDidatico: resumo, referenciaFonte: ref || 'Edital Oficial' };
+              } else {
+                if (!parsed[k].resumoDidatico.includes(resumo)) {
+                  parsed[k].resumoDidatico = `${parsed[k].resumoDidatico}\n${resumo}`;
+                }
+                if (ref && !parsed[k].referenciaFonte.includes(ref)) {
+                  parsed[k].referenciaFonte = `${parsed[k].referenciaFonte} · ${ref}`;
+                }
+              }
+            }
           }
         }
       }
@@ -648,6 +860,24 @@ ${blocoTexto}`;
           fichaBase.resumoExplicado = parsed.parecerExecutivoCompleto.trim();
         }
 
+      const mergeBloco = (key: keyof ExplicacaoProfessorCompleta) => {
+        const val = parsed[key];
+        if (val && typeof val.resumoDidatico === 'string' && val.resumoDidatico.trim().length > 20) {
+          fichaBase.explicacaoProfessor[key] = {
+            titulo: fichaBase.explicacaoProfessor[key].titulo,
+            resumoDidatico: val.resumoDidatico.trim(),
+            referenciaFonte: val.referenciaFonte || fichaBase.explicacaoProfessor[key].referenciaFonte,
+          };
+        }
+      };
+      mergeBloco('bloco1ObjetoPratico');
+      mergeBloco('bloco2DisputaEPrazos');
+      mergeBloco('bloco3HabilitacaoCompleta');
+      mergeBloco('bloco4GarantiasECustosOcultos');
+      mergeBloco('bloco5EntregaPagamentoVigenciaPenalidades');
+      mergeBloco('bloco6BeneficiosMeEppEstrategia');
+      mergeBloco('bloco7PontosCriticosEFormalismo');
+
       // Sincroniza prazosECondicoes
       fichaBase.prazosECondicoes.prazoEntregaOuExecucao = fichaBase.secoes.condicoesEntregaExecucao.prazoEntrega;
       fichaBase.prazosECondicoes.localEntrega = fichaBase.secoes.condicoesEntregaExecucao.localEntrega;
@@ -680,7 +910,7 @@ ${blocoTexto}`;
     if (!notice) return null;
 
     const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
-    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 4 && existingMeta.extractedSpecsJson?.secoes) {
+    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 6 && existingMeta.extractedSpecsJson?.explicacaoProfessor) {
       return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
     }
 
@@ -715,7 +945,7 @@ ${blocoTexto}`;
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
           deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
           statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
-          fichaVersion: 4,
+          fichaVersion: 6,
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: strictExec.isRemoteDispute,

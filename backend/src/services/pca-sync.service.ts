@@ -4,8 +4,10 @@ import { expandirTermosCnae } from './cnae-dictionary.service';
 
 const PNCP_BASE = (process.env.PNCP_CONSULTA_BASE_URL || 'https://pncp.gov.br/api/consulta/v1').replace(/\/+$/, '');
 const PCA_PAGE_SIZE = 50;
-const UPSERT_CHUNK_SIZE = 15;
-const DEFAULT_PCA_CLASSES = [2, 7, 8, 4];
+const UPSERT_CHUNK_SIZE = 100;
+const MAX_PERSIST_PER_CYCLE = 2500;
+// Todas as grandes classes oficiais do catalogo PCA no PNCP (Materiais, Servicos, Obras/Engenharia, TIC, Locacao, Saude, Alimentacao, Vestuario, etc.)
+const DEFAULT_PCA_CLASSES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -114,9 +116,11 @@ export async function syncPcaRecentDays(options: {
   if (pcaSyncInFlight) return pcaSyncInFlight;
 
   pcaSyncInFlight = (async () => {
-    const daysBack = Math.max(1, Math.min(10, options.daysBack ?? 3));
-    const maxPages = Math.max(1, Math.min(20, options.maxPagesPerDay ?? 4));
-    const maxCatalogPages = Math.max(1, Math.min(10, options.maxCatalogPagesPerClass ?? 3));
+    const daysBack = Math.max(1, Math.min(14, options.daysBack ?? 7));
+    const maxPages = Math.max(1, Math.min(20, options.maxPagesPerDay ?? 8));
+    const maxCatalogPages = options.maxCatalogPagesPerClass === 0
+      ? 0
+      : Math.max(1, Math.min(20, options.maxCatalogPagesPerClass ?? 12));
     const pageSize = PCA_PAGE_SIZE;
     let fetched = 0;
     let persisted = 0;
@@ -205,14 +209,14 @@ export async function syncPcaRecentDays(options: {
 
           const description = limparDescricao(
             it.descricaoItem ||
-              it.descricao ||
-              it.especificacao ||
-              it.materialOuServicoNome ||
-              it.classificacaoSuperiorNome ||
-              it.classeNome ||
-              reg.objeto ||
-              it.grupoNome ||
-              '',
+            it.descricao ||
+            it.especificacao ||
+            it.materialOuServicoNome ||
+            it.classificacaoSuperiorNome ||
+            it.classeNome ||
+            reg.objeto ||
+            it.grupoNome ||
+            '',
           );
           const category =
             it.categoriaItemPcaNome || it.categoriaItemPca || it.classificacaoSuperiorNome || it.grupoNome || null;
@@ -276,7 +280,7 @@ export async function syncPcaRecentDays(options: {
         try {
           const resp = await axios.get(`${PNCP_BASE}/pca/atualizacao`, {
             params: { dataInicio, dataFim, pagina, tamanhoPagina: pageSize },
-            timeout: 25000,
+            timeout: 35000,
             headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
             validateStatus: (s) => s === 200 || s === 204,
           });
@@ -290,10 +294,10 @@ export async function syncPcaRecentDays(options: {
       }
     }
 
-    // 2. Se base local ainda estiver enxuta, popula via catálogo oficial /pca/ multi-classificação + janelas âncora ativas
+    // 2. Popula via catálogo oficial /pca/ multi-classificação (rotacionando todas as classes e anos 2026/2027)
     const anoAtual = Math.max(2026, new Date().getFullYear());
     const currentTotal = await (prisma as any).annualProcurementPlanItem.count({ where: { year: { gte: anoAtual } } }).catch(() => 0);
-    if (currentTotal < 500) {
+    if (currentTotal < 50000 && maxCatalogPages > 0) {
       const anosCatalogo = [anoAtual, anoAtual + 1];
       const orderedClasses = DEFAULT_PCA_CLASSES.map(
         (_, idx) => DEFAULT_PCA_CLASSES[(pcaSweepClassIndex + idx) % DEFAULT_PCA_CLASSES.length],
@@ -301,10 +305,10 @@ export async function syncPcaRecentDays(options: {
       pcaSweepClassIndex = (pcaSweepClassIndex + 1) % DEFAULT_PCA_CLASSES.length;
 
       for (const anoTarget of anosCatalogo) {
-        if (persisted >= 400) break;
+        if (persisted >= MAX_PERSIST_PER_CYCLE) break;
 
         for (const codigoClassificacao of orderedClasses) {
-          if (persisted >= 400) break;
+          if (persisted >= MAX_PERSIST_PER_CYCLE) break;
 
           for (let pagina = 1; pagina <= maxCatalogPages; pagina++) {
             try {
@@ -315,7 +319,7 @@ export async function syncPcaRecentDays(options: {
                   pagina,
                   tamanhoPagina: pageSize,
                 },
-                timeout: 15000,
+                timeout: 35000,
                 headers: { Accept: 'application/json', 'User-Agent': 'EXPERTISE-SaaS/1.0' },
                 validateStatus: (s) => s === 200 || s === 204,
               });
@@ -324,10 +328,10 @@ export async function syncPcaRecentDays(options: {
               }
               fetched += respCat.data.data.length;
               await persistRegistros(respCat.data.data);
-              if (shouldStopPagination(respCat.data, respCat.data.data, pageSize, pagina) || persisted >= 400) {
+              if (shouldStopPagination(respCat.data, respCat.data.data, pageSize, pagina) || persisted >= MAX_PERSIST_PER_CYCLE) {
                 break;
               }
-              await sleep(250);
+              await sleep(220);
             } catch {
               // Timeout/429 em uma classificação não bloqueia as demais
               break;
@@ -383,19 +387,22 @@ export async function queryPcaFromDb(filtros: {
   const totalInDb = await repo.count();
 
   if (filtros.forceRefresh) {
-    await syncPcaRecentDays({ daysBack: 3, maxPagesPerDay: 2, maxCatalogPagesPerClass: 3 });
+    await syncPcaRecentDays({ daysBack: 7, maxPagesPerDay: 4, maxCatalogPagesPerClass: 6 }).catch(() => ({
+      fetched: 0,
+      persisted: 0,
+    }));
   } else if (totalInDb === 0) {
     // Primeira carga: aguarda até 8s e deixa o restante completar em segundo plano sem dar timeout HTTP
     await Promise.race([
-      syncPcaRecentDays({ daysBack: 1, maxPagesPerDay: 1, maxCatalogPagesPerClass: 2 }).catch(() => ({
+      syncPcaRecentDays({ daysBack: 2, maxPagesPerDay: 2, maxCatalogPagesPerClass: 3 }).catch(() => ({
         fetched: 0,
         persisted: 0,
       })),
       sleep(8000),
     ]);
-  } else if (totalInDb < 300) {
+  } else if (totalInDb < 2000) {
     // Dispara backfill nacional sem bloquear a requisição do usuário
-    void syncPcaRecentDays({ daysBack: 2, maxPagesPerDay: 2, maxCatalogPagesPerClass: 3 }).catch(() => undefined);
+    void syncPcaRecentDays({ daysBack: 7, maxPagesPerDay: 4, maxCatalogPagesPerClass: 6 }).catch(() => undefined);
   }
 
   const page = Math.max(1, Number(filtros.pagina || 1));
@@ -404,6 +411,9 @@ export async function queryPcaFromDb(filtros: {
 
   if (filtros.anoPca) {
     and.push({ year: Number(filtros.anoPca) });
+  } else {
+    // Por padrão, exibe os anos vigentes (2026 e 2027) sem misturar itens vencidos de 2025
+    and.push({ year: { gte: Math.max(2026, new Date().getFullYear()) } });
   }
   if (filtros.uf && filtros.uf.trim().toUpperCase() !== 'TODOS') {
     and.push({ uf: { equals: filtros.uf.trim().toUpperCase(), mode: 'insensitive' } });
@@ -436,6 +446,29 @@ export async function queryPcaFromDb(filtros: {
     }),
   ]);
 
+  // Se filtro específico (UF/palavra/CNAE) trouxe poucos resultados locais, dispara sync complementar não-bloqueante
+  if (!filtros.forceRefresh && total < 5 && (filtros.uf || filtros.palavraChave || filtros.cnae)) {
+    void syncPcaRecentDays({ daysBack: 7, maxPagesPerDay: 4, maxCatalogPagesPerClass: 6 }).catch(() => undefined);
+  }
+
+  let resumo: { total: number; imediatos: number; estrategicos: number; valorTotal: number } | undefined;
+  if (typeof repo.aggregate === 'function') {
+    const agora = new Date();
+    const em30Dias = new Date(agora.getTime() + 30 * 86400000);
+    const em90Dias = new Date(agora.getTime() + 90 * 86400000);
+    const [imediatosDb, estrategicosDb, agg] = await Promise.all([
+      repo.count({ where: { AND: [...and, { desiredDate: { gte: agora, lte: em30Dias } }] } }).catch(() => 0),
+      repo.count({ where: { AND: [...and, { desiredDate: { gt: em30Dias, lte: em90Dias } }] } }).catch(() => 0),
+      repo.aggregate({ where, _sum: { estimatedValue: true } }).catch(() => null),
+    ]);
+    resumo = {
+      total,
+      imediatos: Number(imediatosDb || 0),
+      estrategicos: Number(estrategicosDb || 0),
+      valorTotal: Number(agg?._sum?.estimatedValue || 0),
+    };
+  }
+
   const nowMs = Date.now();
   const items = rows.map((r: any) => {
     const tatica = classificarJanelaTaticaPca(r.desiredDate, nowMs);
@@ -466,5 +499,6 @@ export async function queryPcaFromDb(filtros: {
     pagina: page,
     tamanhoPagina: size,
     totalPaginas: Math.max(1, Math.ceil(total / size)),
+    ...(resumo ? { resumo } : {}),
   };
 }

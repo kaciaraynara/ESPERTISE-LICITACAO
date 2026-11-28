@@ -373,6 +373,74 @@ export const ExpertiseIntelligencePage: React.FC = () => {
 
             {(aba === 'geral' || aba === 'defesa') && (
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                {Array.isArray(resultado.indiciosOperacionais) && resultado.indiciosOperacionais.length > 0 && (
+                  <div>
+                    <h2 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
+                      <ShieldAlert className="h-4 w-4 text-[#F97316]" /> Malha Fina 2.0 — Indícios Operacionais
+                    </h2>
+                    <div className="space-y-2 text-xs">
+                      {resultado.indiciosOperacionais.map((op: any, i: number) => {
+                        const sev = String(op.severidade || op.nivel || 'MEDIO').toUpperCase();
+                        const isAlto = sev.includes('ALT') || sev.includes('ELEV');
+                        return (
+                          <div key={i} className={`rounded-xl border p-3 ${isAlto ? 'border-rose-200 bg-rose-50/70' : 'border-amber-200 bg-amber-50/70'}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <strong className="text-[#081C3A]">{op.titulo || op.tipo || 'Indício Operacional'}</strong>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isAlto ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {sev}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-slate-700">{op.descricaoJuridica || op.descricao || op.detalhe}</p>
+                            {Array.isArray(op.empresas) && op.empresas.length > 0 && (
+                              <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                                Empresas envolvidas: {op.empresas.join(' · ')}
+                              </p>
+                            )}
+                            <p className="mt-1 text-[11px] text-[#0070C0] font-semibold">
+                              {op.baseLegal || 'Acórdão nº 1.793/2011-Plenário TCU (conluio / compartilhamento operacional)'}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {resultado.precoReferencia && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-[#081C3A]">Benchmark de Preços CATMAT (Compras.gov.br)</strong>
+                      <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#0070C0] border border-blue-200">
+                        {resultado.precoReferencia.consultado ? `${resultado.precoReferencia.amostras || 0} amostra(s)` : 'Não consultado'}
+                      </span>
+                    </div>
+                    {resultado.precoReferencia.consultado ? (
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        <div className="rounded-lg bg-white p-2 border border-blue-100">
+                          <span className="text-[10px] text-slate-500 block">Menor Preço</span>
+                          <strong className="text-emerald-700">
+                            {resultado.precoReferencia.menorPreco != null ? `R$ ${Number(resultado.precoReferencia.menorPreco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                          </strong>
+                        </div>
+                        <div className="rounded-lg bg-white p-2 border border-blue-100">
+                          <span className="text-[10px] text-slate-500 block">Preço Médio / Mediana</span>
+                          <strong className="text-[#081C3A]">
+                            {resultado.precoReferencia.precoMedio != null ? `R$ ${Number(resultado.precoReferencia.precoMedio).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                          </strong>
+                        </div>
+                        <div className="rounded-lg bg-white p-2 border border-blue-100">
+                          <span className="text-[10px] text-slate-500 block">Maior Preço</span>
+                          <strong className="text-rose-700">
+                            {resultado.precoReferencia.maiorPreco != null ? `R$ ${Number(resultado.precoReferencia.maiorPreco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                          </strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-600">Informe o código CATMAT no campo acima para confrontar preços praticados em compras públicas.</p>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <h2 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#081C3A]">
                     <AlertTriangle className="h-4 w-4 text-rose-600" /> Indicios Objetivos

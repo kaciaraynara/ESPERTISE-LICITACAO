@@ -277,7 +277,9 @@ export const ScoreOportunidadesPage: React.FC = () => {
       });
 
       const agora = Date.now();
-      const rawList: any[] = Array.isArray(resp.data?.data) ? resp.data.data : [];
+      const rawList: any[] = (Array.isArray(resp.data?.data) ? resp.data.data : []).filter(
+        (item: any) => item?.cnaeCompativel !== false && item?.bloqueadoPorTermoNegativo !== true && item?.nivel !== 'FORA',
+      );
       const mapped: EditalViabilidade[] = rawList.map((item) => {
         const ed = item.edital || {};
         const objetoTexto = String(ed.objetoCompra || ed.objeto || 'Objeto não informado').trim();
@@ -835,10 +837,14 @@ export const ScoreOportunidadesPage: React.FC = () => {
       ) : listaVisivel.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
           <p className="text-sm font-bold text-[#081C3A]">
-            Nenhuma oportunidade encontrada para os filtros selecionados.
+            {estadoFiltro !== 'TODOS'
+              ? `Foram encontrados 0 editais aderentes ao seu CNAE no estado ${estadoFiltro}.`
+              : 'Nenhum edital aderente ao CNAE da empresa foi encontrado para os filtros selecionados.'}
           </p>
           <p className="text-xs text-slate-600">
-            Experimente mudar o filtro de Estado para "Todo o Brasil" ou desmarcar o filtro de disputa remota.
+            {estadoFiltro !== 'TODOS'
+              ? 'Amplie a busca para todo o país para visualizar oportunidades compatíveis com o seu CNAE em outros estados.'
+              : 'Verifique o CNAE cadastrado em Minha Empresa ou desmarque o filtro de disputa remota.'}
           </p>
           {estadoFiltro !== 'TODOS' && (
             <button
@@ -846,7 +852,7 @@ export const ScoreOportunidadesPage: React.FC = () => {
               onClick={() => setEstadoFiltro('TODOS')}
               className="rounded-full bg-[#081C3A] px-4 py-2 text-xs font-bold text-white cursor-pointer"
             >
-              Exibir Todo o Brasil
+              Ampliar para Todos os Estados (Brasil)
             </button>
           )}
         </div>

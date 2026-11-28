@@ -208,11 +208,25 @@ export async function cruzarEditalComEmpresa(
 
   const temPdfReal = sourceMode === 'PDF_ANEXO_REAL';
   const totalVicios = ficha?.auditoria?.totalVicios || 0;
+  const noticeMeta = (notice?.metadata && typeof notice.metadata === 'object' ? notice.metadata : {}) as Record<string, any>;
+  const faltamAnexosTecnicos = Boolean(noticeMeta?.faltamAnexosTecnicos);
+  const secoes = ficha?.secoes;
+  const isFaltante = (v?: string | null) =>
+    !v || /não especificado|remetido ao termo|verificar cláusula/i.test(v);
+  const secoesEssenciaisIncompletas =
+    !secoes ||
+    isFaltante(secoes.documentosExigidosHabilitacao?.balancoPatrimonial) ||
+    isFaltante(secoes.documentosExigidosHabilitacao?.atestadoTecnico) ||
+    isFaltante(secoes.financeiroEContrato?.condicoesPagamento) ||
+    isFaltante(secoes.financeiroEContrato?.vigenciaContrato);
+
   const linha3 = !temPdfReal
     ? 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.'
     : totalVicios > 0
       ? `Alerta Jurídico: foram detectadas ${totalVicios} cláusula(s) restritiva(s) passíveis de impugnação antes da disputa.`
-      : 'Segurança Jurídica: nenhuma cláusula restritiva encontrada nos arquivos analisados — cenário seguro para precificar e disputar.';
+      : faltamAnexosTecnicos || secoesEssenciaisIncompletas
+        ? 'Leitura parcial: o edital principal foi lido, mas seções essenciais (como Termo de Referência, Habilitação ou Pagamento) não foram detalhadas ou faltam anexos no portal. Confira os anexos ou protocole pedido de esclarecimento antes de precificar.'
+        : 'Segurança Jurídica: todos os anexos publicados foram lidos e auditados integralmente — nenhuma cláusula restritiva encontrada nos arquivos analisados.';
 
   return {
     empresaId: company.id,

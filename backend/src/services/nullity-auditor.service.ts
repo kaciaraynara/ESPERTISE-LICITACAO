@@ -458,6 +458,52 @@ export function auditEditalNullities(textoCompleto: string): VicioEspecialista[]
           acaoRecomendada: 'Protocolar Impugnacao exigindo adequacao ao limite maximo de 10% e vedacao de cumulatividade.',
         });
       }
+
+      // 20. Lote Unico / Adjudicacao Global sem justificativa tecnica de indivisibilidade
+      if (
+        /(?:lote\s+[uú]nico|grupo\s+[uú]nico|adjudica[cç][aã]o\s+global|menor\s+pre[cç]o\s+global)/i.test(para) &&
+        /(?:itens|servi[cç]os|objetos|julgamento|adjudica[cç][aã]o|crit[eé]rio|contrata[cç][aã]o|fornecimento)/i.test(para) &&
+        !/(?:justificativa\s+t[eé]cnica|indivisibilidade|integra[cç][aã]o\s+sist[eê]mica|perda\s+(?:comprovada\s+)?de\s+economia\s+de\s+escala|inviabilidade\s+t[eé]cnica\s+do\s+parcelamento|n[aã]o\s+parcelamento\s+justificad)/i.test(para)
+      ) {
+        registerOnce({
+          id: 'vicio-lote-unico-indivisivel',
+          titulo: 'Aglutinação em Lote Único / Preço Global sem Justificativa de Indivisibilidade',
+          gravidade: 'MEDIO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 40, paragrafo 3o e inciso V, alinea b da Lei no 14.133/2021 e Sumula no 247 do TCU',
+          explicacaoSimples:
+            'O edital adota julgamento por lote único, grupo único ou preço global reunindo itens ou serviços distintos sem demonstrar justificativa técnica no trecho analisado. A regra legal impõe o parcelamento por item sempre que o objeto for divisível, para ampliar a competitividade entre empresas especializadas. Sem comprovação formal de perda de economia de escala ou indivisibilidade técnica no Estudo Técnico Preliminar (ETP), a aglutinação é irregular. Recomenda-se consultar o ETP e, se ausente a justificativa, protocolar esclarecimento ou impugnação.',
+          acaoRecomendada:
+            'Solicitar via Esclarecimento a justificativa tecnica do ETP ou protocolar Impugnacao requerendo a adjudicacao por item (Sumula 247 do TCU).',
+        });
+      }
+
+      // 21. Exigencia de vinculo empregaticio previo do responsavel tecnico (CTPS / quadro permanente)
+      if (
+        (
+          /(?:respons[aá]vel\s+t[eé]cnico|profissional\s+(?:t[eé]cnico|habilitado)|engenheiro|arquiteto|quadro\s+permanente)[^.]{0,180}(?:ctps\s+assinada|carteira\s+de\s+trabalho|ficha\s+de\s+registro\s+de\s+empregado|v[ií]nculo\s+empregat[ií]cio(?:\s+pr[eé]vio)?|v[ií]nculo\s+trabalhista\s+consolidado|pertencer\s+ao\s+quadro\s+permanente\s+na\s+data)/i.test(para) ||
+          /(?:ctps\s+assinada|ficha\s+de\s+registro\s+de\s+empregado|v[ií]nculo\s+empregat[ií]cio(?:\s+pr[eé]vio)?)[^.]{0,140}(?:na\s+data\s+da\s+sess[aã]o|na\s+habilita[cç][aã]o|para\s+fins\s+de\s+habilita[cç][aã]o|respons[aá]vel\s+t[eé]cnico|quadro\s+permanente)/i.test(para)
+        ) &&
+        !/(?:contrato\s+de\s+presta[cç][aã]o\s+de\s+servi[cç]os|declara[cç][aã]o\s+de\s+contrata[cç][aã]o\s+futura|compromisso\s+de\s+disponibilidade|ou\s+contrato\s+aut[oô]nomo)/i.test(para)
+      ) {
+        registerOnce({
+          id: 'vicio-vinculo-empregaticio-previo',
+          titulo: 'Exigência Ilegal de Vínculo Empregatício Prévio do Responsável Técnico',
+          gravidade: 'ALTO',
+          arquivoOrigem: seg.arquivo,
+          pagina: seg.pagina,
+          clausula,
+          trechoLiteral: quote,
+          fundamentoLegal: 'Art. 67, inciso I e paragrafo 1o da Lei no 14.133/2021 e Sumula no 272 do TCU',
+          explicacaoSimples:
+            'A cláusula exige que o responsável técnico já possua vínculo empregatício prévio (como CTPS assinada, ficha de registro ou quadro permanente consolidado) na data da sessão ou da habilitação, sem aceitar alternativas legais. Pela Lei nº 14.133/2021 e jurisprudência do TCU, é ilegal obrigar o licitante a manter profissional contratado antes mesmo de vencer o certame, pois basta comprovar a disponibilidade por contrato de prestação de serviços ou declaração de contratação futura. Essa exigência impõe ônus trabalhista e previdenciário antecipado e restringe a competição.',
+          acaoRecomendada:
+            'Protocolar Impugnacao ao Edital exigindo a aceitacao de contrato de prestacao de servicos ou declaracao formal de disponibilidade futura do profissional.',
+        });
+      }
     }
   }
 

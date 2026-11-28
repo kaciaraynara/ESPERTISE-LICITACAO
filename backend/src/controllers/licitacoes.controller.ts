@@ -6,6 +6,7 @@ import { prisma } from '../database/prisma';
 import {
   buildCompanyCnaeTerms,
   evaluateNoticeViability,
+  filtrarAvaliacoesAderentes,
 } from '../services/cnae-compatibility.service';
 const __radarFastCache = new Map<string, { ts: number; body: any }>();
 import { Response } from 'express';
@@ -457,23 +458,7 @@ export class LicitacoesController {
           })
         : [];
 
-      const seenIds = new Set(matchedNotices.map((n) => n.id));
-      const remaining = Math.max(0, limit - matchedNotices.length);
-      const fallbackNotices = remaining > 0
-        ? await prisma.procurementNotice.findMany({
-            where: baseWhere,
-            include: { items: { select: { description: true }, take: 25 } },
-            orderBy: { publishedAt: 'desc' },
-            take: Math.min(40, remaining),
-          })
-        : [];
-
-      const allNotices = [
-        ...matchedNotices,
-        ...fallbackNotices.filter((n) => !seenIds.has(n.id)),
-      ];
-
-      const avaliacoes = allNotices
+      const avaliacoes = matchedNotices
         .map((n) => {
           const meta = (typeof n.metadata === 'object' && n.metadata ? n.metadata : {}) as Record<string, any>;
           const extractedSpecs = meta.extractedSpecsJson || null;
@@ -523,9 +508,19 @@ export class LicitacoesController {
         })
         .sort((a, b) => b.pontuacao - a.pontuacao);
 
+      const { aderentes, foraDoPerfil } = filtrarAvaliacoesAderentes(avaliacoes);
+
       return res.json({
         success: true,
-        data: avaliacoes,
+        data: aderentes,
+        foraDoPerfil,
+        totalAderentes: aderentes.length,
+        filtroAplicado: {
+          uf: ufParam || 'TODOS',
+          cnaePrincipal: companyProfile.cnaePrincipal,
+          cnaesSecundarios: companyProfile.cnaesSecundarios,
+          termosBusca: searchTerms,
+        },
         docsStatus: docsStats,
         empresa: company
           ? {

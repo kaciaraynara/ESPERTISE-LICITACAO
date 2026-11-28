@@ -1,2 +1,0 @@
-// Redirecionamento e exportação do componente real de Análise de Viabilidade
-export { AnaliseViabilidadeDetalhePage as default, AnaliseViabilidadeDetalhePage, AnaliseViabilidadeDetalhePage as AnaliseViabilidadeScreen } from './AnaliseViabilidadeDetalhePage';

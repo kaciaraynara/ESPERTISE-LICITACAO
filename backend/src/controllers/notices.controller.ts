@@ -91,10 +91,9 @@ export class NoticesController {
               { numeroControlePncp: noticeId },
             ].filter(Boolean) as any,
           },
-          select: { id: true, object: true, uf: true, municipality: true, estimatedValue: true },
+          select: { id: true, object: true, uf: true, municipality: true, estimatedValue: true, metadata: true },
         });
 
-        cruzamentoEmpresa = await cruzarEditalComEmpresa(noticeRow || { id: noticeId }, auditoriaSpecs, companyIdParam || null, userIdParam);
         cruzamentoEmpresa = await cruzarEditalComEmpresa(
           noticeRow || { id: noticeId },
           auditoriaSpecs,
@@ -505,7 +504,7 @@ export class NoticesController {
 
       const force = req.query.force === 'true' || req.body?.force === true;
       const meta = (notice.metadata as Record<string, any>) || {};
-      if (!force && meta.extractedSpecsJson && meta.deepReadStatus === 'COMPLETO') {
+      if (!force && meta.extractedSpecsJson?.explicacaoProfessor && Number(meta.fichaVersion || 0) >= 6 && (meta.deepReadStatus === 'DONE' || meta.deepReadStatus === 'COMPLETO')) {
         return res.json({
           success: true,
           data: {

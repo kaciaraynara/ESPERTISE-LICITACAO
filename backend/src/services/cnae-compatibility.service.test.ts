@@ -1,4 +1,4 @@
-import { evaluateNoticeViability } from './cnae-compatibility.service';
+import { evaluateNoticeViability, filtrarAvaliacoesAderentes } from './cnae-compatibility.service';
 
 describe('cnae-compatibility.service', () => {
   const docsOk = {
@@ -100,5 +100,21 @@ describe('cnae-compatibility.service', () => {
     expect(merenda.cnaeCompativel).toBe(false);
     expect(merenda.nivel).toBe('FORA');
     expect(merenda.pontuacao).toBeLessThanOrEqual(15);
+  });
+
+  test('filtrarAvaliacoesAderentes nunca mistura editais com cnaeCompativel=false ou bloqueadoPorTermoNegativo=true na lista principal', () => {
+    const futuro = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    const amostraPequena = [
+      evaluateNoticeViability({ object: 'Aquisição de uniformes e fardamento escolar', uf: 'CE', estimatedValue: 50000, closingAt: futuro }, clothingCompany, docsOk),
+      evaluateNoticeViability({ object: 'Aquisição de lavadora de roupas industrial', uf: 'CE', estimatedValue: 30000, closingAt: futuro }, clothingCompany, docsOk),
+      evaluateNoticeViability({ object: 'Aquisição de insumos hospitalares e medicamentos', uf: 'CE', estimatedValue: 40000, closingAt: futuro }, clothingCompany, docsOk),
+    ];
+
+    const { aderentes, foraDoPerfil } = filtrarAvaliacoesAderentes(amostraPequena);
+    expect(aderentes).toHaveLength(1);
+    expect(aderentes[0].cnaeCompativel).toBe(true);
+    expect(aderentes[0].bloqueadoPorTermoNegativo).toBe(false);
+    expect(foraDoPerfil).toHaveLength(2);
+    expect(aderentes.some((a) => a.cnaeCompativel === false || a.bloqueadoPorTermoNegativo === true)).toBe(false);
   });
 });

@@ -76,7 +76,7 @@ describe('pca-sync.service', () => {
       return { status: 204, data: {} } as any;
     });
 
-    const result = await syncPcaRecentDays({ daysBack: 1, maxPagesPerDay: 3 });
+    const result = await syncPcaRecentDays({ daysBack: 1, maxPagesPerDay: 3, maxCatalogPagesPerClass: 0 });
 
     expect(result.fetched).toBe(2);
     expect(result.persisted).toBe(2);
@@ -163,5 +163,51 @@ describe('pca-sync.service', () => {
     expect(getSpy).toHaveBeenCalled();
 
     await new Promise((r) => setTimeout(r, 20));
+  });
+
+  test('syncPcaRecentDays rotaciona múltiplas classes e pagina catálogo oficial para 2026 e 2027', async () => {
+    const classesVisitadas = new Set<number>();
+    const anosVisitados = new Set<number>();
+
+    const getSpy = jest.spyOn(axios, 'get').mockImplementation(async (url: string, config?: any) => {
+      if (url.endsWith('/pca/')) {
+        const ano = Number(config?.params?.anoPca);
+        const cls = Number(config?.params?.codigoClassificacaoSuperior);
+        const pg = Number(config?.params?.pagina);
+        anosVisitados.add(ano);
+        classesVisitadas.add(cls);
+        if (pg === 1 && (cls === 1 || cls === 2)) {
+          return {
+            status: 200,
+            data: {
+              paginasRestantes: 1,
+              totalPaginas: 2,
+              data: [
+                {
+                  idPcaPncp: `00000000000191-0-00000${cls}/${ano}`,
+                  anoPca: ano,
+                  orgaoEntidadeCnpj: '00000000000191',
+                  orgaoEntidadeRazaoSocial: 'ORGAO FEDERAL TESTE',
+                  itens: [{ numeroItem: 1, descricaoItem: `ITEM CLASSE ${cls} ANO ${ano}`, valorTotal: 15000 }],
+                },
+              ],
+            },
+          } as any;
+        }
+        return { status: 204, data: {} } as any;
+      }
+      return { status: 204, data: {} } as any;
+    });
+
+    const result = await syncPcaRecentDays({ daysBack: 1, maxPagesPerDay: 1, maxCatalogPagesPerClass: 3 });
+
+    expect(anosVisitados.has(2026)).toBe(true);
+    expect(anosVisitados.has(2027)).toBe(true);
+    expect(classesVisitadas.size).toBeGreaterThanOrEqual(10);
+    expect(result.persisted).toBeGreaterThanOrEqual(4);
+    expect(getSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/pca/'),
+      expect.objectContaining({ params: expect.objectContaining({ anoPca: 2027, tamanhoPagina: 50 }) }),
+    );
   });
 });

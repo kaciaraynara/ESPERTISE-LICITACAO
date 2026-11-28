@@ -102,7 +102,8 @@ const AcademiaPage = React.lazy(() =>
 );
 const TermosDeUsoPage = React.lazy(() => import('./pages/TermosDeUsoPage'));
 const PoliticaPrivacidadePage = React.lazy(() => import('./pages/PoliticaPrivacidadePage'));
-const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));const RadarPage = React.lazy(() => import('./pages/RadarPage'));
+const EmpresaPage = React.lazy(() => import('./pages/EmpresaPage'));
+const RadarPage = React.lazy(() => import('./pages/RadarPage'));
 const ExpertiseFiscalPage = React.lazy(() => import('./pages/ExpertiseFiscalPage'));
 const RedeFornecedoresPage = React.lazy(() => import('./pages/RedeFornecedoresPage'));
 const SuperAdminPage = React.lazy(() => import('./pages/SuperAdmin/SuperAdminPage'));
@@ -332,215 +333,215 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <CompanyProvider>
-      <PageTitleManager />
-      <AuthBootstrap />
-      <PlanAccessBootstrap />
-      <a
-        href="#main-content"
-        className="sr-only fixed left-4 top-4 z-[100] rounded-lg bg-white px-4 py-2 font-bold text-brand-dark shadow-xl focus:not-sr-only"
-      >
-        Pular para o conteúdo principal
-      </a>
+        <PageTitleManager />
+        <AuthBootstrap />
+        <PlanAccessBootstrap />
+        <a
+          href="#main-content"
+          className="sr-only fixed left-4 top-4 z-[100] rounded-lg bg-white px-4 py-2 font-bold text-brand-dark shadow-xl focus:not-sr-only"
+        >
+          Pular para o conteúdo principal
+        </a>
 
-      <Suspense fallback={
-        <div className="flex h-screen w-screen items-center justify-center bg-white font-sans">
-          <div className="text-center animate-pulse">
-            <h2 className="text-2xl font-black tracking-tighter text-brand-dark">
-              Carregando sua área de trabalho...
-            </h2>
-            <p className="mt-2 text-sm font-medium text-slate-400">
-              Aguarde enquanto abrimos as informações.
-            </p>
+        <Suspense fallback={
+          <div className="flex h-screen w-screen items-center justify-center bg-white font-sans">
+            <div className="text-center animate-pulse">
+              <h2 className="text-2xl font-black tracking-tighter text-brand-dark">
+                Carregando sua área de trabalho...
+              </h2>
+              <p className="mt-2 text-sm font-medium text-slate-400">
+                Aguarde enquanto abrimos as informações.
+              </p>
+            </div>
           </div>
-        </div>
-      }>
-        <Routes>
-          {/* Rotas Institucionais */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/termos" element={<TermosDeUsoPage />} />
-          <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
-          
-          {/* Rotas de Autenticação */}
-          <Route path="/parceiro/academia" element={<ParceiroAcademiaPage />} />
-          <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-          <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-          <Route path="/cadastro" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-          <Route path="/forgot-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
-          <Route path="/reset-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
-          <Route path="/auth/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
-          <Route path="/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
-          <Route path="/esqueci-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+        }>
+          <Routes>
+            {/* Rotas Institucionais */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/termos" element={<TermosDeUsoPage />} />
+            <Route path="/privacidade" element={<PoliticaPrivacidadePage />} />
 
-          {/* Rotas Seguras ERP */}
-          <Route element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
-            <Route path={FORNECEDOR_ROUTES.dashboard} element={<DashboardPage />} />
-            <Route path={FORNECEDOR_ROUTES.licitacao_detalhe} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacaoDetalhePage />)} />
-            <Route path={FORNECEDOR_ROUTES.licitacoes_detalhe_alias} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacaoDetalhePage />)} />
-            
-            {/* Módulos Operacionais Conectados */}
-            <Route path={FORNECEDOR_ROUTES.disputas} element={protectFeature('crm_kanban', 'Gestão de Disputas', <CrmKanbanPage />)} />
-            <Route path="/fornecedor/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
-            <Route path="/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
-            <Route path="/disputas" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
-            <Route path="/crm-legacy" element={protectFeature('crm_kanban', 'Gestão de Disputas', <CrmFunilScreen />)} />
-            <Route path={FORNECEDOR_ROUTES.precificacao_estrategica} element={protectFeature('precificacao_estrategica', 'Precificação Estratégica', <PrecificacaoPage />)} />
+            {/* Rotas de Autenticação */}
+            <Route path="/parceiro/academia" element={<ParceiroAcademiaPage />} />
+            <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+            <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+            <Route path="/cadastro" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+            <Route path="/forgot-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+            <Route path="/reset-password" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+            <Route path="/auth/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+            <Route path="/redefinir-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
+            <Route path="/esqueci-senha" element={<PublicRoute><AuthPages defaultView="login" /></PublicRoute>} />
 
-            {/* As 16 Ferramentas Principais da Plataforma (Arte Oficial) */}
-            <Route path={FORNECEDOR_ROUTES.radar} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
-            <Route path={'/fornecedor/expertise-intelligence'} element={protectFeature('inteligencia_concorrentes', 'Expertise Intelligence', <ExpertiseIntelligencePage />)} />
-            <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={protectFeature('radar_erros_edital', 'Radar de Nulidades', <NulidadesPage />)} />
-            <Route path={FORNECEDOR_ROUTES.leitor_editais} element={protectFeature('resumo_edital_completo', 'Leitor Inteligente de Editais', <LeitorEditaisPage />)} />
-            <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />
-            <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
-            <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Envio Automático de Lances', <RoboPage />)} />
-            <Route path={FORNECEDOR_ROUTES.disputa_ao_vivo} element={protectFeature('robo_lances', 'Disputa ao Vivo', <DisputaAoVivoPage />)} />
-            <Route path="/fornecedor/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
-            <Route path="/fornecedor/disputa" element={<Navigate to={FORNECEDOR_ROUTES.disputa_ao_vivo} replace />} />
-            <Route path="/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
-            <Route
-              path={FORNECEDOR_ROUTES.pregao_eletronico}
-              element={protectFeature('radar_editais', 'Pregão Eletrônico', <LicitacoesPage key="pregao-eletronico" modalidadeInicial="Pregão Eletrônico" />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.concorrencia}
-              element={protectFeature('radar_editais', 'Concorrência', <LicitacoesPage key="concorrencia" modalidadeInicial="Concorrência" />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.credenciamento}
-              element={protectFeature('radar_editais', 'Credenciamento', <LicitacoesPage key="credenciamento" modalidadeInicial="Credenciamento" />)}
-            />
-            <Route path={FORNECEDOR_ROUTES.sicaf_credenciamento} element={protectFeature('credenciamento', 'SICAF e Certificação', <CredenciamentoPage />)} />
-            <Route path={FORNECEDOR_ROUTES.dispensa_eletronica} element={protectFeature('dispensa_eletronica', 'Dispensa Eletrônica', <DispensaEletronicaPage />)} />
-            <Route path={FORNECEDOR_ROUTES.recursos} element={protectFeature('recursos_administrativos', 'Recursos Administrativos', <RecursosPage />)} />
-            <Route path={FORNECEDOR_ROUTES.defesas_recursos} element={protectFeature('recursos_administrativos', 'Defesas e Recursos', <ContenciosoHubPage />)} />
-            <Route path={FORNECEDOR_ROUTES.habilitacao} element={protectFeature('habilitacao', 'Habilitação', <HabilitacaoPage />)} />
-            <Route path={FORNECEDOR_ROUTES.cofre} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
-            <Route path={FORNECEDOR_ROUTES.certidoes} element={protectFeature('certidoes', 'Certidões', <CertidoesPage />)} />
-            <Route path="/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
-            <Route path="/fornecedor/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
-            <Route path="/fornecedor/pca" element={<PcaPage />} />
-            <Route path={FORNECEDOR_ROUTES.srp} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
-            <Route path={FORNECEDOR_ROUTES.academia} element={protectFeature('academia_licitante', 'Academia do Licitante', <AcademiaPage />)} />
-            <Route
-              path={FORNECEDOR_ROUTES.propostas}
-              element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.lex}
-              element={protectFeature('lex_ia_avancada', 'Análise de Editais', <LexAnalisePage />)}
-            />
+            {/* Rotas Seguras ERP */}
+            <Route element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
+              <Route path={FORNECEDOR_ROUTES.dashboard} element={<DashboardPage />} />
+              <Route path={FORNECEDOR_ROUTES.licitacao_detalhe} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacaoDetalhePage />)} />
+              <Route path={FORNECEDOR_ROUTES.licitacoes_detalhe_alias} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacaoDetalhePage />)} />
 
-            {/* Módulos de Gestão, Sub-rotas e Aliases */}
-            <Route
-              path={FORNECEDOR_ROUTES.proposta_criar}
-              element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)}
-            />
-            <Route
-              path="/fornecedor/propostas/nova"
-              element={<Navigate to={FORNECEDOR_ROUTES.proposta_criar} replace />}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.proposta_detalhe}
-              element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostaDetalhePage />)}
-            />
-            <Route path={FORNECEDOR_ROUTES.catalogo} element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
-            <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+              {/* Módulos Operacionais Conectados */}
+              <Route path={FORNECEDOR_ROUTES.disputas} element={protectFeature('crm_kanban', 'Gestão de Disputas', <CrmKanbanPage />)} />
+              <Route path="/fornecedor/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
+              <Route path="/crm" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
+              <Route path="/disputas" element={<Navigate to={FORNECEDOR_ROUTES.disputas} replace />} />
+              <Route path="/crm-legacy" element={protectFeature('crm_kanban', 'Gestão de Disputas', <CrmFunilScreen />)} />
+              <Route path={FORNECEDOR_ROUTES.precificacao_estrategica} element={protectFeature('precificacao_estrategica', 'Precificação Estratégica', <PrecificacaoPage />)} />
 
-            {/* Rotas Diretas Operacionais Desobstruídas */}
-            <Route path="/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
-            <Route path="/fornecedor/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
-            <Route path="/fornecedor/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-modalidades" tituloCustomizado="Tipos de Contratação" />)} />
-            <Route path="/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="modalidades" tituloCustomizado="Tipos de Contratação" />)} />
-            <Route path="/fornecedor/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
-            <Route path="/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
-            <Route path="/fornecedor/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
-            <Route path="/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
-            <Route path="/fornecedor/inteligencia" element={protectFeature('inteligencia_concorrentes', 'Inteligência Competitiva', <InvestigacaoConcorrencialPage />)} />
-            <Route path="/oportunidades" element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
-            <Route path="/propostas" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)} />
-            <Route path="/propostas/criar" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)} />
-            <Route path="/catalogo" element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
-            <Route path="/prazos" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
-            <Route path="/configuracoes" element={<ConfiguracoesPage />} />
-            <Route
-              path={FORNECEDOR_ROUTES.gestao_contratual}
-              element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.gestao_pos_vitoria}
-              element={protectFeature('gestao_contratual', 'Garantias e Gestão Pós-Vitória', <GestaoPosVitoriaPage />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.expertise_fiscal}
-              element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
-            />
-            <Route
-              path="/expertise-fiscal"
-              element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
-            />
-            <Route path={FORNECEDOR_ROUTES.documentos} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
-            <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
-            <Route path={FORNECEDOR_ROUTES.srp_carona} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
-            <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={protectFeature('radar_editais', 'Editais Monitorados', <EditaisMonitoradosPage />)} />
-            <Route path={FORNECEDOR_ROUTES.analise_viabilidade} element={protectFeature('analise_viabilidade', 'Análise de Viabilidade', <AnaliseViabilidadeDetalhePage />)} />
-            <Route path={FORNECEDOR_ROUTES.analise_oportunidade} element={<Navigate to={FORNECEDOR_ROUTES.score_viabilidade} replace />} />
-            <Route path={`${FORNECEDOR_ROUTES.analise_viabilidade}/:id`} element={protectFeature('analise_viabilidade', 'Análise de Viabilidade', <AnaliseViabilidadeDetalhePage />)} />
-            <Route path={FORNECEDOR_ROUTES.estrategia_disputa} element={protectFeature('robo_lances', 'Estratégia de Disputa', <RoboPage />)} />
-            <Route
-              path={FORNECEDOR_ROUTES.historico_concorrentes}
-              element={protectFeature('historico_concorrentes', 'Histórico de Concorrentes', <HistoricoConcorrentesPage />)}
-            />
-            <Route
-              path={FORNECEDOR_ROUTES.investigacao_concorrencial}
-              element={protectFeature('inteligencia_concorrentes', 'Inteligência Competitiva', <InvestigacaoConcorrencialPage />)}
-            />
-            <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
-            <Route path="/fornecedor/relatorios-estrategicos" element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
-            <Route path="/fornecedor/prazos-alertas" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
-            <Route path="/fornecedor/gestao-contratual" element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)} />
-            <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
-            <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
-            <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
-            <Route path={FORNECEDOR_ROUTES.integracoes} element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
-            <Route path="/fornecedor/radar-telemetria" element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
-            <Route path="/admin/radar" element={<RadarPage />} />
+              {/* As 16 Ferramentas Principais da Plataforma (Arte Oficial) */}
+              <Route path={FORNECEDOR_ROUTES.radar} element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
+              <Route path={'/fornecedor/expertise-intelligence'} element={protectFeature('inteligencia_concorrentes', 'Expertise Intelligence', <ExpertiseIntelligencePage />)} />
+              <Route path={FORNECEDOR_ROUTES.radar_nulidades} element={protectFeature('radar_erros_edital', 'Radar de Nulidades', <NulidadesPage />)} />
+              <Route path={FORNECEDOR_ROUTES.leitor_editais} element={protectFeature('resumo_edital_completo', 'Leitor Inteligente de Editais', <LeitorEditaisPage />)} />
+              <Route path={FORNECEDOR_ROUTES.impugnacao} element={protectFeature('impugnacao_edital', 'Impugnação Inteligente', <ImpugnacaoPage />)} />
+              <Route path={FORNECEDOR_ROUTES.score_viabilidade} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
+              <Route path={FORNECEDOR_ROUTES.robo_lances} element={protectFeature('robo_lances', 'Envio Automático de Lances', <RoboPage />)} />
+              <Route path={FORNECEDOR_ROUTES.disputa_ao_vivo} element={protectFeature('robo_lances', 'Disputa ao Vivo', <DisputaAoVivoPage />)} />
+              <Route path="/fornecedor/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
+              <Route path="/fornecedor/disputa" element={<Navigate to={FORNECEDOR_ROUTES.disputa_ao_vivo} replace />} />
+              <Route path="/robo" element={<Navigate to={FORNECEDOR_ROUTES.robo_lances} replace />} />
+              <Route
+                path={FORNECEDOR_ROUTES.pregao_eletronico}
+                element={protectFeature('radar_editais', 'Pregão Eletrônico', <LicitacoesPage key="pregao-eletronico" modalidadeInicial="Pregão Eletrônico" />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.concorrencia}
+                element={protectFeature('radar_editais', 'Concorrência', <LicitacoesPage key="concorrencia" modalidadeInicial="Concorrência" />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.credenciamento}
+                element={protectFeature('radar_editais', 'Credenciamento', <LicitacoesPage key="credenciamento" modalidadeInicial="Credenciamento" />)}
+              />
+              <Route path={FORNECEDOR_ROUTES.sicaf_credenciamento} element={protectFeature('credenciamento', 'SICAF e Certificação', <CredenciamentoPage />)} />
+              <Route path={FORNECEDOR_ROUTES.dispensa_eletronica} element={protectFeature('dispensa_eletronica', 'Dispensa Eletrônica', <DispensaEletronicaPage />)} />
+              <Route path={FORNECEDOR_ROUTES.recursos} element={protectFeature('recursos_administrativos', 'Recursos Administrativos', <RecursosPage />)} />
+              <Route path={FORNECEDOR_ROUTES.defesas_recursos} element={<Navigate to={FORNECEDOR_ROUTES.recursos} replace />} />
+              <Route path={FORNECEDOR_ROUTES.habilitacao} element={protectFeature('habilitacao', 'Habilitação', <HabilitacaoPage />)} />
+              <Route path={FORNECEDOR_ROUTES.cofre} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
+              <Route path={FORNECEDOR_ROUTES.certidoes} element={<Navigate to={FORNECEDOR_ROUTES.cofre} replace />} />
+              <Route path="/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+              <Route path="/fornecedor/fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+              <Route path="/fornecedor/pca" element={<PcaPage />} />
+              <Route path={FORNECEDOR_ROUTES.srp} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
+              <Route path={FORNECEDOR_ROUTES.academia} element={protectFeature('academia_licitante', 'Academia do Licitante', <AcademiaPage />)} />
+              <Route
+                path={FORNECEDOR_ROUTES.propostas}
+                element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.lex}
+                element={<Navigate to={FORNECEDOR_ROUTES.leitor_editais} replace />}
+              />
 
-            {/* Aliases Seguros com Preservação de Query Params */}
-            <Route path="/leitor-editais" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.leitor_editais} />} />
-            <Route path="/fornecedor/nulidades" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.radar_nulidades} />} />
-            <Route path="/impugnacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.impugnacao} />} />
-            <Route path="/precificacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.precificacao_estrategica} />} />
-            <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-          </Route>
+              {/* Módulos de Gestão, Sub-rotas e Aliases */}
+              <Route
+                path={FORNECEDOR_ROUTES.proposta_criar}
+                element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)}
+              />
+              <Route
+                path="/fornecedor/propostas/nova"
+                element={<Navigate to={FORNECEDOR_ROUTES.proposta_criar} replace />}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.proposta_detalhe}
+                element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostaDetalhePage />)}
+              />
+              <Route path={FORNECEDOR_ROUTES.catalogo} element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
+              <Route path={FORNECEDOR_ROUTES.prazos_alertas} element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
 
-          {/* Painel Privado do Proprietário (Super Admin) - Protegido por role */}
-          <Route path="/master-admin-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
-          <Route path="/internal-ops-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
+              {/* Rotas Diretas Operacionais Desobstruídas */}
+              <Route path="/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
+              <Route path="/fornecedor/tipos-contratacao" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-tipos-contratacao" tituloCustomizado="Tipos de Contratação" />)} />
+              <Route path="/fornecedor/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="fornecedor-modalidades" tituloCustomizado="Tipos de Contratação" />)} />
+              <Route path="/modalidades" element={protectFeature('radar_editais', 'Tipos de Contratação', <LicitacoesPage key="modalidades" tituloCustomizado="Tipos de Contratação" />)} />
+              <Route path="/fornecedor/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
+              <Route path="/planilha" element={protectFeature('precificacao_estrategica', 'Planilha & Precificação', <PrecificacaoPage />)} />
+              <Route path="/fornecedor/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+              <Route path="/rede-fornecedores" element={protectFeature('fornecedores', 'Rede de Fornecedores', <RedeFornecedoresPage />)} />
+              <Route path="/fornecedor/inteligencia" element={<Navigate to={FORNECEDOR_ROUTES.historico_concorrentes} replace />} />
+              <Route path="/oportunidades" element={protectFeature('radar_editais', 'Buscar Oportunidades', <LicitacoesPage />)} />
+              <Route path="/propostas" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <PropostasPage />)} />
+              <Route path="/propostas/criar" element={protectFeature('fabrica_propostas', 'Gerador de Propostas', <CriarPropostaPage />)} />
+              <Route path="/catalogo" element={protectFeature('catalogo_produtos', 'Catálogo de Produtos', <CatalogoPage />)} />
+              <Route path="/prazos" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+              <Route path="/configuracoes" element={<ConfiguracoesPage />} />
+              <Route
+                path={FORNECEDOR_ROUTES.gestao_contratual}
+                element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.gestao_pos_vitoria}
+                element={protectFeature('gestao_contratual', 'Garantias e Gestão Pós-Vitória', <GestaoPosVitoriaPage />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.expertise_fiscal}
+                element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
+              />
+              <Route
+                path="/expertise-fiscal"
+                element={protectFeature('gestao_contratual', 'Expertise Fiscal', <ExpertiseFiscalPage />)}
+              />
+              <Route path={FORNECEDOR_ROUTES.documentos} element={protectFeature('cofre_documentos', 'Meus Documentos', <CofrePage />)} />
+              <Route path={FORNECEDOR_ROUTES.score_oportunidades} element={protectFeature('score_oportunidade', 'Análise de Viabilidade', <ScoreOportunidadesPage />)} />
+              <Route path={FORNECEDOR_ROUTES.srp_carona} element={protectFeature('srp_carona', 'Sistema de Registro de Preços', <SrpPage />)} />
+              <Route path={FORNECEDOR_ROUTES.editais_monitorados} element={protectFeature('radar_editais', 'Editais Monitorados', <EditaisMonitoradosPage />)} />
+              <Route path={FORNECEDOR_ROUTES.analise_viabilidade} element={protectFeature('analise_viabilidade', 'Análise de Viabilidade', <AnaliseViabilidadeDetalhePage />)} />
+              <Route path={FORNECEDOR_ROUTES.analise_oportunidade} element={<Navigate to={FORNECEDOR_ROUTES.score_viabilidade} replace />} />
+              <Route path={`${FORNECEDOR_ROUTES.analise_viabilidade}/:id`} element={protectFeature('analise_viabilidade', 'Análise de Viabilidade', <AnaliseViabilidadeDetalhePage />)} />
+              <Route path={FORNECEDOR_ROUTES.estrategia_disputa} element={protectFeature('robo_lances', 'Estratégia de Disputa', <RoboPage />)} />
+              <Route
+                path={FORNECEDOR_ROUTES.historico_concorrentes}
+                element={protectFeature('historico_concorrentes', 'Histórico de Concorrentes', <HistoricoConcorrentesPage />)}
+              />
+              <Route
+                path={FORNECEDOR_ROUTES.investigacao_concorrencial}
+                element={<Navigate to={FORNECEDOR_ROUTES.historico_concorrentes} replace />}
+              />
+              <Route path={FORNECEDOR_ROUTES.relatorios_estrategicos} element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
+              <Route path="/fornecedor/relatorios-estrategicos" element={protectFeature('relatorios_estrategicos', 'Relatórios Estratégicos', <RelatoriosPage />)} />
+              <Route path="/fornecedor/prazos-alertas" element={protectFeature('prazos_alertas', 'Prazos e Alertas', <PrazosAlertasPage />)} />
+              <Route path="/fornecedor/gestao-contratual" element={protectFeature('gestao_contratual', 'Gestão Contratual', <GestaoContratualPage />)} />
+              <Route path={FORNECEDOR_ROUTES.planos} element={<PlanosPage />} />
+              <Route path={FORNECEDOR_ROUTES.configuracoes} element={<ConfiguracoesPage />} />
+              <Route path={FORNECEDOR_ROUTES.empresa} element={<EmpresaPage />} />
+              <Route path={FORNECEDOR_ROUTES.integracoes} element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
+              <Route path="/fornecedor/radar-telemetria" element={<Navigate to={FORNECEDOR_ROUTES.dashboard} replace />} />
+              <Route path="/admin/radar" element={<RadarPage />} />
 
-          {/* Fallback 404 */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </Suspense>
+              {/* Aliases Seguros com Preservação de Query Params */}
+              <Route path="/leitor-editais" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.leitor_editais} />} />
+              <Route path="/fornecedor/nulidades" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.radar_nulidades} />} />
+              <Route path="/impugnacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.impugnacao} />} />
+              <Route path="/precificacao" element={<RedirectPreserveQuery to={FORNECEDOR_ROUTES.precificacao_estrategica} />} />
+              <Route path={LEGACY_FORNECEDOR_ROUTES.cofre} element={<Navigate to={FORNECEDOR_ROUTES.documentos} replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+            </Route>
 
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4500,
-          style: {
-            background: '#FFFFFF',
-            color: '#0A2540',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            boxShadow: '0 16px 40px rgba(15, 23, 42, 0.12)',
-            fontSize: '14px',
-            fontFamily: 'sans-serif',
-            fontWeight: 'bold'
-          },
-          success: { iconTheme: { primary: '#EA580C', secondary: '#FFFFFF' } },
-          error: { iconTheme: { primary: '#B91C1C', secondary: '#FFFFFF' } },
-        }}
-      />
+            {/* Painel Privado do Proprietário (Super Admin) - Protegido por role */}
+            <Route path="/master-admin-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
+            <Route path="/internal-ops-vault" element={<SuperAdminRoute><SuperAdminPage /></SuperAdminRoute>} />
+
+            {/* Fallback 404 */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
+
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4500,
+            style: {
+              background: '#FFFFFF',
+              color: '#0A2540',
+              border: '1px solid #E2E8F0',
+              borderRadius: '12px',
+              boxShadow: '0 16px 40px rgba(15, 23, 42, 0.12)',
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+              fontWeight: 'bold'
+            },
+            success: { iconTheme: { primary: '#EA580C', secondary: '#FFFFFF' } },
+            error: { iconTheme: { primary: '#B91C1C', secondary: '#FFFFFF' } },
+          }}
+        />
       </CompanyProvider>
     </QueryClientProvider>
   );

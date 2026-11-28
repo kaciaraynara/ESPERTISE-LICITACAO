@@ -215,7 +215,7 @@ async function parseVisualPdfEscaneadoComIa(buf: Buffer, fileName: string): Prom
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const modelosOcr = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'];
 
     // Envia o PDF como inlineData
     // Limita tamanho para no máximo 15MB de buffer para segurança
@@ -233,19 +233,26 @@ seguida do texto integral transcrito.
 NÃO resuma, NÃO omita valores, prazos, itens, exigências habilitatórias ou cláusulas.
 Se uma página for ilegível, informe "[Página X de ${fileName} - Trecho ilegível no original]".`;
 
-    const response = await model.generateContent([
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType: 'application/pdf',
-        },
-      },
-      prompt,
-    ]);
+    for (const modelName of modelosOcr) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const response = await model.generateContent([
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: 'application/pdf',
+            },
+          },
+          prompt,
+        ]);
 
-    const visualText = String(response?.response?.text?.() || '').trim();
-    if (visualText.length >= 100) {
-      return visualText;
+        const visualText = String(response?.response?.text?.() || '').trim();
+        if (visualText.length >= 100) {
+          return visualText;
+        }
+      } catch (modelErr: any) {
+        console.warn(`[PNCP Parser] OCR modelo ${modelName} falhou em ${fileName}:`, modelErr?.message);
+      }
     }
     return '';
   } catch (aiErr: any) {
@@ -531,7 +538,9 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     });
 
     const hasRealPdfChunk = existingChunks.some((c: any) => !c?.metadata?.structuredFallback);
-    if (existingChunks.length > 0 && hasRealPdfChunk) {
+    const existingMeta = (typeof notice?.metadata === 'object' && notice?.metadata ? notice.metadata : {}) as Record<string, any>;
+    const needsParserUpgrade = Number(existingMeta.parserVersion || 0) < 3;
+    if (existingChunks.length > 0 && hasRealPdfChunk && !needsParserUpgrade) {
       return existingChunks.map((c) => c.content).join('\n\n');
     }
 
@@ -608,7 +617,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
     if (candidatos.length === 0 && arquivos[0]) candidatos.push(arquivos[0]);
 
     const editalArquivo = candidatos[0];
-    const seqArquivo = editalArquivo?.sequencialArquivo || editalArquivo?.sequencial || 1;
+    const seqArquivo = Number(editalArquivo?.sequencialDocumento || editalArquivo?.sequencialArquivo || editalArquivo?.sequencial || 1);
     const urlArquivoPDF = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seqArquivo}`;
 
     const textosAnexos: string[] = [];
@@ -618,25 +627,33 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
       sequencial: number;
       status: 'EXTRAIDO' | 'SEM_TEXTO' | 'ERRO';
       caracteres: number;
+      observacao?: string;
     }> = [];
 
     for (const arq of candidatos) {
-      const seq = Number(arq.sequencialArquivo || arq.sequencial || 1);
+      const seq = Number(arq.sequencialDocumento || arq.sequencialArquivo || arq.sequencial || 1);
       const urlArq = `${PNCP_BASE}/orgaos/${cnpj}/compras/${ano}/${sequencial}/arquivos/${seq}`;
       const nomeArq = String(arq.titulo || arq.nome || 'anexo.pdf');
       const tipoArq = String(arq.tipoDocumentoNome || arq.tipo_documento_nome || 'Documento');
 
       try {
         const docRes = await axios.get(urlArq, { responseType: 'arraybuffer', timeout: 45000 });
-        const txt = await extrairBufferRecursivo(Buffer.from(docRes.data), nomeArq);
+        let buf: Buffer | null = Buffer.from(docRes.data);
+        const tamanhoBytes = buf.length;
+        const txt = await extrairBufferRecursivo(buf, nomeArq);
+        buf = null; // libera referencia do buffer da memoria apos extrair
+
         if (txt && txt.length >= 50) {
           textosAnexos.push(`=== ANEXO: ${nomeArq} ===\n${txt}`);
           arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'EXTRAIDO', caracteres: txt.length });
         } else {
-          arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'SEM_TEXTO', caracteres: 0 });
+          const obs = tamanhoBytes > 15 * 1024 * 1024
+            ? 'PDF digitalizado acima de 15MB (excede limite técnico de OCR visual automático).'
+            : 'Arquivo sem camada de texto legível (ou OCR indisponível).';
+          arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'SEM_TEXTO', caracteres: 0, observacao: obs });
         }
       } catch (downErr: any) {
-        arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'ERRO', caracteres: 0 });
+        arquivosInventario.push({ nome: nomeArq, tipo: tipoArq, sequencial: seq, status: 'ERRO', caracteres: 0, observacao: downErr?.message });
         console.warn(`[PNCP Parser] Falha ao baixar anexo ${nomeArq}:`, downErr.message);
       }
     }
@@ -677,6 +694,7 @@ export async function preencherTextoEditalAutomaticamente(edital_id: string): Pr
         data: {
           metadata: {
             ...currentMeta,
+            parserVersion: 3,
             arquivosInventario,
             totalAnexosDisponiveis: arquivos.length,
             totalAnexosLidos: arquivosInventario.filter((a) => a.status === 'EXTRAIDO').length,
@@ -798,7 +816,7 @@ export async function obterTextoEAnexosOficiais(edital_id: string): Promise<Resu
       arquivosOficiais = rawArquivos
         .filter((a: any) => a.statusAtivo !== false)
         .map((a: any) => {
-          const seq = a.sequencialArquivo || a.sequencial || 1;
+          const seq = a.sequencialDocumento || a.sequencialArquivo || a.sequencial || 1;
           return {
             titulo: String(a.titulo || a.nome || 'Anexo do Edital').trim(),
             tipoDocumento: String(a.tipoDocumentoNome || a.tipo_documento_nome || 'Documento Oficial').trim(),
@@ -813,21 +831,22 @@ export async function obterTextoEAnexosOficiais(edital_id: string): Promise<Resu
     }
   }
 
-  // Consulta chunks existentes
+  // Consulta chunks existentes (sem limite fixo de 80 chunks)
   let existingChunks = await prisma.documentChunk.findMany({
     where: {
       sourceType: 'procurement_notice',
       sourceId: { in: lookupIds },
     },
     orderBy: { chunkIndex: 'asc' },
-    take: 80,
     select: { content: true, metadata: true },
   });
 
   const hasRealPdfChunk = existingChunks.some((c: any) => !c?.metadata?.structuredFallback);
+  const existingMeta = (typeof notice?.metadata === 'object' && notice?.metadata ? notice.metadata : {}) as Record<string, any>;
+  const needsParserUpgrade = Number(existingMeta.parserVersion || 0) < 3;
 
-  // Se não tem chunks ou se só tinha fallback antigo mas temos arquivos oficiais, dispara extração real
-  if (existingChunks.length === 0 || (!hasRealPdfChunk && arquivosOficiais.length > 0)) {
+  // Se não tem chunks, só tinha fallback antigo, ou está em versão antiga do parser, dispara extração real integral
+  if (existingChunks.length === 0 || (!hasRealPdfChunk && arquivosOficiais.length > 0) || (needsParserUpgrade && arquivosOficiais.length > 0)) {
     await preencherTextoEditalAutomaticamente(cleanId);
     existingChunks = await prisma.documentChunk.findMany({
       where: {

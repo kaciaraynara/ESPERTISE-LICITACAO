@@ -46,7 +46,7 @@ const SEGMENT_RULES: SegmentRule[] = [
       'enxoval', 'toalha', 'lencol', 'epitecido', 'bone',
     ],
     negativeBlockers: [
-      'lavadora de roupa', 'maquina de lavar', 'centrifuga de roupa', 'centrifuga de roupas', 'tanquinho', 'secadora industrial', 'calandra', 'passadeira', 'eletrodomestico',
+      'lavadora de roupa', 'lavadora de roupas', 'maquina de lavar', 'maquina de lavar roupas', 'centrifuga de roupa', 'centrifuga de roupas', 'tanquinho', 'secadora de roupa', 'secadora de roupas', 'secadora industrial', 'calandra', 'passadeira', 'eletrodomestico',
       'insumo hospitalar', 'insumos hospitalares', 'medicamento', 'medicamentos',
       'seringa', 'cateter', 'cirurgico', 'cirurgica', 'odontologico', 'laboratorial',
       'pavimentacao', 'asfalto', 'rede de esgoto', 'esgotamento sanitario', 'terraplenagem',
@@ -384,4 +384,16 @@ export function evaluateNoticeViability(
     motivosPositivos,
     alertas,
   };
+}
+
+export function filtrarAvaliacoesAderentes<
+  T extends { cnaeCompativel: boolean; bloqueadoPorTermoNegativo: boolean }
+>(avaliacoes: T[]): { aderentes: T[]; foraDoPerfil: T[] } {
+  const aderentes = avaliacoes.filter(
+    (a) => a.cnaeCompativel === true && a.bloqueadoPorTermoNegativo === false,
+  );
+  const foraDoPerfil = avaliacoes.filter(
+    (a) => a.cnaeCompativel !== true || a.bloqueadoPorTermoNegativo === true,
+  );
+  return { aderentes, foraDoPerfil };
 }

@@ -372,7 +372,7 @@ export async function enviarAlertaEditaisCnae(params: {
       Ola, equipe da <strong>${params.empresaNome}</strong>! Separamos <strong>${params.editais.length}</strong> licitacao(oes) aberta(s) no PNCP compativel(is) com o seu perfil:
     </p>
     <ul style="list-style:none;padding-left:0;">${editaisHtml}</ul>
-    <a href="${appUrl}/licitacoes" class="btn">Ver Radar Completo</a>
+    <a href="${appUrl}/fornecedor/licitacoes" class="btn">Ver Radar Completo</a>
   `);
 
   return sendEmail({

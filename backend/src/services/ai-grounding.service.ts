@@ -109,11 +109,11 @@ interface RetrievalResult {
 }
 
 const MAX_NOTICES = 3;
-const MAX_CHUNKS = 60;
+const MAX_CHUNKS = 200;
 const MAX_RULES = 8;
 const MAX_CITATIONS = 10;
 const QUERY_LIMIT = 12000;
-const DOCUMENT_TEXT_LIMIT = 150000;
+const DOCUMENT_TEXT_LIMIT = 300000;
 const CONTEXT_QUERY_LIMIT = 1200;
 const EXCERPT_LIMIT = 600;
 
@@ -1219,11 +1219,11 @@ function buildGroundedPrompt(
 ) {
   const companyBlock = retrieval.activeCompany
     ? [
-        `Razao Social: ${retrieval.activeCompany.razaoSocial}`,
-        `CNPJ: ${retrieval.activeCompany.cnpj}`,
-        `Cidade/UF: ${[retrieval.activeCompany.municipio, retrieval.activeCompany.uf].filter(Boolean).join('/') || 'Nao informada'}`,
-        `CNAE Principal: ${retrieval.activeCompany.cnaePrincipal || 'Nao informado'}`,
-      ].join('\n')
+      `Razao Social: ${retrieval.activeCompany.razaoSocial}`,
+      `CNPJ: ${retrieval.activeCompany.cnpj}`,
+      `Cidade/UF: ${[retrieval.activeCompany.municipio, retrieval.activeCompany.uf].filter(Boolean).join('/') || 'Nao informada'}`,
+      `CNAE Principal: ${retrieval.activeCompany.cnaePrincipal || 'Nao informado'}`,
+    ].join('\n')
     : 'Empresa ativa nao identificada no contexto.';
 
   const notices = retrieval.notices
@@ -1237,6 +1237,22 @@ function buildGroundedPrompt(
         ? ficha.pontosDeAtencaoERiscos.map((p: any) => `- [${p.gravidade}] ${p.titulo} (Pag. ${p.pagina}): ${p.trechoLiteral}`).join('\n')
         : 'Auditar diretamente nos trechos abaixo.';
 
+      const prof = ficha?.explicacaoProfessor;
+      const blocosProfessor = prof
+        ? [
+          prof.bloco1ObjetoPratico,
+          prof.bloco2DisputaEPrazos,
+          prof.bloco3HabilitacaoCompleta,
+          prof.bloco4GarantiasECustosOcultos,
+          prof.bloco5EntregaPagamentoVigenciaPenalidades,
+          prof.bloco6BeneficiosMeEppEstrategia,
+          prof.bloco7PontosCriticosEFormalismo,
+        ]
+          .filter(Boolean)
+          .map((b: any) => `${b.titulo} [${b.referenciaFonte}]:\n${b.resumoDidatico}`)
+          .join('\n\n')
+        : ficha?.resumoExplicado || '';
+
       return [
         `Fonte ${index + 1}: ${buildNoticeLabel(notice)}`,
         `ID: ${notice.id}`,
@@ -1247,8 +1263,9 @@ function buildGroundedPrompt(
         `Data Abertura: ${notice.openingAt ?? 'nao informada'}`,
         `Valor Estimado: ${notice.estimatedValue ?? 'nao informado'}`,
         `Arquivos Lidos: ${inventario}`,
+        blocosProfessor ? `Explicacao Completa do Edital (Modo Professor - mesma exibida no Leitor):\n${blocosProfessor}` : '',
         `Pontos Criticos Detectados na Ficha:\n${pontosCriticos}`,
-      ].join('\n');
+      ].filter(Boolean).join('\n');
     })
     .join('\n\n');
 

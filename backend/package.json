@@ -14,6 +14,8 @@
     "start:prod": "node --max-old-space-size=384 dist/server.js",
     "start:api": "node dist/server.js",
     "start:worker": "node dist/worker.js",
+    "worker:editais": "node --max-old-space-size=448 dist/workers/edital-reader.worker.js",
+    "worker:editais:once": "node --max-old-space-size=448 dist/workers/edital-reader.worker.js --once",
     "dev:worker": "ts-node --transpile-only -r dotenv/config -r tsconfig-paths/register src/worker.ts",
     "migrate": "prisma migrate deploy",
     "setup:pgvector": "tsx src/scripts/setup-pgvector-base-juridica.ts",
