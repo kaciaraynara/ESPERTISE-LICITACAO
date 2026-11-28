@@ -29,6 +29,7 @@ export interface VicioApontamento {
   gravidade: 'ALTO' | 'MEDIO' | 'BAIXO';
   arquivoOrigem?: string;
   pagina?: number | string;
+  clausula?: string;
   trechoLiteral: string;
   fundamentoLegal: string;
   explicacaoSimples?: string;
@@ -36,7 +37,7 @@ export interface VicioApontamento {
 }
 
 export interface AuditoriaData {
-  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME';
+  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME' | 'EM_ANDAMENTO';
   mensagem: string;
   totalVicios: number;
   viciosAltos: number;
@@ -110,7 +111,10 @@ export const LeitorEditaisPage: React.FC = () => {
 
   const [sourceMode, setSourceMode] = useState<'PDF_ANEXO_REAL' | 'PDF_ESCANEADO_SEM_TEXTO' | 'APENAS_METADADOS_PNCP' | null>(null);
   const [arquivosOficiais, setArquivosOficiais] = useState<ArquivoOficial[]>([]);
+  const [arquivosInventario, setArquivosInventario] = useState<Array<{ nome: string; tipo: string; status: string; observacao?: string }>>([]);
   const [auditoria, setAuditoria] = useState<AuditoriaData | null>(null);
+  const [statusAprofundamento, setStatusAprofundamento] = useState<'EM_ANDAMENTO' | 'CONCLUIDO' | null>(null);
+  const [mensagemAprofundamento, setMensagemAprofundamento] = useState<string>('');
 
   const [editalTexto, setEditalTexto] = useState('');
   const [uploadingPdf, setUploadingPdf] = useState(false);
@@ -133,13 +137,20 @@ export const LeitorEditaisPage: React.FC = () => {
       setCruzamentoEmpresa(null);
       setSourceMode(null);
       setArquivosOficiais([]);
+      setArquivosInventario([]);
       setAuditoria(null);
+      setStatusAprofundamento(null);
+      setMensagemAprofundamento('');
       setEditalTexto('');
       setMostrarTextoBruto(false);
       return;
     }
 
     let active = true;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let pollCount = 0;
+    const MAX_POLLS = 20;
+
     setCarregandoEdital(true);
     setMostrarTextoBruto(false);
 
@@ -149,8 +160,9 @@ export const LeitorEditaisPage: React.FC = () => {
       noticesApi.getBasicSummary(selectedEditalId),
       noticesApi.getById(selectedEditalId),
       api.get('/notices/' + encodeURIComponent(selectedEditalId) + '/chunks?limit=500' + companyQuery).catch(() => null),
+      noticesApi.deepRead(selectedEditalId, false, selectedCompany?.id).catch(() => null),
     ])
-      .then(([basicRes, detailRes, chunksRes]) => {
+      .then(([basicRes, detailRes, chunksRes, deepRes]) => {
         if (!active) return;
 
         let mergedData: any = null;
@@ -202,6 +214,58 @@ export const LeitorEditaisPage: React.FC = () => {
           }
         }
 
+        if (deepRes.status === 'fulfilled' && deepRes.value?.data?.data) {
+          const dd = deepRes.value.data.data;
+          if (dd.specs) {
+            fetchedSpecs = dd.specs;
+            if (dd.specs.auditoria) fetchedAuditoria = dd.specs.auditoria;
+            if (dd.specs.possuiArquivosReaisLidos) fetchedSourceMode = 'PDF_ANEXO_REAL';
+          }
+          if (dd.cruzamentoEmpresa) {
+            setCruzamentoEmpresa(dd.cruzamentoEmpresa);
+          }
+          if (Array.isArray(dd.arquivosInventario)) {
+            setArquivosInventario(dd.arquivosInventario);
+          }
+          if (dd.statusAprofundamento === 'EM_ANDAMENTO') {
+            setStatusAprofundamento('EM_ANDAMENTO');
+            setMensagemAprofundamento(
+              dd.mensagemUsuario ||
+              'Concluindo a leitura completa de todos os anexos e preparando a análise estratégica para sua empresa...',
+            );
+            pollTimer = setInterval(async () => {
+              if (!active) return;
+              pollCount += 1;
+              if (pollCount > MAX_POLLS) {
+                if (pollTimer) clearInterval(pollTimer);
+                return;
+              }
+              try {
+                const pollResp = await noticesApi.deepRead(selectedEditalId, false, selectedCompany?.id);
+                const pd = pollResp?.data?.data;
+                if (!active || !pd) return;
+                if (pd.specs) {
+                  setFichaSpecs(pd.specs);
+                  if (pd.specs.auditoria) setAuditoria(pd.specs.auditoria);
+                  if (pd.specs.possuiArquivosReaisLidos) setSourceMode('PDF_ANEXO_REAL');
+                }
+                if (pd.cruzamentoEmpresa) setCruzamentoEmpresa(pd.cruzamentoEmpresa);
+                if (Array.isArray(pd.arquivosInventario)) setArquivosInventario(pd.arquivosInventario);
+                if (pd.statusAprofundamento === 'CONCLUIDO') {
+                  setStatusAprofundamento('CONCLUIDO');
+                  setMensagemAprofundamento('');
+                  if (pollTimer) clearInterval(pollTimer);
+                }
+              } catch {
+                // Mantém polling até atingir limite de segurança
+              }
+            }, 3000);
+          } else {
+            setStatusAprofundamento('CONCLUIDO');
+            setMensagemAprofundamento('');
+          }
+        }
+
         setSourceMode(fetchedSourceMode);
         setArquivosOficiais(fetchedArquivos);
         setFichaSpecs(fetchedSpecs);
@@ -226,6 +290,7 @@ export const LeitorEditaisPage: React.FC = () => {
 
     return () => {
       active = false;
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, [selectedEditalId, selectedCompany?.id]);
 
@@ -357,7 +422,7 @@ export const LeitorEditaisPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               disabled={!selectedEditalId || baixandoArquivo}
@@ -418,6 +483,17 @@ export const LeitorEditaisPage: React.FC = () => {
           </div>
         </div>
 
+        {/* FAIXA DE LEITURA PROGRESSIVA EM ANDAMENTO */}
+        {selectedEditalId && statusAprofundamento === 'EM_ANDAMENTO' && (
+          <div className="px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-center gap-2.5">
+            <RefreshCw className="w-4 h-4 text-[#0070C0] animate-spin shrink-0" />
+            <span className="font-semibold">
+              {mensagemAprofundamento ||
+                'Concluindo a leitura completa de todos os anexos e preparando a análise estratégica para sua empresa...'}
+            </span>
+          </div>
+        )}
+
         {/* AVISO DISCRETO DE 1 LINHA QUANDO NÃO HOUVER PDF REAL */}
         {selectedEditalId && !carregandoEdital && sourceMode && !temPdfReal && (
           <div className="px-4 py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-700 flex items-center gap-2">
@@ -462,13 +538,37 @@ export const LeitorEditaisPage: React.FC = () => {
           </div>
         ) : (
           /* LAYOUT CORPORATIVO EM 2 COLUNAS LADO A LADO */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* COLUNA ESQUERDA (~28%): MENU DE SEÇÕES + DOCUMENTOS DA EMPRESA */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start">
+            {/* NAVEGAÇÃO HORIZONTAL TOUCH-FRIENDLY NO CELULAR/TABLET (< lg) */}
+            <nav
+              aria-label="Seções do Edital (Mobile)"
+              className="flex lg:hidden overflow-x-auto gap-2 pb-2 -mx-1 px-1"
+            >
+              {menuSecoes.map((sec) => {
+                const ativo = abaDossie === sec.id;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => setAbaDossie(sec.id)}
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-lg text-xs font-bold transition whitespace-nowrap shrink-0 cursor-pointer border ${ativo
+                      ? 'bg-[#0B192C] text-white border-[#0B192C]'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-[#0B192C]'
+                      }`}
+                  >
+                    {sec.icon}
+                    <span>{sec.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* COLUNA ESQUERDA (~28%): MENU DE SEÇÕES (DESKTOP) + DOCUMENTOS DA EMPRESA */}
             <aside className="lg:col-span-4 xl:col-span-3 space-y-5">
-              {/* Menu de Seções */}
+              {/* Menu de Seções Desktop */}
               <nav
                 aria-label="Seções do Edital"
-                className="bg-white rounded-xl border border-slate-200 p-2 flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible shadow-2xs"
+                className="hidden lg:flex lg:flex-col bg-white rounded-xl border border-slate-200 p-2 gap-1 shadow-2xs"
               >
                 {menuSecoes.map((sec) => {
                   const ativo = abaDossie === sec.id;
@@ -477,7 +577,7 @@ export const LeitorEditaisPage: React.FC = () => {
                       key={sec.id}
                       type="button"
                       onClick={() => setAbaDossie(sec.id)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition whitespace-nowrap lg:whitespace-normal text-left cursor-pointer shrink-0 lg:shrink ${ativo
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition text-left cursor-pointer ${ativo
                         ? 'bg-[#0B192C] text-white'
                         : 'text-slate-600 hover:bg-slate-100 hover:text-[#0B192C]'
                         }`}
@@ -542,7 +642,7 @@ export const LeitorEditaisPage: React.FC = () => {
             {/* COLUNA DIREITA (~72%): FOLHA CORPORATIVA DE LEITURA */}
             <main className="lg:col-span-8 xl:col-span-9 bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
               {/* CABEÇALHO LIMPO DO EDITAL + VEREDITO PRÁTICO */}
-              <div className="p-6 border-b border-slate-200 space-y-4">
+              <div className="p-4 sm:p-6 border-b border-slate-200 space-y-4 break-words">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-semibold">
@@ -587,7 +687,7 @@ export const LeitorEditaisPage: React.FC = () => {
               </div>
 
               {/* CONTEÚDO DA SEÇÃO SELECIONADA */}
-              <div className="p-6 text-xs sm:text-sm text-slate-700 leading-relaxed">
+              <div className="p-4 sm:p-6 text-sm text-slate-700 leading-relaxed break-words">
                 {/* 1. VISÃO GERAL E OBJETO */}
                 {abaDossie === 'visao' && (
                   <div className="space-y-6">
@@ -657,6 +757,90 @@ export const LeitorEditaisPage: React.FC = () => {
                           </p>
                         </div>
                       ) : null}
+
+                      {/* CARD DEDICADO: ESTRATÉGIA PRÁTICA PARA A EMPRESA ATIVA */}
+                      {cruzamentoEmpresa?.estrategiaPratica && (
+                        <div className="mt-5 rounded-xl border border-[#0B192C]/20 bg-[#0B192C]/[0.02] p-4 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                            <h3 className="text-xs sm:text-sm font-black text-[#0B192C]">
+                              Estratégia Prática para {cruzamentoEmpresa.razaoSocial}
+                            </h3>
+                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-slate-700">
+                              Porte: {cruzamentoEmpresa.porte}
+                            </span>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
+                            {cruzamentoEmpresa.estrategiaPratica.resumoExecutivo}
+                          </p>
+
+                          {Array.isArray(cruzamentoEmpresa.estrategiaPratica.beneficiosLc123) &&
+                            cruzamentoEmpresa.estrategiaPratica.beneficiosLc123.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+                                  Benefícios e Regras de Porte (LC 123/2006)
+                                </span>
+                                <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
+                                  {cruzamentoEmpresa.estrategiaPratica.beneficiosLc123.map((b: string, i: number) => (
+                                    <li key={i}>{b}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                          {Array.isArray(cruzamentoEmpresa.estrategiaPratica.impactosCaixaEHabilitacao) &&
+                            cruzamentoEmpresa.estrategiaPratica.impactosCaixaEHabilitacao.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-[#0B192C] block">
+                                  Impactos na Habilitação e no Caixa
+                                </span>
+                                <ul className="list-disc pl-4 space-y-1 text-xs text-slate-700">
+                                  {cruzamentoEmpresa.estrategiaPratica.impactosCaixaEHabilitacao.map((imp: string, i: number) => (
+                                    <li key={i}>{imp}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                          {Array.isArray(cruzamentoEmpresa.estrategiaPratica.itensForaDoPerfil) &&
+                            cruzamentoEmpresa.estrategiaPratica.itensForaDoPerfil.length > 0 && (
+                              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-900">
+                                {cruzamentoEmpresa.estrategiaPratica.itensForaDoPerfil.map((al: string, i: number) => (
+                                  <p key={i}>{al}</p>
+                                ))}
+                              </div>
+                            )}
+                        </div>
+                      )}
+
+                      {/* PONTOS CRÍTICOS ENCONTRADOS NOS ANEXOS */}
+                      {auditoria && Array.isArray(auditoria.apontamentos) && auditoria.apontamentos.length > 0 && (
+                        <div className="mt-5 space-y-3">
+                          <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-rose-800">
+                            Pontos Críticos Encontrados nos Anexos ({auditoria.apontamentos.length})
+                          </h3>
+                          <div className="space-y-2.5">
+                            {auditoria.apontamentos.map((ap, idx) => (
+                              <div key={idx} className="rounded-xl border border-rose-200 bg-rose-50/40 p-3.5 space-y-1.5 text-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <strong className="text-[#0B192C]">{ap.titulo}</strong>
+                                  <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                                    {ap.arquivoOrigem || 'Documento oficial'} · Pág. {ap.pagina || '1'} · {ap.clausula || 'Cláusula'}
+                                  </span>
+                                </div>
+                                <p className="text-slate-700 italic bg-white/80 border border-rose-100 rounded-lg p-2">
+                                  &ldquo;{ap.trechoLiteral}&rdquo;
+                                </p>
+                                <p className="text-slate-700">{ap.explicacaoSimples}</p>
+                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
+                                  <span className="font-bold text-[#0070C0]">{ap.fundamentoLegal}</span>
+                                  <span className="font-bold text-rose-800">Ação recomendada: {ap.acaoRecomendada}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
@@ -718,8 +902,8 @@ export const LeitorEditaisPage: React.FC = () => {
                           {(() => {
                             const aber =
                               crono?.aberturaSessaoPublica ||
-                              selectedEditalData?.openingAt ||
-                              selectedEditalData?.closingAt;
+                              selectedEditalData?.closingAt ||
+                              selectedEditalData?.openingAt;
                             return aber ? formatPncpDateBR(aber, true) : 'Não informada no registro';
                           })()}
                         </p>
@@ -736,8 +920,8 @@ export const LeitorEditaisPage: React.FC = () => {
                               crono?.prazoLimiteImpugnacao ||
                               calcularPrazoImpugnacaoArt164(
                                 crono?.aberturaSessaoPublica ||
-                                selectedEditalData?.openingAt ||
-                                selectedEditalData?.closingAt,
+                                selectedEditalData?.closingAt ||
+                                selectedEditalData?.openingAt,
                               );
                             return rawImp ? formatPncpDateBR(rawImp, true) : 'Até 3 dias úteis antes da abertura';
                           })()}
@@ -763,40 +947,76 @@ export const LeitorEditaisPage: React.FC = () => {
                 {abaDossie === 'itens' && (
                   <div className="space-y-3">
                     {itens.length > 0 ? (
-                      <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                              <th className="py-2.5 px-3 text-center">Item</th>
-                              <th className="py-2.5 px-3 min-w-[220px]">Descrição Oficial</th>
-                              <th className="py-2.5 px-3 text-center">Quantidade</th>
-                              <th className="py-2.5 px-3 text-right">Valor Unitário Ref.</th>
-                              <th className="py-2.5 px-3 text-right">Valor Total Estimado</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 bg-white">
-                            {itens.map((it: any, idx: number) => (
-                              <tr key={idx} className="hover:bg-slate-50/70">
-                                <td className="py-2.5 px-3 font-mono font-bold text-center text-[#0B192C]">
-                                  {it.itemNumero ?? it.numeroItem ?? it.itemNumber ?? idx + 1}
-                                </td>
-                                <td className="py-2.5 px-3 font-medium text-slate-800">
-                                  {it.descricao ?? it.descricaoCompleta ?? it.description}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-semibold">
-                                  {it.quantidade ?? it.quantity ?? 1} {it.unidade ?? it.unidadeMedida ?? 'UN'}
-                                </td>
-                                <td className="py-2.5 px-3 text-right">
-                                  {formatBRL(it.valorUnitarioEstimado ?? it.estimatedUnitValue)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-bold text-[#0B192C]">
-                                  {formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}
-                                </td>
+                      <>
+                        {/* CARDS PARA CELULAR (< sm) */}
+                        <div className="block sm:hidden space-y-2.5">
+                          {itens.map((it: any, idx: number) => (
+                            <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2 text-xs">
+                              <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 pb-1.5">
+                                <span className="font-mono font-black text-[#0B192C]">
+                                  Item {it.itemNumero ?? it.numeroItem ?? it.itemNumber ?? idx + 1}
+                                </span>
+                                <span className="font-bold text-slate-600">
+                                  Qtd: {it.quantidade ?? it.quantity ?? 1} {it.unidade ?? it.unidadeMedida ?? 'UN'}
+                                </span>
+                              </div>
+                              <p className="font-medium text-slate-800 break-words leading-relaxed">
+                                {it.descricao ?? it.descricaoCompleta ?? it.description}
+                              </p>
+                              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/70">
+                                <div>
+                                  <span className="text-[10px] text-slate-500 block">Valor Unitário</span>
+                                  <strong className="text-slate-800">
+                                    {formatBRL(it.valorUnitarioEstimado ?? it.estimatedUnitValue)}
+                                  </strong>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-500 block">Total Estimado</span>
+                                  <strong className="text-[#0B192C]">
+                                    {formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}
+                                  </strong>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* TABELA PARA TABLET/DESKTOP (>= sm) */}
+                        <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-lg">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <th className="py-2.5 px-3 text-center">Item</th>
+                                <th className="py-2.5 px-3 min-w-[220px]">Descrição Oficial</th>
+                                <th className="py-2.5 px-3 text-center">Quantidade</th>
+                                <th className="py-2.5 px-3 text-right">Valor Unitário Ref.</th>
+                                <th className="py-2.5 px-3 text-right">Valor Total Estimado</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {itens.map((it: any, idx: number) => (
+                                <tr key={idx} className="hover:bg-slate-50/70">
+                                  <td className="py-2.5 px-3 font-mono font-bold text-center text-[#0B192C]">
+                                    {it.itemNumero ?? it.numeroItem ?? it.itemNumber ?? idx + 1}
+                                  </td>
+                                  <td className="py-2.5 px-3 font-medium text-slate-800">
+                                    {it.descricao ?? it.descricaoCompleta ?? it.description}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center font-semibold">
+                                    {it.quantidade ?? it.quantity ?? 1} {it.unidade ?? it.unidadeMedida ?? 'UN'}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right">
+                                    {formatBRL(it.valorUnitarioEstimado ?? it.estimatedUnitValue)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-bold text-[#0B192C]">
+                                    {formatBRL(it.valorTotalEstimado ?? it.estimatedTotalValue)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     ) : (
                       <p className="text-xs text-slate-500 py-4">
                         Nenhum item detalhado foi disponibilizado nos registros atuais deste edital.
@@ -1063,16 +1283,23 @@ export const LeitorEditaisPage: React.FC = () => {
                         {arquivosOficiais.map((arq, idx) => (
                           <div
                             key={idx}
-                            className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition"
+                            className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                              <FileText className="w-4 h-4 text-slate-500 shrink-0 mt-0.5 sm:mt-0" />
                               <div className="min-w-0">
-                                <span className="font-bold text-[#0B192C] block truncate" title={arq.titulo}>
+                                <span className="font-bold text-[#0B192C] block break-words" title={arq.titulo}>
                                   {arq.titulo}
                                 </span>
                                 <span className="text-[11px] text-slate-500 block">
                                   {arq.tipoDocumento} {arq.tamanhoBytes ? `· ${formatBytes(arq.tamanhoBytes)}` : ''}
+                                  {(() => {
+                                    const inv = arquivosInventario.find((x) => x.nome === arq.titulo);
+                                    if (!inv) return '';
+                                    if (inv.status === 'EXTRAIDO') return ' · Anexo oficial lido por completo';
+                                    if (statusAprofundamento === 'EM_ANDAMENTO') return ' · Documento digitalizado em processamento';
+                                    return ` · ${inv.observacao || 'Anexo oficial disponível para consulta'}`;
+                                  })()}
                                 </span>
                               </div>
                             </div>

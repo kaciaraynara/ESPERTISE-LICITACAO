@@ -16,7 +16,7 @@ export interface VicioIrregularidadeEdital {
 }
 
 export interface AuditoriaEditalResultado {
-  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME';
+  status: 'IRREGULARIDADE_DETECTADA' | 'CONFORME' | 'EM_ANDAMENTO';
   mensagem: string;
   totalVicios: number;
   viciosAltos: number;
@@ -213,7 +213,13 @@ export class EditalDeepAnalyzerService {
     return res ? res.formatado : null;
   }
 
-  public static analisarTextoIntegral(notice: any, chunks: string[], itensOficiais: any[] = []): ExtractedSpecsFicha {
+  public static analisarTextoIntegral(
+    notice: any,
+    chunks: string[],
+    itensOficiais: any[] = [],
+    options: { emAndamento?: boolean } = {},
+  ): ExtractedSpecsFicha {
+    const emAndamento = Boolean(options.emAndamento);
     const cleanChunks = chunks.filter(
       (c) => c && !c.includes('AVISO DE ESCOPO REAL — TEXTO INTEGRAL DO EDITAL NÃO DISPONIBILIZADO EM PDF'),
     );
@@ -222,9 +228,11 @@ export class EditalDeepAnalyzerService {
     const tLower = textoCompleto.toLowerCase();
 
     // 1 e 2. Classificação estrita de Disputa e Execução (somente com leitura completa)
-    const statusLeituraCompleta: StatusLeituraCompleta = possuiArquivosReaisLidos
-      ? 'CONCLUIDO'
-      : 'SEM_ARQUIVO_LEGIVEL';
+    const statusLeituraCompleta: StatusLeituraCompleta = emAndamento
+      ? 'LENDO'
+      : possuiArquivosReaisLidos
+        ? 'CONCLUIDO'
+        : 'SEM_ARQUIVO_LEGIVEL';
     const execClass = classifyExecutionMode(textoCompleto, statusLeituraCompleta, {
       modality: notice?.modality,
       modoDisputa: notice?.modoDisputa,
@@ -339,8 +347,8 @@ export class EditalDeepAnalyzerService {
       balancoPatrimonial = extrairSentencaPorRegex(textoCompleto, /balanço\s+patrimonial[^.\n]{0,200}/i, 180) || 'Exigido nos termos do edital';
     } else if (capEconomica) {
       balancoPatrimonial = capEconomica.formatado;
-    } else if (possuiArquivosReaisLidos) {
-      balancoPatrimonial = NAO_EXIGIDO;
+    } else {
+      balancoPatrimonial = NAO_ESPECIFICADO;
     }
 
     const capitalOuPl = extrairSentencaPorRegex(
@@ -355,7 +363,7 @@ export class EditalDeepAnalyzerService {
         160,
       ),
       capitalOuPl,
-    ].filter(Boolean).join(' | ') || (capEconomica ? capEconomica.formatado : (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO));
+    ].filter(Boolean).join(' | ') || (capEconomica ? capEconomica.formatado : NAO_ESPECIFICADO);
 
     // Atestado Técnico, Percentual e Tempo Mínimo de Experiência
     const atestadoTecnico = extrairSentencaPorRegex(
@@ -369,7 +377,7 @@ export class EditalDeepAnalyzerService {
     const matchPercentAtestado = textoCompleto.match(/(?:atestado|capacidade\s+técnica|quantitativo\s+mínimo)[^.\n]{0,100}(\d{1,3}\s*%)/i);
     const limiteAtestadoPercentual = matchPercentAtestado
       ? `Exige comprovação de ${matchPercentAtestado[1]} (${extrairSentencaPorRegex(textoCompleto, /(?:atestado|capacidade\s+técnica)[^.\n]{0,100}\d{1,3}\s*%/i, 80)})`
-      : (atestadoTecnico !== NAO_EXIGIDO && atestadoTecnico !== NAO_ESPECIFICADO ? 'Percentual numérico não especificado' : NAO_EXIGIDO);
+      : NAO_ESPECIFICADO;
 
     const tempoMinimoExperiencia = extrairSentencaPorRegex(
       textoCompleto,
@@ -381,7 +389,7 @@ export class EditalDeepAnalyzerService {
       textoCompleto,
       /(?:registro\s+(?:ou\s+inscrição\s+)?no\s+(?:crea|cau|cra|crq|crm|coren|crf|cro|conselho\s+regional)|licença\s+sanitária|anvisa|alvará\s+de\s+funcionamento)[^.\n]{0,160}/i,
       140,
-    ) || NAO_EXIGIDO;
+    ) || NAO_ESPECIFICADO;
 
     // 5. Condições Financeiras e Contratuais Reais
     const condicoesPagamento = extrairSentencaPorRegex(
@@ -415,7 +423,7 @@ export class EditalDeepAnalyzerService {
     const garantiaContratual = [
       garantiaProposta ? `Garantia de Proposta (Caução Art. 58): ${garantiaProposta}` : '',
       garantiaExec ? `Garantia Contratual (Art. 96): ${garantiaExec}` : '',
-    ].filter(Boolean).join(' | ') || (possuiArquivosReaisLidos ? NAO_EXIGIDO : NAO_ESPECIFICADO);
+    ].filter(Boolean).join(' | ') || NAO_ESPECIFICADO;
 
     const multasEPenalidades = extrairSentencaPorRegex(
       textoCompleto,
@@ -435,12 +443,18 @@ export class EditalDeepAnalyzerService {
       : [];
 
     const auditoriaResultado: AuditoriaEditalResultado = {
-      status: vicios.length > 0 ? 'IRREGULARIDADE_DETECTADA' : 'CONFORME',
+      status: vicios.length > 0 ? 'IRREGULARIDADE_DETECTADA' : emAndamento ? 'EM_ANDAMENTO' : 'CONFORME',
       mensagem: !possuiArquivosReaisLidos
-        ? 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o PDF do edital para checar exigências e riscos antes de disputar.'
+        ? emAndamento
+          ? 'Lendo todos os documentos oficiais do certame. Os anexos seguem em processamento.'
+          : 'Auditoria de cláusulas pendente: apenas os dados básicos do portal foram publicados. Anexe o documento do edital para checar exigências e riscos antes de disputar.'
         : vicios.length > 0
-          ? `Edital auditado: foram identificadas ${vicios.length} irregularidade(s) com prova literal nos documentos oficiais.`
-          : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
+          ? emAndamento
+            ? `Lendo todos os documentos oficiais do certame: já foram identificadas ${vicios.length} irregularidade(s) nos anexos analisados até o momento.`
+            : `Edital auditado: foram identificadas ${vicios.length} irregularidade(s) com prova literal nos documentos oficiais.`
+          : emAndamento
+            ? 'Lendo todos os documentos oficiais do certame. A verificação completa de cláusulas e anexos segue em andamento.'
+            : 'Edital auditado por completo: nenhuma cláusula restritiva ou irregularidade identificada nos arquivos analisados.',
       totalVicios: vicios.length,
       viciosAltos: vicios.filter((v) => v.gravidade === 'ALTO').length,
       viciosMedios: vicios.filter((v) => v.gravidade === 'MEDIO').length,
@@ -732,7 +746,11 @@ export class EditalDeepAnalyzerService {
     textoReal: string,
   ): Promise<ExtractedSpecsFicha> {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || !fichaBase.possuiArquivosReaisLidos || textoReal.trim().length < 250) {
+    if (!apiKey) {
+      console.warn('[EditalDeepAnalyzer] GEMINI_API_KEY ausente no servidor: mantendo extração determinística e auditoria de nulidades.');
+      return fichaBase;
+    }
+    if (!fichaBase.possuiArquivosReaisLidos || textoReal.trim().length < 250) {
       return fichaBase;
     }
 
@@ -741,7 +759,7 @@ export class EditalDeepAnalyzerService {
       const genAI = new GoogleGenerativeAI(apiKey);
       const modelos = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest'];
 
-      // Map-Reduce: envia o texto integral ate 240k chars por bloco (sem perder secao intermediaria)
+      // Map-Reduce: envia o texto integral de todos os anexos em blocos de 240k chars (sem limite fixo de páginas)
       const blocos: string[] = [];
       const TAM_BLOCO = 240000;
       for (let i = 0; i < textoReal.length; i += TAM_BLOCO) {
@@ -749,7 +767,7 @@ export class EditalDeepAnalyzerService {
       }
 
       const parsed: Record<string, any> = {};
-      for (const blocoTexto of blocos.slice(0, 4)) {
+      for (const blocoTexto of blocos) {
         const prompt = `Você é um professor especialista em licitações públicas brasileiras (Lei 14.133/2021 e LC 123/2006) orientando um empresário antes da disputa.
 Extraia EXCLUSIVAMENTE as informações literais presentes no texto oficial abaixo, traduzindo o juridiquês para a prática do licitante sem inventar nada.
 REGRAS INEGOCIAVEIS:
@@ -884,7 +902,12 @@ ${blocoTexto}`;
       fichaBase.prazosECondicoes.prazoPagamento = fichaBase.secoes.financeiroEContrato.condicoesPagamento;
       fichaBase.prazosECondicoes.vigenciaContrato = fichaBase.secoes.financeiroEContrato.vigenciaContrato;
     } catch (err: any) {
-      console.warn('[EditalDeepAnalyzer] Refinamento IA opcional indisponível, mantendo extração determinística:', err?.message);
+      const errMsg = String(err?.message || '');
+      if (/401|403|API_KEY_INVALID|invalid api key|permission denied/i.test(errMsg)) {
+        console.error('[EditalDeepAnalyzer] Erro de autenticação na GEMINI_API_KEY:', errMsg);
+      } else {
+        console.warn('[EditalDeepAnalyzer] Refinamento IA opcional indisponível, mantendo extração determinística:', errMsg);
+      }
     }
 
     return fichaBase;
@@ -893,7 +916,11 @@ ${blocoTexto}`;
   /**
    * Executa a análise profunda de um edital e salva na base de dados
    */
-  public static async processarEditalPorId(noticeId: string, force = false): Promise<ExtractedSpecsFicha | null> {
+  public static async processarEditalPorId(
+    noticeId: string,
+    force = false,
+    options: { skipAi?: boolean; emAndamento?: boolean } = {},
+  ): Promise<ExtractedSpecsFicha | null> {
     const notice = await prisma.procurementNotice.findFirst({
       where: {
         OR: [
@@ -910,7 +937,7 @@ ${blocoTexto}`;
     if (!notice) return null;
 
     const existingMeta = (typeof notice.metadata === 'object' && notice.metadata ? notice.metadata : {}) as Record<string, any>;
-    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 6 && existingMeta.extractedSpecsJson?.explicacaoProfessor) {
+    if (!force && existingMeta.deepReadStatus === 'DONE' && Number(existingMeta.fichaVersion || 0) >= 7 && existingMeta.extractedSpecsJson?.explicacaoProfessor) {
       return existingMeta.extractedSpecsJson as ExtractedSpecsFicha;
     }
 
@@ -924,28 +951,39 @@ ${blocoTexto}`;
     });
 
     const textosChunks = chunks.map((c) => c.content);
-    let ficha = this.analisarTextoIntegral(notice, textosChunks, notice.items || []);
+    const emAndamento = Boolean(options.emAndamento);
+    let ficha = this.analisarTextoIntegral(notice, textosChunks, notice.items || [], { emAndamento });
 
-    // Refina extração sobre o texto real dos arquivos (caso haja texto real extraído)
-    if (ficha.possuiArquivosReaisLidos) {
+    // Refina extração sobre o texto real dos arquivos (caso haja texto real extraído e não seja modo rápido)
+    if (!options.skipAi && ficha.possuiArquivosReaisLidos) {
       ficha = await this.refinarExtracaoComIaReal(ficha, textosChunks.join('\n\n'));
     }
 
     // Atualiza metadados com deepReadStatus, statusLeituraCompleta, classificação estrita e ficha estruturada
     const strictExec = classifyExecutionMode(
       textosChunks.join('\n\n'),
-      ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
+      emAndamento ? 'LENDO' : ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
       { modality: notice.modality, modoDisputa: notice.modoDisputa, object: notice.object },
     );
+
+    const nextDeepReadStatus = emAndamento
+      ? 'PROCESSING'
+      : ficha.possuiArquivosReaisLidos
+        ? 'DONE'
+        : 'PENDING';
 
     await prisma.procurementNotice.update({
       where: { id: notice.id },
       data: {
         metadata: {
           ...(typeof notice.metadata === 'object' && notice.metadata ? (notice.metadata as Record<string, any>) : {}),
-          deepReadStatus: ficha.possuiArquivosReaisLidos ? 'DONE' : 'PENDING',
-          statusLeituraCompleta: ficha.possuiArquivosReaisLidos ? 'CONCLUIDO' : 'SEM_ARQUIVO_LEGIVEL',
-          fichaVersion: 6,
+          deepReadStatus: nextDeepReadStatus,
+          statusLeituraCompleta: emAndamento
+            ? 'LENDO'
+            : ficha.possuiArquivosReaisLidos
+              ? 'CONCLUIDO'
+              : 'SEM_ARQUIVO_LEGIVEL',
+          fichaVersion: 7,
           deepReadAt: new Date().toISOString(),
           extractedSpecsJson: ficha as any,
           isRemoteDispute: strictExec.isRemoteDispute,
