@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Expertise Licitatória - Conector Oficial de Disputa",
-  "version": "1.0.0",
-  "description": "Conector oficial para acompanhamento em tempo real e automação segura de lances nos portais Compras.gov.br, BLL, BNC e Portal de Compras Públicas.",
+  "version": "1.1.0",
+  "description": "Conector oficial para acompanhamento em tempo real e envio autorizado de lances nos portais Compras.gov.br, BLL, BNC e Portal de Compras Públicas.",
   "permissions": [
     "storage",
     "activeTab",
@@ -12,9 +12,11 @@
   "host_permissions": [
     "*://*.comprasnet.gov.br/*",
     "*://*.compras.gov.br/*",
+    "*://cnetmobile.estaleiro.serpro.gov.br/*",
     "*://*.bll.org.br/*",
     "*://*.bllcompras.com/*",
     "*://*.bnc.org.br/*",
+    "*://*.bnccompras.com/*",
     "*://*.portaldecompraspublicas.com.br/*",
     "http://localhost:3000/*",
     "http://localhost:3001/*",
@@ -25,7 +27,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Expertise Licitatória - Mesa de Disputa",
+    "default_title": "Expertise Licitatória - Sala de Disputa",
     "default_icon": {
       "16": "assets/icon16.png",
       "48": "assets/icon48.png",
@@ -40,12 +42,15 @@
       "matches": [
         "*://*.comprasnet.gov.br/*",
         "*://*.compras.gov.br/*",
+        "*://cnetmobile.estaleiro.serpro.gov.br/*",
         "*://*.bll.org.br/*",
         "*://*.bllcompras.com/*",
         "*://*.bnc.org.br/*",
+        "*://*.bnccompras.com/*",
         "*://*.portaldecompraspublicas.com.br/*",
         "http://localhost:5173/*",
         "http://localhost:5174/*",
+        "https://*.onrender.com/*",
         "https://*.vercel.app/*"
       ],
       "js": ["scripts/content.js"],

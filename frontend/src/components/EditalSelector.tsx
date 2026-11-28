@@ -29,6 +29,7 @@ export interface EditalOption {
 
 interface EditalSelectorProps {
   label?: string;
+  placeholder?: string;
   selectedId?: string;
   value?: string;
   onSelectEdital: (edital: EditalOption) => void;
@@ -38,6 +39,7 @@ interface EditalSelectorProps {
 
 export const EditalSelector: React.FC<EditalSelectorProps> = ({
   label = 'Selecionar Edital Cadastrado / Monitorado',
+  placeholder = '-- Selecione um edital para leitura e auditoria de cláusulas --',
   selectedId,
   value,
   onSelectEdital,
@@ -415,7 +417,7 @@ export const EditalSelector: React.FC<EditalSelectorProps> = ({
           className="w-full py-2.5 pl-3 pr-10 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C] focus:border-transparent transition-all shadow-xs cursor-pointer disabled:opacity-50"
         >
           <option value="" className="text-slate-500 font-normal">
-            -- Selecione um edital para leitura e auditoria de cláusulas --
+            {placeholder}
           </option>
 
           {editaisFiltrados.map((ed) => (

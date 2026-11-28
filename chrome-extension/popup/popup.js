@@ -13,44 +13,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnEmergencyStop = document.getElementById('btnEmergencyStop');
   const btnOpenMesa = document.getElementById('btnOpenMesa');
 
-  // Carrega estado salvo do storage
-  chrome.storage.local.get(['activeCompany', 'activeNotice', 'automationEnabled', 'lastSyncedPortal', 'itemsData'], (res) => {
-    if (res.activeCompany) {
-      companyNameEl.textContent = res.activeCompany.razaoSocial || res.activeCompany.nomeFantasia || 'Empresa Conectada';
-    } else {
-      companyNameEl.textContent = 'Expertise Ativa';
-    }
+  let mesaUrl = 'http://localhost:5173/fornecedor/disputa-ao-vivo';
 
-    if (res.activeNotice) {
-      noticeNameEl.textContent = res.activeNotice.numeroEdital || res.activeNotice.id || 'Monitorado';
-    }
+  chrome.storage.local.get(
+    ['activeCompany', 'activeNotice', 'automationEnabled', 'itemsData', 'expertiseAppUrl'],
+    (res) => {
+      if (res.expertiseAppUrl) {
+        try {
+          const parsed = new URL(res.expertiseAppUrl);
+          mesaUrl = `${parsed.origin}/fornecedor/disputa-ao-vivo`;
+        } catch {
+          // Mantém URL padrão
+        }
+      }
 
-    if (res.automationEnabled) {
-      toggleAutomation.checked = true;
-    }
+      if (res.activeCompany) {
+        companyNameEl.textContent = res.activeCompany.razaoSocial || res.activeCompany.nomeFantasia || 'Empresa Conectada';
+      } else {
+        companyNameEl.textContent = 'Expertise Ativa';
+      }
 
-    if (res.itemsData && Array.isArray(res.itemsData)) {
-      itemCountEl.textContent = res.itemsData.length;
-      const minBid = Math.min(...res.itemsData.map(i => Number(i.melhorLance || 0)).filter(v => v > 0));
-      if (minBid > 0 && isFinite(minBid)) {
-        lowestBidEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(minBid);
+      if (res.activeNotice) {
+        noticeNameEl.textContent = res.activeNotice.numeroEdital || res.activeNotice.id || 'Monitorado';
+      }
+
+      if (res.automationEnabled) {
+        toggleAutomation.checked = true;
+      }
+
+      if (res.itemsData && Array.isArray(res.itemsData)) {
+        itemCountEl.textContent = res.itemsData.length;
+        const minBid = Math.min(...res.itemsData.map((i) => Number(i.melhorLance || 0)).filter((v) => v > 0));
+        if (minBid > 0 && isFinite(minBid)) {
+          lowestBidEl.textContent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(minBid);
+        }
       }
     }
-  });
+  );
 
-  // Identifica a aba ativa do navegador
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
       const url = tab.url.toLowerCase();
       let detectedPortal = null;
 
-      if (url.includes('comprasnet.gov.br') || url.includes('compras.gov.br')) {
+      if (
+        url.includes('cnetmobile.estaleiro.serpro.gov.br') ||
+        url.includes('comprasnet.gov.br') ||
+        url.includes('compras.gov.br')
+      ) {
         detectedPortal = 'Compras.gov.br';
       } else if (url.includes('bllcompras.com') || url.includes('bll.org.br')) {
         detectedPortal = 'BLL Compras';
-      } else if (url.includes('bnc.org.br')) {
-        detectedPortal = 'BNC Compras';
+      } else if (url.includes('bnccompras.com') || url.includes('bnc.org.br')) {
+        detectedPortal = 'BNC';
       } else if (url.includes('portaldecompraspublicas.com.br')) {
         detectedPortal = 'Portal de Compras Públicas';
       }
@@ -60,35 +76,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         portalNameEl.className = 'badge active-portal';
         portalInfoEl.textContent = 'Conectado à sala de disputa deste portal.';
         statusIndicator.className = 'status-badge connected';
-        statusText.textContent = 'Conectado';
+        statusText.textContent = 'Portal Conectado';
 
-        // Envia mensagem para o content script para puxar dados frescos
         chrome.tabs.sendMessage(tab.id, { action: 'REQUEST_PORTAL_STATE' }, (response) => {
-          if (chrome.runtime.lastError) {
-            // Content script ainda não carregou ou página recém-aberta
-            return;
-          }
+          if (chrome.runtime.lastError) return;
           if (response && response.items) {
             itemCountEl.textContent = response.items.length;
           }
         });
       } else {
         portalNameEl.textContent = 'Não detectado';
-        portalInfoEl.textContent = 'Abra a aba do certame no portal para sincronização.';
+        portalInfoEl.textContent = 'Abra a aba do pregão no portal oficial para acompanhar ao vivo.';
       }
     }
   } catch (err) {
     console.warn('Erro ao inspecionar aba ativa:', err);
   }
 
-  // Toggle de Automação
   toggleAutomation.addEventListener('change', () => {
     const isEnabled = toggleAutomation.checked;
     if (isEnabled) {
       const confirmou = confirm(
-        'TERMO DE OPERAÇÃO ASSISTIDA:\n\n' +
-        'A automação só enviará lances respeitando o intervalo regulamentar e NUNCA cobrirá lances abaixo do seu Valor Mínimo (Sem Prejuízo) cadastrado.\n\n' +
-        'Deseja ativar?'
+        'TERMO DE LANCE AUTOMÁTICO PROTEGIDO:\n\n' +
+          'O envio automático respeita intervalo de 2 a 5 segundos e NUNCA envia lances abaixo do seu Piso Mínimo (Proteção de Lucro) definido na Sala de Disputa.\n\n' +
+          'Deseja ativar?'
       );
       if (!confirmou) {
         toggleAutomation.checked = false;
@@ -100,12 +111,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.sendMessage({ action: 'TOGGLE_AUTOMATION', enabled: isEnabled });
   });
 
-  // Botão de Parada de Emergência
   btnEmergencyStop.addEventListener('click', () => {
     toggleAutomation.checked = false;
     chrome.storage.local.set({ automationEnabled: false });
 
-    // Notifica background e content script
     chrome.runtime.sendMessage({ action: 'EMERGENCY_STOP' });
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]?.id) {
@@ -113,11 +122,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    alert('PARADA DE EMERGÊNCIA ACIONADA!\nTodos os lances automáticos foram cancelados imediatamente.');
+    alert('PARADA DE EMERGÊNCIA ACIONADA!\nTodos os lances automáticos foram interrompidos imediatamente.');
   });
 
-  // Abrir Mesa Estratégica Completa
   btnOpenMesa.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'http://localhost:5173/fornecedor/disputa-ao-vivo' });
+    chrome.tabs.create({ url: mesaUrl });
   });
 });
